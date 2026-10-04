@@ -1,0 +1,12 @@
+build/
+*.o
+*.elf
+*.hex
+*.profraw
+*.profdata
+*.gcda
+*.gcno
+__pycache__/
+.ruff_cache/
+node_modules/
+.coverage

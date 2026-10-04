@@ -1,0 +1,10 @@
+.git
+.work
+.work-local
+build
+node_modules
+**/__pycache__
+.ruff_cache
+docs
+specs
+*.md
