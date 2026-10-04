@@ -22,10 +22,10 @@ This is not an optical-drive emulator. It does not replace the drive, does not s
 
 ## Documentation
 
-- `docs/specification.md`: the full project specification, goals through open questions.
-- `docs/hardware.md`: the board-family model, injection points, clock sources, and the compatibility matrix.
-- `docs/research/`: the evidence base, one file per domain, every fact confidence-tagged.
-- `docs/decisions/`: the architectural decision records, currently proposed and awaiting approval.
+- [`INSTALL.md`](INSTALL.md): the technical install guide, with the pin map, the per-board-family tap-point matrix, and the programming and fuse steps.
+- [`AGENTS.md`](AGENTS.md): the contract and hard rules for anyone working in this repository.
+
+The full specification, hardware model, research corpus, and decision records are development material kept outside the published tree.
 
 ## Prior art and credit
 
