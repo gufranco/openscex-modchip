@@ -26,6 +26,9 @@ jobs:
       - name: Build images, sizes, static analysis and tests in the pinned toolchain
         run: make all size analyse test
 
+      - name: Verify reproducible build
+        run: make repro
+
   commit-messages:
     name: Commit messages
     if: github.event_name == 'pull_request'

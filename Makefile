@@ -10,7 +10,7 @@ MCUS := attiny85 attiny84
 F_CPU := 8000000UL
 FLASH_BYTES := 8192
 
-CONTAINER_TARGETS := all size hosttest simtest analyse test misra
+CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro
 
 .PHONY: $(CONTAINER_TARGETS) clean
 
@@ -139,5 +139,17 @@ misra:
 
 image_misra:
 	$(foreach config,$(CPPCHECK_CONFIGS),cppcheck $(CPPCHECK_FLAGS) $(config) --addon=misra $(FIRMWARE_C) &&) true
+
+REPRO_A := $(BUILD)/repro-a
+REPRO_B := $(BUILD)/repro-b
+
+repro:
+	rm -rf $(REPRO_A) $(REPRO_B)
+	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) BUILD=$(REPRO_A) image &&) true
+	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) BUILD=$(REPRO_B) image &&) true
+	cd $(REPRO_A) && find . -type f \( -name '*.hex' -o -name '*.elf' \) | sort | xargs sha256sum > $(CURDIR)/$(BUILD)/repro-a.sums
+	cd $(REPRO_B) && find . -type f \( -name '*.hex' -o -name '*.elf' \) | sort | xargs sha256sum > $(CURDIR)/$(BUILD)/repro-b.sums
+	diff $(BUILD)/repro-a.sums $(BUILD)/repro-b.sums
+	@echo "reproducible build verified: identical artifacts across two fresh builds"
 
 endif
