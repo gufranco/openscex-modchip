@@ -35,12 +35,13 @@ WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -Wsh
 HOST_CFLAGS := $(C_STD) -Iinclude $(WARNINGS)
 
 LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c
+HOST_LOGIC_C := $(LOGIC_C) src/mode.c
 FIRMWARE_C := $(LOGIC_C) src/main.c
 FIRMWARE_S := src/port.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
 HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c
 SIM_TEST_C := tests/sim/sim_test.c
-C_FILES := $(FIRMWARE_C) $(FIRMWARE_H) $(HOST_TEST_C) $(SIM_TEST_C)
+C_FILES := $(FIRMWARE_C) src/mode.c $(FIRMWARE_H) $(HOST_TEST_C) $(SIM_TEST_C)
 HOST_TEST := $(BUILD)/host/host_test
 SIM_TEST := $(BUILD)/sim/sim_test
 SIM_CFLAGS := $(C_STD) -O2 -Wall -Wextra -Werror \
@@ -92,9 +93,9 @@ hosttest: $(HOST_TEST)
 	gcovr --root . --filter 'src/' --exclude-branches-by-pattern '.*PSCU_ASSERT.*' \
 		--fail-under-line 100 --fail-under-branch 100 --print-summary $(BUILD)/host
 
-$(HOST_TEST): $(LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H)
+$(HOST_TEST): $(HOST_LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H)
 	@mkdir -p $(@D)
-	$(HOST_CC) $(HOST_CFLAGS) -O0 -DPSCU_DEBUG --coverage -o $@ $(LOGIC_C) $(HOST_TEST_C)
+	$(HOST_CC) $(HOST_CFLAGS) -O0 -DPSCU_DEBUG --coverage -o $@ $(HOST_LOGIC_C) $(HOST_TEST_C)
 
 $(SIM_TEST): $(SIM_TEST_C) $(RELEASE_ELF)
 	@mkdir -p $(@D)
