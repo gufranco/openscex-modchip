@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
+# SPDX-License-Identifier: MIT
+
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
