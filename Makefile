@@ -37,12 +37,21 @@ HOST_CFLAGS := $(C_STD) -Iinclude $(WARNINGS)
 
 LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c
 HOST_LOGIC_C := $(LOGIC_C) src/mode.c
-FIRMWARE_C := $(LOGIC_C) src/main.c
+
+ifeq ($(MCU),attiny85)
+FIRMWARE_C := $(LOGIC_C) src/engine.c src/run_basic.c src/main.c
+CPPCHECK_MCU_DEF := -D__AVR_ATtiny85__
+else
+FIRMWARE_C := $(LOGIC_C) src/engine.c src/run_modes.c src/mode.c src/main.c
+CPPCHECK_MCU_DEF := -D__AVR_ATtiny84__
+endif
+
+ALL_SRC_C := $(LOGIC_C) src/mode.c src/engine.c src/run_basic.c src/run_modes.c src/main.c
 FIRMWARE_S := src/port.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
 HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c
 SIM_TEST_C := tests/sim/sim_test.c
-C_FILES := $(FIRMWARE_C) src/mode.c $(FIRMWARE_H) $(HOST_TEST_C) $(SIM_TEST_C)
+C_FILES := $(ALL_SRC_C) $(FIRMWARE_H) $(HOST_TEST_C) $(SIM_TEST_C)
 HOST_TEST := $(BUILD)/host/host_test
 SIM_TEST := $(BUILD)/sim/sim_test
 SIM_CFLAGS := $(C_STD) -O2 -Wall -Wextra -Werror \
@@ -66,7 +75,7 @@ CPPCHECK_FLAGS := --std=c17 --platform=avr8 --enable=all --check-level=exhaustiv
 	--error-exitcode=1 --suppress=checkersReport --inline-suppr \
 	'--suppress=*:$(AVR_INCLUDE)/*' '--suppress=*:$(AVR_GCC_INCLUDE)/*' \
 	-Iinclude -I$(AVR_INCLUDE) -I$(AVR_GCC_INCLUDE) \
-	-D__AVR_ATtiny85__ -DF_CPU=$(F_CPU)
+	$(CPPCHECK_MCU_DEF) -DF_CPU=$(F_CPU)
 CPPCHECK_CONFIGS := -DPSCU_DEBUG -UPSCU_DEBUG
 
 all:
@@ -123,6 +132,9 @@ analyse: all
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage report -m
 
 misra:
+	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) image_misra &&) true
+
+image_misra:
 	$(foreach config,$(CPPCHECK_CONFIGS),cppcheck $(CPPCHECK_FLAGS) $(config) --addon=misra $(FIRMWARE_C) &&) true
 
 endif

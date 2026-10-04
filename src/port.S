@@ -19,7 +19,7 @@ pscu_port_init:
 	out _SFR_IO_ADDR(CLKPR), r24
 	ldi r24, (1 << PSCU_PIN_LED)
 	out _SFR_IO_ADDR(PSCU_DDR), r24
-	ldi r24, 0x00
+	ldi r24, PSCU_PORT_INIT
 	out _SFR_IO_ADDR(PSCU_PORT), r24
 	wdr
 	ldi r24, (1 << WDCE) | (1 << WDE)
@@ -135,3 +135,53 @@ pscu_port_data_mirror_wfck_ms:
 6:
 	ret
 	.endfunc
+
+#if defined(PSCU_PIN_LID)
+
+	.global pscu_port_read_reset
+	.func pscu_port_read_reset
+pscu_port_read_reset:
+	in r24, _SFR_IO_ADDR(PSCU_PINREG)
+	andi r24, (1 << PSCU_PIN_RESET)
+	ret
+	.endfunc
+
+	.global pscu_port_read_lid
+	.func pscu_port_read_lid
+pscu_port_read_lid:
+	in r24, _SFR_IO_ADDR(PSCU_PINREG)
+	andi r24, (1 << PSCU_PIN_LID)
+	ret
+	.endfunc
+
+	.global pscu_port_eeprom_read
+	.func pscu_port_eeprom_read
+pscu_port_eeprom_read:
+7:
+	sbic _SFR_IO_ADDR(EECR), EEPE
+	rjmp 7b
+	clr r25
+	out _SFR_IO_ADDR(EEARH), r25
+	out _SFR_IO_ADDR(EEARL), r24
+	sbi _SFR_IO_ADDR(EECR), EERE
+	in r24, _SFR_IO_ADDR(EEDR)
+	ret
+	.endfunc
+
+	.global pscu_port_eeprom_write
+	.func pscu_port_eeprom_write
+pscu_port_eeprom_write:
+8:
+	sbic _SFR_IO_ADDR(EECR), EEPE
+	rjmp 8b
+	clr r25
+	out _SFR_IO_ADDR(EECR), r25
+	out _SFR_IO_ADDR(EEARH), r25
+	out _SFR_IO_ADDR(EEARL), r24
+	out _SFR_IO_ADDR(EEDR), r22
+	sbi _SFR_IO_ADDR(EECR), EEMPE
+	sbi _SFR_IO_ADDR(EECR), EEPE
+	ret
+	.endfunc
+
+#endif
