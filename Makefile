@@ -9,7 +9,7 @@ MCU ?= attiny85
 F_CPU := 8000000UL
 FLASH_BYTES := 8192
 
-CONTAINER_TARGETS := all size hosttest analyse test misra
+CONTAINER_TARGETS := all size hosttest simtest analyse test misra
 
 .PHONY: $(CONTAINER_TARGETS) clean
 
@@ -39,8 +39,14 @@ FIRMWARE_C := $(LOGIC_C) src/main.c
 FIRMWARE_S := src/port.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
 HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c
-C_FILES := $(FIRMWARE_C) $(FIRMWARE_H) $(HOST_TEST_C)
+SIM_TEST_C := tests/sim/sim_test.c
+C_FILES := $(FIRMWARE_C) $(FIRMWARE_H) $(HOST_TEST_C) $(SIM_TEST_C)
 HOST_TEST := $(BUILD)/host/host_test
+SIM_TEST := $(BUILD)/sim/sim_test
+SIM_CFLAGS := $(C_STD) -O2 -Wall -Wextra -Werror \
+	$(patsubst -I%,-isystem %,$(shell pkg-config --cflags simavr libelf))
+SIM_LIBS := $(shell pkg-config --libs simavr libelf)
+SIM_CLOCKS_HZ := 7200000 8000000 8800000
 
 RELEASE := $(BUILD)/$(MCU)/release
 RELEASE_ELF := $(RELEASE)/$(NAME)-$(MCU).elf
@@ -90,7 +96,14 @@ $(HOST_TEST): $(LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -O0 -DPSCU_DEBUG --coverage -o $@ $(LOGIC_C) $(HOST_TEST_C)
 
-test: hosttest
+$(SIM_TEST): $(SIM_TEST_C) $(RELEASE_ELF)
+	@mkdir -p $(@D)
+	$(HOST_CC) $(SIM_CFLAGS) -o $@ $(SIM_TEST_C) $(SIM_LIBS)
+
+simtest: $(SIM_TEST)
+	$(foreach clk,$(SIM_CLOCKS_HZ),$(SIM_TEST) $(RELEASE_ELF) $(clk) &&) true
+
+test: hosttest simtest
 
 analyse: all
 	clang-format --dry-run --Werror $(C_FILES)
