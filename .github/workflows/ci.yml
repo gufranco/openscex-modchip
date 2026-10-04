@@ -35,6 +35,9 @@ jobs:
       - name: Build external-clock variant (compile check)
         run: make CLOCK=external size
 
+      - name: Build other-region variants (compile check)
+        run: make REGION=jp size && make REGION=eu size
+
   commit-messages:
     name: Commit messages
     if: github.event_name == 'pull_request'

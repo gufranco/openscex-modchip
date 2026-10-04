@@ -18,6 +18,25 @@ F_CPU := 8000000UL
 CLOCK_TAG :=
 endif
 
+# Region the chip emulates. The build is region-specific so the firmware emits
+# only the console's own region string. us is the default and carries no tag.
+REGION ?= us
+ifeq ($(REGION),jp)
+REGION_DEF := -DPSCU_REGION_JP
+REGION_TAG := -jp
+else ifeq ($(REGION),eu)
+REGION_DEF := -DPSCU_REGION_EU
+REGION_TAG := -eu
+else
+REGION_DEF :=
+REGION_TAG :=
+endif
+
+# Each clock and region build differs in generated code, so their objects must
+# never share a directory; VARIANT keeps them separate. An empty VARIANT (the
+# internal-clock America default) keeps the plain artifact name the sim expects.
+VARIANT := $(CLOCK_TAG)$(REGION_TAG)
+
 CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate
 
 .PHONY: $(CONTAINER_TARGETS) clean
@@ -28,7 +47,7 @@ clean:
 ifndef PSCU_TOOLCHAIN
 
 $(CONTAINER_TARGETS):
-	$(PYTHON) tools/docker_make.py $@ CLOCK=$(CLOCK) EXT_F_CPU=$(EXT_F_CPU)
+	$(PYTHON) tools/docker_make.py $@ CLOCK=$(CLOCK) EXT_F_CPU=$(EXT_F_CPU) REGION=$(REGION)
 
 else
 
@@ -62,12 +81,12 @@ SIM_CFLAGS := $(C_STD) -O2 -Wall -Wextra -Werror \
 SIM_LIBS := $(shell pkg-config --libs simavr libelf)
 SIM_CLOCKS_HZ := 7200000 8000000 8800000
 
-RELEASE := $(BUILD)/$(MCU)$(CLOCK_TAG)/release
-RELEASE_ELF := $(RELEASE)/$(NAME)-$(MCU)$(CLOCK_TAG).elf
-RELEASE_HEX := $(RELEASE)/$(NAME)-$(MCU)$(CLOCK_TAG).hex
+RELEASE := $(BUILD)/$(MCU)$(VARIANT)/release
+RELEASE_ELF := $(RELEASE)/$(NAME)-$(MCU)$(VARIANT).elf
+RELEASE_HEX := $(RELEASE)/$(NAME)-$(MCU)$(VARIANT).hex
 RELEASE_OBJECTS := $(patsubst src/%,$(RELEASE)/%.o,$(FIRMWARE_C) $(FIRMWARE_S))
 
-AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
+AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
 	$(WARNINGS) -fno-common -ffunction-sections -fdata-sections
 AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) -Iinclude -Wall -Wextra -Werror
 AVR_LDFLAGS := -mmcu=$(MCU) -Os -flto -Wl,--gc-sections
@@ -78,7 +97,7 @@ CPPCHECK_FLAGS := --std=c17 --platform=avr8 --enable=all --check-level=exhaustiv
 	--error-exitcode=1 --suppress=checkersReport --inline-suppr \
 	'--suppress=*:$(AVR_INCLUDE)/*' '--suppress=*:$(AVR_GCC_INCLUDE)/*' \
 	-Iinclude -I$(AVR_INCLUDE) -I$(AVR_GCC_INCLUDE) \
-	$(CPPCHECK_MCU_DEF) -DF_CPU=$(F_CPU)
+	$(CPPCHECK_MCU_DEF) $(REGION_DEF) -DF_CPU=$(F_CPU)
 CPPCHECK_CONFIGS := -DPSCU_DEBUG -UPSCU_DEBUG
 
 all: image

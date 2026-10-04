@@ -8,6 +8,8 @@ Status (as of 2026-10-04): the ATtiny85 firmware builds at 624 bytes and passes 
 
 A PlayStation checks a physical fingerprint pressed into the disc lead-in, the wobble groove, which decodes to a four-character region string (SCEI for Japan, SCEA for the Americas, SCEE for Europe). The console boots only discs carrying the string it expects. This modchip injects the string the console wants, only in the window the console asks for, and re-arms when it detects a disc change, so out-of-region and backup discs boot.
 
+It is fully stealth: the build is region-specific and emits only that one configured region string, only during the short region-check window, and leaves the data line high-impedance and silent for the rest of the session, so it is electrically invisible during play. Pick the region at build time with `make REGION=jp|us|eu` (default America).
+
 It is a single ATtiny85 with four signal wires and power. There are no modes, no reset or lid wiring, and one optional status LED. Japanese fat consoles and the PAL PSone run a second region check inside the boot ROM that this chip does not patch, so some imports may still refuse to boot on those specific models.
 
 This is not an optical-drive emulator. It does not replace the drive, does not support PS2 or Saturn, and cannot defeat data-layer protections such as LibCrypt.

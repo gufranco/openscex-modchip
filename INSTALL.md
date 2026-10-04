@@ -50,6 +50,13 @@ Japanese fat consoles and the PAL PSone run a second region check inside the boo
 
 Program with `avrdude` on the host. Any ISP works, including an Arduino as ISP. The firmware resets the clock prescaler to divide-by-one at boot, so a factory CKDIV8 fuse does not change the timing.
 
+Pick the region first. The build emits only the console's own region string, so
+build for the console you are modding: `make REGION=jp`, `make REGION=us`
+(default) or `make REGION=eu`. A non-default region tags the artifact name, for
+example `openscex-modchip-attiny85-jp.hex`. The chip is stealth: it drives the
+region string only during the boot region-check window and stays high-impedance
+and silent during play, re-arming when you swap discs.
+
 Default internal-oscillator build, the only build verified in simulation:
 
 - Flash: `avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i`

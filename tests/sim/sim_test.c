@@ -45,11 +45,12 @@ typedef struct {
   uint8_t wfck;
 } target_t;
 
-// The Japanese (SCEI) word as the 44 DATA levels the firmware should emit,
-// LSB-first. The decoder reconstructs this and compares; a correct decode on
-// both board models proves the encoder and the per-model bit timing.
-static const char SCEI_BITS[SCEX_BITS + 1] =
-    "10011010100100111101001010111010010110110100";
+// The America (SCEA) word as the 44 DATA levels the firmware should emit,
+// LSB-first. This is the default build's single configured region, so it is
+// the only word the firmware emits; the decoder reconstructs it and compares. A
+// correct decode on both board models proves the encoder and the bit timing.
+static const char SCEA_BITS[SCEX_BITS + 1] =
+    "10011010100100111101001010111010010111110100";
 
 static int g_checks = 0;
 static int g_failures = 0;
@@ -166,9 +167,15 @@ static void decode_region(avr_t *avr, const target_t *t, int modern, char *out) 
     uint64_t base = g_led_cycle + ((uint64_t)k * BIT_CYCLES);
     uint8_t bit;
     if (modern != 0) {
+      // A modern one is DATA mirroring the WFCK carrier, so it oscillates
+      // within the cell. Sampling only a few points can alias onto the low
+      // phase and misread it; step finely across the central 40 percent of the
+      // cell and treat any high as a one, which always catches the carrier.
       uint8_t any_high = 0U;
-      for (int s = 3; s <= 7; s++) {
-        run_to(avr, base + ((uint64_t)s * BIT_CYCLES) / 10U);
+      uint64_t lo = base + ((3U * BIT_CYCLES) / 10U);
+      uint64_t hi = base + ((7U * BIT_CYCLES) / 10U);
+      for (uint64_t c = lo; c <= hi; c += 64U) {
+        run_to(avr, c);
         if (data_pin(avr, t) != 0U) {
           any_high = 1U;
         }
@@ -214,8 +221,8 @@ static void scenario_inject(const target_t *t, const char *elf, uint32_t freq,
     check(g_led_seen != 0, label);
     if (g_led_seen != 0) {
       decode_region(avr, t, modern, decoded);
-      (void)snprintf(label, sizeof(label), "%s: decodes SCEI at %u Hz", tag, freq);
-      check(strcmp(decoded, SCEI_BITS) == 0, label);
+      (void)snprintf(label, sizeof(label), "%s: decodes SCEA at %u Hz", tag, freq);
+      check(strcmp(decoded, SCEA_BITS) == 0, label);
     }
   } else {
     (void)snprintf(label, sizeof(label), "%s: non-TOC does not inject at %u Hz", tag,
