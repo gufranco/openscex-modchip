@@ -10,7 +10,7 @@ Firmware for an ATtiny that defeats the Sony PlayStation region lockout by injec
 
 1. **ATtiny only.** PIC is a research source, never a build target. Decided 2026-10-04.
 2. **C17 with MISRA C:2012 at zero deviations, in a pinned Docker toolchain.** MISRA covers only through C18, so C23 is out, matching the reference project's own superseding decision. See `docs/decisions/0001`. Every build, check and test runs in the pinned image; only programming with `avrdude` runs on the host.
-3. **Hybrid clock.** The default is the internal oscillator with SUBQ-decode stealth, which keeps PU-7/PU-8. An optional external console-clock path is offered for Mayumi-grade timing consistency, gated on measuring the mechacon clock frequency and voltage first. Do not feed any console signal to a clock pin before the voltage is measured. See `docs/decisions/0002`.
+3. **Console clock primary, internal fallback.** The modchip derives its clock from the console as the primary path, as Mayumi does, on the boards whose clock that approach can use (PU-18 and later). For old boards whose console clock differs (PU-7, PU-8), it falls back to the MCU internal oscillator or another console clock source. The external-clock path is gated on measuring the mechacon frequency and voltage first; until then the buildable default is the internal 8 MHz build, with the external build's F_CPU set to the measured frequency. Do not feed any console signal to a clock pin before the voltage is measured. See `docs/decisions/0002`.
 4. **Classic-ATtiny split.** ATtiny84A 14-pin PDIP is the full build; ATtiny85 8-pin PDIP is the minimal variant. Classic parts are the only ones meeting external clock, DIP, and simavr together. See `docs/decisions/0003`.
 5. **Full scope in version one, including the BIOS patch.** The boot-ROM patch for Japanese fat and PAL-PSone ships in v1 on the 14-pin build. The accepted risk, recorded in `docs/decisions/0004`, is that the hardest path is built before hardware exists; it is verified in the simavr console model first and every BIOS-patch claim stays Unknown until a real console confirms it.
 6. **One simple optional LED, single colour.** Never RGB or bicolor. The firmware is correct with no LED fitted, and the LED never drives the package choice.
@@ -19,6 +19,8 @@ Firmware for an ATtiny that defeats the Sony PlayStation region lockout by injec
 9. **Registers are touched only in assembly**, behind C prototypes. No C file includes an `avr/` or `util/` header, because avr-libc reaches registers through casts MISRA forbids.
 10. **Every timing constant carries its origin**: a measured bit cell, a datasheet figure, or a simulation. None is copied from another chip without derivation.
 11. **Every fact is tagged Read, Concluded, Verified, or Unknown.** Never present inference as measured fact.
+12. **Modes are selected by reset-hold on fat consoles and by lid open/close on the PSone**, stored in EEPROM, and cover the Mayumi, MM3, OneChip and PsNee modes: default/strongest, alternate timing, old-modchip, disabled, with a Universal region cycle. See `docs/decisions/0005` and `docs/modes.md`.
+13. **Injection uses the canonical 4ms-bit mirror model** agreed by MM3, Mayumi and the classic PsNee, not the kalymos V9 fixed-edge variant. A newer source never overrides an older, widely-deployed one without a stated reason, and every binary source is recorded with its SHA-256. See `docs/decisions/0006`.
 
 ## Layers
 

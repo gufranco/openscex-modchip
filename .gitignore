@@ -10,3 +10,6 @@ __pycache__/
 .ruff_cache/
 node_modules/
 .coverage
+docs/
+.DS_Store
+**/.DS_Store
