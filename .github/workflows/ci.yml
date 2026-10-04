@@ -29,6 +29,9 @@ jobs:
       - name: Verify reproducible build
         run: make repro
 
+      - name: Mutation testing
+        run: make mutate
+
   commit-messages:
     name: Commit messages
     if: github.event_name == 'pull_request'

@@ -19,24 +19,6 @@
 
 #define PSCU_PORT_INIT 0x00
 
-#elif defined(__AVR_ATtiny84__) || defined(__AVR_ATtiny84A__) || \
-    defined(__AVR_ATtiny44__) || defined(__AVR_ATtiny24__)
-
-#define PSCU_PORT PORTA
-#define PSCU_DDR DDRA
-#define PSCU_PINREG PINA
-#define PSCU_WDT_REG WDTCSR
-
-#define PSCU_PIN_SQCK 0
-#define PSCU_PIN_SUBQ 1
-#define PSCU_PIN_DATA 2
-#define PSCU_PIN_WFCK 3
-#define PSCU_PIN_LED 4
-#define PSCU_PIN_LID 5
-#define PSCU_PIN_RESET 6
-
-#define PSCU_PORT_INIT ((1 << PSCU_PIN_LID) | (1 << PSCU_PIN_RESET))
-
 #else
 #error "unsupported MCU: no PSCU board profile"
 #endif
