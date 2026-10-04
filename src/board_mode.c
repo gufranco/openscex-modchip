@@ -3,33 +3,37 @@
 
 #include "pscu/board_mode.h"
 
-#include <stdbool.h>
-#include <stddef.h>
+#define PSCU_BOARD_PULSES_MAX ((uint8_t)0xFFU)
 
-#include "pscu/assert.h"
+pscu_board_detect_t pscu_board_detect_init(void) {
+  pscu_board_detect_t state = {0U, 1U};
+  return state;
+}
 
-pscu_board_mode_t pscu_board_mode_from_samples(const uint8_t *wfck_samples,
-                                               uint16_t count,
-                                               uint8_t low_pulses_needed) {
-  PSCU_ASSERT(wfck_samples != NULL);
+pscu_board_detect_t pscu_board_detect_step(pscu_board_detect_t state,
+                                           uint8_t wfck_sample) {
+  uint8_t low = (uint8_t)((wfck_sample == 0U) ? 1U : 0U);
+
+  if ((low == 1U) && (state.prev_high == 1U) &&
+      (state.pulses < PSCU_BOARD_PULSES_MAX)) {
+    state.pulses = (uint8_t)(state.pulses + 1U);
+  }
+  state.prev_high = (uint8_t)(1U - low);
+
+  return state;
+}
+
+pscu_board_mode_t pscu_board_detect_mode(pscu_board_detect_t state,
+                                         uint8_t low_pulses_needed) {
+  pscu_board_mode_t mode = PSCU_BOARD_MODE_GATE;
 
   if (low_pulses_needed == 0U) {
-    return PSCU_BOARD_MODE_WFCK;
+    mode = PSCU_BOARD_MODE_WFCK;
+  } else if (state.pulses >= low_pulses_needed) {
+    mode = PSCU_BOARD_MODE_WFCK;
+  } else {
+    mode = PSCU_BOARD_MODE_GATE;
   }
 
-  uint8_t pulses = 0U;
-  bool prev_high = true;
-
-  for (uint16_t i = 0U; i < count; i++) {
-    bool low = (wfck_samples[i] == 0U);
-    if (low && prev_high) {
-      pulses++;
-      if (pulses >= low_pulses_needed) {
-        return PSCU_BOARD_MODE_WFCK;
-      }
-    }
-    prev_high = !low;
-  }
-
-  return PSCU_BOARD_MODE_GATE;
+  return mode;
 }

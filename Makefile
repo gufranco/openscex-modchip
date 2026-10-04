@@ -3,8 +3,13 @@
 
 PYTHON ?= python3
 BUILD := build
+NAME := psone-cdr-unlock
 
-CONTAINER_TARGETS := hosttest analyse test misra
+MCU ?= attiny85
+F_CPU := 8000000UL
+FLASH_BYTES := 8192
+
+CONTAINER_TARGETS := all size hosttest analyse test misra
 
 .PHONY: $(CONTAINER_TARGETS) clean
 
@@ -19,6 +24,10 @@ $(CONTAINER_TARGETS):
 else
 
 HOST_CC := gcc
+AVR_CC := avr-gcc
+AVR_OBJCOPY := avr-objcopy
+AVR_SIZE := avr-size
+
 C_STD := -std=c17 -pedantic-errors
 WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -Wshadow \
 	-Wstrict-prototypes -Wmissing-prototypes -Wundef -Wcast-qual -Wswitch-enum \
@@ -26,14 +35,50 @@ WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -Wsh
 HOST_CFLAGS := $(C_STD) -Iinclude $(WARNINGS)
 
 LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c
-LOGIC_H := $(wildcard include/pscu/*.h)
+FIRMWARE_C := $(LOGIC_C) src/main.c
+FIRMWARE_S := src/port.S
+FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
 HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c
-C_FILES := $(LOGIC_C) $(LOGIC_H) $(HOST_TEST_C)
+C_FILES := $(FIRMWARE_C) $(FIRMWARE_H) $(HOST_TEST_C)
 HOST_TEST := $(BUILD)/host/host_test
 
+RELEASE := $(BUILD)/$(MCU)/release
+RELEASE_ELF := $(RELEASE)/$(NAME)-$(MCU).elf
+RELEASE_HEX := $(RELEASE)/$(NAME)-$(MCU).hex
+RELEASE_OBJECTS := $(patsubst src/%,$(RELEASE)/%.o,$(FIRMWARE_C) $(FIRMWARE_S))
+
+AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
+	$(WARNINGS) -fno-common -ffunction-sections -fdata-sections
+AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) -Iinclude -Wall -Wextra -Werror
+AVR_LDFLAGS := -mmcu=$(MCU) -Os -flto -Wl,--gc-sections
+
+AVR_INCLUDE := /usr/lib/avr/include
+AVR_GCC_INCLUDE := $(shell $(AVR_CC) -print-file-name=include)
 CPPCHECK_FLAGS := --std=c17 --platform=avr8 --enable=all --check-level=exhaustive \
-	--error-exitcode=1 --suppress=checkersReport --inline-suppr -Iinclude -D__AVR_ATtiny85__
+	--error-exitcode=1 --suppress=checkersReport --inline-suppr \
+	'--suppress=*:$(AVR_INCLUDE)/*' '--suppress=*:$(AVR_GCC_INCLUDE)/*' \
+	-Iinclude -I$(AVR_INCLUDE) -I$(AVR_GCC_INCLUDE) \
+	-D__AVR_ATtiny85__ -DF_CPU=$(F_CPU)
 CPPCHECK_CONFIGS := -DPSCU_DEBUG -UPSCU_DEBUG
+
+all: $(RELEASE_HEX)
+
+$(RELEASE)/%.c.o: src/%.c $(FIRMWARE_H)
+	@mkdir -p $(@D)
+	$(AVR_CC) $(AVR_CFLAGS) -c -o $@ $<
+
+$(RELEASE)/%.S.o: src/%.S include/port/registers.h
+	@mkdir -p $(@D)
+	$(AVR_CC) $(AVR_ASFLAGS) -c -o $@ $<
+
+$(RELEASE_ELF): $(RELEASE_OBJECTS)
+	$(AVR_CC) $(AVR_LDFLAGS) -o $@ $^
+
+$(RELEASE_HEX): $(RELEASE_ELF)
+	$(AVR_OBJCOPY) -O ihex -R .eeprom $< $@
+
+size: $(RELEASE_ELF)
+	$(AVR_SIZE) $<
 
 hosttest: $(HOST_TEST)
 	rm -f $(BUILD)/host/*.gcda
@@ -41,21 +86,22 @@ hosttest: $(HOST_TEST)
 	gcovr --root . --filter 'src/' --exclude-branches-by-pattern '.*PSCU_ASSERT.*' \
 		--fail-under-line 100 --fail-under-branch 100 --print-summary $(BUILD)/host
 
-$(HOST_TEST): $(LOGIC_C) $(HOST_TEST_C) $(LOGIC_H)
+$(HOST_TEST): $(LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -O0 -DPSCU_DEBUG --coverage -o $@ $(LOGIC_C) $(HOST_TEST_C)
 
 test: hosttest
 
-analyse:
+analyse: all
 	clang-format --dry-run --Werror $(C_FILES)
 	ruff check
 	ruff format --check
 	reuse lint
+	$(MAKE) misra
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage run --branch --source=tools -m unittest discover -s tests -t . -p 'test_*.py'
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage report -m
 
 misra:
-	$(foreach config,$(CPPCHECK_CONFIGS),cppcheck $(CPPCHECK_FLAGS) $(config) --addon=misra $(LOGIC_C) &&) true
+	$(foreach config,$(CPPCHECK_CONFIGS),cppcheck $(CPPCHECK_FLAGS) $(config) --addon=misra $(FIRMWARE_C) &&) true
 
 endif

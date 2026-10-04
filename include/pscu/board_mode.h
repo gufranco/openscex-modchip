@@ -8,8 +8,17 @@
 
 typedef enum { PSCU_BOARD_MODE_GATE = 0, PSCU_BOARD_MODE_WFCK = 1 } pscu_board_mode_t;
 
-pscu_board_mode_t pscu_board_mode_from_samples(const uint8_t *wfck_samples,
-                                               uint16_t count,
-                                               uint8_t low_pulses_needed);
+typedef struct {
+  uint8_t pulses;
+  uint8_t prev_high;
+} pscu_board_detect_t;
+
+pscu_board_detect_t pscu_board_detect_init(void);
+
+pscu_board_detect_t pscu_board_detect_step(pscu_board_detect_t state,
+                                           uint8_t wfck_sample);
+
+pscu_board_mode_t pscu_board_detect_mode(pscu_board_detect_t state,
+                                         uint8_t low_pulses_needed);
 
 #endif

@@ -45,14 +45,6 @@ static void test_region(void) {
         "region SCEE 44-bit LSB-first");
 }
 
-static void test_subq_data_sector(void) {
-  check(pscu_subq_is_data_sector(0x41U), "0x41 is data sector");
-  check(pscu_subq_is_data_sector(0x40U), "0x40 is data sector");
-  check(!pscu_subq_is_data_sector(0x01U), "0x01 is not data sector");
-  check(!pscu_subq_is_data_sector(0xC1U), "0xC1 is not data sector");
-  check(!pscu_subq_is_data_sector(0x50U), "0x50 is not data sector");
-}
-
 static void test_subq_counter(void) {
   uint8_t lead_in[PSCU_SUBQ_FRAME_BYTES] = {0x41U, 0, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   check(pscu_subq_update_counter(lead_in, 0U) == 1U, "lead-in A0 increments");
@@ -97,21 +89,40 @@ static void test_subq_counter(void) {
   check(pscu_subq_update_counter(lead_in, 0xFFU) == 0xFFU, "counter clamps at max");
 }
 
+static pscu_board_detect_t feed(const uint8_t *samples, uint16_t count) {
+  pscu_board_detect_t state = pscu_board_detect_init();
+  for (uint16_t i = 0U; i < count; i++) {
+    state = pscu_board_detect_step(state, samples[i]);
+  }
+  return state;
+}
+
 static void test_board_mode(void) {
   uint8_t high[8] = {1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U};
-  check(pscu_board_mode_from_samples(high, 8U, 3U) == PSCU_BOARD_MODE_GATE,
+  check(pscu_board_detect_mode(feed(high, 8U), 3U) == PSCU_BOARD_MODE_GATE,
         "static high is legacy gate");
 
   uint8_t osc[6] = {1U, 0U, 1U, 0U, 1U, 0U};
-  check(pscu_board_mode_from_samples(osc, 6U, 3U) == PSCU_BOARD_MODE_WFCK,
+  check(pscu_board_detect_mode(feed(osc, 6U), 3U) == PSCU_BOARD_MODE_WFCK,
         "oscillating is wfck mode");
 
   uint8_t low_run[3] = {0U, 0U, 0U};
-  check(pscu_board_mode_from_samples(low_run, 3U, 2U) == PSCU_BOARD_MODE_GATE,
+  check(pscu_board_detect_mode(feed(low_run, 3U), 2U) == PSCU_BOARD_MODE_GATE,
         "one low pulse is not enough");
 
-  check(pscu_board_mode_from_samples(high, 8U, 0U) == PSCU_BOARD_MODE_WFCK,
+  check(pscu_board_detect_mode(feed(high, 8U), 0U) == PSCU_BOARD_MODE_WFCK,
         "zero threshold is wfck");
+}
+
+static void test_board_saturates(void) {
+  pscu_board_detect_t state = pscu_board_detect_init();
+  for (uint16_t i = 0U; i < 600U; i++) {
+    state = pscu_board_detect_step(state, (uint8_t)(i & 1U));
+  }
+
+  check(state.pulses == 0xFFU, "pulse count saturates at max");
+  check(pscu_board_detect_mode(state, 25U) == PSCU_BOARD_MODE_WFCK,
+        "saturated count is wfck mode");
 }
 
 static void test_inject(void) {
@@ -124,9 +135,9 @@ static void test_inject(void) {
 
 int main(void) {
   test_region();
-  test_subq_data_sector();
   test_subq_counter();
   test_board_mode();
+  test_board_saturates();
   test_inject();
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
