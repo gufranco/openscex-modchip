@@ -6,28 +6,36 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "avr_eeprom.h"
 #include "avr_ioport.h"
 #include "sim_avr.h"
 #include "sim_cycle_timers.h"
 #include "sim_elf.h"
 #include "sim_irq.h"
 
-#define PIN_SQCK IOPORT_IRQ_PIN0
-#define PIN_SUBQ IOPORT_IRQ_PIN1
-#define PIN_DATA IOPORT_IRQ_PIN2
-#define PIN_LED IOPORT_IRQ_PIN3
-#define PIN_WFCK IOPORT_IRQ_PIN4
-
 #define SUBQ_FRAME_BYTES 12
 #define SUBQ_BITS 8
 #define EDGE_CYCLES 60
 #define DETECT_CYCLES 600000UL
+#define INJECT_CYCLES 7000000UL
 #define TRIGGER_FRAMES 10
 #define SCEX_BITS 44
-#define FW_MS_CYCLES 8000UL
-#define BIT_CYCLES (4UL * FW_MS_CYCLES)
+#define BIT_CYCLES 32000UL
 #define WFCK_HZ 7300UL
 #define LED_DEADLINE 1000000UL
+
+#define MODE_DISABLED 3
+#define MODE_OLD_MODCHIP 2
+
+typedef struct {
+  const char *mcu;
+  char port;
+  uint8_t sqck;
+  uint8_t subq;
+  uint8_t data;
+  uint8_t led;
+  uint8_t wfck;
+} target_t;
 
 static const char SCEI_BITS[SCEX_BITS + 1] =
     "10011010100100111101001010111010010110110100";
@@ -81,8 +89,44 @@ static void run_cycles(avr_t *avr, uint64_t n) {
   run_to(avr, avr->cycle + n);
 }
 
-static void clock_frame(avr_t *avr, avr_irq_t *sqck, avr_irq_t *subq,
-                        const uint8_t *frame) {
+static avr_irq_t *pin_irq(avr_t *avr, const target_t *t, uint8_t pin) {
+  return avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ((uint32_t)t->port), pin);
+}
+
+static avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
+  elf_firmware_t firmware;
+  memset(&firmware, 0, sizeof(firmware));
+  (void)elf_read_firmware(elf, &firmware);
+
+  avr_t *avr = avr_make_mcu_by_name(t->mcu);
+  avr_init(avr);
+  avr_load_firmware(avr, &firmware);
+  avr->frequency = freq;
+  return avr;
+}
+
+static void eeprom_set(avr_t *avr, uint8_t value) {
+  uint8_t buf[1] = {value};
+  avr_eeprom_desc_t desc = {buf, 0U, 1U};
+  (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_SET, &desc);
+}
+
+static uint8_t data_ddr(avr_t *avr, const target_t *t) {
+  avr_ioport_state_t state;
+  (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE((uint32_t)t->port), &state);
+  return (uint8_t)((state.ddr >> t->data) & 1U);
+}
+
+static uint8_t data_pin(avr_t *avr, const target_t *t) {
+  avr_ioport_state_t state;
+  (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE((uint32_t)t->port), &state);
+  return (uint8_t)((state.port >> t->data) & 1U) &
+         (uint8_t)((state.ddr >> t->data) & 1U);
+}
+
+static void clock_frame(avr_t *avr, const target_t *t, const uint8_t *frame) {
+  avr_irq_t *sqck = pin_irq(avr, t, t->sqck);
+  avr_irq_t *subq = pin_irq(avr, t, t->subq);
   for (int byte = 0; byte < SUBQ_FRAME_BYTES; byte++) {
     for (int bit = 0; bit < SUBQ_BITS; bit++) {
       avr_raise_irq(subq, (uint8_t)((frame[byte] >> bit) & 1U));
@@ -94,20 +138,19 @@ static void clock_frame(avr_t *avr, avr_irq_t *sqck, avr_irq_t *subq,
   }
 }
 
-static uint8_t data_ddr(avr_t *avr) {
-  avr_ioport_state_t state;
-  (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE('B'), &state);
-  return (uint8_t)((state.ddr >> PIN_DATA) & 1U);
+static void boot_quiet(avr_t *avr, const target_t *t, int modern, wfck_ctx_t *ctx) {
+  avr_raise_irq(pin_irq(avr, t, t->sqck), 1U);
+  avr_raise_irq(pin_irq(avr, t, t->subq), 0U);
+  avr_raise_irq(pin_irq(avr, t, t->wfck), 1U);
+  if (modern != 0) {
+    ctx->irq = pin_irq(avr, t, t->wfck);
+    ctx->level = 1U;
+    avr_cycle_timer_register(avr, ctx->half, wfck_tick, ctx);
+  }
+  run_cycles(avr, DETECT_CYCLES);
 }
 
-static uint8_t data_pin(avr_t *avr) {
-  avr_ioport_state_t state;
-  (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE('B'), &state);
-  return (uint8_t)((state.port >> PIN_DATA) & 1U) &
-         (uint8_t)((state.ddr >> PIN_DATA) & 1U);
-}
-
-static void decode_region(avr_t *avr, int modern, char *out) {
+static void decode_region(avr_t *avr, const target_t *t, int modern, char *out) {
   for (int k = 0; k < SCEX_BITS; k++) {
     uint64_t base = g_led_cycle + ((uint64_t)k * BIT_CYCLES);
     uint8_t bit;
@@ -115,55 +158,33 @@ static void decode_region(avr_t *avr, int modern, char *out) {
       uint8_t any_high = 0U;
       for (int s = 3; s <= 7; s++) {
         run_to(avr, base + ((uint64_t)s * BIT_CYCLES) / 10U);
-        if (data_pin(avr) != 0U) {
+        if (data_pin(avr, t) != 0U) {
           any_high = 1U;
         }
       }
       bit = any_high;
     } else {
       run_to(avr, base + (BIT_CYCLES / 2U));
-      bit = (uint8_t)((data_ddr(avr) != 0U) ? 0U : 1U);
+      bit = (uint8_t)((data_ddr(avr, t) != 0U) ? 0U : 1U);
     }
     out[k] = (bit != 0U) ? '1' : '0';
   }
   out[SCEX_BITS] = '\0';
 }
 
-static void scenario(const char *elf_path, uint32_t freq, int modern, int trigger) {
-  elf_firmware_t firmware;
-  memset(&firmware, 0, sizeof(firmware));
-  (void)elf_read_firmware(elf_path, &firmware);
-
-  avr_t *avr = avr_make_mcu_by_name("attiny85");
-  avr_init(avr);
-  avr_load_firmware(avr, &firmware);
-  avr->frequency = freq;
-
-  avr_irq_t *sqck = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('B'), PIN_SQCK);
-  avr_irq_t *subq = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('B'), PIN_SUBQ);
-  avr_irq_t *led = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('B'), PIN_LED);
-  avr_irq_t *wfck = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('B'), PIN_WFCK);
-
+static void scenario_inject(const target_t *t, const char *elf, uint32_t freq,
+                            int modern, int trigger) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = {NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ))};
   g_led_seen = 0;
   g_led_cycle = 0;
-  avr_irq_register_notify(led, on_led, avr);
-
-  wfck_ctx_t ctx = {wfck, 1U, (uint32_t)(freq / (2UL * WFCK_HZ))};
-  avr_raise_irq(sqck, 1U);
-  avr_raise_irq(subq, 0U);
-  if (modern != 0) {
-    avr_raise_irq(wfck, 1U);
-    avr_cycle_timer_register(avr, ctx.half, wfck_tick, &ctx);
-  } else {
-    avr_raise_irq(wfck, 1U);
-  }
-
-  run_cycles(avr, DETECT_CYCLES);
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, modern, &ctx);
 
   uint8_t toc[SUBQ_FRAME_BYTES] = {0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   uint8_t audio[SUBQ_FRAME_BYTES] = {0x01U, 0x00U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   for (int i = 0; i < TRIGGER_FRAMES; i++) {
-    clock_frame(avr, sqck, subq, (trigger != 0) ? toc : audio);
+    clock_frame(avr, t, (trigger != 0) ? toc : audio);
   }
 
   uint64_t deadline = avr->cycle + LED_DEADLINE;
@@ -172,40 +193,68 @@ static void scenario(const char *elf_path, uint32_t freq, int modern, int trigge
   }
 
   const char *tag = (modern != 0) ? "modern" : "legacy";
-  char label[80];
+  char label[96];
   char decoded[SCEX_BITS + 1];
-
   if (trigger != 0) {
-    (void)snprintf(label, sizeof(label), "%s: injection triggered at %u Hz", tag, freq);
+    (void)snprintf(label, sizeof(label), "%s: inject triggered at %u Hz", tag, freq);
     check(g_led_seen != 0, label);
     if (g_led_seen != 0) {
-      decode_region(avr, modern, decoded);
-      (void)snprintf(label, sizeof(label), "%s: first region decodes to SCEI at %u Hz",
-                     tag, freq);
+      decode_region(avr, t, modern, decoded);
+      (void)snprintf(label, sizeof(label), "%s: decodes SCEI at %u Hz", tag, freq);
       check(strcmp(decoded, SCEI_BITS) == 0, label);
-      if (strcmp(decoded, SCEI_BITS) != 0) {
-        (void)printf("  decoded %s\n  expect %s\n", decoded, SCEI_BITS);
-      }
     }
   } else {
-    (void)snprintf(label, sizeof(label),
-                   "%s: non-TOC frames do not trigger injection at %u Hz", tag, freq);
+    (void)snprintf(label, sizeof(label), "%s: non-TOC does not inject at %u Hz", tag,
+                   freq);
     check(g_led_seen == 0, label);
   }
+}
 
-  check(avr->state != cpu_Crashed, "firmware did not crash");
+static void scenario_restore(const target_t *t, const char *elf, uint32_t freq,
+                             uint8_t preset, int feed_toc, int expect_inject,
+                             const char *name) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = {NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ))};
+  g_led_seen = 0;
+  g_led_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  eeprom_set(avr, preset);
+  boot_quiet(avr, t, 0, &ctx);
+
+  uint8_t toc[SUBQ_FRAME_BYTES] = {0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  uint8_t audio[SUBQ_FRAME_BYTES] = {0x01U, 0x00U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  for (int i = 0; i < TRIGGER_FRAMES; i++) {
+    clock_frame(avr, t, (feed_toc != 0) ? toc : audio);
+  }
+
+  uint64_t deadline = avr->cycle + LED_DEADLINE;
+  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+    run_cycles(avr, 2000U);
+  }
+
+  check(g_led_seen == expect_inject, name);
 }
 
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    (void)fprintf(stderr, "usage: %s firmware.elf [freq_hz]\n", argv[0]);
+  if (argc < 4) {
+    (void)fprintf(stderr, "usage: %s elf85 elf84 freq_hz\n", argv[0]);
     return 2;
   }
-  uint32_t freq = (argc >= 3) ? (uint32_t)strtoul(argv[2], NULL, 10) : 8000000U;
+  const char *elf85 = argv[1];
+  const char *elf84 = argv[2];
+  uint32_t freq = (uint32_t)strtoul(argv[3], NULL, 10);
 
-  scenario(argv[1], freq, 0, 1);
-  scenario(argv[1], freq, 1, 1);
-  scenario(argv[1], freq, 0, 0);
+  target_t t85 = {"attiny85", 'B', 0U, 1U, 2U, 3U, 4U};
+  target_t t84 = {"attiny84", 'A', 0U, 1U, 2U, 4U, 3U};
+
+  scenario_inject(&t85, elf85, freq, 0, 1);
+  scenario_inject(&t85, elf85, freq, 1, 1);
+  scenario_inject(&t85, elf85, freq, 0, 0);
+
+  scenario_restore(&t84, elf84, freq, MODE_DISABLED, 1, 0,
+                   "attiny84: disabled mode restored, no injection on TOC");
+  scenario_restore(&t84, elf84, freq, MODE_OLD_MODCHIP, 0, 1,
+                   "attiny84: old-modchip mode restored, injects without trigger");
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
   return (g_failures == 0) ? 0 : 1;

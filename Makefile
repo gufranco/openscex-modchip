@@ -113,12 +113,15 @@ $(HOST_TEST): $(HOST_LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -O0 -DPSCU_DEBUG --coverage -o $@ $(HOST_LOGIC_C) $(HOST_TEST_C)
 
-$(SIM_TEST): $(SIM_TEST_C) $(RELEASE_ELF)
+SIM_ELF85 := $(BUILD)/attiny85/release/$(NAME)-attiny85.elf
+SIM_ELF84 := $(BUILD)/attiny84/release/$(NAME)-attiny84.elf
+
+$(SIM_TEST): $(SIM_TEST_C) all
 	@mkdir -p $(@D)
 	$(HOST_CC) $(SIM_CFLAGS) -o $@ $(SIM_TEST_C) $(SIM_LIBS)
 
 simtest: $(SIM_TEST)
-	$(foreach clk,$(SIM_CLOCKS_HZ),$(SIM_TEST) $(RELEASE_ELF) $(clk) &&) true
+	$(foreach clk,$(SIM_CLOCKS_HZ),$(SIM_TEST) $(SIM_ELF85) $(SIM_ELF84) $(clk) &&) true
 
 test: hosttest simtest
 
