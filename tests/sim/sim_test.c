@@ -129,7 +129,7 @@ static void decode_region(avr_t *avr, int modern, char *out) {
   out[SCEX_BITS] = '\0';
 }
 
-static void scenario(const char *elf_path, uint32_t freq, int modern) {
+static void scenario(const char *elf_path, uint32_t freq, int modern, int trigger) {
   elf_firmware_t firmware;
   memset(&firmware, 0, sizeof(firmware));
   (void)elf_read_firmware(elf_path, &firmware);
@@ -161,8 +161,9 @@ static void scenario(const char *elf_path, uint32_t freq, int modern) {
   run_cycles(avr, DETECT_CYCLES);
 
   uint8_t toc[SUBQ_FRAME_BYTES] = {0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  uint8_t audio[SUBQ_FRAME_BYTES] = {0x01U, 0x00U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   for (int i = 0; i < TRIGGER_FRAMES; i++) {
-    clock_frame(avr, sqck, subq, toc);
+    clock_frame(avr, sqck, subq, (trigger != 0) ? toc : audio);
   }
 
   uint64_t deadline = avr->cycle + LED_DEADLINE;
@@ -171,19 +172,25 @@ static void scenario(const char *elf_path, uint32_t freq, int modern) {
   }
 
   const char *tag = (modern != 0) ? "modern" : "legacy";
-  char label[64];
+  char label[80];
   char decoded[SCEX_BITS + 1];
-  (void)snprintf(label, sizeof(label), "%s: injection triggered at %u Hz", tag, freq);
-  check(g_led_seen != 0, label);
 
-  if (g_led_seen != 0) {
-    decode_region(avr, modern, decoded);
-    (void)snprintf(label, sizeof(label), "%s: first region decodes to SCEI at %u Hz",
-                   tag, freq);
-    check(strcmp(decoded, SCEI_BITS) == 0, label);
-    if (strcmp(decoded, SCEI_BITS) != 0) {
-      (void)printf("  decoded %s\n  expect %s\n", decoded, SCEI_BITS);
+  if (trigger != 0) {
+    (void)snprintf(label, sizeof(label), "%s: injection triggered at %u Hz", tag, freq);
+    check(g_led_seen != 0, label);
+    if (g_led_seen != 0) {
+      decode_region(avr, modern, decoded);
+      (void)snprintf(label, sizeof(label), "%s: first region decodes to SCEI at %u Hz",
+                     tag, freq);
+      check(strcmp(decoded, SCEI_BITS) == 0, label);
+      if (strcmp(decoded, SCEI_BITS) != 0) {
+        (void)printf("  decoded %s\n  expect %s\n", decoded, SCEI_BITS);
+      }
     }
+  } else {
+    (void)snprintf(label, sizeof(label),
+                   "%s: non-TOC frames do not trigger injection at %u Hz", tag, freq);
+    check(g_led_seen == 0, label);
   }
 
   check(avr->state != cpu_Crashed, "firmware did not crash");
@@ -196,8 +203,9 @@ int main(int argc, char *argv[]) {
   }
   uint32_t freq = (argc >= 3) ? (uint32_t)strtoul(argv[2], NULL, 10) : 8000000U;
 
-  scenario(argv[1], freq, 0);
-  scenario(argv[1], freq, 1);
+  scenario(argv[1], freq, 0, 1);
+  scenario(argv[1], freq, 1, 1);
+  scenario(argv[1], freq, 0, 0);
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
   return (g_failures == 0) ? 0 : 1;
