@@ -31,9 +31,9 @@ Firmware for an ATtiny85 that defeats the Sony PlayStation region lockout by inj
 
 The logic layer compiles and runs on the host, which is how it reaches full coverage. A layer check will fail the build when a logic file reaches the platform or a C file includes a hardware header.
 
-## Proposed pin maps (inferred, not hardware-verified)
+## Pin map
 
-Signals, from the PsNee pin usage. These are Concluded from PsNee and the board research, not Observed on hardware.
+This is the tested PsNee ATtiny85 (`ATTINY_X5`) pin assignment, read from the PsNee `MCU.h`: SQCK PB0, SUBQ PB1, DATA PB2, LED PB3, WFCK PB4. Our `include/port/registers.h` matches it exactly. The owner confirms these pins and the Mayumi/PsNee tap points work, so the pin assignment is proven, not inferred; only the per-pad voltage stays Unknown and must be measured before wiring.
 
 ATtiny85 8-pin, four signal wires plus power and one optional LED:
 
