@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 IMAGE_INPUTS = ("Dockerfile", "docker/requirements-tools.txt")
-IMAGE_NAME = "psone-cdr-unlock-toolchain"
+IMAGE_NAME = "openscex-modchip-toolchain"
 TAG_LENGTH = 12
 
 

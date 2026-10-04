@@ -3,7 +3,7 @@
 
 PYTHON ?= python3
 BUILD := build
-NAME := psone-cdr-unlock
+NAME := openscex-modchip
 
 MCU ?= attiny85
 MCUS := attiny85 attiny84

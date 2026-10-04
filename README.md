@@ -1,4 +1,4 @@
-# psone-cdr-unlock
+# openscex-modchip
 
 An open-source region-unlock modchip for the original Sony PlayStation and PSone, targeting an ATtiny, built to the engineering standard of a professional embedded project rather than a hobby firmware.
 
