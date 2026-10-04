@@ -24,8 +24,14 @@
 #define WFCK_HZ 7300UL
 #define LED_DEADLINE 1000000UL
 
-#define MODE_DISABLED 3
+#define MODE_DEFAULT 0
+#define MODE_ALT_TIMING 1
 #define MODE_OLD_MODCHIP 2
+#define MODE_DISABLED 3
+
+#define T84_LID_PIN 5
+#define GESTURE_WINDOW_CYCLES 60000000UL
+#define EARLY_INJECT_FLOOR 3000000UL
 
 typedef struct {
   const char *mcu;
@@ -109,6 +115,14 @@ static void eeprom_set(avr_t *avr, uint8_t value) {
   uint8_t buf[1] = {value};
   avr_eeprom_desc_t desc = {buf, 0U, 1U};
   (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_SET, &desc);
+}
+
+static void press_pin_external(avr_t *avr, char port, uint8_t pin) {
+  avr_ioport_external_t ext;
+  ext.name = (unsigned long)port;
+  ext.mask = (uint8_t)(1U << pin);
+  ext.value = 0U;
+  (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_SET_EXTERNAL((uint32_t)port), &ext);
 }
 
 static uint8_t data_ddr(avr_t *avr, const target_t *t) {
@@ -235,6 +249,52 @@ static void scenario_restore(const target_t *t, const char *elf, uint32_t freq,
   check(g_led_seen == expect_inject, name);
 }
 
+static void feed_toc_until_led(avr_t *avr, const target_t *t) {
+  uint8_t toc[SUBQ_FRAME_BYTES] = {0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  for (int i = 0; (i < TRIGGER_FRAMES) && (g_led_seen == 0); i++) {
+    clock_frame(avr, t, toc);
+  }
+  uint64_t deadline = avr->cycle + LED_DEADLINE;
+  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+    run_cycles(avr, 2000U);
+  }
+}
+
+static void scenario_lid_released(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = {NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ))};
+  g_led_seen = 0;
+  g_led_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  eeprom_set(avr, (uint8_t)MODE_OLD_MODCHIP);
+  boot_quiet(avr, t, 0, &ctx);
+  feed_toc_until_led(avr, t);
+
+  check((g_led_seen != 0) && (g_led_cycle < EARLY_INJECT_FLOOR),
+        "attiny84: lid released at boot skips selection, injects promptly");
+}
+
+static void scenario_lid_held(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = {NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ))};
+  g_led_seen = 0;
+  g_led_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  eeprom_set(avr, (uint8_t)MODE_OLD_MODCHIP);
+  press_pin_external(avr, t->port, T84_LID_PIN);
+  boot_quiet(avr, t, 0, &ctx);
+  run_cycles(avr, EARLY_INJECT_FLOOR);
+
+  check(g_led_seen == 0,
+        "attiny84: lid held low at boot engages selection, defers injection");
+
+  run_cycles(avr, GESTURE_WINDOW_CYCLES);
+  feed_toc_until_led(avr, t);
+
+  check(g_led_seen != 0,
+        "attiny84: injection resumes after the selection window closes");
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 4) {
     (void)fprintf(stderr, "usage: %s elf85 elf84 freq_hz\n", argv[0]);
@@ -255,6 +315,11 @@ int main(int argc, char *argv[]) {
                    "attiny84: disabled mode restored, no injection on TOC");
   scenario_restore(&t84, elf84, freq, MODE_OLD_MODCHIP, 0, 1,
                    "attiny84: old-modchip mode restored, injects without trigger");
+
+  if (freq == 8000000UL) {
+    scenario_lid_released(&t84, elf84, freq);
+    scenario_lid_held(&t84, elf84, freq);
+  }
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
   return (g_failures == 0) ? 0 : 1;
