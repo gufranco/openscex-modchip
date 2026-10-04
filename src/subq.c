@@ -13,6 +13,8 @@ static bool pscu_subq_is_data_sector(uint8_t control) {
 }
 
 static bool pscu_subq_lead_in_hit(const uint8_t *frame) {
+  PSCU_ASSERT(frame != NULL);
+
   bool hit = false;
 
   if (pscu_subq_is_data_sector(frame[0])) {
@@ -29,6 +31,8 @@ static bool pscu_subq_lead_in_hit(const uint8_t *frame) {
 }
 
 static bool pscu_subq_tracking_hit(const uint8_t *frame, uint8_t counter) {
+  PSCU_ASSERT(frame != NULL);
+
   bool hit = false;
 
   if (counter > 0U) {
@@ -52,6 +56,8 @@ uint8_t pscu_subq_update_counter(const uint8_t *frame, uint8_t counter) {
   if ((!hit) && (counter > 0U)) {
     result = (uint8_t)(counter - 1U);
   }
+
+  PSCU_ASSERT((uint8_t)((result - counter) + 1U) <= 2U);
 
   return result;
 }

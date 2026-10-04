@@ -14,5 +14,9 @@ bool pscu_should_inject(uint8_t counter, uint8_t trigger) {
 uint8_t pscu_counter_after_inject(uint8_t trigger, uint8_t gap) {
   PSCU_ASSERT(gap < trigger);
 
-  return (uint8_t)(trigger - gap);
+  uint8_t result = (uint8_t)(trigger - gap);
+
+  PSCU_ASSERT((result >= 1U) && (result <= trigger));
+
+  return result;
 }

@@ -18,6 +18,9 @@ uint8_t pscu_region_bit(pscu_region_t region, uint8_t index) {
 
   uint8_t byte = table[region][index >> 3U];
   uint8_t shifted = (uint8_t)(byte >> (index & 0x07U));
+  uint8_t result = (uint8_t)(shifted & 0x01U);
 
-  return (uint8_t)(shifted & 0x01U);
+  PSCU_ASSERT(result <= 1U);
+
+  return result;
 }

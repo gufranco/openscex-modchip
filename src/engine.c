@@ -4,9 +4,11 @@
 #include "pscu/engine.h"
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "port/port.h"
+#include "pscu/assert.h"
 #include "pscu/board_mode.h"
 #include "pscu/region.h"
 #include "pscu/subq.h"
@@ -57,6 +59,9 @@ static uint8_t pscu_capture_byte(void) {
 }
 
 static void pscu_inject_bit(uint8_t bit_value, pscu_board_mode_t mode) {
+  PSCU_ASSERT(bit_value <= 1U);
+  PSCU_ASSERT((mode == PSCU_BOARD_MODE_GATE) || (mode == PSCU_BOARD_MODE_WFCK));
+
   if (bit_value == 0U) {
     pscu_port_data_drive_low();
     pscu_port_delay_ms(PSCU_BIT_MS);
@@ -70,6 +75,8 @@ static void pscu_inject_bit(uint8_t bit_value, pscu_board_mode_t mode) {
 }
 
 static void pscu_inject_region(pscu_region_t region, pscu_board_mode_t mode) {
+  PSCU_ASSERT((uint8_t)region < PSCU_REGION_COUNT);
+
   for (uint8_t bit = 0U; bit < PSCU_SCEX_BIT_COUNT; bit++) {
     uint8_t bit_value = pscu_region_bit(region, bit);
     pscu_inject_bit(bit_value, mode);
@@ -86,12 +93,16 @@ pscu_board_mode_t pscu_engine_detect_board(void) {
 }
 
 void pscu_engine_capture_frame(uint8_t *frame) {
+  PSCU_ASSERT(frame != NULL);
+
   for (uint8_t byte = 0U; byte < PSCU_SUBQ_FRAME_BYTES; byte++) {
     frame[byte] = pscu_capture_byte();
   }
 }
 
 void pscu_engine_inject(pscu_board_mode_t board) {
+  PSCU_ASSERT((board == PSCU_BOARD_MODE_GATE) || (board == PSCU_BOARD_MODE_WFCK));
+
   pscu_port_led_on();
   for (uint8_t region = 0U; region < PSCU_REGION_COUNT; region++) {
     pscu_inject_region((pscu_region_t)region, board);
