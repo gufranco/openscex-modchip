@@ -18,14 +18,14 @@ pscu_port_init:
 	ldi r24, 0x00
 	out _SFR_IO_ADDR(CLKPR), r24
 	ldi r24, (1 << PSCU_PIN_LED)
-	out _SFR_IO_ADDR(DDRB), r24
+	out _SFR_IO_ADDR(PSCU_DDR), r24
 	ldi r24, 0x00
-	out _SFR_IO_ADDR(PORTB), r24
+	out _SFR_IO_ADDR(PSCU_PORT), r24
 	wdr
 	ldi r24, (1 << WDCE) | (1 << WDE)
-	out _SFR_IO_ADDR(WDTCR), r24
+	out _SFR_IO_ADDR(PSCU_WDT_REG), r24
 	ldi r24, (1 << WDE) | (1 << WDP2) | (1 << WDP0)
-	out _SFR_IO_ADDR(WDTCR), r24
+	out _SFR_IO_ADDR(PSCU_WDT_REG), r24
 	ret
 	.endfunc
 
@@ -39,7 +39,7 @@ pscu_port_watchdog_reset:
 	.global pscu_port_read_sqck
 	.func pscu_port_read_sqck
 pscu_port_read_sqck:
-	in r24, _SFR_IO_ADDR(PINB)
+	in r24, _SFR_IO_ADDR(PSCU_PINREG)
 	andi r24, (1 << PSCU_PIN_SQCK)
 	ret
 	.endfunc
@@ -47,7 +47,7 @@ pscu_port_read_sqck:
 	.global pscu_port_read_subq
 	.func pscu_port_read_subq
 pscu_port_read_subq:
-	in r24, _SFR_IO_ADDR(PINB)
+	in r24, _SFR_IO_ADDR(PSCU_PINREG)
 	andi r24, (1 << PSCU_PIN_SUBQ)
 	ret
 	.endfunc
@@ -55,7 +55,7 @@ pscu_port_read_subq:
 	.global pscu_port_read_wfck
 	.func pscu_port_read_wfck
 pscu_port_read_wfck:
-	in r24, _SFR_IO_ADDR(PINB)
+	in r24, _SFR_IO_ADDR(PSCU_PINREG)
 	andi r24, (1 << PSCU_PIN_WFCK)
 	ret
 	.endfunc
@@ -63,30 +63,30 @@ pscu_port_read_wfck:
 	.global pscu_port_data_drive_low
 	.func pscu_port_data_drive_low
 pscu_port_data_drive_low:
-	cbi _SFR_IO_ADDR(PORTB), PSCU_PIN_DATA
-	sbi _SFR_IO_ADDR(DDRB), PSCU_PIN_DATA
+	cbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_DATA
+	sbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DATA
 	ret
 	.endfunc
 
 	.global pscu_port_data_release
 	.func pscu_port_data_release
 pscu_port_data_release:
-	cbi _SFR_IO_ADDR(DDRB), PSCU_PIN_DATA
-	cbi _SFR_IO_ADDR(PORTB), PSCU_PIN_DATA
+	cbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DATA
+	cbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_DATA
 	ret
 	.endfunc
 
 	.global pscu_port_led_on
 	.func pscu_port_led_on
 pscu_port_led_on:
-	sbi _SFR_IO_ADDR(PORTB), PSCU_PIN_LED
+	sbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_LED
 	ret
 	.endfunc
 
 	.global pscu_port_led_off
 	.func pscu_port_led_off
 pscu_port_led_off:
-	cbi _SFR_IO_ADDR(PORTB), PSCU_PIN_LED
+	cbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_LED
 	ret
 	.endfunc
 
@@ -113,19 +113,20 @@ pscu_port_delay_ms:
 pscu_port_data_mirror_wfck_ms:
 	sbiw r24, 0
 	breq 6f
-	sbi _SFR_IO_ADDR(DDRB), PSCU_PIN_DATA
+	sbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DATA
 4:
 	ldi r26, lo8(PSCU_MIRROR_1MS_ITERS)
 	ldi r27, hi8(PSCU_MIRROR_1MS_ITERS)
 5:
-	in r18, _SFR_IO_ADDR(PINB)
+	in r18, _SFR_IO_ADDR(PSCU_PINREG)
+	.rept (PSCU_PIN_WFCK - PSCU_PIN_DATA)
 	lsr r18
-	lsr r18
+	.endr
 	andi r18, (1 << PSCU_PIN_DATA)
-	in r19, _SFR_IO_ADDR(PORTB)
+	in r19, _SFR_IO_ADDR(PSCU_PORT)
 	andi r19, (~(1 << PSCU_PIN_DATA)) & 0xFF
 	or r19, r18
-	out _SFR_IO_ADDR(PORTB), r19
+	out _SFR_IO_ADDR(PSCU_PORT), r19
 	sbiw r26, 1
 	brne 5b
 	wdr

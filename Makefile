@@ -6,6 +6,7 @@ BUILD := build
 NAME := psone-cdr-unlock
 
 MCU ?= attiny85
+MCUS := attiny85 attiny84
 F_CPU := 8000000UL
 FLASH_BYTES := 8192
 
@@ -68,7 +69,10 @@ CPPCHECK_FLAGS := --std=c17 --platform=avr8 --enable=all --check-level=exhaustiv
 	-D__AVR_ATtiny85__ -DF_CPU=$(F_CPU)
 CPPCHECK_CONFIGS := -DPSCU_DEBUG -UPSCU_DEBUG
 
-all: $(RELEASE_HEX)
+all:
+	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) image &&) true
+
+image: $(RELEASE_HEX)
 
 $(RELEASE)/%.c.o: src/%.c $(FIRMWARE_H)
 	@mkdir -p $(@D)
@@ -84,8 +88,11 @@ $(RELEASE_ELF): $(RELEASE_OBJECTS)
 $(RELEASE_HEX): $(RELEASE_ELF)
 	$(AVR_OBJCOPY) -O ihex -R .eeprom $< $@
 
-size: $(RELEASE_ELF)
-	$(AVR_SIZE) $<
+size:
+	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) image_size &&) true
+
+image_size: $(RELEASE_ELF)
+	$(AVR_SIZE) $(RELEASE_ELF)
 
 hosttest: $(HOST_TEST)
 	rm -f $(BUILD)/host/*.gcda
