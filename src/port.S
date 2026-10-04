@@ -6,6 +6,7 @@
 #include "port/registers.h"
 
 #define PSCU_DELAY_1MS_ITERS (F_CPU / 4000UL)
+#define PSCU_MIRROR_1MS_ITERS (F_CPU / 12000UL)
 
 	.text
 
@@ -104,5 +105,32 @@ pscu_port_delay_ms:
 	sbiw r24, 1
 	brne 1b
 2:
+	ret
+	.endfunc
+
+	.global pscu_port_data_mirror_wfck_ms
+	.func pscu_port_data_mirror_wfck_ms
+pscu_port_data_mirror_wfck_ms:
+	sbiw r24, 0
+	breq 6f
+	sbi _SFR_IO_ADDR(DDRB), PSCU_PIN_DATA
+4:
+	ldi r26, lo8(PSCU_MIRROR_1MS_ITERS)
+	ldi r27, hi8(PSCU_MIRROR_1MS_ITERS)
+5:
+	in r18, _SFR_IO_ADDR(PINB)
+	lsr r18
+	lsr r18
+	andi r18, (1 << PSCU_PIN_DATA)
+	in r19, _SFR_IO_ADDR(PORTB)
+	andi r19, (~(1 << PSCU_PIN_DATA)) & 0xFF
+	or r19, r18
+	out _SFR_IO_ADDR(PORTB), r19
+	sbiw r26, 1
+	brne 5b
+	wdr
+	sbiw r24, 1
+	brne 4b
+6:
 	ret
 	.endfunc

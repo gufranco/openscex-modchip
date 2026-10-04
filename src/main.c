@@ -14,7 +14,6 @@
 #define PSCU_INJECT_GAP ((uint8_t)5U)
 #define PSCU_DETECT_WINDOW ((uint16_t)10000U)
 #define PSCU_DETECT_PULSES ((uint8_t)25U)
-#define PSCU_SYNC_EDGES ((uint8_t)30U)
 #define PSCU_WAIT_MAX ((uint16_t)0xFFFFU)
 #define PSCU_BIT_MS ((uint16_t)4U)
 #define PSCU_INTER_REGION_MS ((uint16_t)90U)
@@ -45,30 +44,6 @@ static bool pscu_wait_sqck_high(void) {
   return found;
 }
 
-static bool pscu_wait_wfck_low(void) {
-  bool found = false;
-  for (uint16_t i = 0U; (i < PSCU_WAIT_MAX) && !found; i++) {
-    if (pscu_port_read_wfck() == 0U) {
-      found = true;
-    } else {
-      pscu_port_watchdog_reset();
-    }
-  }
-  return found;
-}
-
-static bool pscu_wait_wfck_high(void) {
-  bool found = false;
-  for (uint16_t i = 0U; (i < PSCU_WAIT_MAX) && !found; i++) {
-    if (pscu_port_read_wfck() != 0U) {
-      found = true;
-    } else {
-      pscu_port_watchdog_reset();
-    }
-  }
-  return found;
-}
-
 static uint8_t pscu_capture_byte(void) {
   uint8_t value = 0U;
   for (uint8_t bit = 0U; bit < PSCU_SUBQ_BITS; bit++) {
@@ -88,24 +63,15 @@ static void pscu_capture_frame(uint8_t *frame) {
   }
 }
 
-static void pscu_inject_bit_legacy(uint8_t bit_value) {
+static void pscu_inject_bit(uint8_t bit_value, pscu_board_mode_t mode) {
   if (bit_value == 0U) {
     pscu_port_data_drive_low();
+    pscu_port_delay_ms(PSCU_BIT_MS);
+  } else if (mode == PSCU_BOARD_MODE_WFCK) {
+    pscu_port_data_mirror_wfck_ms(PSCU_BIT_MS);
   } else {
     pscu_port_data_release();
-  }
-  pscu_port_delay_ms(PSCU_BIT_MS);
-  pscu_port_watchdog_reset();
-}
-
-static void pscu_inject_bit_sync(uint8_t bit_value) {
-  for (uint8_t edge = 0U; edge < PSCU_SYNC_EDGES; edge++) {
-    (void)pscu_wait_wfck_low();
-    pscu_port_data_drive_low();
-    (void)pscu_wait_wfck_high();
-    if (bit_value != 0U) {
-      pscu_port_data_release();
-    }
+    pscu_port_delay_ms(PSCU_BIT_MS);
   }
   pscu_port_watchdog_reset();
 }
@@ -113,11 +79,7 @@ static void pscu_inject_bit_sync(uint8_t bit_value) {
 static void pscu_inject_region(pscu_region_t region, pscu_board_mode_t mode) {
   for (uint8_t bit = 0U; bit < PSCU_SCEX_BIT_COUNT; bit++) {
     uint8_t bit_value = pscu_region_bit(region, bit);
-    if (mode == PSCU_BOARD_MODE_WFCK) {
-      pscu_inject_bit_sync(bit_value);
-    } else {
-      pscu_inject_bit_legacy(bit_value);
-    }
+    pscu_inject_bit(bit_value, mode);
   }
 }
 

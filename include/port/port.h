@@ -26,4 +26,6 @@ void pscu_port_led_off(void);
 
 void pscu_port_delay_ms(uint16_t milliseconds);
 
+void pscu_port_data_mirror_wfck_ms(uint16_t milliseconds);
+
 #endif
