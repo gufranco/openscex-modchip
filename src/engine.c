@@ -10,6 +10,7 @@
 #include "port/port.h"
 #include "pscu/assert.h"
 #include "pscu/board_mode.h"
+#include "pscu/config.h"
 #include "pscu/region.h"
 #include "pscu/subq.h"
 
@@ -22,9 +23,6 @@
 #define PSCU_WAIT_MAX ((uint16_t)0xFFFFU)
 // One SCEx bit cell is 4 ms (about 250 baud), the rate the mechacon expects.
 #define PSCU_BIT_MS ((uint16_t)4U)
-// Idle gap between the three region words, matching the console's inter-string
-// spacing so each word is read as a separate attempt.
-#define PSCU_INTER_REGION_MS ((uint16_t)90U)
 #define PSCU_SUBQ_BITS ((uint8_t)8U)
 #define PSCU_SUBQ_MSB ((uint8_t)0x80U)
 
@@ -118,19 +116,17 @@ void pscu_engine_capture_frame(uint8_t *frame) {
   }
 }
 
-// Emit all three region words back to back. The console only boots a disc whose
-// region it recognises, so sending Japan, America and Europe in turn unlocks
-// every region. The LED is lit for the burst as a visible injection marker and
-// DATA is left released (high-Z) afterwards so it never fights the bus.
+// Emit exactly one region word, the one this build was configured for, then
+// release DATA to high-Z. Sending only the console's own region (never all
+// three) is a stealth choice: the bus carries precisely what that console
+// expects and nothing more. The run loop calls this only inside the check
+// window and only up to the stealth cap, so DATA is high-Z and the LED off
+// during normal play.
 void pscu_engine_inject(pscu_board_mode_t board) {
   PSCU_ASSERT((board == PSCU_BOARD_MODE_GATE) || (board == PSCU_BOARD_MODE_WFCK));
 
   pscu_port_led_on();
-  for (uint8_t region = 0U; region < PSCU_REGION_COUNT; region++) {
-    pscu_inject_region((pscu_region_t)region, board);
-    pscu_port_data_drive_low();
-    pscu_port_delay_ms(PSCU_INTER_REGION_MS);
-  }
+  pscu_inject_region(PSCU_CONFIGURED_REGION, board);
   pscu_port_data_release();
   pscu_port_led_off();
 }

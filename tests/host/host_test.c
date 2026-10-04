@@ -141,11 +141,30 @@ static void test_board_saturates(void) {
 }
 
 static void test_inject(void) {
-  check(pscu_should_inject(10U, 10U), "inject at trigger");
-  check(!pscu_should_inject(9U, 10U), "no inject below trigger");
-  check(pscu_should_inject(11U, 10U), "inject above trigger");
-  check(pscu_counter_after_inject(10U, 5U) == 5U, "cool-off is trigger minus gap");
-  check(pscu_counter_after_inject(10U, 8U) == 2U, "cool-off with larger gap");
+  check(pscu_should_inject(10U, 10U), "window open at trigger");
+  check(!pscu_should_inject(9U, 10U), "window closed below trigger");
+  check(pscu_should_inject(11U, 10U), "window open above trigger");
+}
+
+static void test_stealth(void) {
+  pscu_stealth_t start = pscu_stealth_init();
+  check(start.sent == 0U, "stealth starts disarmed");
+
+  pscu_stealth_step_t first = pscu_stealth_step(start, true, 2U);
+  check(first.fire && (first.state.sent == 1U), "emits the first string in window");
+
+  pscu_stealth_step_t second = pscu_stealth_step(first.state, true, 2U);
+  check(second.fire && (second.state.sent == 2U), "emits the second string");
+
+  pscu_stealth_step_t capped = pscu_stealth_step(second.state, true, 2U);
+  check(!capped.fire && (capped.state.sent == 2U), "falls silent at the cap");
+
+  pscu_stealth_step_t rearmed = pscu_stealth_step(capped.state, false, 2U);
+  check(!rearmed.fire && (rearmed.state.sent == 0U),
+        "silent and re-armed out of window");
+
+  pscu_stealth_step_t again = pscu_stealth_step(rearmed.state, true, 2U);
+  check(again.fire, "re-fires on the next window, as after a disc swap");
 }
 
 int main(void) {
@@ -154,6 +173,7 @@ int main(void) {
   test_board_mode();
   test_board_saturates();
   test_inject();
+  test_stealth();
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
   return (g_failures == 0) ? 0 : 1;
