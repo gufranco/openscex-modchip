@@ -8,7 +8,6 @@
 
 #include "pscu/board_mode.h"
 #include "pscu/inject.h"
-#include "pscu/mode.h"
 #include "pscu/region.h"
 #include "pscu/subq.h"
 
@@ -73,6 +72,11 @@ static void test_subq_counter(void) {
   check(pscu_subq_update_counter(spiral_miss, 0U) == 0U,
         "track 01 out of window misses");
 
+  uint8_t spiral_edge[PSCU_SUBQ_FRAME_BYTES] = {0x41U, 0, 0x01U, 0xF8U, 0, 0,
+                                                0,     0, 0,     0,     0, 0};
+  check(pscu_subq_update_counter(spiral_edge, 0U) == 1U,
+        "track 01 lower window bound hits");
+
   uint8_t mid_point[PSCU_SUBQ_FRAME_BYTES] = {0x41U, 0, 0x50U, 0, 0, 0,
                                               0,     0, 0,     0, 0, 0};
   check(pscu_subq_update_counter(mid_point, 0U) == 0U,
@@ -111,6 +115,10 @@ static void test_board_mode(void) {
   check(pscu_board_detect_mode(feed(low_run, 3U), 2U) == PSCU_BOARD_MODE_GATE,
         "one low pulse is not enough");
 
+  uint8_t single_low[1] = {0U};
+  check(pscu_board_detect_mode(feed(single_low, 1U), 1U) == PSCU_BOARD_MODE_WFCK,
+        "first low sample counts as one pulse");
+
   check(pscu_board_detect_mode(feed(high, 8U), 0U) == PSCU_BOARD_MODE_WFCK,
         "zero threshold is wfck");
 }
@@ -126,57 +134,6 @@ static void test_board_saturates(void) {
         "saturated count is wfck mode");
 }
 
-static uint8_t gesture_fires(const uint8_t *samples, uint16_t count,
-                             uint16_t threshold) {
-  pscu_gesture_t state = pscu_gesture_init();
-  uint8_t fired = 0U;
-  for (uint16_t i = 0U; i < count; i++) {
-    state = pscu_gesture_step(state, samples[i], threshold);
-    if (state.fired != 0U) {
-      fired = 1U;
-    }
-  }
-  return fired;
-}
-
-static void test_mode(void) {
-  check(pscu_mode_next(PSCU_MODE_DEFAULT) == PSCU_MODE_ALT_TIMING,
-        "default cycles to alt timing");
-  check(pscu_mode_next(PSCU_MODE_ALT_TIMING) == PSCU_MODE_OLD_MODCHIP,
-        "alt timing cycles to old modchip");
-  check(pscu_mode_next(PSCU_MODE_OLD_MODCHIP) == PSCU_MODE_DISABLED,
-        "old modchip cycles to disabled");
-  check(pscu_mode_next(PSCU_MODE_DISABLED) == PSCU_MODE_DEFAULT,
-        "disabled cycles back to default");
-
-  uint8_t hold_then_release[4] = {1U, 1U, 1U, 0U};
-  check(gesture_fires(hold_then_release, 4U, 3U) == 1U,
-        "hold to threshold then release fires");
-
-  uint8_t short_hold[3] = {1U, 1U, 0U};
-  check(gesture_fires(short_hold, 3U, 3U) == 0U, "short hold does not fire");
-
-  uint8_t lid_cycle[2] = {1U, 0U};
-  check(gesture_fires(lid_cycle, 2U, 1U) == 1U, "lid open then close fires");
-
-  uint8_t held_only[4] = {1U, 1U, 1U, 1U};
-  check(gesture_fires(held_only, 4U, 2U) == 0U, "hold without release does not fire");
-
-  uint8_t idle[3] = {0U, 0U, 0U};
-  check(gesture_fires(idle, 3U, 1U) == 0U, "no activity does not fire");
-}
-
-static void test_mode_saturate(void) {
-  pscu_gesture_t state = pscu_gesture_init();
-  for (uint32_t i = 0U; i < 70000U; i++) {
-    state = pscu_gesture_step(state, 1U, 5U);
-  }
-  check(state.held == 0xFFFFU, "held count saturates");
-
-  state = pscu_gesture_step(state, 0U, 5U);
-  check(state.fired == 1U, "release after saturated hold fires");
-}
-
 static void test_inject(void) {
   check(pscu_should_inject(10U, 10U), "inject at trigger");
   check(!pscu_should_inject(9U, 10U), "no inject below trigger");
@@ -190,8 +147,6 @@ int main(void) {
   test_subq_counter();
   test_board_mode();
   test_board_saturates();
-  test_mode();
-  test_mode_saturate();
   test_inject();
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);

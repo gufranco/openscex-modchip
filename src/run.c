@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 // SPDX-License-Identifier: MIT
 
+#include "pscu/run.h"
+
 #include <stdint.h>
 
 #include "port/port.h"
 #include "pscu/board_mode.h"
 #include "pscu/engine.h"
 #include "pscu/inject.h"
-#include "pscu/run.h"
 #include "pscu/subq.h"
 
 void pscu_run(void) {

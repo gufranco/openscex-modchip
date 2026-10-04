@@ -6,11 +6,10 @@ BUILD := build
 NAME := openscex-modchip
 
 MCU ?= attiny85
-MCUS := attiny85 attiny84
 F_CPU := 8000000UL
 FLASH_BYTES := 8192
 
-CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro
+CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate
 
 .PHONY: $(CONTAINER_TARGETS) clean
 
@@ -36,17 +35,12 @@ WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -Wsh
 HOST_CFLAGS := $(C_STD) -Iinclude $(WARNINGS)
 
 LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c
-HOST_LOGIC_C := $(LOGIC_C) src/mode.c
+HOST_LOGIC_C := $(LOGIC_C)
 
-ifeq ($(MCU),attiny85)
-FIRMWARE_C := $(LOGIC_C) src/engine.c src/run_basic.c src/main.c
+FIRMWARE_C := $(LOGIC_C) src/engine.c src/run.c src/main.c
 CPPCHECK_MCU_DEF := -D__AVR_ATtiny85__
-else
-FIRMWARE_C := $(LOGIC_C) src/engine.c src/run_modes.c src/mode.c src/main.c
-CPPCHECK_MCU_DEF := -D__AVR_ATtiny84__
-endif
 
-ALL_SRC_C := $(LOGIC_C) src/mode.c src/engine.c src/run_basic.c src/run_modes.c src/main.c
+ALL_SRC_C := $(LOGIC_C) src/engine.c src/run.c src/main.c
 FIRMWARE_S := src/port.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
 HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c
@@ -78,8 +72,7 @@ CPPCHECK_FLAGS := --std=c17 --platform=avr8 --enable=all --check-level=exhaustiv
 	$(CPPCHECK_MCU_DEF) -DF_CPU=$(F_CPU)
 CPPCHECK_CONFIGS := -DPSCU_DEBUG -UPSCU_DEBUG
 
-all:
-	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) image &&) true
+all: image
 
 image: $(RELEASE_HEX)
 
@@ -97,8 +90,7 @@ $(RELEASE_ELF): $(RELEASE_OBJECTS)
 $(RELEASE_HEX): $(RELEASE_ELF)
 	$(AVR_OBJCOPY) -O ihex -R .eeprom $< $@
 
-size:
-	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) image_size &&) true
+size: image_size
 
 image_size: $(RELEASE_ELF)
 	$(AVR_SIZE) $(RELEASE_ELF)
@@ -113,15 +105,14 @@ $(HOST_TEST): $(HOST_LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -O0 -DPSCU_DEBUG --coverage -o $@ $(HOST_LOGIC_C) $(HOST_TEST_C)
 
-SIM_ELF85 := $(BUILD)/attiny85/release/$(NAME)-attiny85.elf
-SIM_ELF84 := $(BUILD)/attiny84/release/$(NAME)-attiny84.elf
+SIM_ELF := $(BUILD)/$(MCU)/release/$(NAME)-$(MCU).elf
 
 $(SIM_TEST): $(SIM_TEST_C) all
 	@mkdir -p $(@D)
 	$(HOST_CC) $(SIM_CFLAGS) -o $@ $(SIM_TEST_C) $(SIM_LIBS)
 
 simtest: $(SIM_TEST)
-	$(foreach clk,$(SIM_CLOCKS_HZ),$(SIM_TEST) $(SIM_ELF85) $(SIM_ELF84) $(clk) &&) true
+	$(foreach clk,$(SIM_CLOCKS_HZ),$(SIM_TEST) $(SIM_ELF) $(clk) &&) true
 
 test: hosttest simtest
 
@@ -134,8 +125,7 @@ analyse: all
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage run --branch --source=tools -m unittest discover -s tests -t . -p 'test_*.py'
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage report -m
 
-misra:
-	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) image_misra &&) true
+misra: image_misra
 
 image_misra:
 	$(foreach config,$(CPPCHECK_CONFIGS),cppcheck $(CPPCHECK_FLAGS) $(config) --addon=misra $(FIRMWARE_C) &&) true
@@ -145,11 +135,14 @@ REPRO_B := $(BUILD)/repro-b
 
 repro:
 	rm -rf $(REPRO_A) $(REPRO_B)
-	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) BUILD=$(REPRO_A) image &&) true
-	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) BUILD=$(REPRO_B) image &&) true
+	$(MAKE) --no-print-directory BUILD=$(REPRO_A) image
+	$(MAKE) --no-print-directory BUILD=$(REPRO_B) image
 	cd $(REPRO_A) && find . -type f \( -name '*.hex' -o -name '*.elf' \) | sort | xargs sha256sum > $(CURDIR)/$(BUILD)/repro-a.sums
 	cd $(REPRO_B) && find . -type f \( -name '*.hex' -o -name '*.elf' \) | sort | xargs sha256sum > $(CURDIR)/$(BUILD)/repro-b.sums
 	diff $(BUILD)/repro-a.sums $(BUILD)/repro-b.sums
 	@echo "reproducible build verified: identical artifacts across two fresh builds"
+
+mutate:
+	$(PYTHON) tools/mutate.py
 
 endif

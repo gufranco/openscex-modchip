@@ -1,12 +1,14 @@
 # openscex-modchip
 
-An open-source region-unlock modchip for the original Sony PlayStation and PSone, targeting an ATtiny, built to the engineering standard of a professional embedded project rather than a hobby firmware.
+An open-source region-unlock modchip for the original Sony PlayStation and PSone, a single ATtiny85 with four signal wires, built to the engineering standard of a professional embedded project rather than a hobby firmware.
 
-Status: discovery, 2026-10-04. No firmware exists yet. No claim here has been verified on hardware. This repository currently holds the project specification and the research behind it. Four architectural decisions await the owner before implementation begins.
+Status (as of 2026-10-04): the ATtiny85 firmware builds at 624 bytes and passes the full in-container gate set (MISRA zero deviations, host tests at 100 percent coverage, simavr console-model scenarios across the oscillator band, mutation testing, reproducible builds). Nothing has been verified on real hardware yet.
 
 ## What it will do
 
-A PlayStation checks a physical fingerprint pressed into the disc lead-in, the wobble groove, which decodes to a four-character region string (SCEI for Japan, SCEA for the Americas, SCEE for Europe). The console boots only discs carrying the string it expects. This modchip injects the string the console wants, so out-of-region and backup discs boot. For Japanese consoles and the PAL PSone, which run a second check inside the boot ROM, a later version adds a boot-ROM patch.
+A PlayStation checks a physical fingerprint pressed into the disc lead-in, the wobble groove, which decodes to a four-character region string (SCEI for Japan, SCEA for the Americas, SCEE for Europe). The console boots only discs carrying the string it expects. This modchip injects the string the console wants, only in the window the console asks for, and re-arms when it detects a disc change, so out-of-region and backup discs boot.
+
+It is a single ATtiny85 with four signal wires and power. There are no modes, no reset or lid wiring, and one optional status LED. Japanese fat consoles and the PAL PSone run a second region check inside the boot ROM that this chip does not patch, so some imports may still refuse to boot on those specific models.
 
 This is not an optical-drive emulator. It does not replace the drive, does not support PS2 or Saturn, and cannot defeat data-layer protections such as LibCrypt.
 

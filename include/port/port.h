@@ -28,12 +28,4 @@ void pscu_port_delay_ms(uint16_t milliseconds);
 
 void pscu_port_data_mirror_wfck_ms(uint16_t milliseconds);
 
-uint8_t pscu_port_read_reset(void);
-
-uint8_t pscu_port_read_lid(void);
-
-uint8_t pscu_port_eeprom_read(uint8_t address);
-
-void pscu_port_eeprom_write(uint8_t address, uint8_t value);
-
 #endif
