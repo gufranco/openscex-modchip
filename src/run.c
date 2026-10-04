@@ -11,6 +11,13 @@
 #include "pscu/inject.h"
 #include "pscu/subq.h"
 
+// The whole modchip, as one loop. Detect the board era once, then forever:
+// read a SUBQ frame, let it move the leaky counter, and inject the SCEx words
+// when the counter says the console is in its region-check window. Disc swaps
+// re-arm on their own because a new disc re-reads the lead-in, which the
+// counter picks up again. This is the single non-terminating loop the firmware
+// is built around; every call inside it is bounded, and the watchdog is kicked
+// each pass so a stuck signal resets the chip rather than wedging it.
 void pscu_run(void) {
   pscu_board_mode_t board = pscu_engine_detect_board();
   uint8_t counter = 0U;

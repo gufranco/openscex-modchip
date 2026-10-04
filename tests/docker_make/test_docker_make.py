@@ -1,6 +1,13 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
+"""Tests for the container build wrapper.
+
+Docker is never invoked: subprocess is mocked so the tag hashing, the run argv,
+the build-only-when-absent logic, and the exit-code passthrough are checked
+without a daemon.
+"""
+
 import subprocess
 import unittest
 from pathlib import Path
