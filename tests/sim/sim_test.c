@@ -12,14 +12,26 @@
 #include "sim_elf.h"
 #include "sim_irq.h"
 
+// A software PlayStation, just enough to exercise the firmware end to end in
+// simavr: it drives the console-side pins (SQCK, SUBQ, WFCK) and watches the
+// firmware-side pins (DATA, LED), then decodes the injected bitstream and
+// checks it equals the expected region word. Timing is in CPU cycles, which is
+// independent of the simulated clock frequency, so the same model runs across
+// the oscillator tolerance band.
+
 #define SUBQ_FRAME_BYTES 12
 #define SUBQ_BITS 8
+// Half-period of the SQCK clock we fake while shifting a SUBQ frame.
 #define EDGE_CYCLES 60
+// Cycles to let the firmware's boot-time board detection complete.
 #define DETECT_CYCLES 600000UL
 #define INJECT_CYCLES 7000000UL
 #define TRIGGER_FRAMES 10
 #define SCEX_BITS 44
+// One SCEx bit cell is 4 ms; at 8 MHz that is 32000 cycles. The decoder samples
+// at this spacing from the LED edge that marks injection start.
 #define BIT_CYCLES 32000UL
+// WFCK carrier the modern-board model oscillates at (~7.3 kHz during init).
 #define WFCK_HZ 7300UL
 #define LED_DEADLINE 1000000UL
 
@@ -33,6 +45,9 @@ typedef struct {
   uint8_t wfck;
 } target_t;
 
+// The Japanese (SCEI) word as the 44 DATA levels the firmware should emit,
+// LSB-first. The decoder reconstructs this and compares; a correct decode on
+// both board models proves the encoder and the per-model bit timing.
 static const char SCEI_BITS[SCEX_BITS + 1] =
     "10011010100100111101001010111010010110110100";
 
@@ -140,6 +155,12 @@ static void boot_quiet(avr_t *avr, const target_t *t, int modern, wfck_ctx_t *ct
   run_cycles(avr, DETECT_CYCLES);
 }
 
+// Reconstruct the 44-bit word the firmware drove, reading DATA once per bit
+// cell starting from the LED injection marker. The two board models encode a
+// logic one differently, so each is decoded on its own terms: on a modern
+// board a one is DATA mirroring the WFCK carrier, seen as the pin going high
+// somewhere mid-cell (sampled across s = 3..7 tenths); on a legacy board a one
+// is high-Z, seen as DATA left as an input (DDR clear), a zero as driven low.
 static void decode_region(avr_t *avr, const target_t *t, int modern, char *out) {
   for (int k = 0; k < SCEX_BITS; k++) {
     uint64_t base = g_led_cycle + ((uint64_t)k * BIT_CYCLES);
@@ -171,6 +192,9 @@ static void scenario_inject(const target_t *t, const char *elf, uint32_t freq,
   avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
   boot_quiet(avr, t, modern, &ctx);
 
+  // A lead-in frame that must arm injection (control 0x41 = data sector,
+  // track 0xA0 = TOC) versus an ordinary audio frame that must not (control
+  // 0x01, track 0x02). frame[1] and frame[6] are zero so both parse as framed.
   uint8_t toc[SUBQ_FRAME_BYTES] = {0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   uint8_t audio[SUBQ_FRAME_BYTES] = {0x01U, 0x00U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   for (int i = 0; i < TRIGGER_FRAMES; i++) {

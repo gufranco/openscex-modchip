@@ -11,6 +11,12 @@
 #include "pscu/region.h"
 #include "pscu/subq.h"
 
+// Host tests for the pure logic layer, run with assertions on. SUBQ frames
+// below follow the disc byte layout: [0] control (0x4x = data sector), [1] must
+// be 0 to parse, [2] track number (0xA0+ = TOC, 0x01 = program start), [3]
+// index within the track, [6] must be 0 to parse. Only the bytes that matter
+// to a given case are set; the rest stay zero.
+
 static int g_checks = 0;
 static int g_failures = 0;
 

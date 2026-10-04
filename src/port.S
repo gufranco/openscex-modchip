@@ -1,14 +1,31 @@
 // SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 // SPDX-License-Identifier: MIT
 
+// Hardware layer. Every register touch in the whole firmware lives here, behind
+// the C prototypes in include/port/port.h. The C layers never include avr/io,
+// because avr-libc reaches registers through casts MISRA forbids; isolating
+// them in assembly keeps the C MISRA-clean and keeps the timing explicit.
+
 #include <avr/io.h>
 
 #include "port/registers.h"
 
+// Busy-loop iteration counts, derived from F_CPU so the delays recalibrate
+// automatically for the internal 8 MHz build and the external-clock build. The
+// inner loop is 4 cycles (delay) or 12 cycles (mirror, which also reads and
+// writes the port each pass), so dividing F_CPU by those gives one millisecond.
 #define PSCU_DELAY_1MS_ITERS (F_CPU / 4000UL)
 #define PSCU_MIRROR_1MS_ITERS (F_CPU / 12000UL)
 
 	.text
+
+// Bring the chip up. Writing 0x80 then 0x00 to CLKPR within four cycles is the
+// AVR timed sequence that clears the clock prescaler, forcing a true 8 MHz core
+// regardless of the factory CKDIV8 fuse. LED is the only output at boot; the
+// board profile's PORT_INIT enables any pull-ups the variant needs. The two
+// writes to the watchdog register are its own timed sequence: the first arms
+// the change, the second enables the watchdog at a ~0.5 s timeout (WDP2|WDP0),
+// so any hang longer than one loop pass resets the chip instead of wedging it.
 
 	.global pscu_port_init
 	.func pscu_port_init
@@ -36,6 +53,9 @@ pscu_port_watchdog_reset:
 	ret
 	.endfunc
 
+// The three input reads each return the masked pin bit, not a clean 0/1, so the
+// C side only ever compares them against zero. Masking in hardware here avoids
+// a separate shift and keeps the read a single `in`.
 	.global pscu_port_read_sqck
 	.func pscu_port_read_sqck
 pscu_port_read_sqck:
@@ -60,6 +80,10 @@ pscu_port_read_wfck:
 	ret
 	.endfunc
 
+// DATA is open-collector-style: a logic zero is an active low (clear PORT, then
+// set DDR to output), a logic one is high-Z (clear DDR back to input and clear
+// PORT so no pull-up drives it). Clearing PORT before setting DDR on the drive
+// path avoids a momentary high glitch on the bus.
 	.global pscu_port_data_drive_low
 	.func pscu_port_data_drive_low
 pscu_port_data_drive_low:
@@ -90,6 +114,9 @@ pscu_port_led_off:
 	ret
 	.endfunc
 
+// Blocking millisecond delay. r24:r25 is the millisecond count from the caller;
+// the inner loop burns PSCU_DELAY_1MS_ITERS to spend one millisecond, kicking
+// the watchdog once per millisecond so a long injection never trips the reset.
 	.global pscu_port_delay_ms
 	.func pscu_port_delay_ms
 pscu_port_delay_ms:
@@ -108,6 +135,13 @@ pscu_port_delay_ms:
 	ret
 	.endfunc
 
+// Drive DATA as a copy of the live WFCK input for the given milliseconds, the
+// modern-board way to send a logic one: the console samples DATA against WFCK,
+// so DATA must track that carrier rather than sit at a static level. Each pass
+// reads the port, shifts the WFCK bit down to the DATA bit position (the shift
+// count is the pin-number distance, computed at assemble time by .rept so it is
+// correct for whichever board profile is built), masks it, and writes it back
+// into DATA without disturbing the other port bits.
 	.global pscu_port_data_mirror_wfck_ms
 	.func pscu_port_data_mirror_wfck_ms
 pscu_port_data_mirror_wfck_ms:

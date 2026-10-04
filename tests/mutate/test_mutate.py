@@ -1,6 +1,13 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
+"""Tests for the mutation tool.
+
+The pure mutant generation is checked directly; the compile-and-run side is
+driven with a mocked subprocess so these tests need no compiler and the
+file-restore guarantee is checked on a real temp file.
+"""
+
 import shutil
 import subprocess
 import tempfile

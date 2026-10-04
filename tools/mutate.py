@@ -1,6 +1,15 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
+"""Mutation testing for the logic layer.
+
+A test suite that passes proves the code does what the tests check; it does not
+prove the tests would catch a change. This tool makes small edits (mutants) to
+the logic source, rebuilds the host suite against each, and requires every
+mutant to make a test fail. A surviving mutant is a gap in the tests, not the
+code. The gate is 100 percent killed.
+"""
+
 import re
 import subprocess
 import sys
@@ -22,6 +31,10 @@ TEST_FILES = (
 CC = "gcc"
 CFLAGS = ("-std=c17", "-pedantic-errors", "-Iinclude", "-O0", "-DPSCU_DEBUG")
 
+# Each mutator flips one operator to a near neighbour that a weak test would
+# not notice. The single-character < and > forms use look-around so they never
+# match a shift (<< >>), an arrow (->), or the compound forms (<= >= ==), which
+# the two-character mutators handle on their own.
 MUTATORS = (
     ("eq->ne", re.compile(r"=="), "!="),
     ("ne->eq", re.compile(r"!="), "=="),
@@ -48,6 +61,13 @@ class Result:
 
 
 def _is_skipped(line: str) -> bool:
+    """Lines not worth mutating.
+
+    Preprocessor and comment lines carry no runtime logic. PSCU_ASSERT lines are
+    defensive guards whose false path is deliberately excluded from coverage, so
+    mutating them would only ever produce equivalent or untestable mutants; this
+    matches the gcovr assert-branch exclusion.
+    """
     stripped = line.lstrip()
     if stripped.startswith("#") or stripped.startswith("//"):
         return True
@@ -71,6 +91,12 @@ def generate_mutants(source: str) -> list[Mutant]:
 
 
 def _compile_and_run(root: Path, binary: Path) -> bool:
+    """Build and run the host suite; True only if it compiles and passes.
+
+    A mutant that fails to compile counts as killed (the broken edit was
+    caught). The suite runs with cwd in the binary's temp directory so a mutant
+    that makes an assert abort drops its core dump there, not in the repo.
+    """
     sources = [str(root / name) for name in (*LOGIC_FILES, *TEST_FILES)]
     compiled = subprocess.run(
         [CC, *CFLAGS, "-o", str(binary), *sources],
@@ -87,6 +113,11 @@ def _compile_and_run(root: Path, binary: Path) -> bool:
 
 
 def _mutant_killed(root: Path, path: Path, mutant: Mutant, binary: Path) -> bool:
+    """Apply one mutant in place, test it, and always restore the file.
+
+    Killed means the suite no longer passes. The original is written back in a
+    finally so an exception mid-test never leaves the tree mutated.
+    """
     original = path.read_text()
     try:
         path.write_text(mutant.source)
@@ -96,6 +127,12 @@ def _mutant_killed(root: Path, path: Path, mutant: Mutant, binary: Path) -> bool
 
 
 def run(root: Path) -> Result:
+    """Mutate every logic file and tally killed versus survivors.
+
+    The unmutated suite must pass first, otherwise a "killed" result would be
+    meaningless. Each surviving mutant is reported with its file and location so
+    the missing test is easy to find.
+    """
     with tempfile.TemporaryDirectory() as tmp:
         binary = Path(tmp) / "host_test"
         if not _compile_and_run(root, binary):
