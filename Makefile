@@ -6,8 +6,17 @@ BUILD := build
 NAME := openscex-modchip
 
 MCU ?= attiny85
-F_CPU := 8000000UL
 FLASH_BYTES := 8192
+
+CLOCK ?= internal
+EXT_F_CPU ?= 4233600UL
+ifeq ($(CLOCK),external)
+F_CPU := $(EXT_F_CPU)
+CLOCK_TAG := -extclk
+else
+F_CPU := 8000000UL
+CLOCK_TAG :=
+endif
 
 CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate
 
@@ -19,7 +28,7 @@ clean:
 ifndef PSCU_TOOLCHAIN
 
 $(CONTAINER_TARGETS):
-	$(PYTHON) tools/docker_make.py $@
+	$(PYTHON) tools/docker_make.py $@ CLOCK=$(CLOCK) EXT_F_CPU=$(EXT_F_CPU)
 
 else
 
@@ -53,9 +62,9 @@ SIM_CFLAGS := $(C_STD) -O2 -Wall -Wextra -Werror \
 SIM_LIBS := $(shell pkg-config --libs simavr libelf)
 SIM_CLOCKS_HZ := 7200000 8000000 8800000
 
-RELEASE := $(BUILD)/$(MCU)/release
-RELEASE_ELF := $(RELEASE)/$(NAME)-$(MCU).elf
-RELEASE_HEX := $(RELEASE)/$(NAME)-$(MCU).hex
+RELEASE := $(BUILD)/$(MCU)$(CLOCK_TAG)/release
+RELEASE_ELF := $(RELEASE)/$(NAME)-$(MCU)$(CLOCK_TAG).elf
+RELEASE_HEX := $(RELEASE)/$(NAME)-$(MCU)$(CLOCK_TAG).hex
 RELEASE_OBJECTS := $(patsubst src/%,$(RELEASE)/%.o,$(FIRMWARE_C) $(FIRMWARE_S))
 
 AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
