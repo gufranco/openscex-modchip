@@ -32,6 +32,9 @@ jobs:
       - name: Mutation testing
         run: make mutate
 
+      - name: Build external-clock variant (compile check)
+        run: make CLOCK=external size
+
   commit-messages:
     name: Commit messages
     if: github.event_name == 'pull_request'
