@@ -89,6 +89,8 @@ Plus mutation testing and reproducible builds. No compatibility claim is Verifie
 
 ## State (as of 2026-10-04)
 
-- Discovery complete. The specification, hardware model, research, and four accepted decision records are in `docs/`.
-- Logic layer implemented and host-tested: `region`, `subq`, `board_mode`, `inject`. `make hosttest` builds under the strict warning set and runs 28 checks at 0 failures; logic-module lines at 100 percent on the host. The authoritative gcovr branch gate runs in the pinned image, not yet built.
-- Not yet done: the pinned Docker toolchain and its make delegation, MISRA and format gates, the platform and hardware layers, the simavr console model, the BIOS-patch handler, mutation and reproducible-build checks, CI, and any hardware result. Nothing has run on a console.
+- Discovery complete. The specification, hardware model, research, and the accepted decision records are in `docs/`.
+- Pinned Docker toolchain built and working (`openscex-modchip-toolchain`); every build, check and test runs in it through `tools/docker_make.py`.
+- Firmware builds for both chips: ATtiny85 minimal (`src/run_basic.c`) at 624 bytes and ATtiny84 full-mode (`src/run_modes.c`) at 976 bytes, sharing `src/engine.c` and `src/port.S`. The mode system (reset-hold / lid open-close selection, EEPROM persistence, the four modes, Universal cycle) is implemented on the 84.
+- Gates green in-container: `make all size`, `make analyse` (clang-format, ruff, reuse lint, MISRA C:2012 zero deviations on both chip configs across debug and release, tool coverage 100 percent), `make hosttest` (37 checks, 0 failures, gcovr lines/functions/branches 100 percent, assert false-paths excluded), `make simtest` (the simavr console model drives SQCK/SUBQ/WFCK and watches DATA/LED; 7 checks at each of 7.2/8.0/8.8 MHz, decoding injected SCEI bit-exact on legacy and modern boards, a non-TOC no-inject negative, and 84 EEPROM mode restore for disabled and old-modchip).
+- Not yet done: the BIOS-patch handler, the reset/lid gesture sim scenario, the external-clock build, mutation and reproducible-build checks, CI, the revision-to-tap-point READMEs, and any hardware result. Nothing has run on a console.
