@@ -23,6 +23,7 @@ LOGIC_FILES = (
     "src/subq.c",
     "src/board_mode.c",
     "src/inject.c",
+    "src/diag.c",
 )
 TEST_FILES = (
     "tests/host/host_assert.c",

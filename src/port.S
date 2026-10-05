@@ -174,6 +174,47 @@ pscu_port_data_mirror_wfck_ms:
 	ret
 	.endfunc
 
+// EEPROM primitives for the diagnostics recorder. The AVR EEPROM is reached
+// through EECR/EEDR/EEAR, identical on the ATtiny85 and ATtiny84, so one copy
+// serves both. Each call first spins until EEPE clears, meaning any earlier
+// write has finished, kicking the watchdog so the wait can never wedge the chip.
+// r1 is the compiler's fixed zero register, so the high address byte is cleared
+// by writing it; our addresses are always below 256. The firmware calls these
+// only after it has gone idle, so the millisecond-scale write latency is spent
+// when nothing is time-critical.
+	.global pscu_port_eeprom_read
+	.func pscu_port_eeprom_read
+pscu_port_eeprom_read:
+13:
+	wdr
+	sbic _SFR_IO_ADDR(EECR), EEPE
+	rjmp 13b
+	out _SFR_IO_ADDR(EEARH), r1
+	out _SFR_IO_ADDR(EEARL), r24
+	sbi _SFR_IO_ADDR(EECR), EERE
+	in r24, _SFR_IO_ADDR(EEDR)
+	ret
+	.endfunc
+
+// Write sets the address and data, then performs the AVR timed sequence: set
+// EEMPE, then set EEPE within four cycles. Two back-to-back sbi instructions are
+// two cycles each, so the second lands inside the window. The firmware never
+// enables interrupts, so nothing can break the sequence apart.
+	.global pscu_port_eeprom_write
+	.func pscu_port_eeprom_write
+pscu_port_eeprom_write:
+14:
+	wdr
+	sbic _SFR_IO_ADDR(EECR), EEPE
+	rjmp 14b
+	out _SFR_IO_ADDR(EEARH), r1
+	out _SFR_IO_ADDR(EEARL), r24
+	out _SFR_IO_ADDR(EEDR), r22
+	sbi _SFR_IO_ADDR(EECR), EEMPE
+	sbi _SFR_IO_ADDR(EECR), EEPE
+	ret
+	.endfunc
+
 #if PSCU_BIOS_ENABLED
 
 // Read the address line AX. Unlike the SCEx signals on PORTA, AX is on PB2

@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "avr_eeprom.h"
 #include "avr_ioport.h"
 #include "sim_avr.h"
 #include "sim_cycle_timers.h"
@@ -328,6 +329,55 @@ static void scenario_bios_two_phase(const char *elf, uint32_t freq) {
   check(g_dx_output == 2, "attiny84 bios: both patch windows override the data bus");
 }
 
+// Prove the in-field diagnostics recorder. Boot a legacy board, drive TOC frames
+// to arm and fire one injection, then clock silence frames (neither a data
+// sector nor track 01) so the SUBQ counter decays, the window closes, and the
+// run loop writes the recorder once on the idle pass. Reading the four EEPROM
+// bytes back the way an installer would with avrdude checks the record: magic
+// present, board recorded as legacy gate, one session, and a nonzero injection
+// count. The write landing off the injection path is the property under test.
+#define DIAG_TOC_FRAMES 12
+// The single injection is slow (44 bits at 4 ms), so the first silence frames
+// pass while it runs and are missed; the rest are read once it finishes, each
+// decaying the counter one step until the window closes.
+#define DIAG_SILENCE_FRAMES 220
+#define DIAG_WRITE_CYCLES 3000000UL
+
+static void scenario_diag(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = {NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ))};
+  g_led_seen = 0;
+  g_led_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+
+  uint8_t toc[SUBQ_FRAME_BYTES] = {0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  uint8_t silence[SUBQ_FRAME_BYTES] = {0};
+  for (int i = 0; i < DIAG_TOC_FRAMES; i++) {
+    clock_frame(avr, t, toc);
+  }
+  for (int i = 0; i < DIAG_SILENCE_FRAMES; i++) {
+    clock_frame(avr, t, silence);
+  }
+  run_cycles(avr, DIAG_WRITE_CYCLES);
+
+  uint8_t raw[4] = {0, 0, 0, 0};
+  avr_eeprom_desc_t desc = {.ee = raw, .offset = 0, .size = sizeof(raw)};
+  (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_GET, &desc);
+
+  const char *tag = (strcmp(t->mcu, "attiny85") == 0) ? "85" : "84";
+  char label[96];
+  check(g_led_seen != 0, "diag: injection ran before logging");
+  (void)snprintf(label, sizeof(label), "diag %s: recorder magic written", tag);
+  check(raw[0] == 0x50U, label);
+  (void)snprintf(label, sizeof(label), "diag %s: board recorded as legacy gate", tag);
+  check(raw[1] == 0U, label);
+  (void)snprintf(label, sizeof(label), "diag %s: one session on a fresh eeprom", tag);
+  check(raw[2] == 1U, label);
+  (void)snprintf(label, sizeof(label), "diag %s: injection count recorded", tag);
+  check(raw[3] >= 1U, label);
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 4) {
     (void)fprintf(stderr, "usage: %s elf85 elf84 freq_hz [elf84bios]\n", argv[0]);
@@ -352,6 +402,11 @@ int main(int argc, char *argv[]) {
   scenario_inject(&t84, elf84, freq, 0, 1);
   scenario_inject(&t84, elf84, freq, 1, 1);
   scenario_inject(&t84, elf84, freq, 0, 0);
+
+  if (freq == 8000000U) {
+    scenario_diag(&t85, elf85, freq);
+    scenario_diag(&t84, elf84, freq);
+  }
 
   // The optional fourth and fifth arguments are the ATtiny84 BIOS images,
   // single-phase then two-phase; both are slow, so simtest passes them at one

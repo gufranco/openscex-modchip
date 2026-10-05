@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "pscu/board_mode.h"
+#include "pscu/diag.h"
 #include "pscu/inject.h"
 #include "pscu/region.h"
 #include "pscu/subq.h"
@@ -167,6 +168,42 @@ static void test_stealth(void) {
   check(again.fire, "re-fires on the next window, as after a disc swap");
 }
 
+static void test_diag(void) {
+  uint8_t erased[PSCU_DIAG_EEPROM_BYTES] = {0xFFU, 0xFFU, 0xFFU, 0xFFU};
+  pscu_diag_record_t fresh = pscu_diag_decode(erased);
+  check((fresh.sessions == 0U) && (fresh.board == PSCU_BOARD_MODE_GATE),
+        "erased eeprom decodes as no prior record");
+
+  uint8_t stored[PSCU_DIAG_EEPROM_BYTES] = {PSCU_DIAG_MAGIC, 1U, 7U, 3U};
+  pscu_diag_record_t prior = pscu_diag_decode(stored);
+  check((prior.board == PSCU_BOARD_MODE_WFCK) && (prior.sessions == 7U) &&
+            (prior.injects == 3U),
+        "valid record decodes all fields");
+
+  uint8_t gate_stored[PSCU_DIAG_EEPROM_BYTES] = {PSCU_DIAG_MAGIC, 0U, 2U, 9U};
+  check(pscu_diag_decode(gate_stored).board == PSCU_BOARD_MODE_GATE,
+        "zero board byte decodes as gate");
+
+  pscu_diag_record_t built = pscu_diag_build(PSCU_BOARD_MODE_WFCK, 7U, 4U);
+  check((built.sessions == 8U) && (built.injects == 4U),
+        "build advances the session count");
+
+  check(pscu_diag_build(PSCU_BOARD_MODE_GATE, 255U, 0U).sessions == 0U,
+        "session count wraps at the byte boundary");
+
+  uint8_t gate_raw[PSCU_DIAG_EEPROM_BYTES];
+  pscu_diag_encode(pscu_diag_build(PSCU_BOARD_MODE_GATE, 0U, 1U), gate_raw);
+  pscu_diag_record_t gate_back = pscu_diag_decode(gate_raw);
+  check((gate_back.board == PSCU_BOARD_MODE_GATE) && (gate_back.sessions == 1U),
+        "encode then decode round-trips a gate record");
+
+  uint8_t wfck_raw[PSCU_DIAG_EEPROM_BYTES];
+  pscu_diag_encode(pscu_diag_build(PSCU_BOARD_MODE_WFCK, 10U, 16U), wfck_raw);
+  pscu_diag_record_t wfck_back = pscu_diag_decode(wfck_raw);
+  check((wfck_back.board == PSCU_BOARD_MODE_WFCK) && (wfck_back.injects == 16U),
+        "encode then decode round-trips a wfck record");
+}
+
 int main(void) {
   test_region();
   test_subq_counter();
@@ -174,6 +211,7 @@ int main(void) {
   test_board_saturates();
   test_inject();
   test_stealth();
+  test_diag();
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
   return (g_failures == 0) ? 0 : 1;

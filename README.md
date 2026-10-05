@@ -45,6 +45,7 @@ Not confirmed on hardware (built and simulated only): PU-7, PU-20, PU-22, PU-23,
 | Disc-swap re-arm | leaving the window re-arms the one-shot |
 | Boot-ROM BIOS patch | ATtiny84 only, Japanese fat and PAL PSone, every model including two-phase SCPH-1000 and SCPH-3000 |
 | Optional LED | status output; firmware is correct with no LED fitted |
+| In-field diagnostics | a four-byte flight recorder written to EEPROM after the chip goes idle (detected board, session count, injection count), read back with avrdude; no existing PS1 modchip reports what it saw |
 | Verification | host tests 100% line and branch coverage, simavr console model across the oscillator band, mutation testing, reproducible builds |
 
 ## Confidence tags
@@ -188,6 +189,21 @@ make mutate      # mutation testing on the logic layer
 ```
 
 The same gates run in CI on every push and pull request, defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+## Diagnostics
+
+The chip writes a four-byte flight recorder to EEPROM once it has finished injecting and gone idle, so an install can be diagnosed rather than guessed. The write never happens at boot or inside the region-check window, so it does not affect injection timing, and it is one write per power cycle so EEPROM endurance is not a concern. Read it back with the programmer:
+
+```bash
+avrdude -c <programmer> -p attiny85 -U eeprom:r:diag.bin:r
+```
+
+| Byte | Meaning |
+|:-----|:--------|
+| 0 | magic `0x50`; any other value means no record was written yet |
+| 1 | detected board: `0` legacy gate, `1` WFCK carrier |
+| 2 | sessions that reached idle, wraps at 255 |
+| 3 | region strings emitted in the last session |
 
 ## Safety
 

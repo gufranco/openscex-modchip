@@ -114,7 +114,7 @@ WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -Wsh
 	-Wswitch-default -Wdouble-promotion -Wnull-dereference -Wvla -Wredundant-decls -Wformat=2
 HOST_CFLAGS := $(C_STD) -Iinclude $(WARNINGS)
 
-LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c
+LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c src/diag.c
 HOST_LOGIC_C := $(LOGIC_C)
 
 # The SCEx stealth firmware is shared by both chips; BIOS_SRC adds the patch
