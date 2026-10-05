@@ -28,17 +28,18 @@ static void pscu_bios_wait_level(uint8_t level) {
   }
 }
 
-// One silence window: AX must stay low for the whole PSCU_BIOS_SILENCE poll
-// count. Any high reading means an address pulse arrived, so the window did not
-// qualify as silent.
+// One silence window: AX is polled PSCU_BIOS_SILENCE times and the window counts
+// as silent while no more than PSCU_BIOS_NOISE_TOLERANCE highs appear. A brief
+// line glitch is tolerated so it does not reset the boot-stage detection, but a
+// real address pulse train quickly exceeds the tolerance and breaks the window.
 static bool pscu_bios_window_silent(void) {
-  bool silent = true;
-  for (uint16_t i = 0U; (i < PSCU_BIOS_SILENCE) && silent; i++) {
+  uint16_t highs = 0U;
+  for (uint16_t i = 0U; (i < PSCU_BIOS_SILENCE) && (highs <= PSCU_BIOS_NOISE_TOLERANCE); i++) {
     if (pscu_port_bios_ax() != 0U) {
-      silent = false;
+      highs = (uint16_t)(highs + 1U);
     }
   }
-  return silent;
+  return highs <= PSCU_BIOS_NOISE_TOLERANCE;
 }
 
 void pscu_bios_patch(void) {
