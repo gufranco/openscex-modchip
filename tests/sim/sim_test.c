@@ -50,8 +50,7 @@ typedef struct {
 // LSB-first. This is the default build's single configured region, so it is
 // the only word the firmware emits; the decoder reconstructs it and compares. A
 // correct decode on both board models proves the encoder and the bit timing.
-static const char SCEA_BITS[SCEX_BITS + 1] =
-    "10011010100100111101001010111010010111110100";
+static const char SCEA_BITS[SCEX_BITS + 1] = "10011010100100111101001010111010010111110100";
 
 #define BIOS_AX_PIN 2
 #define BIOS_AY_PIN 6
@@ -139,8 +138,7 @@ static uint8_t data_ddr(avr_t *avr, const target_t *t) {
 static uint8_t data_pin(avr_t *avr, const target_t *t) {
   avr_ioport_state_t state;
   (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE((uint32_t)t->port), &state);
-  return (uint8_t)((state.port >> t->data) & 1U) &
-         (uint8_t)((state.ddr >> t->data) & 1U);
+  return (uint8_t)((state.port >> t->data) & 1U) & (uint8_t)((state.ddr >> t->data) & 1U);
 }
 
 static void clock_frame(avr_t *avr, const target_t *t, const uint8_t *frame) {
@@ -203,10 +201,10 @@ static void decode_region(avr_t *avr, const target_t *t, int modern, char *out) 
   out[SCEX_BITS] = '\0';
 }
 
-static void scenario_inject(const target_t *t, const char *elf, uint32_t freq,
-                            int modern, int trigger) {
+static void scenario_inject(
+    const target_t *t, const char *elf, uint32_t freq, int modern, int trigger) {
   avr_t *avr = build_avr(t, elf, freq);
-  wfck_ctx_t ctx = {NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ))};
+  wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
   g_led_seen = 0;
   g_led_cycle = 0;
   avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
@@ -215,8 +213,8 @@ static void scenario_inject(const target_t *t, const char *elf, uint32_t freq,
   // A lead-in frame that must arm injection (control 0x41 = data sector,
   // track 0xA0 = TOC) versus an ordinary audio frame that must not (control
   // 0x01, track 0x02). frame[1] and frame[6] are zero so both parse as framed.
-  uint8_t toc[SUBQ_FRAME_BYTES] = {0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  uint8_t audio[SUBQ_FRAME_BYTES] = {0x01U, 0x00U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t audio[SUBQ_FRAME_BYTES] = { 0x01U, 0x00U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   for (int i = 0; i < TRIGGER_FRAMES; i++) {
     clock_frame(avr, t, (trigger != 0) ? toc : audio);
   }
@@ -238,8 +236,7 @@ static void scenario_inject(const target_t *t, const char *elf, uint32_t freq,
       check(strcmp(decoded, SCEA_BITS) == 0, label);
     }
   } else {
-    (void)snprintf(label, sizeof(label), "%s: non-TOC does not inject at %u Hz", tag,
-                   freq);
+    (void)snprintf(label, sizeof(label), "%s: non-TOC does not inject at %u Hz", tag, freq);
     check(g_led_seen == 0, label);
   }
 }
@@ -263,12 +260,11 @@ static void on_dx_direction(struct avr_irq_t *irq, uint32_t value, void *param) 
 // mechanism (count pulses, then override); the cycle-exact constants themselves
 // are hardware values and stay unverified until a console.
 static void scenario_bios(const char *elf, uint32_t freq) {
-  target_t t84 = {"attiny84", 'A', 0U, 1U, 2U, 4U, 3U};
+  target_t t84 = { "attiny84", 'A', 0U, 1U, 2U, 4U, 3U };
   avr_t *avr = build_avr(&t84, elf, freq);
   g_dx_output = 0;
 
-  avr_irq_t *direction =
-      avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('A'), IOPORT_IRQ_DIRECTION_ALL);
+  avr_irq_t *direction = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('A'), IOPORT_IRQ_DIRECTION_ALL);
   avr_irq_register_notify(direction, on_dx_direction, NULL);
   avr_irq_t *ax = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('B'), BIOS_AX_PIN);
 
@@ -294,12 +290,11 @@ static void scenario_bios(const char *elf, uint32_t freq) {
 // AX as before, then, after the longer second silent gap, the second train on
 // AY, and confirm DX was driven to an output in both windows.
 static void scenario_bios_two_phase(const char *elf, uint32_t freq) {
-  target_t t84 = {"attiny84", 'A', 0U, 1U, 2U, 4U, 3U};
+  target_t t84 = { "attiny84", 'A', 0U, 1U, 2U, 4U, 3U };
   avr_t *avr = build_avr(&t84, elf, freq);
   g_dx_output = 0;
 
-  avr_irq_t *direction =
-      avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('A'), IOPORT_IRQ_DIRECTION_ALL);
+  avr_irq_t *direction = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('A'), IOPORT_IRQ_DIRECTION_ALL);
   avr_irq_register_notify(direction, on_dx_direction, NULL);
   avr_irq_t *ax = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('B'), BIOS_AX_PIN);
   avr_irq_t *ay = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('A'), BIOS_AY_PIN);
@@ -345,14 +340,14 @@ static void scenario_bios_two_phase(const char *elf, uint32_t freq) {
 
 static void scenario_diag(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
-  wfck_ctx_t ctx = {NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ))};
+  wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
   g_led_seen = 0;
   g_led_cycle = 0;
   avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
   boot_quiet(avr, t, 0, &ctx);
 
-  uint8_t toc[SUBQ_FRAME_BYTES] = {0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  uint8_t silence[SUBQ_FRAME_BYTES] = {0};
+  uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
   for (int i = 0; i < DIAG_TOC_FRAMES; i++) {
     clock_frame(avr, t, toc);
   }
@@ -361,8 +356,8 @@ static void scenario_diag(const target_t *t, const char *elf, uint32_t freq) {
   }
   run_cycles(avr, DIAG_WRITE_CYCLES);
 
-  uint8_t raw[4] = {0, 0, 0, 0};
-  avr_eeprom_desc_t desc = {.ee = raw, .offset = 0, .size = sizeof(raw)};
+  uint8_t raw[4] = { 0, 0, 0, 0 };
+  avr_eeprom_desc_t desc = { .ee = raw, .offset = 0, .size = sizeof(raw) };
   (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_GET, &desc);
 
   const char *tag = (strcmp(t->mcu, "attiny85") == 0) ? "85" : "84";
@@ -392,8 +387,8 @@ int main(int argc, char *argv[]) {
   // inject on a legacy board, inject on a modern board, and no inject on a
   // non-TOC frame. The 84's BIOS patch is exercised by its own scenario once
   // that build gains it.
-  target_t t85 = {"attiny85", 'B', 0U, 1U, 2U, 3U, 4U};
-  target_t t84 = {"attiny84", 'A', 0U, 1U, 2U, 4U, 3U};
+  target_t t85 = { "attiny85", 'B', 0U, 1U, 2U, 3U, 4U };
+  target_t t84 = { "attiny84", 'A', 0U, 1U, 2U, 4U, 3U };
 
   scenario_inject(&t85, elf85, freq, 0, 1);
   scenario_inject(&t85, elf85, freq, 1, 1);

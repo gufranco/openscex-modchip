@@ -25,10 +25,8 @@ typedef struct {
 // done against the pulse count that separates a live clock from a static gate.
 pscu_board_detect_t pscu_board_detect_init(void);
 
-pscu_board_detect_t pscu_board_detect_step(pscu_board_detect_t state,
-                                           uint8_t wfck_sample);
+pscu_board_detect_t pscu_board_detect_step(pscu_board_detect_t state, uint8_t wfck_sample);
 
-pscu_board_mode_t pscu_board_detect_mode(pscu_board_detect_t state,
-                                         uint8_t low_pulses_needed);
+pscu_board_mode_t pscu_board_detect_mode(pscu_board_detect_t state, uint8_t low_pulses_needed);
 
 #endif

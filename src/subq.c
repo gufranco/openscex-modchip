@@ -60,8 +60,7 @@ uint8_t pscu_subq_update_counter(const uint8_t *frame, uint8_t counter) {
   // frame[1] and frame[6] are zero only on a well-formed SUBQ frame; a nonzero
   // value means noise or a misaligned capture, which must not move the counter.
   bool framed = (frame[1] == 0x00U) && (frame[6] == 0x00U);
-  bool hit = framed &&
-             (pscu_subq_lead_in_hit(frame) || pscu_subq_tracking_hit(frame, counter));
+  bool hit = framed && (pscu_subq_lead_in_hit(frame) || pscu_subq_tracking_hit(frame, counter));
   uint8_t result = counter;
 
   // The counter is a leaky integrator: a hit raises it toward the inject

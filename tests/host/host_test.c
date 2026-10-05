@@ -53,49 +53,36 @@ static void test_region(void) {
 }
 
 static void test_subq_counter(void) {
-  uint8_t lead_in[PSCU_SUBQ_FRAME_BYTES] = {0x41U, 0, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  uint8_t lead_in[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   check(pscu_subq_update_counter(lead_in, 0U) == 1U, "lead-in A0 increments");
 
-  uint8_t unframed[PSCU_SUBQ_FRAME_BYTES] = {0x41U, 0x01U, 0xA0U, 0, 0, 0,
-                                             0,     0,     0,     0, 0, 0};
+  uint8_t unframed[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   check(pscu_subq_update_counter(unframed, 5U) == 4U, "bad framing decays");
 
-  uint8_t marker6[PSCU_SUBQ_FRAME_BYTES] = {0x41U, 0, 0xA0U, 0, 0, 0,
-                                            0x01U, 0, 0,     0, 0, 0};
-  check(pscu_subq_update_counter(marker6, 5U) == 4U,
-        "second sync marker nonzero decays");
+  uint8_t marker6[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0, 0, 0, 0x01U, 0, 0, 0, 0, 0 };
+  check(pscu_subq_update_counter(marker6, 5U) == 4U, "second sync marker nonzero decays");
 
-  uint8_t audio[PSCU_SUBQ_FRAME_BYTES] = {0x01U, 0, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  check(pscu_subq_update_counter(audio, 3U) == 4U,
-        "track 01 keeps counter when synced");
+  uint8_t audio[PSCU_SUBQ_FRAME_BYTES] = { 0x01U, 0, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(pscu_subq_update_counter(audio, 3U) == 4U, "track 01 keeps counter when synced");
   check(pscu_subq_update_counter(audio, 0U) == 0U, "track 01 does not start sync");
 
-  uint8_t spiral[PSCU_SUBQ_FRAME_BYTES] = {0x41U, 0, 0x01U, 0x00U, 0, 0,
-                                           0,     0, 0,     0,     0, 0};
+  uint8_t spiral[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x00U, 0, 0, 0, 0, 0, 0, 0, 0 };
   check(pscu_subq_update_counter(spiral, 0U) == 1U, "track 01 spiral start hits");
 
-  uint8_t spiral_miss[PSCU_SUBQ_FRAME_BYTES] = {0x41U, 0, 0x01U, 0x05U, 0, 0,
-                                                0,     0, 0,     0,     0, 0};
-  check(pscu_subq_update_counter(spiral_miss, 0U) == 0U,
-        "track 01 out of window misses");
+  uint8_t spiral_miss[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x05U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(pscu_subq_update_counter(spiral_miss, 0U) == 0U, "track 01 out of window misses");
 
-  uint8_t spiral_edge[PSCU_SUBQ_FRAME_BYTES] = {0x41U, 0, 0x01U, 0xF8U, 0, 0,
-                                                0,     0, 0,     0,     0, 0};
-  check(pscu_subq_update_counter(spiral_edge, 0U) == 1U,
-        "track 01 lower window bound hits");
+  uint8_t spiral_edge[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0xF8U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(pscu_subq_update_counter(spiral_edge, 0U) == 1U, "track 01 lower window bound hits");
 
-  uint8_t mid_point[PSCU_SUBQ_FRAME_BYTES] = {0x41U, 0, 0x50U, 0, 0, 0,
-                                              0,     0, 0,     0, 0, 0};
-  check(pscu_subq_update_counter(mid_point, 0U) == 0U,
-        "data sector mid-point does not start sync");
-  check(pscu_subq_update_counter(mid_point, 4U) == 5U,
-        "data sector keeps counter when synced");
+  uint8_t mid_point[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x50U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(pscu_subq_update_counter(mid_point, 0U) == 0U, "data sector mid-point does not start sync");
+  check(pscu_subq_update_counter(mid_point, 4U) == 5U, "data sector keeps counter when synced");
 
-  uint8_t other[PSCU_SUBQ_FRAME_BYTES] = {0x00U, 0, 0x50U, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  check(pscu_subq_update_counter(other, 3U) == 2U,
-        "non-data non-audio sample decays while synced");
+  uint8_t other[PSCU_SUBQ_FRAME_BYTES] = { 0x00U, 0, 0x50U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(pscu_subq_update_counter(other, 3U) == 2U, "non-data non-audio sample decays while synced");
 
-  uint8_t empty[PSCU_SUBQ_FRAME_BYTES] = {0};
+  uint8_t empty[PSCU_SUBQ_FRAME_BYTES] = { 0 };
   check(pscu_subq_update_counter(empty, 0U) == 0U, "decay floors at zero");
 
   check(pscu_subq_update_counter(lead_in, 0xFFU) == 0xFFU, "counter clamps at max");
@@ -110,19 +97,19 @@ static pscu_board_detect_t feed(const uint8_t *samples, uint16_t count) {
 }
 
 static void test_board_mode(void) {
-  uint8_t high[8] = {1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U};
+  uint8_t high[8] = { 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
   check(pscu_board_detect_mode(feed(high, 8U), 3U) == PSCU_BOARD_MODE_GATE,
         "static high is legacy gate");
 
-  uint8_t osc[6] = {1U, 0U, 1U, 0U, 1U, 0U};
+  uint8_t osc[6] = { 1U, 0U, 1U, 0U, 1U, 0U };
   check(pscu_board_detect_mode(feed(osc, 6U), 3U) == PSCU_BOARD_MODE_WFCK,
         "oscillating is wfck mode");
 
-  uint8_t low_run[3] = {0U, 0U, 0U};
+  uint8_t low_run[3] = { 0U, 0U, 0U };
   check(pscu_board_detect_mode(feed(low_run, 3U), 2U) == PSCU_BOARD_MODE_GATE,
         "one low pulse is not enough");
 
-  uint8_t single_low[1] = {0U};
+  uint8_t single_low[1] = { 0U };
   check(pscu_board_detect_mode(feed(single_low, 1U), 1U) == PSCU_BOARD_MODE_WFCK,
         "first low sample counts as one pulse");
 
@@ -137,8 +124,7 @@ static void test_board_saturates(void) {
   }
 
   check(state.pulses == 0xFFU, "pulse count saturates at max");
-  check(pscu_board_detect_mode(state, 25U) == PSCU_BOARD_MODE_WFCK,
-        "saturated count is wfck mode");
+  check(pscu_board_detect_mode(state, 25U) == PSCU_BOARD_MODE_WFCK, "saturated count is wfck mode");
 }
 
 static void test_inject(void) {
@@ -161,32 +147,29 @@ static void test_stealth(void) {
   check(!capped.fire && (capped.state.sent == 2U), "falls silent at the cap");
 
   pscu_stealth_step_t rearmed = pscu_stealth_step(capped.state, false, 2U);
-  check(!rearmed.fire && (rearmed.state.sent == 0U),
-        "silent and re-armed out of window");
+  check(!rearmed.fire && (rearmed.state.sent == 0U), "silent and re-armed out of window");
 
   pscu_stealth_step_t again = pscu_stealth_step(rearmed.state, true, 2U);
   check(again.fire, "re-fires on the next window, as after a disc swap");
 }
 
 static void test_diag(void) {
-  uint8_t erased[PSCU_DIAG_EEPROM_BYTES] = {0xFFU, 0xFFU, 0xFFU, 0xFFU};
+  uint8_t erased[PSCU_DIAG_EEPROM_BYTES] = { 0xFFU, 0xFFU, 0xFFU, 0xFFU };
   pscu_diag_record_t fresh = pscu_diag_decode(erased);
   check((fresh.sessions == 0U) && (fresh.board == PSCU_BOARD_MODE_GATE),
         "erased eeprom decodes as no prior record");
 
-  uint8_t stored[PSCU_DIAG_EEPROM_BYTES] = {PSCU_DIAG_MAGIC, 1U, 7U, 3U};
+  uint8_t stored[PSCU_DIAG_EEPROM_BYTES] = { PSCU_DIAG_MAGIC, 1U, 7U, 3U };
   pscu_diag_record_t prior = pscu_diag_decode(stored);
-  check((prior.board == PSCU_BOARD_MODE_WFCK) && (prior.sessions == 7U) &&
-            (prior.injects == 3U),
+  check((prior.board == PSCU_BOARD_MODE_WFCK) && (prior.sessions == 7U) && (prior.injects == 3U),
         "valid record decodes all fields");
 
-  uint8_t gate_stored[PSCU_DIAG_EEPROM_BYTES] = {PSCU_DIAG_MAGIC, 0U, 2U, 9U};
+  uint8_t gate_stored[PSCU_DIAG_EEPROM_BYTES] = { PSCU_DIAG_MAGIC, 0U, 2U, 9U };
   check(pscu_diag_decode(gate_stored).board == PSCU_BOARD_MODE_GATE,
         "zero board byte decodes as gate");
 
   pscu_diag_record_t built = pscu_diag_build(PSCU_BOARD_MODE_WFCK, 7U, 4U);
-  check((built.sessions == 8U) && (built.injects == 4U),
-        "build advances the session count");
+  check((built.sessions == 8U) && (built.injects == 4U), "build advances the session count");
 
   check(pscu_diag_build(PSCU_BOARD_MODE_GATE, 255U, 0U).sessions == 0U,
         "session count wraps at the byte boundary");

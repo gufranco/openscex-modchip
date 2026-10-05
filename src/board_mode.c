@@ -15,7 +15,7 @@
 // produces almost none, a live clock produces many.
 pscu_board_detect_t pscu_board_detect_init(void) {
   // prev_high starts at 1 so the very first low sample is counted as an edge.
-  pscu_board_detect_t state = {0U, 1U};
+  pscu_board_detect_t state = { 0U, 1U };
 
   PSCU_ASSERT(state.pulses == 0U);
   PSCU_ASSERT(state.prev_high == 1U);
@@ -23,8 +23,7 @@ pscu_board_detect_t pscu_board_detect_init(void) {
   return state;
 }
 
-pscu_board_detect_t pscu_board_detect_step(pscu_board_detect_t state,
-                                           uint8_t wfck_sample) {
+pscu_board_detect_t pscu_board_detect_step(pscu_board_detect_t state, uint8_t wfck_sample) {
   PSCU_ASSERT(state.prev_high <= 1U);
 
   // Any nonzero reading is "high": the port read returns the masked pin bit,
@@ -33,8 +32,7 @@ pscu_board_detect_t pscu_board_detect_step(pscu_board_detect_t state,
 
   // Count only the high-to-low transition, not every low sample, so one pulse
   // of the clock is counted once regardless of how long it stays low.
-  if ((low == 1U) && (state.prev_high == 1U) &&
-      (state.pulses < PSCU_BOARD_PULSES_MAX)) {
+  if ((low == 1U) && (state.prev_high == 1U) && (state.pulses < PSCU_BOARD_PULSES_MAX)) {
     state.pulses = (uint8_t)(state.pulses + 1U);
   }
   state.prev_high = (uint8_t)(1U - low);
@@ -44,8 +42,7 @@ pscu_board_detect_t pscu_board_detect_step(pscu_board_detect_t state,
   return state;
 }
 
-pscu_board_mode_t pscu_board_detect_mode(pscu_board_detect_t state,
-                                         uint8_t low_pulses_needed) {
+pscu_board_mode_t pscu_board_detect_mode(pscu_board_detect_t state, uint8_t low_pulses_needed) {
   pscu_board_mode_t mode = PSCU_BOARD_MODE_GATE;
 
   // A zero threshold forces WFCK mode, which the simulation uses to exercise the
