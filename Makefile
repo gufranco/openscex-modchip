@@ -33,12 +33,43 @@ REGION_DEF :=
 REGION_TAG :=
 endif
 
-# Each clock and region build differs in generated code, so their objects must
-# never share a directory; VARIANT keeps them separate. An empty VARIANT (the
-# internal-clock America default) keeps the plain artifact name the sim expects.
-VARIANT := $(CLOCK_TAG)$(REGION_TAG)
+# Boot-ROM BIOS patch model, ATtiny84 only. none (default) links the no-op and
+# builds the SCEx-only firmware both chips share; a model name selects the real
+# patch and defines its per-BIOS constants. Use it as, e.g.,
+# make MCU=attiny84 BIOS=scph_102.
+BIOS ?= none
+BIOS_COMMON := -DPSCU_BIOS_ENABLED=1
+ifeq ($(BIOS),none)
+BIOS_DEF := -DPSCU_BIOS_ENABLED=0
+BIOS_SRC := src/bios_none.c
+BIOS_TAG :=
+else ifeq ($(BIOS),scph_102)
+BIOS_DEF := $(BIOS_COMMON) -DPSCU_BIOS_SILENCE=1100U -DPSCU_BIOS_CONFIRMS=8U -DPSCU_BIOS_PULSES=47U -DPSCU_BIOS_OFFSET_CYCLES=47 -DPSCU_BIOS_OVERRIDE_CYCLES=3
+BIOS_SRC := src/bios.c
+BIOS_TAG := -scph_102
+else ifeq ($(BIOS),scph_100)
+BIOS_DEF := $(BIOS_COMMON) -DPSCU_BIOS_SILENCE=1100U -DPSCU_BIOS_CONFIRMS=1U -DPSCU_BIOS_PULSES=15U -DPSCU_BIOS_OFFSET_CYCLES=47 -DPSCU_BIOS_OVERRIDE_CYCLES=3
+BIOS_SRC := src/bios.c
+BIOS_TAG := -scph_100
+else ifeq ($(BIOS),scph_7000_9000)
+BIOS_DEF := $(BIOS_COMMON) -DPSCU_BIOS_SILENCE=25000U -DPSCU_BIOS_CONFIRMS=1U -DPSCU_BIOS_PULSES=84U -DPSCU_BIOS_OFFSET_CYCLES=47 -DPSCU_BIOS_OVERRIDE_CYCLES=3
+BIOS_SRC := src/bios.c
+BIOS_TAG := -scph_7000_9000
+else ifeq ($(BIOS),scph_3500_5500)
+BIOS_DEF := $(BIOS_COMMON) -DPSCU_BIOS_SILENCE=1500U -DPSCU_BIOS_CONFIRMS=8U -DPSCU_BIOS_PULSES=47U -DPSCU_BIOS_OFFSET_CYCLES=47 -DPSCU_BIOS_OVERRIDE_CYCLES=3
+BIOS_SRC := src/bios.c
+BIOS_TAG := -scph_3500_5500
+else
+$(error unknown BIOS model '$(BIOS)'; use none, scph_102, scph_100, scph_7000_9000 or scph_3500_5500)
+endif
 
-CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate
+# Each clock, region and BIOS build differs in generated code, so their objects
+# must never share a directory; VARIANT keeps them separate. An empty VARIANT
+# (internal-clock America, no patch) keeps the plain artifact name the sim uses.
+VARIANT := $(CLOCK_TAG)$(REGION_TAG)$(BIOS_TAG)
+
+CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate \
+	image image_size image_misra
 
 .PHONY: $(CONTAINER_TARGETS) clean
 
@@ -48,7 +79,7 @@ clean:
 ifndef PSCU_TOOLCHAIN
 
 $(CONTAINER_TARGETS):
-	$(PYTHON) tools/docker_make.py $@ CLOCK=$(CLOCK) EXT_F_CPU=$(EXT_F_CPU) REGION=$(REGION)
+	$(PYTHON) tools/docker_make.py $@ MCU=$(MCU) CLOCK=$(CLOCK) EXT_F_CPU=$(EXT_F_CPU) REGION=$(REGION) BIOS=$(BIOS)
 
 else
 
@@ -66,16 +97,17 @@ HOST_CFLAGS := $(C_STD) -Iinclude $(WARNINGS)
 LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c
 HOST_LOGIC_C := $(LOGIC_C)
 
-# The SCEx stealth firmware is shared by both chips.
+# The SCEx stealth firmware is shared by both chips; BIOS_SRC adds the patch
+# (bios.c) or the no-op (bios_none.c).
 SCEX_C := $(LOGIC_C) src/engine.c src/run.c src/main.c
-FIRMWARE_C := $(SCEX_C)
+FIRMWARE_C := $(SCEX_C) $(BIOS_SRC)
 ifeq ($(MCU),attiny84)
 CPPCHECK_MCU_DEF := -D__AVR_ATtiny84__
 else
 CPPCHECK_MCU_DEF := -D__AVR_ATtiny85__
 endif
 
-ALL_SRC_C := $(SCEX_C)
+ALL_SRC_C := $(SCEX_C) src/bios.c src/bios_none.c
 FIRMWARE_S := src/port.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
 HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c
@@ -93,9 +125,9 @@ RELEASE_ELF := $(RELEASE)/$(NAME)-$(MCU)$(VARIANT).elf
 RELEASE_HEX := $(RELEASE)/$(NAME)-$(MCU)$(VARIANT).hex
 RELEASE_OBJECTS := $(patsubst src/%,$(RELEASE)/%.o,$(FIRMWARE_C) $(FIRMWARE_S))
 
-AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
+AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(BIOS_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
 	$(WARNINGS) -fno-common -ffunction-sections -fdata-sections
-AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) -Iinclude -Wall -Wextra -Werror
+AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) $(BIOS_DEF) -Iinclude -Wall -Wextra -Werror
 AVR_LDFLAGS := -mmcu=$(MCU) -Os -flto -Wl,--gc-sections
 
 AVR_INCLUDE := /usr/lib/avr/include
@@ -104,7 +136,7 @@ CPPCHECK_FLAGS := --std=c17 --platform=avr8 --enable=all --check-level=exhaustiv
 	--error-exitcode=1 --suppress=checkersReport --inline-suppr \
 	'--suppress=*:$(AVR_INCLUDE)/*' '--suppress=*:$(AVR_GCC_INCLUDE)/*' \
 	-Iinclude -I$(AVR_INCLUDE) -I$(AVR_GCC_INCLUDE) \
-	$(CPPCHECK_MCU_DEF) $(REGION_DEF) -DF_CPU=$(F_CPU)
+	$(CPPCHECK_MCU_DEF) $(REGION_DEF) $(BIOS_DEF) -DF_CPU=$(F_CPU)
 CPPCHECK_CONFIGS := -DPSCU_DEBUG -UPSCU_DEBUG
 
 all:
@@ -144,13 +176,19 @@ $(HOST_TEST): $(HOST_LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H)
 
 SIM_ELF85 := $(BUILD)/attiny85/release/$(NAME)-attiny85.elf
 SIM_ELF84 := $(BUILD)/attiny84/release/$(NAME)-attiny84.elf
+SIM_ELF84_BIOS := $(BUILD)/attiny84-scph_102/release/$(NAME)-attiny84-scph_102.elf
 
 $(SIM_TEST): $(SIM_TEST_C) all
 	@mkdir -p $(@D)
 	$(HOST_CC) $(SIM_CFLAGS) -o $@ $(SIM_TEST_C) $(SIM_LIBS)
 
+# Build one ATtiny84 BIOS image and hand it to the 8 MHz run as the fourth
+# argument; the SCEx scenarios run on both base images at every clock.
 simtest: $(SIM_TEST)
-	$(foreach clk,$(SIM_CLOCKS_HZ),$(SIM_TEST) $(SIM_ELF85) $(SIM_ELF84) $(clk) &&) true
+	$(MAKE) --no-print-directory MCU=attiny84 BIOS=scph_102 image
+	$(SIM_TEST) $(SIM_ELF85) $(SIM_ELF84) 7200000
+	$(SIM_TEST) $(SIM_ELF85) $(SIM_ELF84) 8000000 $(SIM_ELF84_BIOS)
+	$(SIM_TEST) $(SIM_ELF85) $(SIM_ELF84) 8800000
 
 test: hosttest simtest
 

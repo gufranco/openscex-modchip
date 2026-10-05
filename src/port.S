@@ -173,3 +173,46 @@ pscu_port_data_mirror_wfck_ms:
 6:
 	ret
 	.endfunc
+
+#if PSCU_BIOS_ENABLED
+
+// Read the address line AX. Unlike the SCEx signals on PORTA, AX is on PB2
+// (INT0), so it reads PINB directly and returns the masked bit.
+	.global pscu_port_bios_ax
+	.func pscu_port_bios_ax
+pscu_port_bios_ax:
+	in r24, _SFR_IO_ADDR(PINB)
+	andi r24, (1 << PSCU_PIN_AX)
+	ret
+	.endfunc
+
+// Count r24 rising edges on AX, then override the data-bus bit DX. On the final
+// edge the cycle-accurate window begins: wait the model's bit-offset, drive DX
+// low (switch it to output over a preset-low port bit), hold for the override
+// window, then release to high-Z. The offset and override lengths are fixed nop
+// runs sized at assemble time from the per-model constants, so the timing is
+// exact and carries no loop overhead.
+	.global pscu_port_bios_override
+	.func pscu_port_bios_override
+pscu_port_bios_override:
+9:
+	sbic _SFR_IO_ADDR(PINB), PSCU_PIN_AX
+	rjmp 9b
+10:
+	sbis _SFR_IO_ADDR(PINB), PSCU_PIN_AX
+	rjmp 10b
+	subi r24, 1
+	brne 9b
+	.rept PSCU_BIOS_OFFSET_CYCLES
+	nop
+	.endr
+	cbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_DX
+	sbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DX
+	.rept PSCU_BIOS_OVERRIDE_CYCLES
+	nop
+	.endr
+	cbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DX
+	ret
+	.endfunc
+
+#endif

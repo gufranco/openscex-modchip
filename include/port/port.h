@@ -33,4 +33,13 @@ void pscu_port_delay_ms(uint16_t milliseconds);
 
 void pscu_port_data_mirror_wfck_ms(uint16_t milliseconds);
 
+// BIOS-patch primitives, implemented only in the ATtiny84 full build. One reads
+// the address line AX; the other counts the given number of AX rising edges and
+// then drives the data-bus override DX for the configured, cycle-accurate
+// window. They are declared here for every build but referenced only by the
+// BIOS patch, so non-patch builds neither link nor call them.
+uint8_t pscu_port_bios_ax(void);
+
+void pscu_port_bios_override(uint8_t pulses);
+
 #endif

@@ -60,6 +60,14 @@ example `openscex-modchip-attiny85-jp.hex`. The chip is stealth: it drives the
 region string only during the boot region-check window and stays high-impedance
 and silent during play, re-arming when you swap discs.
 
+For a Japanese fat console or a PAL PSone, SCEx alone does not satisfy the
+boot-ROM region check, so build the ATtiny84 with the boot-ROM patch for your
+exact BIOS: `make MCU=attiny84 REGION=jp BIOS=scph_100` (other models:
+`scph_102` for the PAL PSone, `scph_7000_9000`, `scph_3500_5500`). The patch
+counts pulses on an address line AX wired to PB2 and briefly overrides a
+data-bus line DX on PA5; those two extra wires are needed only for the patch.
+Its timing is ported from PsNee and has not been confirmed on hardware here.
+
 Default internal-oscillator build, the only build verified in simulation:
 
 - Flash: `avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i`

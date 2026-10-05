@@ -4,9 +4,14 @@
 #ifndef PSCU_CONFIG_H
 #define PSCU_CONFIG_H
 
+// port.S includes this through the C preprocessor to pick up the cycle-count
+// constants below, so the C-only declarations are hidden from the assembler;
+// the plain integer macros it needs stay visible.
+#ifndef __ASSEMBLER__
 #include <stdint.h>
 
 #include "pscu/region.h"
+#endif
 
 // Compile-time region. To defeat the check the chip emits the console's own
 // region string, so the build is region-specific: one of REGION=jp|us|eu
@@ -28,5 +33,11 @@
 // the chip drive the bus forever. Silence during play, not this number, is
 // what makes it stealth.
 #define PSCU_STEALTH_STRINGS ((uint8_t)16U)
+
+// The boot-ROM BIOS patch constants (PSCU_BIOS_ENABLED and, when enabled, the
+// per-model PSCU_BIOS_SILENCE/CONFIRMS/PULSES/OFFSET_CYCLES/OVERRIDE_CYCLES)
+// are supplied on the command line by the Makefile's BIOS knob, not here: only
+// the selected model's values then exist, and assembly as well as C can read
+// them. See the BIOS block in the Makefile and bios.c.
 
 #endif
