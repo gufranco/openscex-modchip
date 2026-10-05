@@ -28,6 +28,7 @@ void pscu_run(void) {
   uint8_t injects = 0U;
   bool logged = false;
   pscu_stealth_t stealth = pscu_stealth_init();
+  pscu_confirm_t confirm = pscu_confirm_init();
 
   for (;;) {
     uint8_t frame[PSCU_SUBQ_FRAME_BYTES];
@@ -42,13 +43,19 @@ void pscu_run(void) {
         injects = (uint8_t)(injects + 1U);
       }
     }
-    // Once injection has happened and the chip falls silent, write the flight
-    // recorder exactly once. Deferring to this idle point keeps the EEPROM
-    // latency out of the injection window and spends one write per power cycle,
-    // so the recorder never costs injection timing or EEPROM endurance.
-    if (!step.fire && !logged && (injects > 0U)) {
-      pscu_engine_log_session(board, injects);
-      logged = true;
+    // Closed-loop confirmation. After injecting, watch for the program area: the
+    // mechacon re-enables reads only once it accepts the region string, so a
+    // program-area frame confirms the check passed. The pure FSM resolves on that
+    // or after a bounded idle wait, and the session is recorded exactly once, off
+    // the injection path, so the write never costs timing or EEPROM endurance.
+    if ((injects > 0U) && !logged) {
+      pscu_confirm_step_t outcome = pscu_confirm_step(
+          confirm, !step.fire, pscu_subq_is_program_area(frame), PSCU_CONFIRM_FRAMES);
+      confirm = outcome.state;
+      if (outcome.resolved) {
+        pscu_engine_log_session(board, injects, outcome.confirmed ? 1U : 0U);
+        logged = true;
+      }
     }
     pscu_port_watchdog_reset();
   }

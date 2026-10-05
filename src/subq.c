@@ -54,6 +54,22 @@ static bool pscu_subq_tracking_hit(const uint8_t *frame, uint8_t counter) {
   return hit;
 }
 
+// The program area is reached once the mechacon has accepted the region string
+// and re-enabled read commands: the console then reads a numbered content track
+// at a normal index, not the lead-in TOC (track 0xA0 and above) and not the
+// track-01 spiral start. Seeing such a frame after injection is the documented
+// sign the region check passed, which the run loop uses to confirm success.
+// Pure and host-tested.
+bool pscu_subq_is_program_area(const uint8_t *frame) {
+  PSCU_ASSERT(frame != NULL);
+
+  bool framed = (frame[1] == 0x00U) && (frame[6] == 0x00U);
+  bool content = (frame[0] == 0x01U) || pscu_subq_is_data_sector(frame[0]);
+  bool numbered_track = (frame[2] >= 0x01U) && (frame[2] < 0xA0U);
+  bool spiral_start = (frame[2] == 0x01U) && ((uint8_t)(frame[3] - 0x03U) >= 0xF5U);
+  return framed && content && numbered_track && !spiral_start;
+}
+
 uint8_t pscu_subq_update_counter(const uint8_t *frame, uint8_t counter) {
   PSCU_ASSERT(frame != NULL);
 

@@ -50,7 +50,8 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 | Disc-swap re-arm | leaving the window re-arms the one-shot |
 | Boot-ROM BIOS patch | ATtiny84 only, Japanese fat and PAL PSone, every model including two-phase SCPH-1000 and SCPH-3000 |
 | Optional LED | status output; firmware is correct with no LED fitted |
-| In-field diagnostics | a four-byte flight recorder written to EEPROM after the chip goes idle (detected board, session count, injection count), read back with avrdude; no existing PS1 modchip reports what it saw |
+| In-field diagnostics | a five-byte flight recorder written to EEPROM after the chip goes idle (detected board, session count, injection count, confirmation), read back with avrdude; no existing PS1 modchip reports what it saw |
+| Closed-loop confirmation | after injecting, the chip watches SUBQ for the program area, which the mechacon only allows once it accepts the region string, and records whether the region check passed |
 | Verification | host tests 100% line and branch coverage, simavr console model across the oscillator band, mutation testing, reproducible builds |
 
 ## Confidence tags
@@ -198,7 +199,7 @@ The same gates run in CI on every push and pull request, defined in [`.github/wo
 
 ## Diagnostics
 
-The chip writes a four-byte flight recorder to EEPROM once it has finished injecting and gone idle, so an install can be diagnosed rather than guessed. The write never happens at boot or inside the region-check window, so it does not affect injection timing, and it is one write per power cycle so EEPROM endurance is not a concern. Read it back with the programmer:
+The chip writes a five-byte flight recorder to EEPROM once it has finished injecting and gone idle, so an install can be diagnosed rather than guessed. The write never happens at boot or inside the region-check window, so it does not affect injection timing, and it is one write per power cycle so EEPROM endurance is not a concern. Read it back with the programmer:
 
 ```bash
 avrdude -c <programmer> -p attiny85 -U eeprom:r:diag.bin:r
@@ -210,6 +211,7 @@ avrdude -c <programmer> -p attiny85 -U eeprom:r:diag.bin:r
 | 1 | detected board: `0` legacy gate, `1` WFCK carrier |
 | 2 | sessions that reached idle, wraps at 255 |
 | 3 | region strings emitted in the last session |
+| 4 | region check confirmed: 1 if the console reached the program area after injection, else 0 |
 
 ## Safety
 

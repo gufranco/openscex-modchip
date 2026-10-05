@@ -34,4 +34,30 @@ pscu_stealth_t pscu_stealth_init(void);
 // the next lead-in, on this disc or a swapped one, triggers again.
 pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state, bool in_window, uint8_t max_strings);
 
+// Closed-loop confirmation state: how many idle frames have passed since
+// injection while waiting for the program area, and whether it was seen.
+typedef struct {
+  uint8_t waited;
+  bool program_seen;
+} pscu_confirm_t;
+
+// One confirmation step: the advanced state, whether the outcome is resolved
+// (time to record the session), and whether it resolved as confirmed.
+typedef struct {
+  pscu_confirm_t state;
+  bool resolved;
+  bool confirmed;
+} pscu_confirm_step_t;
+
+pscu_confirm_t pscu_confirm_init(void);
+
+// Fold one post-injection frame into the confirmation state. Seeing the program
+// area resolves as confirmed; otherwise each idle frame advances a bounded wait
+// that resolves as unconfirmed once it reaches timeout. Pure and host-tested, so
+// the run loop records the session exactly once with the right verdict.
+pscu_confirm_step_t pscu_confirm_step(pscu_confirm_t state,
+                                      bool idle,
+                                      bool program,
+                                      uint8_t timeout);
+
 #endif

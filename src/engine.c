@@ -143,7 +143,7 @@ void pscu_engine_inject(pscu_board_mode_t board) {
 // before writing is what lets the session count accumulate across power cycles;
 // the pure codec in diag.c owns the byte layout, so this function only moves
 // bytes over the EEPROM port primitives.
-void pscu_engine_log_session(pscu_board_mode_t board, uint8_t injects) {
+void pscu_engine_log_session(pscu_board_mode_t board, uint8_t injects, uint8_t confirmed) {
   PSCU_ASSERT((board == PSCU_BOARD_MODE_GATE) || (board == PSCU_BOARD_MODE_WFCK));
 
   uint8_t raw[PSCU_DIAG_EEPROM_BYTES];
@@ -151,7 +151,7 @@ void pscu_engine_log_session(pscu_board_mode_t board, uint8_t injects) {
     raw[i] = pscu_port_eeprom_read((uint8_t)(PSCU_DIAG_EEPROM_ADDR + i));
   }
   pscu_diag_record_t previous = pscu_diag_decode(raw);
-  pscu_diag_record_t record = pscu_diag_build(board, previous.sessions, injects);
+  pscu_diag_record_t record = pscu_diag_build(board, previous.sessions, injects, confirmed);
   pscu_diag_encode(record, raw);
   for (uint8_t i = 0U; i < PSCU_DIAG_EEPROM_BYTES; i++) {
     pscu_port_eeprom_write((uint8_t)(PSCU_DIAG_EEPROM_ADDR + i), raw[i]);
