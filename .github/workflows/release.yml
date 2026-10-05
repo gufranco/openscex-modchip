@@ -3,13 +3,24 @@
 
 name: Release
 
+# semantic-release owns versioning. On every push to main it reads the
+# conventional-commit history since the last tag and decides whether a release
+# is due: feat -> minor, fix -> patch, BREAKING CHANGE -> major, everything else
+# (ci, build, chore, docs, style, test, refactor) cuts nothing. When a release
+# is due it writes CHANGELOG.md, commits it with [skip ci] (so this workflow
+# does not re-trigger on its own commit), tags, and creates the GitHub release
+# with generated notes. The per-console .hex images are then built in the pinned
+# toolchain and attached, so people flash without the toolchain. A manual run
+# (workflow_dispatch) performs the same check on demand.
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write
+  issues: write
+  pull-requests: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -17,13 +28,26 @@ concurrency:
 
 jobs:
   release:
-    name: Build and publish images
+    name: Version and publish
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Run semantic-release
+        id: semrel
+        uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90 # v6.0.0
+        with:
+          extra_plugins: |
+            @semantic-release/changelog@6
+            @semantic-release/git@10
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build the per-console images in the pinned toolchain
+        if: steps.semrel.outputs.new_release_published == 'true'
         run: |
           set -euo pipefail
           make REGION=us image
@@ -39,11 +63,11 @@ jobs:
           find build -type f -name '*.hex' -exec cp {} release-artifacts/ \;
           ls -1 release-artifacts
 
-      - name: Publish the release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Attach the images to the release
+        if: steps.semrel.outputs.new_release_published == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.semrel.outputs.new_release_git_tag }}
         run: |
           set -euo pipefail
-          gh release create "$GITHUB_REF_NAME" release-artifacts/*.hex \
-            --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+          gh release upload "$RELEASE_TAG" release-artifacts/*.hex --clobber

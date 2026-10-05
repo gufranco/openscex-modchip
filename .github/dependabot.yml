@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
+# SPDX-License-Identifier: MIT
+
+# Dependabot keeps the two external surfaces this repository pins current: the
+# GitHub Actions referenced by commit SHA in the workflows, and the Docker base
+# image the pinned toolchain is built from. Firmware dependencies are vendored
+# in-tree (there is no package manager for the C sources), so no language
+# ecosystem is tracked here. Updates land as conventional "build(deps)" commits
+# so the release tooling classifies them as non-releasing changes.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "docker"
+    directory: "/tools"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    open-pull-requests-limit: 5
