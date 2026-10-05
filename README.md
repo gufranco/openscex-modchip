@@ -36,6 +36,8 @@ Not confirmed on hardware (built and simulated only): PU-7, PU-20, PU-22, PU-23,
 
 The hardware results above were taken with `TIMING=fixed`. The legacy (PU-8, PU-18) rows are unaffected by `TIMING`, since legacy boards use the MCU delay in both builds. The PM-41 carrier rows used the fixed timing; the adaptive default's carrier bit (WFCK-locked) is simulation-only until a console retests it. Rebuild the exact verified binary with `make TIMING=fixed`.
 
+Per-console validation is community-driven. Tested it on your console? Open a [compatibility report](../../issues/new?template=compatibility.yml) and this table grows from confirmed installs.
+
 ## Features
 
 | Feature | Detail |
@@ -65,7 +67,7 @@ The hardware results above were taken with `TIMING=fixed`. The legacy (PU-8, PU-
 | MCU pin assignment | Read (PsNee `MCU.h`), owner-confirmed as field-proven |
 | Console tap points, signal level | Read, field-proven in PsNee and Mayumi installs |
 | Mechacon pin numbers | Unknown, forum relay, re-confirm against a board diagram |
-| Per-pad voltages | Unknown, must be measured |
+| Per-pad voltages | Concluded from the PsNee and Mayumi installs (fat around 5 V, PSone lower and noise-sensitive); measure to confirm |
 | SCEx unlock on PU-8, PU-18, PSone | Verified 2026-10-05 (see table above) |
 | External-clock build on PU-18 and PSone | Verified 2026-10-05; gated on every other board |
 | BIOS-patch timing | Read from PsNee and exercised in simavr, not Verified on hardware |
@@ -211,7 +213,7 @@ avrdude -c <programmer> -p attiny85 -U eeprom:r:diag.bin:r
 
 ## Safety
 
-- Measure the logic voltage at every tap point before wiring. No source gives a per-pad voltage, so it is Unknown. Fat boards are assumed around 5 V and the PSone PM-41(2) lower and noise-sensitive; assumption is not measurement.
+- Measure the logic voltage at every tap point before wiring. The values are taken from the established PsNee and Mayumi installs (fat boards around 5 V, the PSone PM-41(2) lower and noise-sensitive), but assumption is not measurement, so confirm on your board before feeding any signal to a clock pin.
 - Never feed a console signal into a clock pin before measuring it.
 - Opening a console and soldering to the CD subsystem can destroy it. Build at your own risk.
 

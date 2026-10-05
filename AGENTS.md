@@ -59,7 +59,7 @@ PB5 stays RESET. No reset-sense, lid, address, or data-bus pins: the single-mode
 | WFCK-sync bit | modulated across 30 WFCK edges | Read, PsNee PerformInjectionSequence |
 | WFCK frequency | about 7.3 kHz init, 14.6 kHz read | Read as PsNee comment, not measured here |
 | Mechacon clock, external-clock option | likely 4.2336 MHz, equal to 16.9344 MHz divided by 4 | Concluded, snippet-sourced, needs datasheet confirmation |
-| Signal voltages | Unknown | no source, must be measured |
+| Signal voltages | fat ~5 V, PSone lower | Concluded from PsNee/Mayumi installs (owner: same as the other chips); measure to confirm |
 
 Do not implement from a guess. A hardware fact enters the code only with a source beside it here or in the research docs.
 
