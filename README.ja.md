@@ -19,7 +19,6 @@
 | クロック | 内蔵 8 MHz RC、またはコンソール外部（ハードウェア前提） |
 | 信号線 | 4 本（SQCK、SUBQ、DATA、WFCK）＋電源、任意の LED |
 | ツールチェーン | C17、MISRA C:2012 逸脱ゼロ、ピン留め Docker イメージ |
-| 対象外 | ドライブエミュレーション、PS2、Saturn、LibCrypt |
 
 ## 実機で検証済み
 
@@ -28,12 +27,12 @@
 | 基板ファミリ | コンソール | クロック | 注入 | 状態 |
 |:-------------|:-----------|:---------|:-----|:-----|
 | PU-8 | フット、NTSC-U/C | 内蔵 | SCEx | Verified 2026-10-05 |
-| PU-18 | フット | 内蔵 | SCEx | Verified 2026-10-05 |
-| PU-18 | フット | 外部 | SCEx | Verified 2026-10-05 |
+| PU-18 | フット、NTSC-U/C | 内蔵 | SCEx | Verified 2026-10-05 |
+| PU-18 | フット、NTSC-U/C | 外部 | SCEx | Verified 2026-10-05 |
 | PM-41 | PSone | 内蔵 | SCEx | Verified 2026-10-05 |
 | PM-41 | PSone | 外部 | SCEx | Verified 2026-10-05 |
 
-実機で未確認（ビルドとシミュレーションのみ）: PU-7、PU-20、PU-22、PU-23、ブート ROM BIOS パッチの全モデル、および上記 PU-8 NTSC-U/C 機以外のリージョン。PU-18 と PSone 機のリージョンと正確な SCPH、および外部クロックビルドをどのチップで行ったかは記録していません。
+実機で未確認（ビルドとシミュレーションのみ）: PU-7、PU-20、PU-22、PU-23、ブート ROM BIOS パッチの全モデル、およびどのファミリでも PAL と NTSC-J。PU-8 と PU-18 機の正確な SCPH、PSone 機のリージョンと SCPH、および外部クロックビルドをどのチップで行ったかは記録していません。
 
 ## 機能
 
@@ -189,37 +188,6 @@ make mutate      # ロジック層のミューテーションテスト
 ```
 
 同じゲートが push と pull request のたびに CI でも走ります。定義は [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。
-
-## アーキテクチャ
-
-3 つの層: プロトコルロジックはホストでテストし、レジスタアクセスだけがハードウェアに触れます。ロジックファイルがプラットフォームに達するか C ファイルがハードウェアヘッダを含むと、層チェックがビルドを失敗させます。
-
-```mermaid
-graph TD
-  subgraph Logic[Logic layer, compiles and runs on the host]
-    region[region.c]
-    subq[subq.c]
-    board[board_mode.c]
-    inject[inject.c]
-  end
-  subgraph Platform[Platform C]
-    engine[engine.c]
-    run[run.c]
-    main[main.c]
-  end
-  subgraph Hardware[Hardware, assembly only]
-    port[port.S]
-  end
-  Logic --> Platform --> Hardware
-```
-
-```mermaid
-graph LR
-  CD[CD decoder] -->|SQCK, SUBQ| MCU[ATtiny]
-  WFCK[WFCK gate or carrier] <--> MCU
-  MCU -->|SCEx on DATA| MECH[mechacon]
-  MCU -.->|BIOS patch on AX, AY, DX| ROM[boot ROM data bus]
-```
 
 ## 安全
 

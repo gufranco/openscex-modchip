@@ -19,7 +19,6 @@
 | 时钟 | 内部 8 MHz RC，或主机外部（以硬件为前提） |
 | 信号线 | 4 根（SQCK、SUBQ、DATA、WFCK）加电源，可选 LED |
 | 工具链 | C17、MISRA C:2012 零偏差、固定 Docker 镜像 |
-| 不在范围 | 光驱模拟、PS2、Saturn、LibCrypt |
 
 ## 实机已验证
 
@@ -28,12 +27,12 @@
 | 主板系列 | 主机 | 时钟 | 注入 | 状态 |
 |:---------|:-----|:-----|:-----|:-----|
 | PU-8 | 厚机，NTSC-U/C | 内部 | SCEx | Verified 2026-10-05 |
-| PU-18 | 厚机 | 内部 | SCEx | Verified 2026-10-05 |
-| PU-18 | 厚机 | 外部 | SCEx | Verified 2026-10-05 |
+| PU-18 | 厚机，NTSC-U/C | 内部 | SCEx | Verified 2026-10-05 |
+| PU-18 | 厚机，NTSC-U/C | 外部 | SCEx | Verified 2026-10-05 |
 | PM-41 | PSone | 内部 | SCEx | Verified 2026-10-05 |
 | PM-41 | PSone | 外部 | SCEx | Verified 2026-10-05 |
 
-硬件上未确认（仅编译与仿真）: PU-7、PU-20、PU-22、PU-23、引导 ROM BIOS 补丁的所有型号，以及上述 PU-8 NTSC-U/C 机以外的区域。PU-18 与 PSone 机的区域与确切 SCPH，以及外部时钟构建用的是哪种芯片，均未记录。
+硬件上未确认（仅编译与仿真）: PU-7、PU-20、PU-22、PU-23、引导 ROM BIOS 补丁的所有型号，以及任何系列的 PAL 或 NTSC-J。PU-8 与 PU-18 机的确切 SCPH、PSone 机的区域与 SCPH，以及外部时钟构建用的是哪种芯片，均未记录。
 
 ## 功能
 
@@ -189,37 +188,6 @@ make mutate      # 逻辑层变异测试
 ```
 
 同样的关卡在每次 push 与 pull request 时也在 CI 中运行，定义见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。
-
-## 架构
-
-三个层次: 协议逻辑在主机上测试，只有寄存器访问触及硬件。若逻辑文件触及平台层，或 C 文件包含硬件头文件，层检查会使构建失败。
-
-```mermaid
-graph TD
-  subgraph Logic[Logic layer, compiles and runs on the host]
-    region[region.c]
-    subq[subq.c]
-    board[board_mode.c]
-    inject[inject.c]
-  end
-  subgraph Platform[Platform C]
-    engine[engine.c]
-    run[run.c]
-    main[main.c]
-  end
-  subgraph Hardware[Hardware, assembly only]
-    port[port.S]
-  end
-  Logic --> Platform --> Hardware
-```
-
-```mermaid
-graph LR
-  CD[CD decoder] -->|SQCK, SUBQ| MCU[ATtiny]
-  WFCK[WFCK gate or carrier] <--> MCU
-  MCU -->|SCEx on DATA| MECH[mechacon]
-  MCU -.->|BIOS patch on AX, AY, DX| ROM[boot ROM data bus]
-```
 
 ## 安全
 
