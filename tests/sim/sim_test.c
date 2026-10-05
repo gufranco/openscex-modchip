@@ -32,8 +32,11 @@
 // One SCEx bit cell is 4 ms; at 8 MHz that is 32000 cycles. The decoder samples
 // at this spacing from the LED edge that marks injection start.
 #define BIT_CYCLES 32000UL
-// WFCK carrier the modern-board model oscillates at (~7.3 kHz during init).
+// WFCK carrier the modern-board model oscillates at: ~7.3 kHz during init, and
+// ~14.6 kHz during a 2x data read. The band between them is the real variation
+// the carrier-mirror injection timing must tolerate, so both ends are tested.
 #define WFCK_HZ 7300UL
+#define WFCK_READ_HZ 14600UL
 #define LED_DEADLINE 1000000UL
 
 typedef struct {
@@ -201,10 +204,15 @@ static void decode_region(avr_t *avr, const target_t *t, int modern, char *out) 
   out[SCEX_BITS] = '\0';
 }
 
-static void scenario_inject(
-    const target_t *t, const char *elf, uint32_t freq, int modern, int trigger) {
+static void scenario_inject(const target_t *t,
+                            const char *elf,
+                            uint32_t freq,
+                            int modern,
+                            int trigger,
+                            uint32_t wfck_hz,
+                            const char *family) {
   avr_t *avr = build_avr(t, elf, freq);
-  wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
+  wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * wfck_hz)) };
   g_led_seen = 0;
   g_led_cycle = 0;
   avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
@@ -224,7 +232,7 @@ static void scenario_inject(
     run_cycles(avr, 2000U);
   }
 
-  const char *tag = (modern != 0) ? "modern" : "legacy";
+  const char *tag = family;
   char label[96];
   char decoded[SCEX_BITS + 1];
   if (trigger != 0) {
@@ -373,6 +381,24 @@ static void scenario_diag(const target_t *t, const char *elf, uint32_t freq) {
   check(raw[3] >= 1U, label);
 }
 
+// The board-family matrix. The firmware has no per-family code path, only the
+// legacy static gate and the live WFCK carrier, so each family collapses to one
+// of those with its carrier frequency. Distinct behaviours only, no duplicate
+// runs: the two carrier rows differ by the init and read frequencies that bound
+// the WFCK band.
+typedef struct {
+  const char *name;
+  int modern;
+  uint32_t wfck_hz;
+} board_family_t;
+
+static const board_family_t FAMILIES[] = {
+  { "PU-7 to PU-20 legacy gate", 0, WFCK_HZ },
+  { "PU-22 to PM-41 carrier 7.3kHz", 1, WFCK_HZ },
+  { "PU-22 to PM-41 carrier 14.6kHz", 1, WFCK_READ_HZ },
+};
+#define FAMILY_COUNT ((int)(sizeof(FAMILIES) / sizeof(FAMILIES[0])))
+
 int main(int argc, char *argv[]) {
   if (argc < 4) {
     (void)fprintf(stderr, "usage: %s elf85 elf84 freq_hz [elf84bios]\n", argv[0]);
@@ -382,21 +408,27 @@ int main(int argc, char *argv[]) {
   const char *elf84 = argv[2];
   uint32_t freq = (uint32_t)strtoul(argv[3], NULL, 10);
 
-  // Both chips run the same SCEx stealth firmware, only on different ports
-  // (85 on PORTB, 84 on PORTA), so the same three scenarios verify each image:
-  // inject on a legacy board, inject on a modern board, and no inject on a
-  // non-TOC frame. The 84's BIOS patch is exercised by its own scenario once
-  // that build gains it.
+  // Both chips run the same SCEx stealth firmware on different ports (85 PORTB,
+  // 84 PORTA). Each image is driven through the whole board-family matrix plus a
+  // non-TOC negative, so every family and both ends of the WFCK carrier band are
+  // verified per chip. The 84's BIOS patch has its own scenario.
   target_t t85 = { "attiny85", 'B', 0U, 1U, 2U, 3U, 4U };
   target_t t84 = { "attiny84", 'A', 0U, 1U, 2U, 4U, 3U };
 
-  scenario_inject(&t85, elf85, freq, 0, 1);
-  scenario_inject(&t85, elf85, freq, 1, 1);
-  scenario_inject(&t85, elf85, freq, 0, 0);
-
-  scenario_inject(&t84, elf84, freq, 0, 1);
-  scenario_inject(&t84, elf84, freq, 1, 1);
-  scenario_inject(&t84, elf84, freq, 0, 0);
+  const target_t *images[2] = { &t85, &t84 };
+  const char *elfs[2] = { elf85, elf84 };
+  for (int chip = 0; chip < 2; chip++) {
+    for (int f = 0; f < FAMILY_COUNT; f++) {
+      scenario_inject(images[chip],
+                      elfs[chip],
+                      freq,
+                      FAMILIES[f].modern,
+                      1,
+                      FAMILIES[f].wfck_hz,
+                      FAMILIES[f].name);
+    }
+    scenario_inject(images[chip], elfs[chip], freq, 0, 0, WFCK_HZ, "legacy non-TOC negative");
+  }
 
   if (freq == 8000000U) {
     scenario_diag(&t85, elf85, freq);
