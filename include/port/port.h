@@ -33,6 +33,17 @@ void pscu_port_delay_ms(uint16_t milliseconds);
 
 void pscu_port_data_mirror_wfck_ms(uint16_t milliseconds);
 
+// One modern-board (WFCK carrier) injection bit cell. hold_low holds DATA, which
+// the caller has already driven low, for one bit; mirror drives DATA as a copy
+// of the WFCK carrier for one bit. In the adaptive build (default) both time the
+// cell by counting WFCK periods, so the modern bit cell is locked to the console
+// clock and immune to the MCU RC oscillator drifting; in the fixed build both
+// fall back to the compile-time millisecond delay. Legacy boards never call
+// these, because a static WFCK has no period to count.
+void pscu_port_bit_hold_low(void);
+
+void pscu_port_bit_mirror(void);
+
 // EEPROM access for the in-field diagnostics recorder. Both read and write busy-
 // wait for any prior write to finish and kick the watchdog while waiting, so a
 // call is self-contained. The firmware writes only after it has gone idle, never

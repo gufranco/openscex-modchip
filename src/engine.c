@@ -71,16 +71,23 @@ static uint8_t pscu_capture_byte(void) {
 // Drive one SCEx bit onto DATA. A zero is always a hard low. A one is high-Z on
 // legacy boards (the gate is static, so releasing the line reads as high), but
 // on modern boards DATA must instead mirror the live WFCK carrier, because the
-// console samples DATA against that clock rather than a static level.
+// console samples DATA against that clock rather than a static level. On a
+// modern board the bit cell is timed by the port layer against WFCK (adaptive
+// build) or a fixed delay (fixed build); on a legacy board the cell is always a
+// fixed delay, since a static WFCK offers no period to count.
 static void pscu_inject_bit(uint8_t bit_value, pscu_board_mode_t mode) {
   PSCU_ASSERT(bit_value <= 1U);
   PSCU_ASSERT((mode == PSCU_BOARD_MODE_GATE) || (mode == PSCU_BOARD_MODE_WFCK));
 
   if (bit_value == 0U) {
     pscu_port_data_drive_low();
-    pscu_port_delay_ms(PSCU_BIT_MS);
+    if (mode == PSCU_BOARD_MODE_WFCK) {
+      pscu_port_bit_hold_low();
+    } else {
+      pscu_port_delay_ms(PSCU_BIT_MS);
+    }
   } else if (mode == PSCU_BOARD_MODE_WFCK) {
-    pscu_port_data_mirror_wfck_ms(PSCU_BIT_MS);
+    pscu_port_bit_mirror();
   } else {
     pscu_port_data_release();
     pscu_port_delay_ms(PSCU_BIT_MS);

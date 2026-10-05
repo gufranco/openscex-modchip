@@ -34,12 +34,15 @@ Combinations that booted out of region on a real console (SCEx region unlock). E
 
 Not confirmed on hardware (built and simulated only): PU-7, PU-20, PU-22, PU-23, the boot-ROM BIOS patch on every model, and PAL or NTSC-J on any family. The exact SCPH of the PU-8 and PU-18 units, the region and SCPH of the PSone unit, and which chip carried the external-clock builds, are not recorded.
 
+The hardware results above were taken with `TIMING=fixed`. The legacy (PU-8, PU-18) rows are unaffected by `TIMING`, since legacy boards use the MCU delay in both builds. The PM-41 carrier rows used the fixed timing; the adaptive default's carrier bit (WFCK-locked) is simulation-only until a console retests it. Rebuild the exact verified binary with `make TIMING=fixed`.
+
 ## Features
 
 | Feature | Detail |
 |:--------|:-------|
 | SCEx injection | 44-bit LSB-first region string, legacy static-gate method and the PU-22-and-later WFCK-carrier method |
 | Board auto-detect | WFCK behaviour at boot selects legacy or carrier mode; one build fits every family |
+| Adaptive timing | on WFCK-carrier boards the injection bit is timed by counting WFCK periods, locking it to the console clock and immune to MCU oscillator drift; `TIMING=fixed` reverts to the MCU delay |
 | Single configured region | emits only `REGION`, never all three |
 | Stealth | injects only inside the SUBQ region-check window, capped per arming, then DATA high-Z and LED off |
 | Disc-swap re-arm | leaving the window re-arms the one-shot |
@@ -94,6 +97,7 @@ One source builds every variant; the knobs are passed to `make`.
 | `MCU` | `attiny85`, `attiny84` | `attiny85` | 8-pin (SCEx only) or 14-pin (adds the BIOS patch) |
 | `REGION` | `jp`, `us`, `eu` | `us` | the one region string the chip emits |
 | `CLOCK` | `internal`, `external` | `internal` | internal 8 MHz RC, or the console clock (`CLOCK=external EXT_F_CPU=<hz>`), gated on measuring that clock and the pin voltage first |
+| `TIMING` | `adaptive`, `fixed` | `adaptive` | adaptive times the WFCK-carrier injection bit by counting WFCK periods, locking it to the console clock; fixed uses the compile-time MCU delay, the timing exercised on hardware |
 | `BIOS` | `none`, `scph_102`, `scph_100`, `scph_7000_9000`, `scph_3500_5500`, `scph_1000`, `scph_3000` | `none` | ATtiny84 only; the boot-ROM patch tuned to that BIOS version |
 
 A non-default region tags the artifact name, for example `openscex-modchip-attiny85-jp.hex`.

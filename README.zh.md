@@ -34,12 +34,15 @@
 
 硬件上未确认（仅编译与仿真）: PU-7、PU-20、PU-22、PU-23、引导 ROM BIOS 补丁的所有型号，以及任何系列的 PAL 或 NTSC-J。PU-8 与 PU-18 机的确切 SCPH、PSone 机的区域与 SCPH，以及外部时钟构建用的是哪种芯片，均未记录。
 
+上述硬件结果是在 `TIMING=fixed` 下取得的。旧式（PU-8、PU-18）各行不受 `TIMING` 影响，因为两种构建都用 MCU 延时。PM-41 载波各行用的是 fixed 时序；adaptive 默认的载波位（锁定 WFCK）在主机重新测试前仅经仿真。可用 `make TIMING=fixed` 重建已验证的二进制。
+
 ## 功能
 
 | 功能 | 细节 |
 |:-----|:-----|
 | SCEx 注入 | 44 位 LSB first 区域字符串，旧式静态门控法与 PU-22 及以后的 WFCK 载波法 |
 | 主板自动检测 | 启动时按 WFCK 行为选择旧式或载波模式，一套构建适配所有系列 |
+| 自适应时序 | 在 WFCK 载波主板上，注入位以计数 WFCK 周期来计时，锁定到主机时钟，不受 MCU 振荡器漂移影响；`TIMING=fixed` 退回 MCU 延时 |
 | 单一区域 | 只送出 `REGION` 一个，不送三个 |
 | 隐身 | 只在 SUBQ 区域检查窗口内、每次武装有上限地注入，之后 DATA 高阻、LED 关闭 |
 | 换盘重新武装 | 离开窗口后一次性动作重新武装 |
@@ -94,6 +97,7 @@ BIOS 型号未覆盖: 亚洲型号（SCPH-xxx3，例 SCPH-5003/5903）带无第�
 | `MCU` | `attiny85`、`attiny84` | `attiny85` | 8 脚（仅 SCEx）或 14 脚（加 BIOS 补丁） |
 | `REGION` | `jp`、`us`、`eu` | `us` | 芯片送出的那一个区域字符串 |
 | `CLOCK` | `internal`、`external` | `internal` | 内部 8 MHz RC，或主机时钟（`CLOCK=external EXT_F_CPU=<hz>`），前提是先测量该时钟与引脚电压 |
+| `TIMING` | `adaptive`、`fixed` | `adaptive` | adaptive 以计数 WFCK 周期来计时 WFCK 载波注入位，使其锁定到主机时钟；fixed 使用编译期 MCU 延时，即在硬件上跑过的那套时序 |
 | `BIOS` | `none`、`scph_102`、`scph_100`、`scph_7000_9000`、`scph_3500_5500`、`scph_1000`、`scph_3000` | `none` | 仅 ATtiny84，针对该 BIOS 版本的引导 ROM 补丁 |
 
 非默认区域会在产物名上加标签，例如 `openscex-modchip-attiny85-jp.hex`。
