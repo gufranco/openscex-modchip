@@ -227,10 +227,6 @@ graph LR
 - Never feed a console signal into a clock pin before measuring it.
 - Opening a console and soldering to the CD subsystem can destroy it. Build at your own risk.
 
-## Documentation
-
-[`AGENTS.md`](AGENTS.md) holds the contract and hard rules. This README is the single source for the project description, wiring, and programming steps; the specification, hardware model, and research are development material kept outside the published tree.
-
 ## License
 
 [MIT](LICENSE) for firmware and documentation.
