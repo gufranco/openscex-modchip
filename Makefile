@@ -58,8 +58,13 @@ endif
 BIOS ?= none
 # One-phase models drive a single override; the two oldest Japanese models drive
 # a second one on AY, selected by PSCU_BIOS_TWO_PHASE with its own constants.
-BIOS_ONE := -DPSCU_BIOS_ENABLED=1 -DPSCU_BIOS_TWO_PHASE=0
-BIOS_TWO := -DPSCU_BIOS_ENABLED=1 -DPSCU_BIOS_TWO_PHASE=1
+# PSCU_BIOS_NOISE_TOLERANCE is how many spurious AX highs a quiet window may
+# carry and still count as silent, so a brief line glitch does not reset the
+# boot-stage detection. It is small against PSCU_BIOS_SILENCE, so a real pulse
+# train still breaks a window. Simulation-only, like every BIOS constant.
+BIOS_NOISE := -DPSCU_BIOS_NOISE_TOLERANCE=2U
+BIOS_ONE := -DPSCU_BIOS_ENABLED=1 -DPSCU_BIOS_TWO_PHASE=0 $(BIOS_NOISE)
+BIOS_TWO := -DPSCU_BIOS_ENABLED=1 -DPSCU_BIOS_TWO_PHASE=1 $(BIOS_NOISE)
 ifeq ($(BIOS),none)
 BIOS_DEF := -DPSCU_BIOS_ENABLED=0 -DPSCU_BIOS_TWO_PHASE=0
 BIOS_SRC := src/bios_none.c
