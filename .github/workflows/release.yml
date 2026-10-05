@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
+# SPDX-License-Identifier: MIT
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish images
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build the per-console images in the pinned toolchain
+        run: |
+          set -euo pipefail
+          make REGION=us image
+          make REGION=eu image
+          make REGION=jp image
+          make MCU=attiny84 REGION=eu BIOS=scph_102 image
+          make MCU=attiny84 REGION=jp BIOS=scph_100 image
+          make MCU=attiny84 REGION=jp BIOS=scph_7000_9000 image
+          make MCU=attiny84 REGION=jp BIOS=scph_3500_5500 image
+          make MCU=attiny84 REGION=jp BIOS=scph_3000 image
+          make MCU=attiny84 REGION=jp BIOS=scph_1000 image
+          mkdir -p release-artifacts
+          find build -type f -name '*.hex' -exec cp {} release-artifacts/ \;
+          ls -1 release-artifacts
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" release-artifacts/*.hex \
+            --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
