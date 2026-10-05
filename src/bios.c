@@ -51,8 +51,8 @@ void pscu_bios_patch(void) {
   // Count PSCU_BIOS_CONFIRMS of them; a window broken by a pulse simply does
   // not count, and the chip waits for quiet before trying the next.
   uint8_t confirms = 0U;
-  for (uint16_t attempt = 0U;
-       (attempt < PSCU_BIOS_WINDOW_MAX) && (confirms < PSCU_BIOS_CONFIRMS); attempt++) {
+  for (uint16_t attempt = 0U; (attempt < PSCU_BIOS_WINDOW_MAX) && (confirms < PSCU_BIOS_CONFIRMS);
+       attempt++) {
     if (pscu_bios_window_silent()) {
       confirms = (uint8_t)(confirms + 1U);
     } else {

@@ -17,7 +17,7 @@
 pscu_diag_record_t pscu_diag_decode(const uint8_t *raw) {
   PSCU_ASSERT(raw != NULL);
 
-  pscu_diag_record_t record = {PSCU_BOARD_MODE_GATE, 0U, 0U};
+  pscu_diag_record_t record = { PSCU_BOARD_MODE_GATE, 0U, 0U };
   if (raw[0] == PSCU_DIAG_MAGIC) {
     record.board = (raw[1] != 0U) ? PSCU_BOARD_MODE_WFCK : PSCU_BOARD_MODE_GATE;
     record.sessions = raw[2];
@@ -28,11 +28,12 @@ pscu_diag_record_t pscu_diag_decode(const uint8_t *raw) {
 
 // sessions advances by one and wraps at 255 on purpose: the count is a liveness
 // hint for the installer, not an exact odometer, and a wrap is harmless.
-pscu_diag_record_t pscu_diag_build(pscu_board_mode_t board, uint8_t prev_sessions,
+pscu_diag_record_t pscu_diag_build(pscu_board_mode_t board,
+                                   uint8_t prev_sessions,
                                    uint8_t injects) {
   PSCU_ASSERT((board == PSCU_BOARD_MODE_GATE) || (board == PSCU_BOARD_MODE_WFCK));
 
-  pscu_diag_record_t record = {board, (uint8_t)(prev_sessions + 1U), injects};
+  pscu_diag_record_t record = { board, (uint8_t)(prev_sessions + 1U), injects };
   return record;
 }
 

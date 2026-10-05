@@ -88,7 +88,7 @@ endif
 # (internal-clock America, no patch) keeps the plain artifact name the sim uses.
 VARIANT := $(CLOCK_TAG)$(REGION_TAG)$(BIOS_TAG)
 
-CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate \
+CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate format \
 	image image_size image_misra
 
 .PHONY: $(CONTAINER_TARGETS) clean
@@ -214,6 +214,9 @@ simtest: $(SIM_TEST)
 	$(SIM_TEST) $(SIM_ELF85) $(SIM_ELF84) 8800000
 
 test: hosttest simtest
+
+format:
+	clang-format -i $(C_FILES)
 
 analyse: all
 	clang-format --dry-run --Werror $(C_FILES)

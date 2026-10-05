@@ -25,8 +25,8 @@
 
 #define PSCU_PORT_INIT 0x00
 
-#elif defined(__AVR_ATtiny84__) || defined(__AVR_ATtiny84A__) || \
-    defined(__AVR_ATtiny44__) || defined(__AVR_ATtiny24__)
+#elif defined(__AVR_ATtiny84__) || defined(__AVR_ATtiny84A__) || defined(__AVR_ATtiny44__) || \
+    defined(__AVR_ATtiny24__)
 
 // ATtiny84 profile. The SCEx signals sit on PORTA exactly as on the 85, so the
 // shared engine and assembly use them through these macros unchanged. The

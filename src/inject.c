@@ -15,16 +15,15 @@ bool pscu_should_inject(uint8_t counter, uint8_t trigger) {
 }
 
 pscu_stealth_t pscu_stealth_init(void) {
-  pscu_stealth_t state = {0U};
+  pscu_stealth_t state = { 0U };
 
   PSCU_ASSERT(state.sent == 0U);
 
   return state;
 }
 
-pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state, bool in_window,
-                                      uint8_t max_strings) {
-  pscu_stealth_step_t out = {state, false};
+pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state, bool in_window, uint8_t max_strings) {
+  pscu_stealth_step_t out = { state, false };
 
   // Out of the window the chip stays silent and the counter resets, which is
   // both the stealth property during play and the re-arm for the next disc.

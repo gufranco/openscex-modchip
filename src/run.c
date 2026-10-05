@@ -34,8 +34,7 @@ void pscu_run(void) {
     pscu_engine_capture_frame(frame);
     counter = pscu_subq_update_counter(frame, counter);
     bool in_window = pscu_should_inject(counter, PSCU_INJECT_TRIGGER);
-    pscu_stealth_step_t step =
-        pscu_stealth_step(stealth, in_window, PSCU_STEALTH_STRINGS);
+    pscu_stealth_step_t step = pscu_stealth_step(stealth, in_window, PSCU_STEALTH_STRINGS);
     stealth = step.state;
     if (step.fire) {
       pscu_engine_inject(board);

@@ -32,7 +32,6 @@ pscu_stealth_t pscu_stealth_init(void);
 // window it emits nothing and resets the count, so leaving the window (end of
 // lead-in, or the drive stopping for a disc change) re-arms the one-shot and
 // the next lead-in, on this disc or a swapped one, triggers again.
-pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state, bool in_window,
-                                      uint8_t max_strings);
+pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state, bool in_window, uint8_t max_strings);
 
 #endif

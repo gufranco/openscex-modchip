@@ -37,8 +37,7 @@ pscu_diag_record_t pscu_diag_decode(const uint8_t *raw);
 
 // Build this session's record from the detected board, the previous session
 // count, and the injection count, advancing sessions by one with wraparound.
-pscu_diag_record_t pscu_diag_build(pscu_board_mode_t board, uint8_t prev_sessions,
-                                   uint8_t injects);
+pscu_diag_record_t pscu_diag_build(pscu_board_mode_t board, uint8_t prev_sessions, uint8_t injects);
 
 // Serialise a record into the four EEPROM bytes, magic first.
 void pscu_diag_encode(pscu_diag_record_t record, uint8_t *raw);
