@@ -74,6 +74,15 @@ else
 $(error unknown BIOS model '$(BIOS)'; use none, scph_102, scph_100, scph_7000_9000, scph_3500_5500, scph_1000 or scph_3000)
 endif
 
+# The BIOS patch needs the ATtiny84's spare pins, so refuse it on any other chip
+# with a clear message rather than a cryptic assembler error about the missing
+# pin macros.
+ifneq ($(BIOS),none)
+ifneq ($(MCU),attiny84)
+$(error BIOS=$(BIOS) needs MCU=attiny84; the ATtiny85 has no pins for the boot-ROM patch)
+endif
+endif
+
 # Each clock, region and BIOS build differs in generated code, so their objects
 # must never share a directory; VARIANT keeps them separate. An empty VARIANT
 # (internal-clock America, no patch) keeps the plain artifact name the sim uses.
