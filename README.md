@@ -1,6 +1,6 @@
 # openscex-modchip
 
-An open-source region-unlock modchip for the original Sony PlayStation and PSone, a single ATtiny85 with four signal wires, built to the engineering standard of a professional embedded project rather than a hobby firmware.
+An open-source region-unlock modchip for the original Sony PlayStation and PSone, one firmware that builds for the ATtiny85 (8-pin, four signal wires) or the ATtiny84 (14-pin), built to the engineering standard of a professional embedded project rather than a hobby firmware.
 
 Status (as of 2026-10-04): the ATtiny85 firmware builds at 624 bytes and passes the full in-container gate set (MISRA zero deviations, host tests at 100 percent coverage, simavr console-model scenarios across the oscillator band, mutation testing, reproducible builds). Nothing has been verified on real hardware yet.
 

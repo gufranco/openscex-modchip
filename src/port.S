@@ -12,10 +12,14 @@
 
 // Busy-loop iteration counts, derived from F_CPU so the delays recalibrate
 // automatically for the internal 8 MHz build and the external-clock build. The
-// inner loop is 4 cycles (delay) or 12 cycles (mirror, which also reads and
-// writes the port each pass), so dividing F_CPU by those gives one millisecond.
+// delay inner loop is 4 cycles. The mirror inner loop is (10 + shift) cycles,
+// where shift is the pin distance WFCK-DATA that aligns the carrier bit onto
+// DATA (2 on the ATtiny85, 1 on the ATtiny84); computing it from the pins keeps
+// the one-bit cell exactly one millisecond on either chip rather than assuming
+// a fixed loop length.
+#define PSCU_MIRROR_LOOP_CYCLES (10UL + (PSCU_PIN_WFCK - PSCU_PIN_DATA))
 #define PSCU_DELAY_1MS_ITERS (F_CPU / 4000UL)
-#define PSCU_MIRROR_1MS_ITERS (F_CPU / 12000UL)
+#define PSCU_MIRROR_1MS_ITERS (F_CPU / (PSCU_MIRROR_LOOP_CYCLES * 1000UL))
 
 	.text
 

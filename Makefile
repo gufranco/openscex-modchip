@@ -6,6 +6,7 @@ BUILD := build
 NAME := openscex-modchip
 
 MCU ?= attiny85
+MCUS := attiny85 attiny84
 FLASH_BYTES := 8192
 
 CLOCK ?= internal
@@ -65,10 +66,16 @@ HOST_CFLAGS := $(C_STD) -Iinclude $(WARNINGS)
 LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c
 HOST_LOGIC_C := $(LOGIC_C)
 
-FIRMWARE_C := $(LOGIC_C) src/engine.c src/run.c src/main.c
+# The SCEx stealth firmware is shared by both chips.
+SCEX_C := $(LOGIC_C) src/engine.c src/run.c src/main.c
+FIRMWARE_C := $(SCEX_C)
+ifeq ($(MCU),attiny84)
+CPPCHECK_MCU_DEF := -D__AVR_ATtiny84__
+else
 CPPCHECK_MCU_DEF := -D__AVR_ATtiny85__
+endif
 
-ALL_SRC_C := $(LOGIC_C) src/engine.c src/run.c src/main.c
+ALL_SRC_C := $(SCEX_C)
 FIRMWARE_S := src/port.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
 HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c
@@ -100,7 +107,8 @@ CPPCHECK_FLAGS := --std=c17 --platform=avr8 --enable=all --check-level=exhaustiv
 	$(CPPCHECK_MCU_DEF) $(REGION_DEF) -DF_CPU=$(F_CPU)
 CPPCHECK_CONFIGS := -DPSCU_DEBUG -UPSCU_DEBUG
 
-all: image
+all:
+	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) image &&) true
 
 image: $(RELEASE_HEX)
 
@@ -118,7 +126,8 @@ $(RELEASE_ELF): $(RELEASE_OBJECTS)
 $(RELEASE_HEX): $(RELEASE_ELF)
 	$(AVR_OBJCOPY) -O ihex -R .eeprom $< $@
 
-size: image_size
+size:
+	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) image_size &&) true
 
 image_size: $(RELEASE_ELF)
 	$(AVR_SIZE) $(RELEASE_ELF)
@@ -133,14 +142,15 @@ $(HOST_TEST): $(HOST_LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -O0 -DPSCU_DEBUG --coverage -o $@ $(HOST_LOGIC_C) $(HOST_TEST_C)
 
-SIM_ELF := $(BUILD)/$(MCU)/release/$(NAME)-$(MCU).elf
+SIM_ELF85 := $(BUILD)/attiny85/release/$(NAME)-attiny85.elf
+SIM_ELF84 := $(BUILD)/attiny84/release/$(NAME)-attiny84.elf
 
 $(SIM_TEST): $(SIM_TEST_C) all
 	@mkdir -p $(@D)
 	$(HOST_CC) $(SIM_CFLAGS) -o $@ $(SIM_TEST_C) $(SIM_LIBS)
 
 simtest: $(SIM_TEST)
-	$(foreach clk,$(SIM_CLOCKS_HZ),$(SIM_TEST) $(SIM_ELF) $(clk) &&) true
+	$(foreach clk,$(SIM_CLOCKS_HZ),$(SIM_TEST) $(SIM_ELF85) $(SIM_ELF84) $(clk) &&) true
 
 test: hosttest simtest
 
@@ -153,7 +163,8 @@ analyse: all
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage run --branch --source=tools -m unittest discover -s tests -t . -p 'test_*.py'
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage report -m
 
-misra: image_misra
+misra:
+	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) image_misra &&) true
 
 image_misra:
 	$(foreach config,$(CPPCHECK_CONFIGS),cppcheck $(CPPCHECK_FLAGS) $(config) --addon=misra $(FIRMWARE_C) &&) true
@@ -163,8 +174,8 @@ REPRO_B := $(BUILD)/repro-b
 
 repro:
 	rm -rf $(REPRO_A) $(REPRO_B)
-	$(MAKE) --no-print-directory BUILD=$(REPRO_A) image
-	$(MAKE) --no-print-directory BUILD=$(REPRO_B) image
+	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) BUILD=$(REPRO_A) image &&) true
+	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) BUILD=$(REPRO_B) image &&) true
 	cd $(REPRO_A) && find . -type f \( -name '*.hex' -o -name '*.elf' \) | sort | xargs sha256sum > $(CURDIR)/$(BUILD)/repro-a.sums
 	cd $(REPRO_B) && find . -type f \( -name '*.hex' -o -name '*.elf' \) | sort | xargs sha256sum > $(CURDIR)/$(BUILD)/repro-b.sums
 	diff $(BUILD)/repro-a.sums $(BUILD)/repro-b.sums

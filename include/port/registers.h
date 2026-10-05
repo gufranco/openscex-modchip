@@ -25,6 +25,26 @@
 
 #define PSCU_PORT_INIT 0x00
 
+#elif defined(__AVR_ATtiny84__) || defined(__AVR_ATtiny84A__) || \
+    defined(__AVR_ATtiny44__) || defined(__AVR_ATtiny24__)
+
+// ATtiny84 profile. The SCEx signals sit on PORTA exactly as on the 85, so the
+// shared engine and assembly use them through these macros unchanged. The
+// 14-pin part's spare pins carry the boot-ROM BIOS patch, which the full build
+// adds. PB3 stays RESET.
+#define PSCU_PORT PORTA
+#define PSCU_DDR DDRA
+#define PSCU_PINREG PINA
+#define PSCU_WDT_REG WDTCSR
+
+#define PSCU_PIN_SQCK 0
+#define PSCU_PIN_SUBQ 1
+#define PSCU_PIN_DATA 2
+#define PSCU_PIN_WFCK 3
+#define PSCU_PIN_LED 4
+
+#define PSCU_PORT_INIT 0x00
+
 #else
 #error "unsupported MCU: no PSCU board profile"
 #endif

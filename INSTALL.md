@@ -15,7 +15,10 @@ TL;DR: flash `openscex-modchip-attiny85.hex` to an ATtiny85, wire four signals p
 
 ## The chip
 
-A single ATtiny85 in an 8-pin DIP or SOIC. One optional status LED. No reset button, lid switch, or mode selector is used.
+An ATtiny85 (8-pin DIP or SOIC) for the minimal build, or an ATtiny84 (14-pin)
+for the build that adds the boot-ROM BIOS patch. One optional status LED. No
+reset button, lid switch, or mode selector is used. The pin map below is the
+ATtiny85; the ATtiny84 carries the same signals on its PORTA pins.
 
 | ATtiny85 pin | Signal | Direction | Purpose |
 |---|---|---|---|

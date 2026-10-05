@@ -232,18 +232,29 @@ static void scenario_inject(const target_t *t, const char *elf, uint32_t freq,
 }
 
 int main(int argc, char *argv[]) {
-  if (argc < 3) {
-    (void)fprintf(stderr, "usage: %s elf freq_hz\n", argv[0]);
+  if (argc < 4) {
+    (void)fprintf(stderr, "usage: %s elf85 elf84 freq_hz\n", argv[0]);
     return 2;
   }
-  const char *elf = argv[1];
-  uint32_t freq = (uint32_t)strtoul(argv[2], NULL, 10);
+  const char *elf85 = argv[1];
+  const char *elf84 = argv[2];
+  uint32_t freq = (uint32_t)strtoul(argv[3], NULL, 10);
 
+  // Both chips run the same SCEx stealth firmware, only on different ports
+  // (85 on PORTB, 84 on PORTA), so the same three scenarios verify each image:
+  // inject on a legacy board, inject on a modern board, and no inject on a
+  // non-TOC frame. The 84's BIOS patch is exercised by its own scenario once
+  // that build gains it.
   target_t t85 = {"attiny85", 'B', 0U, 1U, 2U, 3U, 4U};
+  target_t t84 = {"attiny84", 'A', 0U, 1U, 2U, 4U, 3U};
 
-  scenario_inject(&t85, elf, freq, 0, 1);
-  scenario_inject(&t85, elf, freq, 1, 1);
-  scenario_inject(&t85, elf, freq, 0, 0);
+  scenario_inject(&t85, elf85, freq, 0, 1);
+  scenario_inject(&t85, elf85, freq, 1, 1);
+  scenario_inject(&t85, elf85, freq, 0, 0);
+
+  scenario_inject(&t84, elf84, freq, 0, 1);
+  scenario_inject(&t84, elf84, freq, 1, 1);
+  scenario_inject(&t84, elf84, freq, 0, 0);
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
   return (g_failures == 0) ? 0 : 1;
