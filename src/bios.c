@@ -65,4 +65,24 @@ void pscu_bios_patch(void) {
   // data bus for the configured window. This part is cycle-accurate, so it
   // lives entirely in assembly.
   pscu_port_bios_override((uint8_t)PSCU_BIOS_PULSES);
+
+#if PSCU_BIOS_TWO_PHASE
+  // The two oldest Japanese BIOSes read the region a second time. After its own
+  // run of silent windows, count the second pulse train on AY and override DX
+  // again. Only built for those models; one external interrupt is enough
+  // because both windows are polled, not driven by edge interrupts.
+  uint8_t confirms_two = 0U;
+  for (uint16_t attempt = 0U;
+       (attempt < PSCU_BIOS_WINDOW_MAX) && (confirms_two < PSCU_BIOS_CONFIRMS_2);
+       attempt++) {
+    if (pscu_bios_window_silent()) {
+      confirms_two = (uint8_t)(confirms_two + 1U);
+    } else {
+      pscu_bios_wait_level(0U);
+    }
+    pscu_port_watchdog_reset();
+  }
+
+  pscu_port_bios_override_ay((uint8_t)PSCU_BIOS_PULSES_2);
+#endif
 }

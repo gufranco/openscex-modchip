@@ -62,11 +62,14 @@ and silent during play, re-arming when you swap discs.
 
 For a Japanese fat console or a PAL PSone, SCEx alone does not satisfy the
 boot-ROM region check, so build the ATtiny84 with the boot-ROM patch for your
-exact BIOS: `make MCU=attiny84 REGION=jp BIOS=scph_100` (other models:
-`scph_102` for the PAL PSone, `scph_7000_9000`, `scph_3500_5500`). The patch
-counts pulses on an address line AX wired to PB2 and briefly overrides a
-data-bus line DX on PA5; those two extra wires are needed only for the patch.
-Its timing is ported from PsNee and has not been confirmed on hardware here.
+exact BIOS: `make MCU=attiny84 REGION=jp BIOS=scph_7000_9000`. The models are
+`scph_102` (PAL PSone), `scph_100` (JP PSone), `scph_7000_9000`,
+`scph_3500_5500`, `scph_3000` and `scph_1000` (fat JP). The patch counts pulses
+on an address line AX wired to PB2 and briefly overrides a data-bus line DX on
+PA5; the two oldest models, scph_1000 and scph_3000, override a second time and
+also use an address line AY on PA6. Those extra wires are needed only for the
+patch. Its timing is ported from PsNee and has not been confirmed on hardware
+here.
 
 Default internal-oscillator build, the only build verified in simulation:
 

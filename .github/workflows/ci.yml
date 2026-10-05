@@ -38,8 +38,10 @@ jobs:
       - name: Build other-region variants (compile check)
         run: make REGION=jp size && make REGION=eu size
 
-      - name: Build and check the ATtiny84 BIOS variant
-        run: make MCU=attiny84 BIOS=scph_102 image_size image_misra
+      - name: Build and check the ATtiny84 BIOS variants
+        run: |
+          make MCU=attiny84 BIOS=scph_102 image_size image_misra
+          make MCU=attiny84 BIOS=scph_1000 image_size image_misra
 
   commit-messages:
     name: Commit messages

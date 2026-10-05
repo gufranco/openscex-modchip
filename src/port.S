@@ -191,14 +191,18 @@ pscu_port_bios_ax:
 // low (switch it to output over a preset-low port bit), hold for the override
 // window, then release to high-Z. The offset and override lengths are fixed nop
 // runs sized at assemble time from the per-model constants, so the timing is
-// exact and carries no loop overhead.
+// exact and carries no loop overhead. The watchdog is kicked while waiting for
+// an edge, since a slow console boot can leave a long quiet gap, but never
+// inside the offset-and-override window where the timing must be exact.
 	.global pscu_port_bios_override
 	.func pscu_port_bios_override
 pscu_port_bios_override:
 9:
+	wdr
 	sbic _SFR_IO_ADDR(PINB), PSCU_PIN_AX
 	rjmp 9b
 10:
+	wdr
 	sbis _SFR_IO_ADDR(PINB), PSCU_PIN_AX
 	rjmp 10b
 	subi r24, 1
@@ -214,5 +218,37 @@ pscu_port_bios_override:
 	cbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DX
 	ret
 	.endfunc
+
+#if PSCU_BIOS_TWO_PHASE
+
+// The second override for the two-phase models, identical in shape to the
+// first but counting edges on AY and using the second window's offset and
+// length. DX is the same data-bus line.
+	.global pscu_port_bios_override_ay
+	.func pscu_port_bios_override_ay
+pscu_port_bios_override_ay:
+11:
+	wdr
+	sbic _SFR_IO_ADDR(PINA), PSCU_PIN_AY
+	rjmp 11b
+12:
+	wdr
+	sbis _SFR_IO_ADDR(PINA), PSCU_PIN_AY
+	rjmp 12b
+	subi r24, 1
+	brne 11b
+	.rept PSCU_BIOS_OFFSET_2_CYCLES
+	nop
+	.endr
+	cbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_DX
+	sbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DX
+	.rept PSCU_BIOS_OVERRIDE_2_CYCLES
+	nop
+	.endr
+	cbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DX
+	ret
+	.endfunc
+
+#endif
 
 #endif
