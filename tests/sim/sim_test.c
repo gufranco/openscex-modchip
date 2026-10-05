@@ -37,6 +37,10 @@
 // the carrier-mirror injection timing must tolerate, so both ends are tested.
 #define WFCK_HZ 7300UL
 #define WFCK_READ_HZ 14600UL
+// The adaptive build times a modern bit cell as this many WFCK periods (Read,
+// PsNee), so the decoder derives the modern bit length from the carrier period
+// instead of a fixed cycle count. Legacy bits stay the fixed MCU-delay length.
+#define WFCK_PERIODS_PER_BIT 30UL
 #define LED_DEADLINE 1000000UL
 
 typedef struct {
@@ -176,9 +180,10 @@ static void boot_quiet(avr_t *avr, const target_t *t, int modern, wfck_ctx_t *ct
 // board a one is DATA mirroring the WFCK carrier, seen as the pin going high
 // somewhere mid-cell (sampled across s = 3..7 tenths); on a legacy board a one
 // is high-Z, seen as DATA left as an input (DDR clear), a zero as driven low.
-static void decode_region(avr_t *avr, const target_t *t, int modern, char *out) {
+static void decode_region(
+    avr_t *avr, const target_t *t, int modern, uint64_t bit_cycles, char *out) {
   for (int k = 0; k < SCEX_BITS; k++) {
-    uint64_t base = g_led_cycle + ((uint64_t)k * BIT_CYCLES);
+    uint64_t base = g_led_cycle + ((uint64_t)k * bit_cycles);
     uint8_t bit;
     if (modern != 0) {
       // A modern one is DATA mirroring the WFCK carrier, so it oscillates
@@ -186,8 +191,8 @@ static void decode_region(avr_t *avr, const target_t *t, int modern, char *out) 
       // phase and misread it; step finely across the central 40 percent of the
       // cell and treat any high as a one, which always catches the carrier.
       uint8_t any_high = 0U;
-      uint64_t lo = base + ((3U * BIT_CYCLES) / 10U);
-      uint64_t hi = base + ((7U * BIT_CYCLES) / 10U);
+      uint64_t lo = base + ((3U * bit_cycles) / 10U);
+      uint64_t hi = base + ((7U * bit_cycles) / 10U);
       for (uint64_t c = lo; c <= hi; c += 64U) {
         run_to(avr, c);
         if (data_pin(avr, t) != 0U) {
@@ -196,7 +201,7 @@ static void decode_region(avr_t *avr, const target_t *t, int modern, char *out) 
       }
       bit = any_high;
     } else {
-      run_to(avr, base + (BIT_CYCLES / 2U));
+      run_to(avr, base + (bit_cycles / 2U));
       bit = (uint8_t)((data_ddr(avr, t) != 0U) ? 0U : 1U);
     }
     out[k] = (bit != 0U) ? '1' : '0';
@@ -232,6 +237,11 @@ static void scenario_inject(const target_t *t,
     run_cycles(avr, 2000U);
   }
 
+  // A legacy bit is a fixed MCU-delay cell; an adaptive modern bit is
+  // WFCK_PERIODS_PER_BIT carrier periods, so its length scales with the carrier
+  // frequency and the decoder must measure it from wfck_hz, not a constant.
+  uint64_t bit_cycles =
+      (modern != 0) ? ((uint64_t)WFCK_PERIODS_PER_BIT * freq / wfck_hz) : BIT_CYCLES;
   const char *tag = family;
   char label[96];
   char decoded[SCEX_BITS + 1];
@@ -239,7 +249,7 @@ static void scenario_inject(const target_t *t,
     (void)snprintf(label, sizeof(label), "%s: inject triggered at %u Hz", tag, freq);
     check(g_led_seen != 0, label);
     if (g_led_seen != 0) {
-      decode_region(avr, t, modern, decoded);
+      decode_region(avr, t, modern, bit_cycles, decoded);
       (void)snprintf(label, sizeof(label), "%s: decodes SCEA at %u Hz", tag, freq);
       check(strcmp(decoded, SCEA_BITS) == 0, label);
     }

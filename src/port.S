@@ -215,6 +215,125 @@ pscu_port_eeprom_write:
 	ret
 	.endfunc
 
+#if PSCU_TIMING_ADAPTIVE
+
+// Adaptive injection timing. On a modern board the WFCK line is a live carrier,
+// so instead of timing a bit cell with an MCU delay, which drifts with the RC
+// oscillator, these routines count whole WFCK periods. A bit cell is
+// PSCU_WFCK_PERIODS_PER_BIT rising edges, so the cell length tracks the console
+// clock exactly and is immune to MCU frequency error. r18 holds the previous
+// WFCK level so only a low-to-high transition counts; the watchdog is kicked
+// every pass so a stalled carrier resets the chip rather than wedging it.
+
+// Hold for one bit cell without touching DATA; the caller has already driven it
+// low, so this is the zero-bit cell on a modern board.
+	.func pscu_port_wfck_wait_periods
+pscu_port_wfck_wait_periods:
+	cpi r24, 0
+	breq 19f
+	in r19, _SFR_IO_ADDR(PSCU_PINREG)
+	mov r18, r19
+	.rept PSCU_PIN_WFCK
+	lsr r18
+	.endr
+	andi r18, 1
+18:
+	in r19, _SFR_IO_ADDR(PSCU_PINREG)
+	mov r22, r19
+	.rept PSCU_PIN_WFCK
+	lsr r22
+	.endr
+	andi r22, 1
+	cp r22, r18
+	breq 20f
+	mov r18, r22
+	tst r22
+	breq 20f
+	subi r24, 1
+	breq 19f
+20:
+	wdr
+	rjmp 18b
+19:
+	ret
+	.endfunc
+
+// Drive DATA as a copy of the WFCK carrier for one bit cell, the one-bit cell on
+// a modern board. Each pass mirrors the current WFCK level onto DATA and counts
+// the period, so the mirrored carrier and the cell length share the same clock.
+	.func pscu_port_wfck_mirror_periods
+pscu_port_wfck_mirror_periods:
+	cpi r24, 0
+	breq 16f
+	sbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DATA
+	in r19, _SFR_IO_ADDR(PSCU_PINREG)
+	mov r18, r19
+	.rept PSCU_PIN_WFCK
+	lsr r18
+	.endr
+	andi r18, 1
+15:
+	in r19, _SFR_IO_ADDR(PSCU_PINREG)
+	mov r20, r19
+	.rept (PSCU_PIN_WFCK - PSCU_PIN_DATA)
+	lsr r20
+	.endr
+	andi r20, (1 << PSCU_PIN_DATA)
+	in r21, _SFR_IO_ADDR(PSCU_PORT)
+	andi r21, (~(1 << PSCU_PIN_DATA)) & 0xFF
+	or r21, r20
+	out _SFR_IO_ADDR(PSCU_PORT), r21
+	mov r22, r19
+	.rept PSCU_PIN_WFCK
+	lsr r22
+	.endr
+	andi r22, 1
+	cp r22, r18
+	breq 17f
+	mov r18, r22
+	tst r22
+	breq 17f
+	subi r24, 1
+	breq 16f
+17:
+	wdr
+	rjmp 15b
+16:
+	ret
+	.endfunc
+
+#endif
+
+// One modern-board bit cell, selected at build time. The adaptive build counts
+// WFCK periods; the fixed build falls back to the millisecond delay that was
+// exercised on hardware. Each is a tail call, so the wrapper adds no return
+// overhead. The 4 is the 4 ms bit cell (Read, PsNee BIT_DELAY).
+	.global pscu_port_bit_hold_low
+	.func pscu_port_bit_hold_low
+pscu_port_bit_hold_low:
+#if PSCU_TIMING_ADAPTIVE
+	ldi r24, PSCU_WFCK_PERIODS_PER_BIT
+	rjmp pscu_port_wfck_wait_periods
+#else
+	ldi r24, lo8(4)
+	ldi r25, hi8(4)
+	rjmp pscu_port_delay_ms
+#endif
+	.endfunc
+
+	.global pscu_port_bit_mirror
+	.func pscu_port_bit_mirror
+pscu_port_bit_mirror:
+#if PSCU_TIMING_ADAPTIVE
+	ldi r24, PSCU_WFCK_PERIODS_PER_BIT
+	rjmp pscu_port_wfck_mirror_periods
+#else
+	ldi r24, lo8(4)
+	ldi r25, hi8(4)
+	rjmp pscu_port_data_mirror_wfck_ms
+#endif
+	.endfunc
+
 #if PSCU_BIOS_ENABLED
 
 // Read the address line AX. Unlike the SCEx signals on PORTA, AX is on PB2

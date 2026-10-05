@@ -19,6 +19,24 @@ F_CPU := 8000000UL
 CLOCK_TAG :=
 endif
 
+# Injection bit timing. adaptive (default) locks the WFCK-carrier injection bit
+# to the console clock by counting WFCK periods, so the modern-board bit cell is
+# immune to the MCU RC oscillator drifting; legacy boards keep the MCU delay
+# because WFCK is static there and offers nothing to lock to. fixed restores the
+# original behaviour where every bit cell is a compile-time MCU delay; that is
+# the build whose timing was exercised on hardware. The adaptive default is
+# verified in simulation only until a console retests it.
+# PSCU_WFCK_PERIODS_PER_BIT is 30, Read from PsNee PerformInjectionSequence
+# ("modulated across 30 WFCK edges"), about 4 ms at the 7.3 kHz init rate.
+TIMING ?= adaptive
+ifeq ($(TIMING),fixed)
+TIMING_DEF := -DPSCU_TIMING_ADAPTIVE=0
+TIMING_TAG := -fixed
+else
+TIMING_DEF := -DPSCU_TIMING_ADAPTIVE=1 -DPSCU_WFCK_PERIODS_PER_BIT=30
+TIMING_TAG :=
+endif
+
 # Region the chip emulates. The build is region-specific so the firmware emits
 # only the console's own region string. us is the default and carries no tag.
 REGION ?= us
@@ -86,7 +104,7 @@ endif
 # Each clock, region and BIOS build differs in generated code, so their objects
 # must never share a directory; VARIANT keeps them separate. An empty VARIANT
 # (internal-clock America, no patch) keeps the plain artifact name the sim uses.
-VARIANT := $(CLOCK_TAG)$(REGION_TAG)$(BIOS_TAG)
+VARIANT := $(CLOCK_TAG)$(REGION_TAG)$(BIOS_TAG)$(TIMING_TAG)
 
 CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate format \
 	image image_size image_misra
@@ -99,7 +117,7 @@ clean:
 ifndef PSCU_TOOLCHAIN
 
 $(CONTAINER_TARGETS):
-	$(PYTHON) tools/docker_make.py $@ MCU=$(MCU) CLOCK=$(CLOCK) EXT_F_CPU=$(EXT_F_CPU) REGION=$(REGION) BIOS=$(BIOS)
+	$(PYTHON) tools/docker_make.py $@ MCU=$(MCU) CLOCK=$(CLOCK) EXT_F_CPU=$(EXT_F_CPU) REGION=$(REGION) BIOS=$(BIOS) TIMING=$(TIMING)
 
 else
 
@@ -145,9 +163,9 @@ RELEASE_ELF := $(RELEASE)/$(NAME)-$(MCU)$(VARIANT).elf
 RELEASE_HEX := $(RELEASE)/$(NAME)-$(MCU)$(VARIANT).hex
 RELEASE_OBJECTS := $(patsubst src/%,$(RELEASE)/%.o,$(FIRMWARE_C) $(FIRMWARE_S))
 
-AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(BIOS_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
+AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(BIOS_DEF) $(TIMING_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
 	$(WARNINGS) -fno-common -ffunction-sections -fdata-sections
-AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) $(BIOS_DEF) -Iinclude -Wall -Wextra -Werror
+AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) $(BIOS_DEF) $(TIMING_DEF) -Iinclude -Wall -Wextra -Werror
 AVR_LDFLAGS := -mmcu=$(MCU) -Os -flto -Wl,--gc-sections
 
 AVR_INCLUDE := /usr/lib/avr/include
@@ -156,7 +174,7 @@ CPPCHECK_FLAGS := --std=c17 --platform=avr8 --enable=all --check-level=exhaustiv
 	--error-exitcode=1 --suppress=checkersReport --inline-suppr \
 	'--suppress=*:$(AVR_INCLUDE)/*' '--suppress=*:$(AVR_GCC_INCLUDE)/*' \
 	-Iinclude -I$(AVR_INCLUDE) -I$(AVR_GCC_INCLUDE) \
-	$(CPPCHECK_MCU_DEF) $(REGION_DEF) $(BIOS_DEF) -DF_CPU=$(F_CPU)
+	$(CPPCHECK_MCU_DEF) $(REGION_DEF) $(BIOS_DEF) $(TIMING_DEF) -DF_CPU=$(F_CPU)
 CPPCHECK_CONFIGS := -DPSCU_DEBUG -UPSCU_DEBUG
 
 all:
