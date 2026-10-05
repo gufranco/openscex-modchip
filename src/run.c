@@ -25,6 +25,8 @@
 void pscu_run(void) {
   pscu_board_mode_t board = pscu_engine_detect_board();
   uint8_t counter = 0U;
+  uint8_t injects = 0U;
+  bool logged = false;
   pscu_stealth_t stealth = pscu_stealth_init();
 
   for (;;) {
@@ -37,6 +39,17 @@ void pscu_run(void) {
     stealth = step.state;
     if (step.fire) {
       pscu_engine_inject(board);
+      if (injects < 0xFFU) {
+        injects = (uint8_t)(injects + 1U);
+      }
+    }
+    // Once injection has happened and the chip falls silent, write the flight
+    // recorder exactly once. Deferring to this idle point keeps the EEPROM
+    // latency out of the injection window and spends one write per power cycle,
+    // so the recorder never costs injection timing or EEPROM endurance.
+    if (!step.fire && !logged && (injects > 0U)) {
+      pscu_engine_log_session(board, injects);
+      logged = true;
     }
     pscu_port_watchdog_reset();
   }

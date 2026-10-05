@@ -17,4 +17,11 @@ void pscu_engine_capture_frame(uint8_t *frame);
 
 void pscu_engine_inject(pscu_board_mode_t board);
 
+// Write the diagnostics flight recorder to EEPROM once the chip is idle: read
+// the previous record, advance the session count, store the detected board and
+// this session's injection count. The run loop calls this exactly once per power
+// cycle, after injection has finished, so it never competes with injection
+// timing and the EEPROM endurance is one write per session.
+void pscu_engine_log_session(pscu_board_mode_t board, uint8_t injects);
+
 #endif

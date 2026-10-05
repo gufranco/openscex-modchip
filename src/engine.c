@@ -11,6 +11,7 @@
 #include "pscu/assert.h"
 #include "pscu/board_mode.h"
 #include "pscu/config.h"
+#include "pscu/diag.h"
 #include "pscu/region.h"
 #include "pscu/subq.h"
 
@@ -129,4 +130,23 @@ void pscu_engine_inject(pscu_board_mode_t board) {
   pscu_inject_region(PSCU_CONFIGURED_REGION, board);
   pscu_port_data_release();
   pscu_port_led_off();
+}
+
+// Read the previous flight recorder, advance it, and write it back. Reading
+// before writing is what lets the session count accumulate across power cycles;
+// the pure codec in diag.c owns the byte layout, so this function only moves
+// bytes over the EEPROM port primitives.
+void pscu_engine_log_session(pscu_board_mode_t board, uint8_t injects) {
+  PSCU_ASSERT((board == PSCU_BOARD_MODE_GATE) || (board == PSCU_BOARD_MODE_WFCK));
+
+  uint8_t raw[PSCU_DIAG_EEPROM_BYTES];
+  for (uint8_t i = 0U; i < PSCU_DIAG_EEPROM_BYTES; i++) {
+    raw[i] = pscu_port_eeprom_read((uint8_t)(PSCU_DIAG_EEPROM_ADDR + i));
+  }
+  pscu_diag_record_t previous = pscu_diag_decode(raw);
+  pscu_diag_record_t record = pscu_diag_build(board, previous.sessions, injects);
+  pscu_diag_encode(record, raw);
+  for (uint8_t i = 0U; i < PSCU_DIAG_EEPROM_BYTES; i++) {
+    pscu_port_eeprom_write((uint8_t)(PSCU_DIAG_EEPROM_ADDR + i), raw[i]);
+  }
 }

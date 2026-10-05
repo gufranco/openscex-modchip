@@ -33,6 +33,16 @@ void pscu_port_delay_ms(uint16_t milliseconds);
 
 void pscu_port_data_mirror_wfck_ms(uint16_t milliseconds);
 
+// EEPROM access for the in-field diagnostics recorder. Both read and write busy-
+// wait for any prior write to finish and kick the watchdog while waiting, so a
+// call is self-contained. The firmware writes only after it has gone idle, never
+// at boot or inside the injection window, so the write latency never perturbs
+// injection timing. Both chips expose the same EEPROM registers, so one
+// implementation serves the ATtiny85 and ATtiny84.
+uint8_t pscu_port_eeprom_read(uint8_t address);
+
+void pscu_port_eeprom_write(uint8_t address, uint8_t value);
+
 // BIOS-patch primitives, implemented only in the ATtiny84 full build. One reads
 // the address line AX; the other counts the given number of AX rising edges and
 // then drives the data-bus override DX for the configured, cycle-accurate
