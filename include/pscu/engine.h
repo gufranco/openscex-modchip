@@ -22,6 +22,6 @@ void pscu_engine_inject(pscu_board_mode_t board);
 // this session's injection count. The run loop calls this exactly once per power
 // cycle, after injection has finished, so it never competes with injection
 // timing and the EEPROM endurance is one write per session.
-void pscu_engine_log_session(pscu_board_mode_t board, uint8_t injects);
+void pscu_engine_log_session(pscu_board_mode_t board, uint8_t injects, uint8_t confirmed);
 
 #endif

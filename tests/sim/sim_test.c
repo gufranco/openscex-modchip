@@ -342,17 +342,20 @@ static void scenario_bios_two_phase(const char *elf, uint32_t freq) {
   check(g_dx_output == 2, "attiny84 bios: both patch windows override the data bus");
 }
 
-// Prove the in-field diagnostics recorder. Boot a legacy board, drive TOC frames
-// to arm and fire one injection, then clock silence frames (neither a data
-// sector nor track 01) so the SUBQ counter decays, the window closes, and the
-// run loop writes the recorder once on the idle pass. Reading the four EEPROM
-// bytes back the way an installer would with avrdude checks the record: magic
-// present, board recorded as legacy gate, one session, and a nonzero injection
-// count. The write landing off the injection path is the property under test.
+// Prove the in-field diagnostics recorder and that closed-loop confirmation
+// resolves and records. Boot a legacy board, drive TOC frames to arm and fire
+// injection, then clock silence frames so no program area appears: the
+// confirmation FSM times out and records the session as unconfirmed. Reading the
+// five EEPROM bytes back the way an installer would with avrdude checks the
+// record: magic, legacy board, one session, a nonzero injection count, and the
+// confirmation byte written as 0. The confirmed path (program area seen) is
+// exercised in the host tests; after an injection the firmware loses SUBQ frame
+// phase against this free-running harness, so a clean program-area read is not
+// drivable here, the same simavr limitation noted for the pull-up and the
+// EEPROM write-settle.
 #define DIAG_TOC_FRAMES 12
-// The single injection is slow (44 bits at 4 ms), so the first silence frames
-// pass while it runs and are missed; the rest are read once it finishes, each
-// decaying the counter one step until the window closes.
+// Injection is slow (44 bits at 4 ms), so the early silence frames pass while it
+// runs and are missed; enough follow that the confirmation wait times out.
 #define DIAG_SILENCE_FRAMES 220
 #define DIAG_WRITE_CYCLES 3000000UL
 
@@ -374,7 +377,7 @@ static void scenario_diag(const target_t *t, const char *elf, uint32_t freq) {
   }
   run_cycles(avr, DIAG_WRITE_CYCLES);
 
-  uint8_t raw[4] = { 0, 0, 0, 0 };
+  uint8_t raw[5] = { 0, 0, 0, 0, 0 };
   avr_eeprom_desc_t desc = { .ee = raw, .offset = 0, .size = sizeof(raw) };
   (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_GET, &desc);
 
@@ -389,6 +392,8 @@ static void scenario_diag(const target_t *t, const char *elf, uint32_t freq) {
   check(raw[2] == 1U, label);
   (void)snprintf(label, sizeof(label), "diag %s: injection count recorded", tag);
   check(raw[3] >= 1U, label);
+  (void)snprintf(label, sizeof(label), "diag %s: unconfirmed recorded without program area", tag);
+  check(raw[4] == 0U, label);
 }
 
 // The board-family matrix. The firmware has no per-family code path, only the

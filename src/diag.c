@@ -17,11 +17,12 @@
 pscu_diag_record_t pscu_diag_decode(const uint8_t *raw) {
   PSCU_ASSERT(raw != NULL);
 
-  pscu_diag_record_t record = { PSCU_BOARD_MODE_GATE, 0U, 0U };
+  pscu_diag_record_t record = { PSCU_BOARD_MODE_GATE, 0U, 0U, 0U };
   if (raw[0] == PSCU_DIAG_MAGIC) {
     record.board = (raw[1] != 0U) ? PSCU_BOARD_MODE_WFCK : PSCU_BOARD_MODE_GATE;
     record.sessions = raw[2];
     record.injects = raw[3];
+    record.confirmed = raw[4];
   }
   return record;
 }
@@ -30,10 +31,11 @@ pscu_diag_record_t pscu_diag_decode(const uint8_t *raw) {
 // hint for the installer, not an exact odometer, and a wrap is harmless.
 pscu_diag_record_t pscu_diag_build(pscu_board_mode_t board,
                                    uint8_t prev_sessions,
-                                   uint8_t injects) {
+                                   uint8_t injects,
+                                   uint8_t confirmed) {
   PSCU_ASSERT((board == PSCU_BOARD_MODE_GATE) || (board == PSCU_BOARD_MODE_WFCK));
 
-  pscu_diag_record_t record = { board, (uint8_t)(prev_sessions + 1U), injects };
+  pscu_diag_record_t record = { board, (uint8_t)(prev_sessions + 1U), injects, confirmed };
   return record;
 }
 
@@ -44,4 +46,5 @@ void pscu_diag_encode(pscu_diag_record_t record, uint8_t *raw) {
   raw[1] = (record.board == PSCU_BOARD_MODE_WFCK) ? 1U : 0U;
   raw[2] = record.sessions;
   raw[3] = record.injects;
+  raw[4] = record.confirmed;
 }

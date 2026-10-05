@@ -41,3 +41,41 @@ pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state, bool in_window, uint
 
   return out;
 }
+
+pscu_confirm_t pscu_confirm_init(void) {
+  pscu_confirm_t state = { 0U, false };
+
+  PSCU_ASSERT(!state.program_seen);
+
+  return state;
+}
+
+// Resolve as confirmed the moment the program area appears; otherwise let a
+// bounded idle wait expire and resolve as unconfirmed. Keeping this pure means
+// the run loop just records whatever verdict the frames produced, with no timing
+// logic of its own.
+pscu_confirm_step_t pscu_confirm_step(pscu_confirm_t state,
+                                      bool idle,
+                                      bool program,
+                                      uint8_t timeout) {
+  pscu_confirm_step_t out;
+  out.state = state;
+  out.resolved = false;
+  out.confirmed = false;
+
+  if (program) {
+    out.state.program_seen = true;
+  }
+  if (idle && (out.state.waited < 0xFFU)) {
+    out.state.waited = (uint8_t)(out.state.waited + 1U);
+  }
+  if (out.state.program_seen) {
+    out.resolved = true;
+    out.confirmed = true;
+  } else if (out.state.waited >= timeout) {
+    out.resolved = true;
+  } else {
+  }
+
+  return out;
+}

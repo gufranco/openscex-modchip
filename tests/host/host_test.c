@@ -154,37 +154,92 @@ static void test_stealth(void) {
 }
 
 static void test_diag(void) {
-  uint8_t erased[PSCU_DIAG_EEPROM_BYTES] = { 0xFFU, 0xFFU, 0xFFU, 0xFFU };
+  uint8_t erased[PSCU_DIAG_EEPROM_BYTES] = { 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU };
   pscu_diag_record_t fresh = pscu_diag_decode(erased);
-  check((fresh.sessions == 0U) && (fresh.board == PSCU_BOARD_MODE_GATE),
+  check((fresh.sessions == 0U) && (fresh.board == PSCU_BOARD_MODE_GATE) && (fresh.confirmed == 0U),
         "erased eeprom decodes as no prior record");
 
-  uint8_t stored[PSCU_DIAG_EEPROM_BYTES] = { PSCU_DIAG_MAGIC, 1U, 7U, 3U };
+  uint8_t stored[PSCU_DIAG_EEPROM_BYTES] = { PSCU_DIAG_MAGIC, 1U, 7U, 3U, 1U };
   pscu_diag_record_t prior = pscu_diag_decode(stored);
-  check((prior.board == PSCU_BOARD_MODE_WFCK) && (prior.sessions == 7U) && (prior.injects == 3U),
+  check((prior.board == PSCU_BOARD_MODE_WFCK) && (prior.sessions == 7U) && (prior.injects == 3U) &&
+            (prior.confirmed == 1U),
         "valid record decodes all fields");
 
-  uint8_t gate_stored[PSCU_DIAG_EEPROM_BYTES] = { PSCU_DIAG_MAGIC, 0U, 2U, 9U };
+  uint8_t gate_stored[PSCU_DIAG_EEPROM_BYTES] = { PSCU_DIAG_MAGIC, 0U, 2U, 9U, 0U };
   check(pscu_diag_decode(gate_stored).board == PSCU_BOARD_MODE_GATE,
         "zero board byte decodes as gate");
 
-  pscu_diag_record_t built = pscu_diag_build(PSCU_BOARD_MODE_WFCK, 7U, 4U);
-  check((built.sessions == 8U) && (built.injects == 4U), "build advances the session count");
+  pscu_diag_record_t built = pscu_diag_build(PSCU_BOARD_MODE_WFCK, 7U, 4U, 1U);
+  check((built.sessions == 8U) && (built.injects == 4U) && (built.confirmed == 1U),
+        "build advances the session count");
 
-  check(pscu_diag_build(PSCU_BOARD_MODE_GATE, 255U, 0U).sessions == 0U,
+  check(pscu_diag_build(PSCU_BOARD_MODE_GATE, 255U, 0U, 0U).sessions == 0U,
         "session count wraps at the byte boundary");
 
   uint8_t gate_raw[PSCU_DIAG_EEPROM_BYTES];
-  pscu_diag_encode(pscu_diag_build(PSCU_BOARD_MODE_GATE, 0U, 1U), gate_raw);
+  pscu_diag_encode(pscu_diag_build(PSCU_BOARD_MODE_GATE, 0U, 1U, 0U), gate_raw);
   pscu_diag_record_t gate_back = pscu_diag_decode(gate_raw);
-  check((gate_back.board == PSCU_BOARD_MODE_GATE) && (gate_back.sessions == 1U),
+  check((gate_back.board == PSCU_BOARD_MODE_GATE) && (gate_back.sessions == 1U) &&
+            (gate_back.confirmed == 0U),
         "encode then decode round-trips a gate record");
 
   uint8_t wfck_raw[PSCU_DIAG_EEPROM_BYTES];
-  pscu_diag_encode(pscu_diag_build(PSCU_BOARD_MODE_WFCK, 10U, 16U), wfck_raw);
+  pscu_diag_encode(pscu_diag_build(PSCU_BOARD_MODE_WFCK, 10U, 16U, 1U), wfck_raw);
   pscu_diag_record_t wfck_back = pscu_diag_decode(wfck_raw);
-  check((wfck_back.board == PSCU_BOARD_MODE_WFCK) && (wfck_back.injects == 16U),
+  check((wfck_back.board == PSCU_BOARD_MODE_WFCK) && (wfck_back.injects == 16U) &&
+            (wfck_back.confirmed == 1U),
         "encode then decode round-trips a wfck record");
+}
+
+static void test_program_area(void) {
+  uint8_t data_track2[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x02U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(pscu_subq_is_program_area(data_track2), "data track 2 is program area");
+
+  uint8_t audio_track2[PSCU_SUBQ_FRAME_BYTES] = { 0x01U, 0, 0x02U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(pscu_subq_is_program_area(audio_track2), "audio track 2 is program area");
+
+  uint8_t track1_play[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(pscu_subq_is_program_area(track1_play), "track 1 at a normal index is program area");
+
+  uint8_t toc[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(!pscu_subq_is_program_area(toc), "TOC is not program area");
+
+  uint8_t spiral[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0xF8U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(!pscu_subq_is_program_area(spiral), "track 1 spiral start is not program area");
+
+  uint8_t unframed[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x02U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(!pscu_subq_is_program_area(unframed), "unframed capture is not program area");
+
+  uint8_t noncontent[PSCU_SUBQ_FRAME_BYTES] = { 0x00U, 0, 0x02U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(!pscu_subq_is_program_area(noncontent), "non-content control is not program area");
+
+  uint8_t track0[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x00U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(!pscu_subq_is_program_area(track0), "track 0 is not program area");
+
+  uint8_t misframed[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x02U, 0x10U, 0, 0, 0x01U, 0, 0, 0, 0, 0 };
+  check(!pscu_subq_is_program_area(misframed), "a nonzero sync byte is not program area");
+}
+
+static void test_confirm(void) {
+  pscu_confirm_t start = pscu_confirm_init();
+  check((start.waited == 0U) && !start.program_seen, "confirm starts fresh");
+
+  pscu_confirm_step_t seen = pscu_confirm_step(start, false, true, 3U);
+  check(seen.resolved && seen.confirmed, "program area resolves as confirmed");
+
+  pscu_confirm_step_t wait1 = pscu_confirm_step(start, true, false, 3U);
+  check(!wait1.resolved && (wait1.state.waited == 1U), "idle without program advances the wait");
+
+  pscu_confirm_step_t busy = pscu_confirm_step(start, false, false, 3U);
+  check(!busy.resolved && (busy.state.waited == 0U), "a non-idle frame does not advance the wait");
+
+  pscu_confirm_t near = { 2U, false };
+  pscu_confirm_step_t timed = pscu_confirm_step(near, true, false, 3U);
+  check(timed.resolved && !timed.confirmed, "idle wait times out as unconfirmed");
+
+  pscu_confirm_t maxed = { 0xFFU, false };
+  pscu_confirm_step_t clamped = pscu_confirm_step(maxed, true, false, 3U);
+  check((clamped.state.waited == 0xFFU) && clamped.resolved, "wait clamps at the byte boundary");
 }
 
 int main(void) {
@@ -195,6 +250,8 @@ int main(void) {
   test_inject();
   test_stealth();
   test_diag();
+  test_program_area();
+  test_confirm();
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
   return (g_failures == 0) ? 0 : 1;
