@@ -42,6 +42,12 @@
 #define PSCU_PIN_DATA 2
 #define PSCU_PIN_WFCK 3
 #define PSCU_PIN_LED 4
+// BIOS-patch pins (full build only). DX, the data-bus override, is a spare
+// PORTA pin alongside the SCEx signals. AX, the address line whose pulses the
+// patch counts, must be PB2 because that is the ATtiny84's INT0 pin, the one
+// input fast edges can be caught on.
+#define PSCU_PIN_DX 5
+#define PSCU_PIN_AX 2
 
 #define PSCU_PORT_INIT 0x00
 

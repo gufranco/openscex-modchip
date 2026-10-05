@@ -52,10 +52,16 @@ typedef struct {
 static const char SCEA_BITS[SCEX_BITS + 1] =
     "10011010100100111101001010111010010111110100";
 
+#define BIOS_AX_PIN 2
+#define BIOS_DX_PIN 5
+#define BIOS_PULSES 47
+#define BIOS_CONFIRM_CYCLES 300000UL
+
 static int g_checks = 0;
 static int g_failures = 0;
 static int g_led_seen = 0;
 static uint64_t g_led_cycle = 0;
+static int g_dx_output = 0;
 
 typedef struct {
   avr_irq_t *irq;
@@ -231,9 +237,55 @@ static void scenario_inject(const target_t *t, const char *elf, uint32_t freq,
   }
 }
 
+// Watch the ATtiny84 PORTA direction register: the BIOS patch overrides the
+// data bus by switching DX to an output for a few cycles, so a direction-change
+// IRQ with the DX bit set is the override firing. Catching it by IRQ, not by
+// polling, means the three-cycle window is never missed.
+static void on_dx_direction(struct avr_irq_t *irq, uint32_t value, void *param) {
+  (void)irq;
+  (void)param;
+  if (((value >> BIOS_DX_PIN) & 1U) != 0U) {
+    g_dx_output = 1;
+  }
+}
+
+// Drive the ATtiny84 address line AX (on PORTB) through what the patch expects:
+// align to a rising edge, hold quiet long enough for the silent-window count,
+// then emit the model's pulse count. After the final pulse the firmware must
+// drive the DX override, which on_dx_direction records. This checks the port
+// mechanism (count pulses, then override); the cycle-exact constants themselves
+// are hardware values and stay unverified until a console.
+static void scenario_bios(const char *elf, uint32_t freq) {
+  target_t t84 = {"attiny84", 'A', 0U, 1U, 2U, 4U, 3U};
+  avr_t *avr = build_avr(&t84, elf, freq);
+  g_dx_output = 0;
+
+  avr_irq_t *direction =
+      avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('A'), IOPORT_IRQ_DIRECTION_ALL);
+  avr_irq_register_notify(direction, on_dx_direction, NULL);
+  avr_irq_t *ax = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('B'), BIOS_AX_PIN);
+
+  avr_raise_irq(ax, 0U);
+  run_cycles(avr, 3000U);
+  avr_raise_irq(ax, 1U);
+  run_cycles(avr, 3000U);
+  avr_raise_irq(ax, 0U);
+  run_cycles(avr, BIOS_CONFIRM_CYCLES);
+
+  for (int p = 0; p < BIOS_PULSES; p++) {
+    avr_raise_irq(ax, 1U);
+    run_cycles(avr, 200U);
+    avr_raise_irq(ax, 0U);
+    run_cycles(avr, 200U);
+  }
+  run_cycles(avr, 4000U);
+
+  check(g_dx_output != 0, "attiny84 bios: data bus overridden after the pulse count");
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 4) {
-    (void)fprintf(stderr, "usage: %s elf85 elf84 freq_hz\n", argv[0]);
+    (void)fprintf(stderr, "usage: %s elf85 elf84 freq_hz [elf84bios]\n", argv[0]);
     return 2;
   }
   const char *elf85 = argv[1];
@@ -255,6 +307,12 @@ int main(int argc, char *argv[]) {
   scenario_inject(&t84, elf84, freq, 0, 1);
   scenario_inject(&t84, elf84, freq, 1, 1);
   scenario_inject(&t84, elf84, freq, 0, 0);
+
+  // The optional fourth argument is the ATtiny84 BIOS-patch image; it is a
+  // slow scenario, so simtest passes it at one clock only.
+  if (argc >= 5) {
+    scenario_bios(argv[4], freq);
+  }
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
   return (g_failures == 0) ? 0 : 1;
