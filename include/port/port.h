@@ -42,4 +42,9 @@ uint8_t pscu_port_bios_ax(void);
 
 void pscu_port_bios_override(uint8_t pulses);
 
+// The second override, driven by the AY address line, for the two oldest
+// Japanese models whose BIOS reads the region twice. Built only in two-phase
+// BIOS builds, otherwise neither linked nor called.
+void pscu_port_bios_override_ay(uint8_t pulses);
+
 #endif
