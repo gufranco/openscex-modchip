@@ -19,7 +19,6 @@ Region-unlock firmware for the original Sony PlayStation (fat) and PSone. One so
 | Clock | internal 8 MHz RC, or console external (hardware-gated) |
 | Signal wires | 4 (SQCK, SUBQ, DATA, WFCK) plus power; optional LED |
 | Toolchain | C17, MISRA C:2012 zero deviations, pinned Docker image |
-| Out of scope | drive emulation, PS2, Saturn, LibCrypt |
 
 ## Verified on hardware
 
@@ -28,12 +27,12 @@ Combinations that booted out of region on a real console (SCEx region unlock). E
 | Board family | Console | Clock | Injection | Status |
 |:-------------|:--------|:------|:----------|:-------|
 | PU-8 | fat, NTSC-U/C | internal | SCEx | Verified 2026-10-05 |
-| PU-18 | fat | internal | SCEx | Verified 2026-10-05 |
-| PU-18 | fat | external | SCEx | Verified 2026-10-05 |
+| PU-18 | fat, NTSC-U/C | internal | SCEx | Verified 2026-10-05 |
+| PU-18 | fat, NTSC-U/C | external | SCEx | Verified 2026-10-05 |
 | PM-41 | PSone | internal | SCEx | Verified 2026-10-05 |
 | PM-41 | PSone | external | SCEx | Verified 2026-10-05 |
 
-Not confirmed on hardware (built and simulated only): PU-7, PU-20, PU-22, PU-23, the boot-ROM BIOS patch on every model, and regions other than the PU-8 NTSC-U/C unit above. The region and exact SCPH of the PU-18 and PSone units, and which chip carried the external-clock builds, are not recorded.
+Not confirmed on hardware (built and simulated only): PU-7, PU-20, PU-22, PU-23, the boot-ROM BIOS patch on every model, and PAL or NTSC-J on any family. The exact SCPH of the PU-8 and PU-18 units, the region and SCPH of the PSone unit, and which chip carried the external-clock builds, are not recorded.
 
 ## Features
 
@@ -189,37 +188,6 @@ make mutate      # mutation testing on the logic layer
 ```
 
 The same gates run in CI on every push and pull request, defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
-
-## Architecture
-
-Three layers: the protocol logic is tested on the host, and only register access touches hardware. A layer check fails the build if a logic file reaches the platform or a C file includes a hardware header.
-
-```mermaid
-graph TD
-  subgraph Logic[Logic layer, compiles and runs on the host]
-    region[region.c]
-    subq[subq.c]
-    board[board_mode.c]
-    inject[inject.c]
-  end
-  subgraph Platform[Platform C]
-    engine[engine.c]
-    run[run.c]
-    main[main.c]
-  end
-  subgraph Hardware[Hardware, assembly only]
-    port[port.S]
-  end
-  Logic --> Platform --> Hardware
-```
-
-```mermaid
-graph LR
-  CD[CD decoder] -->|SQCK, SUBQ| MCU[ATtiny]
-  WFCK[WFCK gate or carrier] <--> MCU
-  MCU -->|SCEx on DATA| MECH[mechacon]
-  MCU -.->|BIOS patch on AX, AY, DX| ROM[boot ROM data bus]
-```
 
 ## Safety
 
