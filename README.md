@@ -162,7 +162,7 @@ BIOS-patch pads (ATtiny84, Japanese fat and PAL PSone): the MCU-side pins are fi
 
 ## Build and program
 
-Prebuilt per-console `.hex` images are attached to each [release](../../releases), so you can skip the toolchain and go straight to flashing with the `avrdude` steps below. To build from source instead: every build, check and test runs in the pinned Docker toolchain through `make`, and only `avrdude` runs on the host.
+Prebuilt per-console `.hex` images are attached to each [release](../../releases), so you can skip the toolchain and go straight to flashing with the `avrdude` steps below. Releases are versioned automatically from the commit history; the `0.x` line marks the firmware as pre-hardware-validation. To build from source instead: every build, check and test runs in the pinned Docker toolchain through `make`, and only `avrdude` runs on the host.
 
 | Tool | Purpose |
 |:-----|:--------|

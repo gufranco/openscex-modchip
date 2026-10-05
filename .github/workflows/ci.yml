@@ -48,7 +48,7 @@ jobs:
 
   commit-messages:
     name: Commit messages
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout
