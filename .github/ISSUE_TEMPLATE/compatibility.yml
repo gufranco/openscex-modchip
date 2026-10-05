@@ -1,0 +1,105 @@
+name: Compatibility report
+description: Report whether the chip worked on your console, so the compatibility table can be built from real installs.
+title: "[compat] SCPH-XXXX <board> <region> <works|partial|fails>"
+labels: ["compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing on real hardware. Every field below maps to a build knob or a result the project tracks. Measure the tap voltages before wiring; this is build-at-your-own-risk.
+  - type: input
+    id: scph
+    attributes:
+      label: Console model (SCPH number)
+      placeholder: "e.g. SCPH-5501"
+    validations:
+      required: true
+  - type: dropdown
+    id: board
+    attributes:
+      label: Board family
+      options:
+        - PU-7
+        - PU-8
+        - PU-18
+        - PU-20
+        - PU-22
+        - PU-23
+        - PM-41
+        - PM-41(2)
+        - unknown
+    validations:
+      required: true
+  - type: dropdown
+    id: region
+    attributes:
+      label: Console region
+      options:
+        - NTSC-U/C (us)
+        - PAL (eu)
+        - NTSC-J (jp)
+    validations:
+      required: true
+  - type: dropdown
+    id: mcu
+    attributes:
+      label: Chip
+      options:
+        - ATtiny85
+        - ATtiny84
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Build knobs used
+      description: The exact make command, so the firmware is reproducible.
+      placeholder: "e.g. make REGION=us  or  make MCU=attiny84 REGION=eu BIOS=scph_102"
+    validations:
+      required: true
+  - type: dropdown
+    id: timing
+    attributes:
+      label: TIMING build
+      options:
+        - adaptive (default)
+        - fixed
+    validations:
+      required: true
+  - type: dropdown
+    id: clock
+    attributes:
+      label: Clock
+      options:
+        - internal (default)
+        - external
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - Works, boots out of region
+        - Partial, some discs only
+        - Fails, does not boot
+    validations:
+      required: true
+  - type: checkboxes
+    id: discs
+    attributes:
+      label: What booted
+      options:
+        - label: Out-of-region original disc
+        - label: Backup / CD-R
+        - label: Disc-swap re-arm worked
+  - type: input
+    id: voltage
+    attributes:
+      label: Measured tap voltage (optional)
+      placeholder: "e.g. 3.5 V at WFCK"
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Tap points used, anything unusual, photos if you have them.

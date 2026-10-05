@@ -1,0 +1,31 @@
+name: Bug report
+description: Report a firmware, build, or documentation defect.
+title: "[bug] <short summary>"
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What the chip or build did, and what you expected instead.
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Build knobs
+      placeholder: "e.g. make MCU=attiny84 REGION=eu BIOS=scph_102 TIMING=adaptive"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Exact steps, console and board if hardware-related, and any gate output verbatim.
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or release
+      placeholder: "git short SHA or release tag"

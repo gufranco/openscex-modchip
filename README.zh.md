@@ -36,6 +36,8 @@
 
 上述硬件结果是在 `TIMING=fixed` 下取得的。旧式（PU-8、PU-18）各行不受 `TIMING` 影响，因为两种构建都用 MCU 延时。PM-41 载波各行用的是 fixed 时序；adaptive 默认的载波位（锁定 WFCK）在主机重新测试前仅经仿真。可用 `make TIMING=fixed` 重建已验证的二进制。
 
+各主机的验证由社区驱动。在你的主机上试过后，请开一个 [兼容性报告](../../issues/new?template=compatibility.yml)，此表将从确认的安装中成长。
+
 ## 功能
 
 | 功能 | 细节 |
@@ -65,7 +67,7 @@
 | MCU 引脚分配 | Read（PsNee `MCU.h`），所有者确认为现场验证 |
 | 主机侧搭接点，信号层面 | Read，PsNee 与 Mayumi 安装现场验证 |
 | mechacon 引脚号 | Unknown，论坛转述，对照板图再确认 |
-| 各焊盘电压 | Unknown，必须测量 |
+| 各焊盘电压 | 从 PsNee 与 Mayumi 的安装 Concluded（厚机约 5 V，PSone 更低且对噪声敏感）；测量以确认 |
 | PU-8、PU-18、PSone 的 SCEx 解锁 | Verified 2026-10-05（见上表） |
 | PU-18 与 PSone 的外部时钟构建 | Verified 2026-10-05，其他主板为前提门控 |
 | BIOS 补丁时序 | Read 自 PsNee 并在 simavr 演练，硬件上未 Verified |
@@ -211,7 +213,7 @@ avrdude -c <programmer> -p attiny85 -U eeprom:r:diag.bin:r
 
 ## 安全
 
-- 接线前在每个搭接点测量逻辑电压。没有资料给出各焊盘电压，故为 Unknown。厚机假定约 5 V，PSone PM-41(2) 更低且对噪声敏感，但假定不是测量。
+- 接线前在每个搭接点测量逻辑电压。数值取自既定的 PsNee 与 Mayumi 安装（厚机约 5 V，PSone PM-41(2) 更低且对噪声敏感），但假定不是测量，故在把信号接入时钟引脚之前请在你的板上确认。
 - 测量之前不要把主机信号接入时钟引脚。
 - 打开主机并焊接到 CD 子系统可能将其损坏。自担风险制作。
 
