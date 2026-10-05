@@ -22,7 +22,7 @@ updates:
         patterns: ["*"]
 
   - package-ecosystem: "docker"
-    directory: "/tools"
+    directory: "/"
     schedule:
       interval: "weekly"
     commit-message:
