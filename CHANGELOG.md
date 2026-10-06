@@ -1,3 +1,10 @@
+# [0.1.0](https://github.com/gufranco/openscex-modchip/compare/v0.0.1...v0.1.0) (2026-10-06)
+
+
+### Features
+
+* **subq:** add the SCPH-5903 video CD filter ([8e057d4](https://github.com/gufranco/openscex-modchip/commit/8e057d49a07d359a17d742aeaf69e393688f332e))
+
 ## [0.0.1](https://github.com/gufranco/openscex-modchip/compare/v0.0.0...v0.0.1) (2026-10-06)
 
 
