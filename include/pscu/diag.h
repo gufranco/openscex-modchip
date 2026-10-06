@@ -22,9 +22,10 @@
 #define PSCU_DIAG_EEPROM_ADDR ((uint8_t)0U)
 #define PSCU_DIAG_MAGIC ((uint8_t)0x50U)
 
-// board is the detected era, sessions counts power cycles that reached idle
-// (wraps at 255), injects counts region strings emitted this session (clamped at
-// 255), confirmed is 1 when the console was seen reaching the program area after
+// board is the detected era, sessions counts recorded sessions, one per arming
+// (one per disc whose region check the chip answered; wraps at 255), injects
+// counts region strings emitted in the latest session (clamped at 255), confirmed
+// is 1 when the console was seen reaching the program area after that session's
 // injection (the region check passed). A decode of an erased or foreign EEPROM
 // yields sessions 0 and confirmed 0.
 typedef struct {

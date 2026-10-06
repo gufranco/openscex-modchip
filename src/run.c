@@ -38,6 +38,14 @@ void pscu_run(void) {
     pscu_stealth_step_t step = pscu_stealth_step(stealth, in_window, PSCU_STEALTH_STRINGS);
     stealth = step.state;
     if (step.fire) {
+      // The first string of an arming starts a new session: a disc swap re-arms
+      // the stealth state machine, and that disc's check is recorded on its own
+      // rather than lost behind the first session of the power cycle.
+      if (step.state.sent == 1U) {
+        injects = 0U;
+        logged = false;
+        confirm = pscu_confirm_init();
+      }
       pscu_engine_inject(board);
       if (injects < 0xFFU) {
         injects = (uint8_t)(injects + 1U);
@@ -46,8 +54,8 @@ void pscu_run(void) {
     // Closed-loop confirmation. After injecting, watch for the program area: the
     // mechacon re-enables reads only once it accepts the region string, so a
     // program-area frame confirms the check passed. The pure FSM resolves on that
-    // or after a bounded idle wait, and the session is recorded exactly once, off
-    // the injection path, so the write never costs timing or EEPROM endurance.
+    // or after a bounded idle wait, and each session is recorded once, off the
+    // injection path, so the write never costs injection timing.
     if ((injects > 0U) && !logged) {
       pscu_confirm_step_t outcome = pscu_confirm_step(
           confirm, !step.fire, pscu_subq_is_program_area(frame), PSCU_CONFIRM_FRAMES);
