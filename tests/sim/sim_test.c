@@ -455,6 +455,45 @@ static void scenario_diag(const target_t *t, const char *elf, uint32_t freq, int
   check(raw[4] == ((program != 0) ? 1U : 0U), label);
 }
 
+// Each arming is its own session. Within one power cycle, drive a first disc
+// whose check is never confirmed, let the window close, then a second disc whose
+// program area is reached: the recorder must hold two sessions and the second
+// one's outcome, not stop after the first session of the power cycle.
+static void scenario_diag_two_sessions(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
+  g_led_seen = 0;
+  g_led_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+
+  uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
+  uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0, 0, 0, 0x02U, 0, 0, 0 };
+  for (int i = 0; i < DIAG_TOC_FRAMES; i++) {
+    clock_frame(avr, t, toc);
+  }
+  for (int i = 0; i < DIAG_AFTER_FRAMES; i++) {
+    clock_frame(avr, t, silence);
+  }
+  for (int i = 0; i < DIAG_TOC_FRAMES; i++) {
+    clock_frame(avr, t, toc);
+  }
+  for (int i = 0; i < DIAG_AFTER_FRAMES; i++) {
+    clock_frame(avr, t, play);
+  }
+  run_cycles(avr, DIAG_WRITE_CYCLES);
+
+  uint8_t raw[5] = { 0, 0, 0, 0, 0 };
+  read_record(avr, raw);
+  const char *tag = (strcmp(t->mcu, "attiny85") == 0) ? "85" : "84";
+  char label[96];
+  (void)snprintf(label, sizeof(label), "diag %s two discs: two sessions recorded", tag);
+  check(raw[2] == 2U, label);
+  (void)snprintf(label, sizeof(label), "diag %s two discs: second session confirmed", tag);
+  check(raw[4] == 1U, label);
+}
+
 // A capture that starts inside a burst must not stay misaligned. Present a
 // partial burst first, as a console already mid-sector would at the moment the
 // firmware starts listening, then ordinary TOC frames. Without resync every
@@ -709,6 +748,7 @@ int main(int argc, char *argv[]) {
     scenario_diag(&t84, elf84, freq, 0);
     scenario_diag(&t85, elf85, freq, 1);
     scenario_diag(&t84, elf84, freq, 1);
+    scenario_diag_two_sessions(&t85, elf85, freq);
     scenario_resync(&t85, elf85, freq);
     scenario_resync(&t84, elf84, freq);
     scenario_late_carrier(&t85, elf85, freq);
