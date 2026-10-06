@@ -1,12 +1,85 @@
-# openscex-modchip
-
 [English](README.md) | 日本語 | [中文](README.zh.md)
 
+<div align="center">
+
+<h1>openscex-modchip</h1>
+
+<strong>PlayStation と PSone のためのステルス SCEx リージョン解除。コンソール自身のクロックで動く ATtiny84 に載ります。</strong>
+
+<br><br>
+
 [![CI](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml/badge.svg)](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/gufranco/openscex-modchip)](https://github.com/gufranco/openscex-modchip/releases)
 [![MISRA C:2012](https://img.shields.io/badge/MISRA%20C%3A2012-0%20deviations-brightgreen)](AGENTS.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+</div>
+
+<p align="center">
+  <a href="#クイックスタート">クイックスタート</a> &nbsp;|&nbsp;
+  <a href="#コンソールのタップ位置">配線</a> &nbsp;|&nbsp;
+  <a href="#診断">診断</a> &nbsp;|&nbsp;
+  <a href="../../issues/new?template=compatibility.yml">あなたの機種を報告</a>
+</p>
+
+フラッシュ **1220** バイト · 基板 **6** 系統、PU-18 から PM-41(2) · リージョン **3** 種 · MISRA 逸脱 **0** · ホストの行と分岐カバレッジ **100%** · ミュータント **48/48** 撃破
+
+```bash
+gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny84.hex' --pattern SHA256SUMS
+sha256sum -c SHA256SUMS --ignore-missing
+avrdude -c <programmer> -p attiny84 -U flash:w:openscex-modchip-attiny84.hex:i
+```
+
+> [!IMPORTANT]
+> ATtiny84 への再設計（v0.3.0）はシミュレーションのゲートをすべて通過していますが、まだ実機では動かしていません。配線前にクロックと蓋の点を測ってください。
+
 初代ソニー PlayStation（フット機）と PSone 向けのリージョン解除ファームウェアで、コンソール自身のクロックで動く ATtiny84 に載ります。設定されたリージョン文字列を SUBQ リージョンチェックの窓の間だけ送り、コンソールが受け入れた瞬間に止め、プレイ中はデータ線をハイインピーダンスに保ちます。蓋スイッチへの配線で、ディスク交換を正確に知ります。ブート ROM はパッチしないため、日本のフット機と PAL の PSone は 2 回目のリージョンチェックを残します。それを回避したい場合はパッチ済み BIOS を入れてください。光学ドライブエミュレータではなく、PS2 やサターンには対応せず、LibCrypt も回避しません。
+
+| | |
+|:--|:--|
+| **受け入れ後は沈黙**<br>最初のプログラム領域フレームで注入を止め（文字列の途中でも）、蓋が開くまで沈黙します。 | **正確なディスク交換**<br>蓋線は開いてから 4 ms 以内に文字列を止め、閉じると再武装します。マルチディスクのゲームの全ディスクに対応。 |
+| **コンソール同期のタイミング**<br>チップはコンソールの 4.2336 MHz クロックで動き、自前の発振器は使いません。 | **1 リージョン、1 つの窓**<br>設定したリージョン文字列だけを、SUBQ リージョンチェックの窓の間だけ、武装ごとに最大 16 回。 |
+| **フライトレコーダ**<br>ディスクごとに 5 バイトの EEPROM 記録（基板、セッション、文字列、確認）を avrdude で読み出し。 | **コードで実証**<br>MISRA C:2012 準拠、ホストカバレッジ 100%、simavr コンソールモデル、ミューテーションテスト、バイト一致の再ビルド。 |
+
+## 仕組み
+
+```mermaid
+graph LR
+    subgraph Console
+        CD[CD サブシステム]
+        CLK[4.2336 MHz クロック]
+        LID[蓋スイッチ]
+        WF[WFCK]
+        MECH[メカコン]
+    end
+    subgraph ATtiny84
+        CAP[SUBQ 取得]
+        DET[リージョンチェック検出]
+        ST[ステルス状態機械]
+        INJ[SCEx 注入]
+        REC[EEPROM フライトレコーダ]
+    end
+    CD -->|SQCK, SUBQ| CAP
+    CAP --> DET --> ST --> INJ
+    ST --> REC
+    LID -->|蓋線| ST
+    WF -->|ゲートまたはキャリア| INJ
+    CLK -->|CLKI| ATtiny84
+    INJ -->|DATA| MECH
+```
+
+## 他のチップとの比較
+
+| 能力 | openscex | PsNee V9 | Mayumi V4 | MM3 |
+|:-----|:---------|:---------|:----------|:----|
+| ステルスの契機 | SUBQ チェック窓と受け入れラッチ | SUBQ デコード | センス線と蓋線 | Mayumi V4 と同じプログラム |
+| ディスク交換の検出 | 蓋線 | SUBQ カウンタの減衰 | 蓋線 | 蓋線 |
+| クロック | コンソール | 内蔵 | コンソール | 内蔵 RC |
+| ブート ROM の BIOS パッチ | なし、パッチ済み BIOS を使う | あり、ATmega 版 | なし | なし |
+| 基板 | PU-18 から PM-41(2) | PU-7 から PM-41(2) | PU-18 以降 | PU-7 以降 |
+| 診断 | EEPROM レコーダ | シリアルデバッグ | なし | なし |
+| テストと静的解析 | ホスト、simavr、ミューテーション、MISRA | なし | なし | なし |
+| 実績 | 2 基板、以前のファームウェア | 数年 | 数十年 | 数十年 |
 
 ## 概要
 
@@ -33,7 +106,7 @@
 
 機種ごとの検証はコミュニティで進めます。あなたの機種で試しましたか？ [互換性レポート](../../issues/new?template=compatibility.yml)を開いてください。確認された取り付けでこの表が育ちます。
 
-## 機能
+## 含まれるもの
 
 | 機能 | 内容 |
 |:-----|:-----|
@@ -131,7 +204,7 @@ DATA は SCEx ビット列を運び、WFCK はゲートまたはキャリアで�
 
 メカコンの SUBQ と SQCK のピン、フォーラムの伝聞で、psxdev.net が 2025 年 10 月から停止中のため Unknown: PU-22 以降は SUBQ が 24 番、SQCK が 26 番。切る前に consolemods の基板図で確認してください。
 
-## ビルドと書き込み
+## クイックスタート
 
 機種別のビルド済み `.hex` は各[リリース](../../releases)に添付されるので、ツールチェーンを飛ばして下の `avrdude` 手順で書き込めます。各リリースには ATtiny84 のイメージ 3 種（`us`、`eu`、`jp`）、SCPH-5903 用イメージ（`jp-vcd`）、`SHA256SUMS` ファイル、ライセンス、ビルド来歴のアテステーションが付きます。v0.2.0 までのリリースには以前の 4 線設計の ATtiny85 イメージが付いていました。書き込む前にダウンロードを確認してください:
 
@@ -197,6 +270,17 @@ avrdude -c <programmer> -p attiny84 -U eeprom:r:diag.bin:r
 - 配線前に、クロックと蓋の点も含めすべてのタップ位置の論理電圧を測ってください。値は確立した PsNee と Mayumi の取り付けから取っています（フット機は約 5 V、PSone PM-41(2) は低めでノイズに敏感）が、想定は測定ではありません。
 - クロックピンには、電圧と周波数を測る前にコンソールの信号を入れないでください。
 - コンソールを開けて CD サブシステムにはんだ付けすると壊すことがあります。自己責任で作ってください。
+
+## バージョニング
+
+リリースは `0.x` 系の[セマンティックバージョニング](https://semver.org/)に従います。マイナーリリースでも互換性が壊れることがあり、v0.3.0 は ATtiny85 の 4 線設計を ATtiny84 に置き換えました。各リリースはタグ付けされ、CI が通ったコミットからビルドされます。注記は[リリース](../../releases)を参照してください。
+
+## サポート
+
+| 用件 | 窓口 |
+|:-----|:-----|
+| バグ報告 | [バグ用テンプレート](../../issues/new?template=bug.yml) |
+| あなたの機種での結果 | [互換性レポート](../../issues/new?template=compatibility.yml) |
 
 ## ライセンス
 

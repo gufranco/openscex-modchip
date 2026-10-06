@@ -1,12 +1,85 @@
-# openscex-modchip
-
 [English](README.md) | [日本語](README.ja.md) | 中文
 
+<div align="center">
+
+<h1>openscex-modchip</h1>
+
+<strong>面向 PlayStation 与 PSone 的隐身 SCEx 区域解锁，运行在由主机自身时钟驱动的 ATtiny84 上。</strong>
+
+<br><br>
+
 [![CI](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml/badge.svg)](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/gufranco/openscex-modchip)](https://github.com/gufranco/openscex-modchip/releases)
 [![MISRA C:2012](https://img.shields.io/badge/MISRA%20C%3A2012-0%20deviations-brightgreen)](AGENTS.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+</div>
+
+<p align="center">
+  <a href="#快速开始">快速开始</a> &nbsp;|&nbsp;
+  <a href="#主机接点">接线</a> &nbsp;|&nbsp;
+  <a href="#诊断">诊断</a> &nbsp;|&nbsp;
+  <a href="../../issues/new?template=compatibility.yml">报告你的主机</a>
+</p>
+
+闪存 **1220** 字节 · **6** 个主板系列，PU-18 至 PM-41(2) · **3** 个区域 · MISRA 偏离 **0** · 主机测试行与分支覆盖率 **100%** · 变异体 **48/48** 被杀死
+
+```bash
+gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny84.hex' --pattern SHA256SUMS
+sha256sum -c SHA256SUMS --ignore-missing
+avrdude -c <programmer> -p attiny84 -U flash:w:openscex-modchip-attiny84.hex:i
+```
+
+> [!IMPORTANT]
+> ATtiny84 重新设计（v0.3.0）通过了全部仿真关卡，尚未在实机上运行。接线前请测量时钟与光驱盖接点。
+
 面向初代索尼 PlayStation（厚机）与 PSone 的区域解锁固件，运行在由主机自身时钟驱动的 ATtiny84 上。它只在 SUBQ 区域检查窗口内送出配置好的区域字符串，主机一接受就立即停止，游戏运行时让数据线保持高阻。一根接到光驱盖开关的线让它准确知道何时换盘。它不修补引导 ROM，因此日本厚机与 PAL 的 PSone 仍保留第二道区域检查；如需绕过，请安装已修补的 BIOS。它不是光驱模拟器，不支持 PS2 或土星，也不破解 LibCrypt。
+
+| | |
+|:--|:--|
+| **接受后保持静默**<br>第一个程序区帧即停止注入（字符串中途也一样），并保持静默直到光驱盖打开。 | **准确的换盘**<br>光驱盖线在打开后 4 ms 内停止字符串，关闭时重新武装，适用于多光盘游戏的每张光盘。 |
+| **锁定主机的时序**<br>芯片由主机的 4.2336 MHz 时钟驱动，从不使用自身振荡器。 | **一个区域，一个窗口**<br>只送出配置的区域字符串，只在 SUBQ 区域检查窗口内，每次武装最多 16 次。 |
+| **飞行记录器**<br>每张光盘一份 5 字节的 EEPROM 记录（主板、会话、字符串、确认），用 avrdude 读回。 | **代码实证**<br>MISRA C:2012 合规，主机覆盖率 100%，simavr 主机模型，变异测试，逐字节一致的重新构建。 |
+
+## 工作原理
+
+```mermaid
+graph LR
+    subgraph Console
+        CD[CD 子系统]
+        CLK[4.2336 MHz 时钟]
+        LID[光驱盖开关]
+        WF[WFCK]
+        MECH[机芯控制器]
+    end
+    subgraph ATtiny84
+        CAP[SUBQ 采集]
+        DET[区域检查检测]
+        ST[隐身状态机]
+        INJ[SCEx 注入]
+        REC[EEPROM 飞行记录器]
+    end
+    CD -->|SQCK, SUBQ| CAP
+    CAP --> DET --> ST --> INJ
+    ST --> REC
+    LID -->|光驱盖线| ST
+    WF -->|门控或载波| INJ
+    CLK -->|CLKI| ATtiny84
+    INJ -->|DATA| MECH
+```
+
+## 与其他芯片对比
+
+| 能力 | openscex | PsNee V9 | Mayumi V4 | MM3 |
+|:-----|:---------|:---------|:----------|:----|
+| 隐身触发 | SUBQ 检查窗口加接受锁存 | SUBQ 解码 | 感应线加光驱盖线 | 与 Mayumi V4 相同的程序 |
+| 换盘检测 | 光驱盖线 | SUBQ 计数器衰减 | 光驱盖线 | 光驱盖线 |
+| 时钟 | 主机 | 内部 | 主机 | 内部 RC |
+| 引导 ROM BIOS 补丁 | 无，使用已修补的 BIOS | 有，ATmega 版本 | 无 | 无 |
+| 主板 | PU-18 至 PM-41(2) | PU-7 至 PM-41(2) | PU-18 及以后 | PU-7 及以后 |
+| 诊断 | EEPROM 记录器 | 串口调试 | 无 | 无 |
+| 测试与静态分析 | 主机、simavr、变异、MISRA | 无 | 无 | 无 |
+| 实战记录 | 2 块主板，旧固件 | 数年 | 数十年 | 数十年 |
 
 ## 概览
 
@@ -33,7 +106,7 @@
 
 逐机型验证由社区推动。在你的主机上试过了吗？请提交[兼容性报告](../../issues/new?template=compatibility.yml)，此表将随确认的安装而增长。
 
-## 功能
+## 包含内容
 
 | 功能 | 说明 |
 |:-----|:-----|
@@ -131,7 +204,7 @@ DATA 承载 SCEx 位流，WFCK 是门控或载波；这些是 PsNee 与 Mayumi �
 
 机芯控制器的 SUBQ 与 SQCK 引脚，论坛转述，因 psxdev.net 自 2025 年 10 月起离线而标为 Unknown：PU-22 及以后，SUBQ 在 24 脚，SQCK 在 26 脚。动刀前请对照 consolemods 的主板图确认。
 
-## 构建与烧录
+## 快速开始
 
 各[发布](../../releases)都附有按机型预构建的 `.hex`，可跳过工具链，直接用下面的 `avrdude` 步骤烧录。每个发布附带三份 ATtiny84 镜像（`us`、`eu`、`jp`）、SCPH-5903 镜像（`jp-vcd`）、`SHA256SUMS` 文件、许可证与构建来源证明。v0.2.0 及之前的发布附带的是旧四线设计的 ATtiny85 镜像。烧录前请先校验下载文件：
 
@@ -197,6 +270,17 @@ avrdude -c <programmer> -p attiny84 -U eeprom:r:diag.bin:r
 - 接线前测量每个接点的逻辑电压，包括时钟与光驱盖接点。数值取自成熟的 PsNee 与 Mayumi 安装（厚机约 5 V，PSone PM-41(2) 较低且对噪声敏感），但假设不等于测量。
 - 在测量电压与频率之前，绝不要把主机信号送入时钟脚。
 - 打开主机并焊接 CD 子系统可能损坏主机。风险自负。
+
+## 版本
+
+发布遵循 `0.x` 系列的[语义化版本](https://semver.org/)，这意味着次版本也可能破坏兼容性：v0.3.0 用 ATtiny84 取代了 ATtiny85 四线设计。每个发布都打了标签，并从 CI 通过的提交构建；说明见[发布](../../releases)。
+
+## 支持
+
+| 需求 | 渠道 |
+|:-----|:-----|
+| 报告缺陷 | [缺陷模板](../../issues/new?template=bug.yml) |
+| 你的主机上的结果 | [兼容性报告](../../issues/new?template=compatibility.yml) |
 
 ## 许可证
 

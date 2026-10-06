@@ -1,12 +1,85 @@
-# openscex-modchip
-
 English | [日本語](README.ja.md) | [中文](README.zh.md)
 
+<div align="center">
+
+<h1>openscex-modchip</h1>
+
+<strong>Stealth SCEx region unlock for the PlayStation and PSone, on an ATtiny84 clocked by the console itself.</strong>
+
+<br><br>
+
 [![CI](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml/badge.svg)](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/gufranco/openscex-modchip)](https://github.com/gufranco/openscex-modchip/releases)
 [![MISRA C:2012](https://img.shields.io/badge/MISRA%20C%3A2012-0%20deviations-brightgreen)](AGENTS.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+</div>
+
+<p align="center">
+  <a href="#quick-start">Quick start</a> &nbsp;|&nbsp;
+  <a href="#console-tap-points">Wiring</a> &nbsp;|&nbsp;
+  <a href="#diagnostics">Diagnostics</a> &nbsp;|&nbsp;
+  <a href="../../issues/new?template=compatibility.yml">Report your console</a>
+</p>
+
+**1220** bytes of flash · **6** board families, PU-18 to PM-41(2) · **3** regions · **0** MISRA deviations · **100%** host line and branch coverage · **48/48** mutants killed
+
+```bash
+gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny84.hex' --pattern SHA256SUMS
+sha256sum -c SHA256SUMS --ignore-missing
+avrdude -c <programmer> -p attiny84 -U flash:w:openscex-modchip-attiny84.hex:i
+```
+
+> [!IMPORTANT]
+> The ATtiny84 redesign (v0.3.0) passes the full simulation gate and has not yet run on a console. Measure the clock and lid points before wiring.
+
 Region-unlock firmware for the original Sony PlayStation (fat) and PSone, on an ATtiny84 clocked by the console itself. It emits the configured region string inside the SUBQ region-check window, stops the moment the console accepts it, and leaves the data line high-impedance during play. A wire to the lid switch tells it exactly when a disc is swapped. It does not patch the boot ROM, so Japanese fat consoles and the PAL PSone keep their second region check; install a patched BIOS if you need that bypassed. It is not an optical-drive emulator, does not support PS2 or Saturn, and does not defeat LibCrypt.
+
+| | |
+|:--|:--|
+| **Silent after acceptance**<br>The first program-area frame stops injection, mid-string included, and the chip stays silent until the lid opens. | **Exact disc swaps**<br>A lid wire stops a string within 4 ms of opening and re-arms the chip on close, for every disc of a multi-disc game. |
+| **Console-locked timing**<br>The chip runs from the console's 4.2336 MHz clock, never its own oscillator. | **One region, one window**<br>Only the configured region string, only inside the SUBQ region-check window, at most 16 strings per arming. |
+| **Flight recorder**<br>A five-byte EEPROM record per disc (board, sessions, strings, confirmation), read back with avrdude. | **Proven in code**<br>MISRA C:2012 clean, 100% host coverage, a simavr console model, mutation testing, byte-identical rebuilds. |
+
+## How it works
+
+```mermaid
+graph LR
+    subgraph Console
+        CD[CD subsystem]
+        CLK[4.2336 MHz clock]
+        LID[Lid switch]
+        WF[WFCK]
+        MECH[Mechacon]
+    end
+    subgraph ATtiny84
+        CAP[SUBQ capture]
+        DET[Region-check detector]
+        ST[Stealth state machine]
+        INJ[SCEx injector]
+        REC[EEPROM flight recorder]
+    end
+    CD -->|SQCK, SUBQ| CAP
+    CAP --> DET --> ST --> INJ
+    ST --> REC
+    LID -->|lid line| ST
+    WF -->|gate or carrier| INJ
+    CLK -->|CLKI| ATtiny84
+    INJ -->|DATA| MECH
+```
+
+## Against other chips
+
+| Capability | openscex | PsNee V9 | Mayumi V4 | MM3 |
+|:-----------|:---------|:---------|:----------|:----|
+| Stealth trigger | SUBQ check window plus acceptance latch | SUBQ decode | sense line plus lid line | same program as Mayumi V4 |
+| Disc-swap detection | lid line | SUBQ counter decay | lid line | lid line |
+| Clock | console | internal | console | internal RC |
+| Boot-ROM BIOS patch | no, use a patched BIOS | yes, ATmega builds | no | no |
+| Boards | PU-18 to PM-41(2) | PU-7 to PM-41(2) | PU-18 and later | PU-7 and later |
+| Diagnostics | EEPROM recorder | serial debug | none | none |
+| Tests and static analysis | host, simavr, mutation, MISRA | none | none | none |
+| Field record | 2 boards, earlier firmware | years | decades | decades |
 
 ## Overview
 
@@ -33,7 +106,7 @@ These results predate the ATtiny84-only redesign: the mandatory lid line, the co
 
 Per-console validation is community-driven. Tested it on your console? Open a [compatibility report](../../issues/new?template=compatibility.yml) and this table grows from confirmed installs.
 
-## Features
+## What's included
 
 | Feature | Detail |
 |:--------|:-------|
@@ -131,7 +204,7 @@ The clock wire carries the console's 4.2336 MHz clock into the chip, so its leng
 
 Mechacon SUBQ and SQCK pins, forum relay, tagged Unknown because psxdev.net is offline since October 2025: PU-22 and later, SUBQ on pin 24 and SQCK on pin 26. Confirm against a consolemods board diagram before cutting.
 
-## Build and program
+## Quick start
 
 Prebuilt per-console `.hex` images are attached to each [release](../../releases), so you can skip the toolchain and go straight to flashing with the `avrdude` steps below. Each release carries the three ATtiny84 images (`us`, `eu`, `jp`), the SCPH-5903 image (`jp-vcd`), a `SHA256SUMS` file, the license, and a build-provenance attestation. Releases up to v0.2.0 carried ATtiny85 images for the earlier four-wire design. Check a download before flashing it:
 
@@ -197,6 +270,17 @@ avrdude -c <programmer> -p attiny84 -U eeprom:r:diag.bin:r
 - Measure the logic voltage at every tap point before wiring, the clock and lid points included. The values are taken from the established PsNee and Mayumi installs (fat boards around 5 V, the PSone PM-41(2) lower and noise-sensitive), but assumption is not measurement.
 - Never feed a console signal into the clock pin before measuring its voltage and frequency.
 - Opening a console and soldering to the CD subsystem can destroy it. Build at your own risk.
+
+## Versioning
+
+Releases follow [Semantic Versioning](https://semver.org/) on the `0.x` line, which means a minor release can break compatibility: v0.3.0 replaced the ATtiny85 four-wire design with the ATtiny84. Every release is tagged and built from a commit whose CI passed; see [releases](../../releases) for the notes.
+
+## Support
+
+| Need | Where |
+|:-----|:------|
+| Bug report | [bug template](../../issues/new?template=bug.yml) |
+| Result on your console | [compatibility report](../../issues/new?template=compatibility.yml) |
 
 ## License
 
