@@ -33,6 +33,13 @@ class GenerateMutantsTest(unittest.TestCase):
 
         self.assertEqual(mutants, [])
 
+    def test_skips_compile_time_assertions(self) -> None:
+        source = '_Static_assert((A + B) <= 0x100U, "bound");'
+
+        mutants = mutate.generate_mutants(source)
+
+        self.assertEqual(mutants, [])
+
     def test_equality_operator_is_mutated_both_ways(self) -> None:
         source = "if (a == b) {}\nif (c != d) {}"
 

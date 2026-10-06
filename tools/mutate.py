@@ -67,12 +67,14 @@ def _is_skipped(line: str) -> bool:
     Preprocessor and comment lines carry no runtime logic. PSCU_ASSERT lines are
     defensive guards whose false path is deliberately excluded from coverage, so
     mutating them would only ever produce equivalent or untestable mutants; this
-    matches the gcovr assert-branch exclusion.
+    matches the gcovr assert-branch exclusion. _Static_assert lines are checked
+    by the compiler and emit no code, so no test can ever observe a mutant of
+    one; a mutant that breaks the bound is a build failure, not a survivor.
     """
     stripped = line.lstrip()
     if stripped.startswith("#") or stripped.startswith("//"):
         return True
-    return "PSCU_ASSERT" in line
+    return ("PSCU_ASSERT" in line) or ("_Static_assert" in line)
 
 
 def generate_mutants(source: str) -> list[Mutant]:
