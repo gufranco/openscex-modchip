@@ -16,21 +16,30 @@ static bool pscu_subq_is_data_sector(uint8_t control) {
 }
 
 // A lead-in frame is where the console performs its region check, so seeing one
-// is the cue to arm injection. frame[0] is the control byte, frame[2] the track
-// number, frame[3] the index within the track.
+// is the cue to arm injection. The SUBQ (Q-channel) byte layout is CTRL/ADR,
+// TNO, then in the lead-in POINT and the running MIN, SEC, FRAME, a ZERO byte,
+// and the pointed-to time. So frame[0] is the control byte, frame[1] the track
+// number TNO (always 0x00 in the lead-in), frame[2] the POINT, and frame[3] the
+// running minute in BCD.
 static bool pscu_subq_lead_in_hit(const uint8_t *frame) {
   PSCU_ASSERT(frame != NULL);
 
   bool hit = false;
 
   if (pscu_subq_is_data_sector(frame[0])) {
-    // Track numbers 0xA0 and above are the TOC/lead-in markers. Track 01 is the
-    // program-area start, which counts only in its lead-in window: frame[3]
-    // between 0xF8 and 0xFF, tested as (frame[3] - 3) wrapping to >= 0xF5.
+    // POINT 0xA0 and above are the TOC markers (first track, last track, lead-out
+    // start). POINT 0x01, the table entry for track 1, counts only near the end
+    // of the lead-in, where the running minute is 98 or 99 or has wrapped to 00
+    // through 02. The minute is BCD, so it never exceeds 0x99, and the window is
+    // one unsigned compare: (minute - 3) wraps to 0x95..0xFF exactly for
+    // 0x98..0xFF and 0x00..0x02. Read: the PsNee V7 lineage (UberNee .ino, four
+    // versions) tests minute >= 0x98 || minute <= 0x02; kalymos PsNee V9.0
+    // (PSNee.ino:540) writes the bound as 0xF5, which its own comment says covers
+    // 0x98..0x02 but in fact only admits 0xF8..0x02 and so misses 98 and 99.
     if (frame[2] >= 0xA0U) {
       hit = true;
     } else if (frame[2] == 0x01U) {
-      hit = (uint8_t)(frame[3] - 0x03U) >= 0xF5U;
+      hit = (uint8_t)(frame[3] - 0x03U) >= 0x95U;
     } else {
       hit = false;
     }
@@ -39,9 +48,12 @@ static bool pscu_subq_lead_in_hit(const uint8_t *frame) {
   return hit;
 }
 
-// Once injection is already armed (counter > 0), ordinary program-area reads of
-// track 01 or any data sector keep it armed, so the console keeps seeing the
-// region string as it spins up rather than losing it after one lead-in.
+// Once injection is already armed (counter > 0), any further lead-in frame whose
+// control byte marks audio (0x01) or data keeps it armed, so the lead-in reads
+// between the TOC markers do not decay it while the console is checking. This
+// runs only on framed frames, and framing requires TNO 0, so program-area reads
+// during play never count here; they decay the counter, which is what re-arms
+// injection after a disc swap.
 static bool pscu_subq_tracking_hit(const uint8_t *frame, uint8_t counter) {
   PSCU_ASSERT(frame != NULL);
 
@@ -73,8 +85,9 @@ bool pscu_subq_is_program_area(const uint8_t *frame) {
 uint8_t pscu_subq_update_counter(const uint8_t *frame, uint8_t counter) {
   PSCU_ASSERT(frame != NULL);
 
-  // frame[1] and frame[6] are zero only on a well-formed SUBQ frame; a nonzero
-  // value means noise or a misaligned capture, which must not move the counter.
+  // frame[1] is TNO, which is 0x00 only in the lead-in, and frame[6] is the
+  // Q-channel ZERO byte. Requiring both accepts only well-formed lead-in frames:
+  // a program-area frame, noise, or a misaligned capture cannot raise the counter.
   bool framed = (frame[1] == 0x00U) && (frame[6] == 0x00U);
   bool hit = framed && (pscu_subq_lead_in_hit(frame) || pscu_subq_tracking_hit(frame, counter));
   uint8_t result = counter;

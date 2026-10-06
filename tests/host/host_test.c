@@ -13,10 +13,11 @@
 #include "pscu/subq.h"
 
 // Host tests for the pure logic layer, run with assertions on. SUBQ frames
-// below follow the disc byte layout: [0] control (0x4x = data sector), [1] must
-// be 0 to parse, [2] track number (0xA0+ = TOC, 0x01 = program start), [3]
-// index within the track, [6] must be 0 to parse. Only the bytes that matter
-// to a given case are set; the rest stay zero.
+// below follow the Q-channel byte layout: [0] control (0x4x = data sector, 0x01
+// = audio), [1] TNO (0x00 in the lead-in, a BCD track number in the program
+// area, 0xAA in the lead-out), [2] POINT in the lead-in or INDEX in the program
+// area, [3] the running minute in BCD, [6] the ZERO byte. Only the bytes that
+// matter to a given case are set; the rest stay zero.
 
 static int g_checks = 0;
 static int g_failures = 0;
@@ -72,8 +73,20 @@ static void test_subq_counter(void) {
   uint8_t spiral_miss[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x05U, 0, 0, 0, 0, 0, 0, 0, 0 };
   check(pscu_subq_update_counter(spiral_miss, 0U) == 0U, "track 01 out of window misses");
 
-  uint8_t spiral_edge[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0xF8U, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(spiral_edge, 0U) == 1U, "track 01 lower window bound hits");
+  uint8_t minute_97[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x97U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(pscu_subq_update_counter(minute_97, 0U) == 0U, "point 01 at minute 97 is before the window");
+
+  uint8_t minute_98[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x98U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(pscu_subq_update_counter(minute_98, 0U) == 1U, "point 01 at minute 98 opens the window");
+
+  uint8_t minute_99[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x99U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(pscu_subq_update_counter(minute_99, 0U) == 1U, "point 01 at minute 99 hits");
+
+  uint8_t minute_02[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(pscu_subq_update_counter(minute_02, 0U) == 1U, "point 01 at minute 02 closes the window");
+
+  uint8_t minute_03[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x03U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  check(pscu_subq_update_counter(minute_03, 0U) == 0U, "point 01 at minute 03 is past the window");
 
   uint8_t mid_point[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x50U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   check(pscu_subq_update_counter(mid_point, 0U) == 0U, "data sector mid-point does not start sync");
