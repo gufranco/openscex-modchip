@@ -103,6 +103,29 @@ bool pscu_subq_is_program_area(const uint8_t *frame) {
   return bcd_track && zero_byte && content;
 }
 
+// The stealth latch only needs to tell three things apart: the console reading
+// the lead-in, where the region check lives; the console reading the program
+// area, which it is allowed to do only after accepting the region string; and
+// anything else. The lead-in test is the framing rule of the counter plus an
+// audio or data control byte, so an all-zero or malformed frame is not mistaken
+// for a lead-in read and a seek that clocks out noise counts as lost.
+pscu_frame_kind_t pscu_subq_frame_kind(const uint8_t *frame) {
+  PSCU_ASSERT(frame != NULL);
+
+  bool framed = (frame[1] == 0x00U) && (frame[6] == 0x00U);
+  bool content = (frame[0] == 0x01U) || pscu_subq_is_data_sector(frame[0]);
+  pscu_frame_kind_t kind = PSCU_FRAME_LOST;
+
+  if (pscu_subq_is_program_area(frame)) {
+    kind = PSCU_FRAME_PROGRAM;
+  } else if (framed && content) {
+    kind = PSCU_FRAME_LEAD_IN;
+  } else {
+  }
+
+  return kind;
+}
+
 uint8_t pscu_subq_update_counter(const uint8_t *frame, uint8_t counter, bool vcd_filter) {
   PSCU_ASSERT(frame != NULL);
 

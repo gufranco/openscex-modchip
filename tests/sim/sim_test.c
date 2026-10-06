@@ -90,6 +90,8 @@ static const char SCEI_BITS[SCEX_BITS + 1] = "1001101010010011110100101011101001
 static int g_checks = 0;
 static int g_failures = 0;
 static int g_led_seen = 0;
+// The LED rises once per region string, so counting rises counts strings.
+static int g_led_rises = 0;
 static uint64_t g_led_cycle = 0;
 static int g_dx_output = 0;
 static uint64_t g_dx_cycle[2] = { 0, 0 };
@@ -115,6 +117,9 @@ static void on_led(struct avr_irq_t *irq, uint32_t value, void *param) {
   if ((value != 0U) && (g_led_seen == 0)) {
     g_led_seen = 1;
     g_led_cycle = avr->cycle;
+  }
+  if (value != 0U) {
+    g_led_rises++;
   }
 }
 
@@ -767,6 +772,81 @@ static void scenario_vcd(const char *elf, uint32_t freq) {
   vcd_case(elf, freq, spiral, NULL, "point-01 spiral does not inject");
 }
 
+// A multi-disc game, end to end, after the console accepted disc 1. Each phase
+// counts region strings by LED rises. The first program-area frame must stop the
+// burst; a table-of-contents re-read with no stop, as an anti-mod check might do,
+// must stay silent; and every way a disc swap can look to the chip must re-arm it
+// so the next disc is injected: the drive stopping with SQCK silent, a swap so
+// fast that only a long lead-in read shows it, and a stop that keeps clocking
+// garbage subcode. Phase lengths sit well past the firmware thresholds: the
+// harness clocks a frame about every 6.4 ms at 8 MHz, and the firmware may miss
+// frames while an injection blocks.
+#define MD_TOC_FRAMES 40
+#define MD_PLAY_FRAMES 30
+#define MD_REREAD_FRAMES 60
+#define MD_STOP_CYCLES 20000000UL
+#define MD_FAST_SWAP_FRAMES 520
+#define MD_GARBAGE_FRAMES 400
+#define MD_SETTLE_FRAMES 3
+
+static void clock_frames(avr_t *avr, const target_t *t, const uint8_t *frame, int count) {
+  for (int i = 0; i < count; i++) {
+    clock_frame(avr, t, frame);
+  }
+}
+
+static int strings_while(avr_t *avr, const target_t *t, const uint8_t *frame, int count) {
+  int before = g_led_rises;
+  clock_frames(avr, t, frame, count);
+  return g_led_rises - before;
+}
+
+static void md_check(const target_t *t, int ok, const char *what, int strings) {
+  char label[112];
+  (void)snprintf(label, sizeof(label), "multi-disc %s: %s (%d strings)", t->mcu, what, strings);
+  check(ok, label);
+}
+
+static void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
+  g_led_seen = 0;
+  g_led_cycle = 0;
+  g_led_rises = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
+                                           0,     0,     0x02U, 0,     0,     0 };
+  const uint8_t garbage[SUBQ_FRAME_BYTES] = { 0 };
+
+  int disc1 = strings_while(avr, t, toc, MD_TOC_FRAMES);
+  md_check(t, disc1 >= 1, "disc 1 is injected", disc1);
+
+  clock_frames(avr, t, play, MD_SETTLE_FRAMES);
+  int after_accept = strings_while(avr, t, play, MD_PLAY_FRAMES);
+  md_check(t, after_accept == 0, "no string once the program area is read", after_accept);
+
+  int reread = strings_while(avr, t, toc, MD_REREAD_FRAMES);
+  reread += strings_while(avr, t, play, MD_PLAY_FRAMES);
+  md_check(t, reread == 0, "a TOC re-read without a stop stays silent", reread);
+
+  avr_raise_irq(pin_irq(avr, t, t->sqck), 1U);
+  run_cycles(avr, MD_STOP_CYCLES);
+  int disc2 = strings_while(avr, t, toc, MD_TOC_FRAMES);
+  md_check(t, disc2 >= 1, "disc 2 after a drive stop is injected", disc2);
+  clock_frames(avr, t, play, MD_PLAY_FRAMES);
+
+  int disc3 = strings_while(avr, t, toc, MD_FAST_SWAP_FRAMES);
+  md_check(t, disc3 >= 1, "disc 3 swapped with no visible stop is injected", disc3);
+  clock_frames(avr, t, play, MD_PLAY_FRAMES);
+
+  clock_frames(avr, t, garbage, MD_GARBAGE_FRAMES);
+  int disc4 = strings_while(avr, t, toc, MD_TOC_FRAMES);
+  md_check(t, disc4 >= 1, "disc 4 after a garbage-clocking stop is injected", disc4);
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 4) {
     (void)fprintf(
@@ -811,6 +891,8 @@ int main(int argc, char *argv[]) {
     scenario_late_carrier(&t84, elf84, freq);
     scenario_stall(&t85, elf85, freq);
     scenario_stall(&t84, elf84, freq);
+    scenario_multidisc(&t85, elf85, freq);
+    scenario_multidisc(&t84, elf84, freq);
   }
 
   // The optional fourth and fifth arguments are the ATtiny84 BIOS images,

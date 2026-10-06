@@ -18,10 +18,12 @@
 // whether the console is in its region-check window, and let the stealth state
 // machine decide whether to emit one region string this pass. Inside the window
 // it emits up to the cap then goes silent; outside it emits nothing and re-arms,
-// so during play DATA is high-Z and the LED off, and a disc change re-reads the
-// lead-in and triggers again. This is the single non-terminating loop the
-// firmware is built around; every call inside it is bounded, and the watchdog
-// is kicked each pass so a stuck signal resets the chip rather than wedging it.
+// so during play DATA is high-Z and the LED off. The first program-area frame
+// shows the console accepted the string, and from then on the chip stays silent
+// through any later lead-in read until a disc swap, seen as the drive stopping or
+// the console stuck at a new check, re-arms it for the next disc. This is the single
+// non-terminating loop the firmware is built around; every call inside it is bounded, and the
+// watchdog is kicked each pass so a stuck signal resets the chip rather than wedging it.
 void pscu_run(void) {
   pscu_board_mode_t board = pscu_engine_detect_board();
   uint8_t counter = 0U;
@@ -32,10 +34,11 @@ void pscu_run(void) {
 
   for (;;) {
     uint8_t frame[PSCU_SUBQ_FRAME_BYTES];
-    pscu_engine_capture_frame(frame);
+    bool captured = pscu_engine_capture_frame(frame);
+    pscu_frame_kind_t kind = captured ? pscu_subq_frame_kind(frame) : PSCU_FRAME_SILENT;
     counter = pscu_subq_update_counter(frame, counter, PSCU_VCD_FILTER_ENABLED);
     bool in_window = pscu_should_inject(counter, PSCU_INJECT_TRIGGER);
-    pscu_stealth_step_t step = pscu_stealth_step(stealth, in_window, PSCU_STEALTH_STRINGS);
+    pscu_stealth_step_t step = pscu_stealth_step(stealth, in_window, kind, PSCU_STEALTH_STRINGS);
     stealth = step.state;
     if (step.fire) {
       // The first string of an arming starts a new session: a disc swap re-arms

@@ -169,8 +169,9 @@ pscu_board_mode_t pscu_engine_detect_board(void) {
 
 // Wait for the inter-frame gap, then clock in one whole frame. If the gap never
 // comes or any edge times out, the frame is filled with PSCU_SUBQ_FAILED_BYTE so
-// the logic layer reads it as a miss; a partial frame is never passed on.
-void pscu_engine_capture_frame(uint8_t *frame) {
+// the logic layer reads it as a miss, a partial frame is never passed on, and
+// the call returns false so the run loop knows the clock went silent.
+bool pscu_engine_capture_frame(uint8_t *frame) {
   PSCU_ASSERT(frame != NULL);
 
   bool ok = pscu_wait_sqck_idle();
@@ -182,6 +183,7 @@ void pscu_engine_capture_frame(uint8_t *frame) {
       frame[byte] = PSCU_SUBQ_FAILED_BYTE;
     }
   }
+  return ok;
 }
 
 // Emit exactly one region word, the one this build was configured for, then
