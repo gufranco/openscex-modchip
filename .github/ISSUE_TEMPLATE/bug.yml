@@ -14,7 +14,7 @@ body:
     id: build
     attributes:
       label: Build knobs
-      placeholder: "e.g. make MCU=attiny84 REGION=eu BIOS=scph_102 TIMING=adaptive"
+      placeholder: "e.g. make REGION=eu TIMING=adaptive"
     validations:
       required: true
   - type: textarea
