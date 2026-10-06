@@ -1,3 +1,10 @@
+# [0.2.0](https://github.com/gufranco/openscex-modchip/compare/v0.1.0...v0.2.0) (2026-10-06)
+
+
+### Features
+
+* **stealth:** stop once the console accepts ([33eece2](https://github.com/gufranco/openscex-modchip/commit/33eece2bdd3e9667af307dda24ff39346d878566))
+
 # [0.1.0](https://github.com/gufranco/openscex-modchip/compare/v0.0.1...v0.1.0) (2026-10-06)
 
 
