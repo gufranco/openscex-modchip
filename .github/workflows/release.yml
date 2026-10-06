@@ -3,41 +3,65 @@
 
 name: Release
 
-# semantic-release owns versioning. On every push to main it reads the
-# conventional-commit history since the last tag and decides whether a release
-# is due: feat -> minor, fix -> patch, BREAKING CHANGE -> major, everything else
-# (ci, build, chore, docs, style, test, refactor) cuts nothing. When a release
-# is due it writes CHANGELOG.md, commits it with [skip ci] (so this workflow
-# does not re-trigger on its own commit), tags, and creates the GitHub release
-# with generated notes. The per-console .hex images are then built in the pinned
-# toolchain and attached, so people flash without the toolchain. A manual run
-# (workflow_dispatch) performs the same check on demand.
+# A release is cut only from a commit whose CI run passed. This workflow starts
+# when the CI workflow completes for a push to main, does nothing unless that run
+# succeeded, and then checks that main still points at that commit; if a newer
+# commit has landed, that commit's own CI run will release it instead.
+#
+# semantic-release owns versioning. It reads the conventional-commit history
+# since the last tag and decides whether a release is due: feat -> minor,
+# fix -> patch, BREAKING CHANGE -> major, everything else (ci, build, chore,
+# docs, style, test, refactor) cuts nothing. When a release is due it writes
+# CHANGELOG.md, commits it with [skip ci], tags, and creates the GitHub release
+# with generated notes. The per-console SCEx images are then built in the pinned
+# toolchain, hashed into SHA256SUMS, given a build-provenance attestation, and
+# attached with the LICENSE. BIOS-patch images are not published: their timing
+# constants are not yet derived for this chip (AGENTS.md rule 5).
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: write
   issues: write
   pull-requests: write
+  id-token: write
+  attestations: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
   release:
     name: Version and publish
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-26.04
     steps:
-      - name: Checkout
+      - name: Checkout main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           fetch-depth: 0
+
+      - name: Confirm main is still the commit CI passed
+        id: fresh
+        env:
+          PASSED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$(git rev-parse HEAD)" = "$PASSED_SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "main has moved past $PASSED_SHA; that commit's own CI run will release it"
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Run semantic-release
         id: semrel
+        if: steps.fresh.outputs.current == 'true'
         uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90 # v6.0.0
         with:
           extra_plugins: |
@@ -46,22 +70,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build the per-console images in the pinned toolchain
+      - name: Build the per-console SCEx images in the pinned toolchain
         if: steps.semrel.outputs.new_release_published == 'true'
         run: |
           set -euo pipefail
           make REGION=us image
           make REGION=eu image
           make REGION=jp image
-          make MCU=attiny84 REGION=eu BIOS=scph_102 image
-          make MCU=attiny84 REGION=jp BIOS=scph_100 image
-          make MCU=attiny84 REGION=jp BIOS=scph_7000_9000 image
-          make MCU=attiny84 REGION=jp BIOS=scph_3500_5500 image
-          make MCU=attiny84 REGION=jp BIOS=scph_3000 image
-          make MCU=attiny84 REGION=jp BIOS=scph_1000 image
           mkdir -p release-artifacts
           find build -type f -name '*.hex' -exec cp {} release-artifacts/ \;
+          cp LICENSE release-artifacts/LICENSE.txt
+          (cd release-artifacts && sha256sum ./*.hex > SHA256SUMS)
           ls -1 release-artifacts
+
+      - name: Attest build provenance
+        if: steps.semrel.outputs.new_release_published == 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release-artifacts/*.hex
 
       - name: Attach the images to the release
         if: steps.semrel.outputs.new_release_published == 'true'
@@ -70,4 +96,5 @@ jobs:
           RELEASE_TAG: ${{ steps.semrel.outputs.new_release_git_tag }}
         run: |
           set -euo pipefail
-          gh release upload "$RELEASE_TAG" release-artifacts/*.hex --clobber
+          gh release upload "$RELEASE_TAG" release-artifacts/*.hex \
+            release-artifacts/SHA256SUMS release-artifacts/LICENSE.txt --clobber
