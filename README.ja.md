@@ -91,10 +91,12 @@ BIOS モデルはコンソールの実際の BIOS バージョンに従い、こ
 | フット日本、SCPH-7000/7500/9000 | PU-20 から PU-23 | `attiny84` | `jp` | `scph_7000_9000` | SCEx + BIOS パッチ |
 | フット日本、SCPH-3000 | PU-8 | `attiny84` | `jp` | `scph_3000` | SCEx + 二段階 BIOS パッチ |
 | フット日本、SCPH-1000 | PU-7 | `attiny84` | `jp` | `scph_1000` | SCEx + 二段階 BIOS パッチ |
+| アジア、SCPH-xxx3（例 SCPH-5003） | 未記録 | `attiny85` | `jp` | `none` | SCEx、4 本配線 |
+| アジア ビデオ CD、SCPH-5903 | 未記録 | `attiny85` | `jp` + `VCD_FILTER=on` | `none` | SCEx、4 本配線 |
 
 BIOS パッチのビルドは実験的です。パッチの仕組みは PsNee V9.0 に従いシミュレーションで検証済みですが、モデルごとの定数は 16 MHz の ATmega 向けの PsNee の値で、このチップは 8 MHz で動きます。定数を導出して実機で確認するまで、BIOS ビルドはパッチできない可能性があり、そのイメージはリリースに含めません。BIOS ビルドの SCEx 部分は、パッチが失敗しても必ず動きます。
 
-BIOS モデルで未対応: アジア向け（SCPH-xxx3、例 SCPH-5003/5903）は 2 回目チェックのない英語 ROM だが NTSC-J の CD コントローラにバックドアがなく SCEx だけでは不十分。開発機（DTL-H120x、PU-9）は焼いたディスクをそのまま読むためチップ不要。
+アジア向けモデルは BIOS パッチ不要です。PsNee V9.0 は SCPH-xxx3 と SCPH-5903 を NTSC-J の文字列だけで対象にしています。SCPH-5903 はビデオ CD も再生するため、そのビルドには `VCD_FILTER=on` を加えます。これによりインジェクションはゲームのリードインでのみ起動し、ビデオ CD では起動しません。どちらの行もここではまだ実機で確認していません。開発機（DTL-H120x、PU-9）は焼いたディスクをそのまま読むためチップ不要。
 
 ## 設定
 
@@ -106,9 +108,10 @@ BIOS モデルで未対応: アジア向け（SCPH-xxx3、例 SCPH-5003/5903）�
 | `REGION` | `jp`、`us`、`eu` | `us` | チップが送出する 1 つのリージョン文字列 |
 | `CLOCK` | `internal`、`external` | `internal` | 内蔵 8 MHz RC、またはコンソールクロック（`CLOCK=external EXT_F_CPU=<hz>`）、そのクロックとピン電圧を先に測定することが前提 |
 | `TIMING` | `adaptive`、`fixed` | `adaptive` | adaptive は WFCK キャリアの注入ビットを WFCK 周期の計数で測り、コンソールクロックにロックする。fixed はコンパイル時の MCU ディレイを使う、実機で動かした方のタイミング |
+| `VCD_FILTER` | `off`、`on` | `off` | SCPH-5903 専用で on: インジェクションはゲームのリードイン TOC でのみ起動し、ビデオ CD では起動しない。PsNee V9.0 の SCPH-5903 フィルタに準拠 |
 | `BIOS` | `none`、`scph_102`、`scph_100`、`scph_7000_9000`、`scph_3500_5500`、`scph_1000`、`scph_3000` | `none` | ATtiny84 のみ、その BIOS バージョン向けの実験的なブート ROM パッチ |
 
-既定以外のリージョンは成果物名にタグを付けます。例 `openscex-modchip-attiny85-jp.hex`。
+既定以外のリージョンやフィルタは成果物名にタグを付けます。例 `openscex-modchip-attiny85-jp.hex` や `openscex-modchip-attiny85-jp-vcd.hex`。
 
 ## MCU ピン配置
 
@@ -167,7 +170,7 @@ BIOS パッチのパッド（ATtiny84、日本フット機と PAL PSone）: MCU 
 
 ## ビルドと書き込み
 
-コンソール別のビルド済み `.hex` は各[リリース](../../releases)に添付されるので、ツールチェーンを飛ばして下の `avrdude` 手順で書き込めます。各リリースには ATtiny85 の SCEx イメージ 3 種（`us`、`eu`、`jp`）、`SHA256SUMS` ファイル、ライセンス、ビルド来歴のアテステーションが付きます。BIOS パッチのイメージは、そのパッチが実験的な間は公開しません。書き込む前にダウンロードを確認してください:
+コンソール別のビルド済み `.hex` は各[リリース](../../releases)に添付されるので、ツールチェーンを飛ばして下の `avrdude` 手順で書き込めます。各リリースには ATtiny85 の SCEx イメージ 3 種（`us`、`eu`、`jp`）、SCPH-5903 用イメージ（`jp-vcd`）、`SHA256SUMS` ファイル、ライセンス、ビルド来歴のアテステーションが付きます。BIOS パッチのイメージは、そのパッチが実験的な間は公開しません。書き込む前にダウンロードを確認してください:
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing

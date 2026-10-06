@@ -91,10 +91,12 @@ BIOS 型号依据主机实际的 BIOS 版本，这比 SCPH 编号更重要。
 | 厚机日本，SCPH-7000/7500/9000 | PU-20 至 PU-23 | `attiny84` | `jp` | `scph_7000_9000` | SCEx + BIOS 补丁 |
 | 厚机日本，SCPH-3000 | PU-8 | `attiny84` | `jp` | `scph_3000` | SCEx + 两段 BIOS 补丁 |
 | 厚机日本，SCPH-1000 | PU-7 | `attiny84` | `jp` | `scph_1000` | SCEx + 两段 BIOS 补丁 |
+| 亚洲，SCPH-xxx3（例 SCPH-5003） | 未记录 | `attiny85` | `jp` | `none` | SCEx，4 根线 |
+| 亚洲 Video CD，SCPH-5903 | 未记录 | `attiny85` | `jp` + `VCD_FILTER=on` | `none` | SCEx，4 根线 |
 
 BIOS 补丁构建为实验性。补丁机制遵循 PsNee V9.0 并经仿真验证，但各型号常量是 PsNee 针对 16 MHz ATmega 的数值，而本芯片运行于 8 MHz。在这些常量推导完成并经主机确认之前，BIOS 构建可能无法打补丁，其镜像也不随发布提供。即使补丁失败，BIOS 构建中的 SCEx 部分也始终运行。
 
-BIOS 型号未覆盖: 亚洲型号（SCPH-xxx3，例 SCPH-5003/5903）带无第二道检查的英文 ROM，但 NTSC-J 的 CD 控制器无后门，仅 SCEx 不足；开发机（DTL-H120x、PU-9）原生即可读刻录盘，无需芯片。
+亚洲型号无需 BIOS 补丁：PsNee V9.0 仅用 NTSC-J 字符串支持 SCPH-xxx3 与 SCPH-5903。SCPH-5903 还能播放 Video CD，因此其构建加上 `VCD_FILTER=on`，使注入只在游戏的导入区触发，不会在 Video CD 上触发。这两行尚未在本项目的实机上确认。开发机（DTL-H120x、PU-9）原生即可读刻录盘，无需芯片。
 
 ## 配置
 
@@ -106,9 +108,10 @@ BIOS 型号未覆盖: 亚洲型号（SCPH-xxx3，例 SCPH-5003/5903）带无第�
 | `REGION` | `jp`、`us`、`eu` | `us` | 芯片送出的那一个区域字符串 |
 | `CLOCK` | `internal`、`external` | `internal` | 内部 8 MHz RC，或主机时钟（`CLOCK=external EXT_F_CPU=<hz>`），前提是先测量该时钟与引脚电压 |
 | `TIMING` | `adaptive`、`fixed` | `adaptive` | adaptive 以计数 WFCK 周期来计时 WFCK 载波注入位，使其锁定到主机时钟；fixed 使用编译期 MCU 延时，即在硬件上跑过的那套时序 |
+| `VCD_FILTER` | `off`、`on` | `off` | 仅 SCPH-5903 设为 on：注入只在游戏的导入区 TOC 触发，不在 Video CD 上触发，遵循 PsNee V9.0 的 SCPH-5903 过滤器 |
 | `BIOS` | `none`、`scph_102`、`scph_100`、`scph_7000_9000`、`scph_3500_5500`、`scph_1000`、`scph_3000` | `none` | 仅 ATtiny84，针对该 BIOS 版本的实验性引导 ROM 补丁 |
 
-非默认区域会在产物名上加标签，例如 `openscex-modchip-attiny85-jp.hex`。
+非默认区域或过滤器会在产物名上加标签，例如 `openscex-modchip-attiny85-jp.hex` 或 `openscex-modchip-attiny85-jp-vcd.hex`。
 
 ## MCU 引脚图
 
@@ -167,7 +170,7 @@ BIOS 补丁焊盘（ATtiny84，日本厚机与 PAL PSone）: MCU 侧引脚如上
 
 ## 构建与烧录
 
-各[发布](../../releases)都附有按主机预构建的 `.hex`，可跳过工具链，直接用下面的 `avrdude` 步骤烧录。每个发布附带三份 ATtiny85 SCEx 镜像（`us`、`eu`、`jp`）、`SHA256SUMS` 文件、许可证与构建来源证明；在该补丁仍为实验性期间不发布 BIOS 补丁镜像。烧录前请先校验下载文件:
+各[发布](../../releases)都附有按主机预构建的 `.hex`，可跳过工具链，直接用下面的 `avrdude` 步骤烧录。每个发布附带三份 ATtiny85 SCEx 镜像（`us`、`eu`、`jp`）、SCPH-5903 镜像（`jp-vcd`）、`SHA256SUMS` 文件、许可证与构建来源证明；在该补丁仍为实验性期间不发布 BIOS 补丁镜像。烧录前请先校验下载文件:
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing

@@ -91,10 +91,12 @@ The BIOS model follows the console's actual BIOS version, which matters more tha
 | Fat Japan, SCPH-7000/7500/9000 | PU-20 to PU-23 | `attiny84` | `jp` | `scph_7000_9000` | SCEx + BIOS patch |
 | Fat Japan, SCPH-3000 | PU-8 | `attiny84` | `jp` | `scph_3000` | SCEx + two-phase BIOS patch |
 | Fat Japan, SCPH-1000 | PU-7 | `attiny84` | `jp` | `scph_1000` | SCEx + two-phase BIOS patch |
+| Asia, SCPH-xxx3 such as SCPH-5003 | not recorded | `attiny85` | `jp` | `none` | SCEx, 4 wires |
+| Asia Video CD, SCPH-5903 | not recorded | `attiny85` | `jp` + `VCD_FILTER=on` | `none` | SCEx, 4 wires |
 
 The BIOS-patch builds are experimental. The patch mechanism follows PsNee V9.0 and is verified in simulation, but its per-model constants are PsNee's figures for a 16 MHz ATmega, and this chip runs at 8 MHz. Until they are derived and confirmed on a console, a BIOS build may not patch, and its images are not published in releases. The SCEx part of a BIOS build always runs, even if the patch fails.
 
-Not covered by a BIOS model: Asian models (SCPH-xxx3, for example SCPH-5003/5903) carry an English ROM with no second check but an NTSC-J CD controller with no backdoor, so SCEx alone is insufficient; dev boards (DTL-H120x, PU-9) read burned discs natively and need no chip.
+The Asian models need no BIOS patch: PsNee V9.0 targets SCPH-xxx3 and SCPH-5903 with the NTSC-J string alone. The SCPH-5903 also plays Video CDs, so its build adds `VCD_FILTER=on`, which arms injection only on a game's lead-in and never on a Video CD's. Neither row has been confirmed on a console here. Dev boards (DTL-H120x, PU-9) read burned discs natively and need no chip.
 
 ## Configuration
 
@@ -106,9 +108,10 @@ One source builds every variant; the knobs are passed to `make`.
 | `REGION` | `jp`, `us`, `eu` | `us` | the one region string the chip emits |
 | `CLOCK` | `internal`, `external` | `internal` | internal 8 MHz RC, or the console clock (`CLOCK=external EXT_F_CPU=<hz>`), gated on measuring that clock and the pin voltage first |
 | `TIMING` | `adaptive`, `fixed` | `adaptive` | adaptive times the WFCK-carrier injection bit by counting WFCK periods, locking it to the console clock; fixed uses the compile-time MCU delay, the timing exercised on hardware |
+| `VCD_FILTER` | `off`, `on` | `off` | on for the SCPH-5903 only: injection arms on a game's lead-in TOC and never on a Video CD's, following PsNee V9.0's SCPH-5903 filter |
 | `BIOS` | `none`, `scph_102`, `scph_100`, `scph_7000_9000`, `scph_3500_5500`, `scph_1000`, `scph_3000` | `none` | ATtiny84 only; the experimental boot-ROM patch for that BIOS version |
 
-A non-default region tags the artifact name, for example `openscex-modchip-attiny85-jp.hex`.
+A non-default region or filter tags the artifact name, for example `openscex-modchip-attiny85-jp.hex` or `openscex-modchip-attiny85-jp-vcd.hex`.
 
 ## MCU pinout
 
@@ -167,7 +170,7 @@ BIOS-patch pads (ATtiny84, Japanese fat and PAL PSone): the MCU-side pins are fi
 
 ## Build and program
 
-Prebuilt per-console `.hex` images are attached to each [release](../../releases), so you can skip the toolchain and go straight to flashing with the `avrdude` steps below. Each release carries the three ATtiny85 SCEx images (`us`, `eu`, `jp`), a `SHA256SUMS` file, the license, and a build-provenance attestation; BIOS-patch images are not published while that patch is experimental. Check a download before flashing it:
+Prebuilt per-console `.hex` images are attached to each [release](../../releases), so you can skip the toolchain and go straight to flashing with the `avrdude` steps below. Each release carries the three ATtiny85 SCEx images (`us`, `eu`, `jp`), the SCPH-5903 image (`jp-vcd`), a `SHA256SUMS` file, the license, and a build-provenance attestation; BIOS-patch images are not published while that patch is experimental. Check a download before flashing it:
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing
