@@ -26,6 +26,24 @@
 #define PSCU_BIT_MS ((uint16_t)4U)
 #define PSCU_SUBQ_BITS ((uint8_t)8U)
 #define PSCU_SUBQ_MSB ((uint8_t)0x80U)
+// SQCK idles high between frames and clocks one 96-bit burst per sector (75 per
+// second, so a frame every ~13.3 ms). Before each capture the chip waits until
+// SQCK has stayed high for one millisecond, which only happens in the gap between
+// bursts, so the capture always starts on a frame's first bit. The millisecond
+// is PsNee's own resync gap (Read: PsNee V9.0 PSNee.ino:716, a 1 ms delay before
+// every capture "to prevent reading the tail end of the previous SUBQ packet").
+// Polling for continuous idle rather than sleeping a fixed time also realigns
+// when the previous capture ended inside a burst, as it can at boot or after the
+// blocking injection. The poll count is the millisecond divided by the cost of
+// one idle pass of pscu_wait_sqck_idle: 33 cycles, counted from the avr-gcc
+// 14.2 -Os listing of that loop (the read and watchdog calls are rcall plus ret,
+// 3 and 4 cycles on the ATtiny core). Recount it if the loop changes.
+#define PSCU_SQCK_IDLE_POLL_CYCLES (33UL)
+#define PSCU_SQCK_IDLE_POLLS ((uint16_t)(F_CPU / (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES)))
+// A frame that could not be captured is filled with this value. Its TNO and ZERO
+// bytes are nonzero, so the pure SUBQ logic treats it as a miss and never as the
+// program area.
+#define PSCU_SUBQ_FAILED_BYTE ((uint8_t)0xFFU)
 
 // SUBQ is clocked by SQCK; each bit is valid across one low-then-high cycle.
 // These two helpers block until the next edge, bounded by PSCU_WAIT_MAX.
@@ -53,19 +71,43 @@ static bool pscu_wait_sqck_high(void) {
   return found;
 }
 
+// Block until SQCK has read high for PSCU_SQCK_IDLE_POLLS consecutive polls,
+// meaning the clock is in the gap between frames. Any low restarts the count. The
+// whole wait is bounded by PSCU_WAIT_MAX polls, so a clock that never idles (or a
+// line stuck low) fails the capture instead of hanging the loop.
+static bool pscu_wait_sqck_idle(void) {
+  uint16_t quiet = 0U;
+  for (uint16_t i = 0U; (i < PSCU_WAIT_MAX) && (quiet < PSCU_SQCK_IDLE_POLLS); i++) {
+    if (pscu_port_read_sqck() != 0U) {
+      quiet = (uint16_t)(quiet + 1U);
+    } else {
+      quiet = 0U;
+    }
+    pscu_port_watchdog_reset();
+  }
+  return quiet >= PSCU_SQCK_IDLE_POLLS;
+}
+
 // SUBQ arrives least-significant-bit first, so each new bit is shifted in at the
 // top (MSB) and the byte shifts right, leaving the first bit in bit 0 after 8.
-static uint8_t pscu_capture_byte(void) {
-  uint8_t value = 0U;
-  for (uint8_t bit = 0U; bit < PSCU_SUBQ_BITS; bit++) {
-    (void)pscu_wait_sqck_low();
-    (void)pscu_wait_sqck_high();
-    value = (uint8_t)(value >> 1U);
+// Both edge waits are always made and the sample is taken right after the rising
+// edge, exactly as in the hardware-tested capture, so the time from edge to
+// sample is unchanged; a timed-out wait only marks the byte failed, and the loop
+// stops at the next bit boundary rather than clocking garbage.
+static bool pscu_capture_byte(uint8_t *value) {
+  uint8_t byte = 0U;
+  bool ok = true;
+  for (uint8_t bit = 0U; (bit < PSCU_SUBQ_BITS) && ok; bit++) {
+    bool low = pscu_wait_sqck_low();
+    bool high = pscu_wait_sqck_high();
+    byte = (uint8_t)(byte >> 1U);
     if (pscu_port_read_subq() != 0U) {
-      value = (uint8_t)(value | PSCU_SUBQ_MSB);
+      byte = (uint8_t)(byte | PSCU_SUBQ_MSB);
     }
+    ok = low && high;
   }
-  return value;
+  *value = byte;
+  return ok;
 }
 
 // Drive one SCEx bit onto DATA. A zero is always a hard low. A one is high-Z on
@@ -116,11 +158,20 @@ pscu_board_mode_t pscu_engine_detect_board(void) {
   return pscu_board_detect_mode(state, PSCU_DETECT_PULSES);
 }
 
+// Wait for the inter-frame gap, then clock in one whole frame. If the gap never
+// comes or any edge times out, the frame is filled with PSCU_SUBQ_FAILED_BYTE so
+// the logic layer reads it as a miss; a partial frame is never passed on.
 void pscu_engine_capture_frame(uint8_t *frame) {
   PSCU_ASSERT(frame != NULL);
 
-  for (uint8_t byte = 0U; byte < PSCU_SUBQ_FRAME_BYTES; byte++) {
-    frame[byte] = pscu_capture_byte();
+  bool ok = pscu_wait_sqck_idle();
+  for (uint8_t byte = 0U; (byte < PSCU_SUBQ_FRAME_BYTES) && ok; byte++) {
+    ok = pscu_capture_byte(&frame[byte]);
+  }
+  if (!ok) {
+    for (uint8_t byte = 0U; byte < PSCU_SUBQ_FRAME_BYTES; byte++) {
+      frame[byte] = PSCU_SUBQ_FAILED_BYTE;
+    }
   }
 }
 
