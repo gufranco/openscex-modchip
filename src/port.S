@@ -348,8 +348,8 @@ pscu_port_bios_ax:
 
 // Count r24 rising edges on AX, then override the data-bus bit DX. On the final
 // edge the cycle-accurate window begins: wait the model's bit-offset, drive DX
-// low (switch it to output over a preset-low port bit), hold for the override
-// window, then release to high-Z. The offset and override lengths are fixed nop
+// (low on the one-phase models, high then low on the two-phase ones, see
+// below), hold for the override window, then release to high-Z. The offset and override lengths are fixed nop
 // runs sized at assemble time from the per-model constants, so the timing is
 // exact and carries no loop overhead. The watchdog is kicked while waiting for
 // an edge, since a slow console boot can leave a long quiet gap, but never
@@ -370,30 +370,48 @@ pscu_port_bios_override:
 	.rept PSCU_BIOS_OFFSET_CYCLES
 	nop
 	.endr
+#if PSCU_BIOS_TWO_PHASE
+	// The two-phase models force DX high in this first window, then clear the
+	// port bit while still driving before releasing, so the line ends low and the
+	// second window, which only switches direction, also drives low. Read: PsNee
+	// V9.0 PSNee.ino:202-215, PIN_DX_SET, PIN_DX_OUTPUT, the override delay,
+	// PIN_DX_CLEAR, then PIN_DX_INPUT, for PHASE_TWO_PATCH builds.
+	sbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_DX
+	sbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DX
+	.rept PSCU_BIOS_OVERRIDE_CYCLES
+	nop
+	.endr
+	cbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_DX
+	cbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DX
+#else
 	cbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_DX
 	sbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DX
 	.rept PSCU_BIOS_OVERRIDE_CYCLES
 	nop
 	.endr
 	cbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DX
+#endif
 	ret
 	.endfunc
 
 #if PSCU_BIOS_TWO_PHASE
 
-// The second override for the two-phase models, identical in shape to the
-// first but counting edges on AY and using the second window's offset and
-// length. DX is the same data-bus line.
+// The second override for the two-phase models. It counts falling edges on AY,
+// not rising ones: wait for AY high, then for it to drop, and count that drop.
+// Read: PsNee V9.0 PSNee.ino:333 arms the AY interrupt with
+// PIN_AY_INTERRUPT_FALLING. On the last edge it drives DX low for the second
+// window's offset and length; DX is the same data-bus line, and its port bit was
+// left low by the first window.
 	.global pscu_port_bios_override_ay
 	.func pscu_port_bios_override_ay
 pscu_port_bios_override_ay:
 11:
 	wdr
-	sbic _SFR_IO_ADDR(PINA), PSCU_PIN_AY
+	sbis _SFR_IO_ADDR(PINA), PSCU_PIN_AY
 	rjmp 11b
 12:
 	wdr
-	sbis _SFR_IO_ADDR(PINA), PSCU_PIN_AY
+	sbic _SFR_IO_ADDR(PINA), PSCU_PIN_AY
 	rjmp 12b
 	subi r24, 1
 	brne 11b

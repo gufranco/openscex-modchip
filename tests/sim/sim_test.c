@@ -70,19 +70,26 @@ static const char SCEA_BITS[SCEX_BITS + 1] = "1001101010010011110100101011101001
 #define BIOS_AX_PIN 2
 #define BIOS_AY_PIN 6
 #define BIOS_DX_PIN 5
+// SCPH-102 (one-phase) pulse count, Read from PsNee V9.0 settings.h, and a quiet
+// stretch long enough for its 8 silent windows of 1500 polls.
 #define BIOS_PULSES 47
-#define BIOS_CONFIRM_CYCLES 300000UL
-// Two-phase (SCPH-1000) pulse counts and a run long enough for its much longer
-// second silent-window count before the AY pulses.
-#define BIOS2_PULSES_1 59
-#define BIOS2_PULSES_2 42
-#define BIOS2_SILENCE2_CYCLES 10000000UL
+#define BIOS_CONFIRM_CYCLES 800000UL
+// SCPH-1000 (two-phase) pulse counts, Read from PsNee V9.0 settings.h, and a run
+// long enough for its 222 second-phase silent windows before the AY pulses.
+#define BIOS2_PULSES_1 91
+#define BIOS2_PULSES_2 70
+#define BIOS2_SILENCE2_CYCLES 12000000UL
+// The override must start right after the final counted edge: well inside the
+// pulse that edge belongs to, never on an earlier pulse.
+#define BIOS_OVERRIDE_WINDOW_CYCLES 200U
 
 static int g_checks = 0;
 static int g_failures = 0;
 static int g_led_seen = 0;
 static uint64_t g_led_cycle = 0;
 static int g_dx_output = 0;
+static uint64_t g_dx_cycle[2] = { 0, 0 };
+static uint8_t g_dx_level[2] = { 0, 0 };
 
 typedef struct {
   avr_irq_t *irq;
@@ -281,13 +288,32 @@ static void scenario_inject(const target_t *t,
 // Watch the ATtiny84 PORTA direction register: the BIOS patch overrides the
 // data bus by switching DX to an output for a few cycles, so a direction-change
 // IRQ with the DX bit set is the override firing. Catching it by IRQ, not by
-// polling, means the three-cycle window is never missed.
+// polling, means the three-cycle window is never missed. For each of the first
+// two overrides it records when it fired and the level DX was driven to, read
+// from the port register at that instant (the port bit is set before the
+// direction switches, so it already holds the driven level).
 static void on_dx_direction(struct avr_irq_t *irq, uint32_t value, void *param) {
+  avr_t *avr = param;
   (void)irq;
-  (void)param;
   if (((value >> BIOS_DX_PIN) & 1U) != 0U) {
+    if (g_dx_output < 2) {
+      avr_ioport_state_t state;
+      (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE('A'), &state);
+      g_dx_cycle[g_dx_output] = avr->cycle;
+      g_dx_level[g_dx_output] = (uint8_t)((state.port >> BIOS_DX_PIN) & 1U);
+    }
     g_dx_output = g_dx_output + 1;
   }
+}
+
+static void check_override(int index, uint64_t edge_cycle, uint8_t level, const char *name) {
+  char label[96];
+  int on_time = (g_dx_output > index) && (g_dx_cycle[index] > edge_cycle) &&
+                ((g_dx_cycle[index] - edge_cycle) < BIOS_OVERRIDE_WINDOW_CYCLES);
+  (void)snprintf(label, sizeof(label), "attiny84 bios %s: fires on the final counted edge", name);
+  check(on_time, label);
+  (void)snprintf(label, sizeof(label), "attiny84 bios %s: drives DX %s", name, (level != 0U) ? "high" : "low");
+  check((g_dx_output > index) && (g_dx_level[index] == level), label);
 }
 
 // Drive the ATtiny84 address line AX (on PORTB) through what the patch expects:
@@ -302,7 +328,7 @@ static void scenario_bios(const char *elf, uint32_t freq) {
   g_dx_output = 0;
 
   avr_irq_t *direction = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('A'), IOPORT_IRQ_DIRECTION_ALL);
-  avr_irq_register_notify(direction, on_dx_direction, NULL);
+  avr_irq_register_notify(direction, on_dx_direction, avr);
   avr_irq_t *ax = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('B'), BIOS_AX_PIN);
 
   avr_raise_irq(ax, 0U);
@@ -312,27 +338,31 @@ static void scenario_bios(const char *elf, uint32_t freq) {
   avr_raise_irq(ax, 0U);
   run_cycles(avr, BIOS_CONFIRM_CYCLES);
 
+  uint64_t last_rise = 0U;
   for (int p = 0; p < BIOS_PULSES; p++) {
     avr_raise_irq(ax, 1U);
+    last_rise = avr->cycle;
     run_cycles(avr, 200U);
     avr_raise_irq(ax, 0U);
     run_cycles(avr, 200U);
   }
   run_cycles(avr, 4000U);
 
-  check(g_dx_output != 0, "attiny84 bios: data bus overridden after the pulse count");
+  check(g_dx_output == 1, "attiny84 bios: one override after the pulse count");
+  check_override(0, last_rise, 0U, "one-phase");
 }
 
 // The two oldest Japanese models override twice. Drive the first pulse train on
 // AX as before, then, after the longer second silent gap, the second train on
-// AY, and confirm DX was driven to an output in both windows.
+// AY. The first window must fire on the last AX rising edge and drive DX high;
+// the second must fire on the last AY falling edge and drive DX low.
 static void scenario_bios_two_phase(const char *elf, uint32_t freq) {
   target_t t84 = { "attiny84", 'A', 0U, 1U, 2U, 4U, 3U };
   avr_t *avr = build_avr(&t84, elf, freq);
   g_dx_output = 0;
 
   avr_irq_t *direction = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('A'), IOPORT_IRQ_DIRECTION_ALL);
-  avr_irq_register_notify(direction, on_dx_direction, NULL);
+  avr_irq_register_notify(direction, on_dx_direction, avr);
   avr_irq_t *ax = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('B'), BIOS_AX_PIN);
   avr_irq_t *ay = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('A'), BIOS_AY_PIN);
 
@@ -342,23 +372,29 @@ static void scenario_bios_two_phase(const char *elf, uint32_t freq) {
   run_cycles(avr, 3000U);
   avr_raise_irq(ax, 0U);
   run_cycles(avr, BIOS_CONFIRM_CYCLES);
+  uint64_t last_ax_rise = 0U;
   for (int p = 0; p < BIOS2_PULSES_1; p++) {
     avr_raise_irq(ax, 1U);
+    last_ax_rise = avr->cycle;
     run_cycles(avr, 200U);
     avr_raise_irq(ax, 0U);
     run_cycles(avr, 200U);
   }
 
   run_cycles(avr, BIOS2_SILENCE2_CYCLES);
+  uint64_t last_ay_fall = 0U;
   for (int p = 0; p < BIOS2_PULSES_2; p++) {
     avr_raise_irq(ay, 1U);
     run_cycles(avr, 200U);
     avr_raise_irq(ay, 0U);
+    last_ay_fall = avr->cycle;
     run_cycles(avr, 200U);
   }
   run_cycles(avr, 4000U);
 
   check(g_dx_output == 2, "attiny84 bios: both patch windows override the data bus");
+  check_override(0, last_ax_rise, 1U, "two-phase first window");
+  check_override(1, last_ay_fall, 0U, "two-phase second window");
 }
 
 // Prove the in-field diagnostics recorder and that closed-loop confirmation
