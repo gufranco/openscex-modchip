@@ -77,6 +77,7 @@ jobs:
           make REGION=us image
           make REGION=eu image
           make REGION=jp image
+          make REGION=jp VCD_FILTER=on image
           mkdir -p release-artifacts
           find build -type f -name '*.hex' -exec cp {} release-artifacts/ \;
           cp LICENSE release-artifacts/LICENSE.txt
