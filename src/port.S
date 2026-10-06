@@ -21,6 +21,19 @@
 #define PSCU_DELAY_1MS_ITERS (F_CPU / 4000UL)
 #define PSCU_MIRROR_1MS_ITERS (F_CPU / (PSCU_MIRROR_LOOP_CYCLES * 1000UL))
 
+// Shift a PINREG snapshot already in <reg> right by <count> bit positions, then
+// mask to <mask>, bringing one pin to bit 0 or onto the DATA bit position. This
+// is the single idiom the WFCK read and mirror paths repeat six times; the macro
+// expands to the identical lsr/andi stream, so the emitted machine code is byte
+// for byte unchanged while the call sites read as one named operation. The count
+// is a build-time pin distance from registers.h, so it is exact on either chip.
+.macro pscu_shr_mask reg, count, mask
+	.rept \count
+	lsr \reg
+	.endr
+	andi \reg, \mask
+.endm
+
 	.text
 
 // Bring the chip up. Writing 0x80 then 0x00 to CLKPR within four cycles is the
@@ -157,10 +170,7 @@ pscu_port_data_mirror_wfck_ms:
 	ldi r27, hi8(PSCU_MIRROR_1MS_ITERS)
 5:
 	in r18, _SFR_IO_ADDR(PSCU_PINREG)
-	.rept (PSCU_PIN_WFCK - PSCU_PIN_DATA)
-	lsr r18
-	.endr
-	andi r18, (1 << PSCU_PIN_DATA)
+	pscu_shr_mask r18, (PSCU_PIN_WFCK-PSCU_PIN_DATA), (1<<PSCU_PIN_DATA)
 	in r19, _SFR_IO_ADDR(PSCU_PORT)
 	andi r19, (~(1 << PSCU_PIN_DATA)) & 0xFF
 	or r19, r18
@@ -233,17 +243,11 @@ pscu_port_wfck_wait_periods:
 	breq 19f
 	in r19, _SFR_IO_ADDR(PSCU_PINREG)
 	mov r18, r19
-	.rept PSCU_PIN_WFCK
-	lsr r18
-	.endr
-	andi r18, 1
+	pscu_shr_mask r18, PSCU_PIN_WFCK, 1
 18:
 	in r19, _SFR_IO_ADDR(PSCU_PINREG)
 	mov r22, r19
-	.rept PSCU_PIN_WFCK
-	lsr r22
-	.endr
-	andi r22, 1
+	pscu_shr_mask r22, PSCU_PIN_WFCK, 1
 	cp r22, r18
 	breq 20f
 	mov r18, r22
@@ -268,26 +272,17 @@ pscu_port_wfck_mirror_periods:
 	sbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DATA
 	in r19, _SFR_IO_ADDR(PSCU_PINREG)
 	mov r18, r19
-	.rept PSCU_PIN_WFCK
-	lsr r18
-	.endr
-	andi r18, 1
+	pscu_shr_mask r18, PSCU_PIN_WFCK, 1
 15:
 	in r19, _SFR_IO_ADDR(PSCU_PINREG)
 	mov r20, r19
-	.rept (PSCU_PIN_WFCK - PSCU_PIN_DATA)
-	lsr r20
-	.endr
-	andi r20, (1 << PSCU_PIN_DATA)
+	pscu_shr_mask r20, (PSCU_PIN_WFCK-PSCU_PIN_DATA), (1<<PSCU_PIN_DATA)
 	in r21, _SFR_IO_ADDR(PSCU_PORT)
 	andi r21, (~(1 << PSCU_PIN_DATA)) & 0xFF
 	or r21, r20
 	out _SFR_IO_ADDR(PSCU_PORT), r21
 	mov r22, r19
-	.rept PSCU_PIN_WFCK
-	lsr r22
-	.endr
-	andi r22, 1
+	pscu_shr_mask r22, PSCU_PIN_WFCK, 1
 	cp r22, r18
 	breq 17f
 	mov r18, r22
