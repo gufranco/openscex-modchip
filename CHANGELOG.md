@@ -1,3 +1,10 @@
+# [0.3.0](https://github.com/gufranco/openscex-modchip/compare/v0.2.0...v0.3.0) (2026-10-06)
+
+
+### Features
+
+* attiny84 on the console clock, lid wire ([3f432d1](https://github.com/gufranco/openscex-modchip/commit/3f432d1fe77262fa06ee23d13248958e3958ff0d))
+
 # [0.2.0](https://github.com/gufranco/openscex-modchip/compare/v0.1.0...v0.2.0) (2026-10-06)
 
 
