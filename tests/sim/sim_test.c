@@ -24,6 +24,10 @@
 #define SUBQ_BITS 8
 // Half-period of the SQCK clock we fake while shifting a SUBQ frame.
 #define EDGE_CYCLES 60
+// Idle-high SQCK gap after each frame. A console clocks one frame per sector at
+// 75 Hz, so bursts are separated by most of ~13.3 ms; the firmware resyncs on a
+// gap of at least 1 ms, and 5 ms at 8 MHz sits clearly inside the real gap.
+#define FRAME_GAP_CYCLES 40000UL
 // Cycles to let the firmware's boot-time board detection complete.
 #define DETECT_CYCLES 600000UL
 #define INJECT_CYCLES 7000000UL
@@ -160,6 +164,14 @@ static void clock_frame(avr_t *avr, const target_t *t, const uint8_t *frame) {
       run_cycles(avr, EDGE_CYCLES);
     }
   }
+  // Idle the clock for the inter-frame gap, but stop early the moment the LED
+  // marks the start of an injection inside it: the decoder samples DATA forward
+  // from that edge and cannot sample cycles the gap has already run past.
+  int led_before = g_led_seen;
+  uint64_t gap_end = avr->cycle + FRAME_GAP_CYCLES;
+  while ((avr->cycle < gap_end) && !((g_led_seen != 0) && (led_before == 0))) {
+    run_cycles(avr, 500U);
+  }
 }
 
 static void boot_quiet(avr_t *avr, const target_t *t, int modern, wfck_ctx_t *ctx) {
@@ -252,6 +264,9 @@ static void scenario_inject(const target_t *t,
       decode_region(avr, t, modern, bit_cycles, decoded);
       (void)snprintf(label, sizeof(label), "%s: decodes SCEA at %u Hz", tag, freq);
       check(strcmp(decoded, SCEA_BITS) == 0, label);
+      if (strcmp(decoded, SCEA_BITS) != 0) {
+        (void)printf("  expected %s\n  decoded  %s\n", SCEA_BITS, decoded);
+      }
     }
   } else {
     (void)snprintf(label, sizeof(label), "%s: non-TOC does not inject at %u Hz", tag, freq);
@@ -343,23 +358,25 @@ static void scenario_bios_two_phase(const char *elf, uint32_t freq) {
 }
 
 // Prove the in-field diagnostics recorder and that closed-loop confirmation
-// resolves and records. Boot a legacy board, drive TOC frames to arm and fire
-// injection, then clock silence frames so no program area appears: the
-// confirmation FSM times out and records the session as unconfirmed. Reading the
-// five EEPROM bytes back the way an installer would with avrdude checks the
-// record: magic, legacy board, one session, a nonzero injection count, and the
-// confirmation byte written as 0. The confirmed path (program area seen) is
-// exercised in the host tests; after an injection the firmware loses SUBQ frame
-// phase against this free-running harness, so a clean program-area read is not
-// drivable here, the same simavr limitation noted for the pull-up and the
-// EEPROM write-settle.
+// resolves and records, both ways. Boot a legacy board and drive TOC frames to
+// arm and fire injection. Then either clock silence frames, so no program area
+// appears and the confirmation FSM times out (unconfirmed), or clock real
+// program-area frames, TNO 01, as a console does once it accepts the region
+// string (confirmed). Reading the five EEPROM bytes back the way an installer
+// would with avrdude checks the record: magic, legacy board, one session, a
+// nonzero injection count, and the confirmation byte. Injection blocks for
+// 44 bits at 4 ms, so the frames clocked meanwhile are lost; the firmware then
+// resyncs on the next inter-frame gap and reads the following frames cleanly.
 #define DIAG_TOC_FRAMES 12
-// Injection is slow (44 bits at 4 ms), so the early silence frames pass while it
-// runs and are missed; enough follow that the confirmation wait times out.
-#define DIAG_SILENCE_FRAMES 220
+#define DIAG_AFTER_FRAMES 120
 #define DIAG_WRITE_CYCLES 3000000UL
 
-static void scenario_diag(const target_t *t, const char *elf, uint32_t freq) {
+static void read_record(avr_t *avr, uint8_t *raw) {
+  avr_eeprom_desc_t desc = { .ee = raw, .offset = 0, .size = 5 };
+  (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_GET, &desc);
+}
+
+static void scenario_diag(const target_t *t, const char *elf, uint32_t freq, int program) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
   g_led_seen = 0;
@@ -369,31 +386,78 @@ static void scenario_diag(const target_t *t, const char *elf, uint32_t freq) {
 
   uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
+  uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0, 0, 0, 0x02U, 0, 0, 0 };
   for (int i = 0; i < DIAG_TOC_FRAMES; i++) {
     clock_frame(avr, t, toc);
   }
-  for (int i = 0; i < DIAG_SILENCE_FRAMES; i++) {
-    clock_frame(avr, t, silence);
+  for (int i = 0; i < DIAG_AFTER_FRAMES; i++) {
+    clock_frame(avr, t, (program != 0) ? play : silence);
   }
   run_cycles(avr, DIAG_WRITE_CYCLES);
 
   uint8_t raw[5] = { 0, 0, 0, 0, 0 };
-  avr_eeprom_desc_t desc = { .ee = raw, .offset = 0, .size = sizeof(raw) };
-  (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_GET, &desc);
+  read_record(avr, raw);
+
+  const char *tag = (strcmp(t->mcu, "attiny85") == 0) ? "85" : "84";
+  const char *path = (program != 0) ? "confirmed" : "unconfirmed";
+  char label[96];
+  (void)snprintf(label, sizeof(label), "diag %s %s: injection ran before logging", tag, path);
+  check(g_led_seen != 0, label);
+  (void)snprintf(label, sizeof(label), "diag %s %s: recorder magic written", tag, path);
+  check(raw[0] == 0x50U, label);
+  (void)snprintf(label, sizeof(label), "diag %s %s: board recorded as legacy gate", tag, path);
+  check(raw[1] == 0U, label);
+  (void)snprintf(label, sizeof(label), "diag %s %s: one session on a fresh eeprom", tag, path);
+  check(raw[2] == 1U, label);
+  (void)snprintf(label, sizeof(label), "diag %s %s: injection count recorded", tag, path);
+  check(raw[3] >= 1U, label);
+  (void)snprintf(label, sizeof(label), "diag %s %s: confirmation byte", tag, path);
+  check(raw[4] == ((program != 0) ? 1U : 0U), label);
+}
+
+// A capture that starts inside a burst must not stay misaligned. Present a
+// partial burst first, as a console already mid-sector would at the moment the
+// firmware starts listening, then ordinary TOC frames. Without resync every
+// later capture straddles two frames by the partial's length, nothing ever
+// parses as framed, and injection never fires; with it the firmware loses at
+// most one frame, realigns on the next inter-frame gap, and injects.
+#define PARTIAL_BURST_BITS 37
+#define RESYNC_FRAMES (TRIGGER_FRAMES + 3)
+
+static void clock_partial(avr_t *avr, const target_t *t, int bits) {
+  avr_irq_t *sqck = pin_irq(avr, t, t->sqck);
+  avr_irq_t *subq = pin_irq(avr, t, t->subq);
+  for (int bit = 0; bit < bits; bit++) {
+    avr_raise_irq(subq, (uint8_t)(bit & 1));
+    avr_raise_irq(sqck, 0U);
+    run_cycles(avr, EDGE_CYCLES);
+    avr_raise_irq(sqck, 1U);
+    run_cycles(avr, EDGE_CYCLES);
+  }
+}
+
+static void scenario_resync(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
+  g_led_seen = 0;
+  g_led_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+
+  uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  clock_partial(avr, t, PARTIAL_BURST_BITS);
+  for (int i = 0; i < RESYNC_FRAMES; i++) {
+    clock_frame(avr, t, toc);
+  }
+  uint64_t deadline = avr->cycle + LED_DEADLINE;
+  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+    run_cycles(avr, 2000U);
+  }
 
   const char *tag = (strcmp(t->mcu, "attiny85") == 0) ? "85" : "84";
   char label[96];
-  check(g_led_seen != 0, "diag: injection ran before logging");
-  (void)snprintf(label, sizeof(label), "diag %s: recorder magic written", tag);
-  check(raw[0] == 0x50U, label);
-  (void)snprintf(label, sizeof(label), "diag %s: board recorded as legacy gate", tag);
-  check(raw[1] == 0U, label);
-  (void)snprintf(label, sizeof(label), "diag %s: one session on a fresh eeprom", tag);
-  check(raw[2] == 1U, label);
-  (void)snprintf(label, sizeof(label), "diag %s: injection count recorded", tag);
-  check(raw[3] >= 1U, label);
-  (void)snprintf(label, sizeof(label), "diag %s: unconfirmed recorded without program area", tag);
-  check(raw[4] == 0U, label);
+  (void)snprintf(label, sizeof(label), "resync %s: injects after a capture starts mid-burst", tag);
+  check(g_led_seen != 0, label);
 }
 
 // The board-family matrix. The firmware has no per-family code path, only the
@@ -446,8 +510,12 @@ int main(int argc, char *argv[]) {
   }
 
   if (freq == 8000000U) {
-    scenario_diag(&t85, elf85, freq);
-    scenario_diag(&t84, elf84, freq);
+    scenario_diag(&t85, elf85, freq, 0);
+    scenario_diag(&t84, elf84, freq, 0);
+    scenario_diag(&t85, elf85, freq, 1);
+    scenario_diag(&t84, elf84, freq, 1);
+    scenario_resync(&t85, elf85, freq);
+    scenario_resync(&t84, elf84, freq);
   }
 
   // The optional fourth and fifth arguments are the ATtiny84 BIOS images,
