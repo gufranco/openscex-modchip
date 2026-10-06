@@ -504,6 +504,46 @@ static void scenario_late_carrier(const target_t *t, const char *elf, uint32_t f
   }
 }
 
+// A carrier that stops mid-injection must not leave DATA driven. The adaptive
+// bit cell counts WFCK rising edges and kicks the watchdog only on a counted
+// edge, so when the carrier stalls the watchdog expires and resets the chip,
+// which returns DATA to high-Z. Stop the carrier about 25 ms into an injection
+// (a few bit cells in, while DATA is driven) and check it is released within
+// the next 0.75 s, comfortably past the ~0.5 s watchdog timeout.
+#define STALL_AFTER_CYCLES 200000UL
+#define STALL_WAIT_CYCLES 6000000UL
+
+static void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
+  g_led_seen = 0;
+  g_led_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 1, &ctx);
+
+  uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  for (int i = 0; i < TRIGGER_FRAMES; i++) {
+    clock_frame(avr, t, toc);
+  }
+  uint64_t deadline = avr->cycle + LED_DEADLINE;
+  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+    run_cycles(avr, 2000U);
+  }
+
+  const char *tag = (strcmp(t->mcu, "attiny85") == 0) ? "85" : "84";
+  char label[96];
+  (void)snprintf(label, sizeof(label), "stall %s: injection started", tag);
+  check(g_led_seen != 0, label);
+  run_to(avr, g_led_cycle + STALL_AFTER_CYCLES);
+  (void)snprintf(label, sizeof(label), "stall %s: DATA driven while the carrier runs", tag);
+  check(data_ddr(avr, t) != 0U, label);
+
+  avr_cycle_timer_cancel(avr, wfck_tick, &ctx);
+  run_cycles(avr, STALL_WAIT_CYCLES);
+  (void)snprintf(label, sizeof(label), "stall %s: DATA released after the carrier stops", tag);
+  check(data_ddr(avr, t) == 0U, label);
+}
+
 // The board-family matrix. The firmware has no per-family code path, only the
 // legacy static gate and the live WFCK carrier, so each family collapses to one
 // of those with its carrier frequency. Distinct behaviours only, no duplicate
@@ -562,6 +602,8 @@ int main(int argc, char *argv[]) {
     scenario_resync(&t84, elf84, freq);
     scenario_late_carrier(&t85, elf85, freq);
     scenario_late_carrier(&t84, elf84, freq);
+    scenario_stall(&t85, elf85, freq);
+    scenario_stall(&t84, elf84, freq);
   }
 
   // The optional fourth and fifth arguments are the ATtiny84 BIOS images,
