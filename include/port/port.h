@@ -54,12 +54,17 @@ uint8_t pscu_port_eeprom_read(uint8_t address);
 
 void pscu_port_eeprom_write(uint8_t address, uint8_t value);
 
-// BIOS-patch primitives, implemented only in the ATtiny84 full build. One reads
-// the address line AX; the other counts the given number of AX rising edges and
-// then drives the data-bus override DX for the configured, cycle-accurate
-// window. They are declared here for every build but referenced only by the
-// BIOS patch, so non-patch builds neither link nor call them.
+// BIOS-patch primitives, implemented only in the ATtiny84 full build. One reports
+// (and clears) whether the last reset came from the watchdog; two read the
+// address lines AX and AY; the override counts the given number of further AX
+// rising edges and then drives the data-bus override DX for the configured,
+// cycle-accurate window. They are declared here for every build but referenced
+// only by the BIOS patch, so non-patch builds neither link nor call them.
+uint8_t pscu_port_reset_was_watchdog(void);
+
 uint8_t pscu_port_bios_ax(void);
+
+uint8_t pscu_port_bios_ay(void);
 
 void pscu_port_bios_override(uint8_t pulses);
 
