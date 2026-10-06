@@ -19,6 +19,13 @@
 // live ~7.3 kHz clock produces far more than PSCU_DETECT_PULSES edges.
 #define PSCU_DETECT_WINDOW ((uint16_t)10000U)
 #define PSCU_DETECT_PULSES ((uint8_t)25U)
+// Settle time before the detect window. The chip powers up with the console, and
+// on a carrier board the WFCK oscillation may not have started yet; sampling too
+// early would misread a modern board as a static legacy gate and pick the wrong
+// injection method for the whole session. Read: PsNee V9.0 PSNee.ino:376 waits
+// 300 ms "for WFCK to stabilize" before the same 10000-sample window, field-proven
+// across PU-7 to PM-41.
+#define PSCU_DETECT_SETTLE_MS ((uint16_t)300U)
 // Upper bound on polling for an SQCK edge, so a dead clock can never hang the
 // loop forever; the watchdog is also kicked while waiting.
 #define PSCU_WAIT_MAX ((uint16_t)0xFFFFU)
@@ -146,10 +153,11 @@ static void pscu_inject_region(pscu_region_t region, pscu_board_mode_t mode) {
   }
 }
 
-// Run once at boot: watch WFCK across the detect window and classify the board.
-// The result picks the injection method (gate high-Z vs WFCK mirror) for the
-// rest of the session.
+// Run once at boot: let WFCK settle, then watch it across the detect window and
+// classify the board. The result picks the injection method (gate high-Z vs
+// WFCK mirror) for the rest of the session.
 pscu_board_mode_t pscu_engine_detect_board(void) {
+  pscu_port_delay_ms(PSCU_DETECT_SETTLE_MS);
   pscu_board_detect_t state = pscu_board_detect_init();
   for (uint16_t i = 0U; i < PSCU_DETECT_WINDOW; i++) {
     state = pscu_board_detect_step(state, pscu_port_read_wfck());

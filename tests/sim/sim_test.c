@@ -28,8 +28,12 @@
 // 75 Hz, so bursts are separated by most of ~13.3 ms; the firmware resyncs on a
 // gap of at least 1 ms, and 5 ms at 8 MHz sits clearly inside the real gap.
 #define FRAME_GAP_CYCLES 40000UL
-// Cycles to let the firmware's boot-time board detection complete.
-#define DETECT_CYCLES 600000UL
+// Cycles to let the firmware's boot-time board detection complete: the 300 ms
+// WFCK settle (2.4M cycles at 8 MHz) plus the 10000-sample window, with margin.
+#define DETECT_CYCLES 3200000UL
+// A carrier that starts this long after power-on (150 ms at 8 MHz) is still
+// inside the settle time, so it must be detected as a carrier board.
+#define LATE_CARRIER_CYCLES 1200000UL
 #define INJECT_CYCLES 7000000UL
 #define TRIGGER_FRAMES 10
 #define SCEX_BITS 44
@@ -460,6 +464,46 @@ static void scenario_resync(const target_t *t, const char *elf, uint32_t freq) {
   check(g_led_seen != 0, label);
 }
 
+// A carrier board whose WFCK starts oscillating after the chip has powered up
+// must still be detected as a carrier board. The oscillation starts 150 ms after
+// power-on: a detect window taken immediately would see a static line, choose the
+// legacy gate, and send every logic one as high-Z instead of the carrier mirror,
+// so the modern decode would fail. The settle delay lets the carrier start first.
+static void scenario_late_carrier(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
+  g_led_seen = 0;
+  g_led_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_raise_irq(pin_irq(avr, t, t->sqck), 1U);
+  avr_raise_irq(pin_irq(avr, t, t->subq), 0U);
+  avr_raise_irq(pin_irq(avr, t, t->wfck), 1U);
+  run_cycles(avr, LATE_CARRIER_CYCLES);
+  ctx.irq = pin_irq(avr, t, t->wfck);
+  avr_cycle_timer_register(avr, ctx.half, wfck_tick, &ctx);
+  run_to(avr, DETECT_CYCLES);
+
+  uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  for (int i = 0; i < TRIGGER_FRAMES; i++) {
+    clock_frame(avr, t, toc);
+  }
+  uint64_t deadline = avr->cycle + LED_DEADLINE;
+  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+    run_cycles(avr, 2000U);
+  }
+
+  const char *tag = (strcmp(t->mcu, "attiny85") == 0) ? "85" : "84";
+  char label[96];
+  char decoded[SCEX_BITS + 1] = { 0 };
+  (void)snprintf(label, sizeof(label), "late carrier %s: injection triggered", tag);
+  check(g_led_seen != 0, label);
+  if (g_led_seen != 0) {
+    decode_region(avr, t, 1, (uint64_t)WFCK_PERIODS_PER_BIT * freq / WFCK_HZ, decoded);
+    (void)snprintf(label, sizeof(label), "late carrier %s: detected as a carrier board", tag);
+    check(strcmp(decoded, SCEA_BITS) == 0, label);
+  }
+}
+
 // The board-family matrix. The firmware has no per-family code path, only the
 // legacy static gate and the live WFCK carrier, so each family collapses to one
 // of those with its carrier frequency. Distinct behaviours only, no duplicate
@@ -516,6 +560,8 @@ int main(int argc, char *argv[]) {
     scenario_diag(&t84, elf84, freq, 1);
     scenario_resync(&t85, elf85, freq);
     scenario_resync(&t84, elf84, freq);
+    scenario_late_carrier(&t85, elf85, freq);
+    scenario_late_carrier(&t84, elf84, freq);
   }
 
   // The optional fourth and fifth arguments are the ATtiny84 BIOS images,
