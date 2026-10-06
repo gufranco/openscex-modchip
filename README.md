@@ -48,7 +48,8 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 | Board auto-detect | WFCK behaviour at boot selects legacy or carrier mode; one build fits every family |
 | Adaptive timing | on WFCK-carrier boards the injection bit is timed by counting WFCK periods, locking it to the console clock and immune to MCU oscillator drift; `TIMING=fixed` reverts to the MCU delay |
 | Single configured region | emits only `REGION`, never all three |
-| Stealth | injects only inside the SUBQ region-check window, capped per arming, then DATA high-Z and LED off |
+| Stealth | injects only inside the SUBQ region-check window, capped per arming, then DATA high-Z and LED off; stops the moment the console reads the program area and stays silent through later lead-in reads until a disc swap |
+| Multi-disc games | every swap re-arms injection for the next disc, whether the drive stops with the clock silent, keeps clocking garbage, or the swap shows only as a long lead-in read; simulation-verified, not yet confirmed on a console |
 | Disc-swap re-arm | leaving the window re-arms the one-shot |
 | Boot-ROM BIOS patch | experimental, ATtiny84 only, Japanese fat and PAL PSone, every model including two-phase SCPH-1000 and SCPH-3000; see the note under the build table |
 | Self-recovery | each SUBQ capture realigns on the gap between frames; a WFCK carrier that stalls mid-injection lets the watchdog release DATA; a BIOS patch that cannot find its pulses falls back to SCEx |
