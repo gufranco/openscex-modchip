@@ -232,8 +232,13 @@ pscu_port_eeprom_write:
 // oscillator, these routines count whole WFCK periods. A bit cell is
 // PSCU_WFCK_PERIODS_PER_BIT rising edges, so the cell length tracks the console
 // clock exactly and is immune to MCU frequency error. r18 holds the previous
-// WFCK level so only a low-to-high transition counts; the watchdog is kicked
-// every pass so a stalled carrier resets the chip rather than wedging it.
+// WFCK level so only a low-to-high transition counts. The watchdog is kicked
+// only when a rising edge is counted, never on an idle pass: if the carrier
+// stalls (lid opened mid-injection, mechacon halt), no edge arrives, the watchdog
+// expires after about 0.5 s and resets the chip, and the reset returns DATA and
+// every other pin to high-Z. Kicking it on every pass would instead hold DATA
+// driven until power-off. wdr leaves the status flags alone, so it can sit
+// between the counting subi and its breq.
 
 // Hold for one bit cell without touching DATA; the caller has already driven it
 // low, so this is the zero-bit cell on a modern board.
@@ -254,9 +259,9 @@ pscu_port_wfck_wait_periods:
 	tst r22
 	breq 20f
 	subi r24, 1
+	wdr
 	breq 19f
 20:
-	wdr
 	rjmp 18b
 19:
 	ret
@@ -289,9 +294,9 @@ pscu_port_wfck_mirror_periods:
 	tst r22
 	breq 17f
 	subi r24, 1
+	wdr
 	breq 16f
 17:
-	wdr
 	rjmp 15b
 16:
 	ret
