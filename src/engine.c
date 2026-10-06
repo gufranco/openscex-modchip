@@ -42,11 +42,12 @@
 // Polling for continuous idle rather than sleeping a fixed time also realigns
 // when the previous capture ended inside a burst, as it can at boot or after the
 // blocking injection. The poll count is the millisecond divided by the cost of
-// one idle pass of pscu_wait_sqck_idle: 33 cycles, counted from the avr-gcc
+// one idle pass of pscu_wait_sqck_idle: 36 cycles, counted from the avr-gcc
 // 14.2 -Os listing of that loop (the read and watchdog calls are rcall plus ret,
-// 3 and 4 cycles on the ATtiny core). Recount it if the loop changes.
-#define PSCU_SQCK_IDLE_POLL_CYCLES (33UL)
-#define PSCU_SQCK_IDLE_POLLS ((uint16_t)(F_CPU / (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES)))
+// 3 and 4 cycles on the ATtiny core; the 32-bit count adds the rest). Recount it
+// if the loop changes. The count stays unsigned long so no cast narrows it.
+#define PSCU_SQCK_IDLE_POLL_CYCLES (36UL)
+#define PSCU_SQCK_IDLE_POLLS (F_CPU / (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES))
 // A frame that could not be captured is filled with this value. Its TNO and ZERO
 // bytes are nonzero, so the pure SUBQ logic treats it as a miss and never as the
 // program area.
@@ -83,10 +84,10 @@ static bool pscu_wait_sqck_high(void) {
 // whole wait is bounded by PSCU_WAIT_MAX polls, so a clock that never idles (or a
 // line stuck low) fails the capture instead of hanging the loop.
 static bool pscu_wait_sqck_idle(void) {
-  uint16_t quiet = 0U;
+  uint32_t quiet = 0U;
   for (uint16_t i = 0U; (i < PSCU_WAIT_MAX) && (quiet < PSCU_SQCK_IDLE_POLLS); i++) {
     if (pscu_port_read_sqck() != 0U) {
-      quiet = (uint16_t)(quiet + 1U);
+      quiet = quiet + 1U;
     } else {
       quiet = 0U;
     }
