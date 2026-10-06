@@ -20,9 +20,11 @@
 // power on"; three times that is the bound here. The count is that time divided
 // by the cost of one waiting pass of pscu_bios_wait_level, 38 cycles, counted
 // from the avr-gcc 14.2 -Os listing of the one-phase build (the 32-bit counter
-// compare and the watchdog call dominate); recount it if the loop changes.
+// compare and the watchdog call dominate); recount it if the loop changes. The
+// two-phase build adds the AX/AY selection to each pass (2 cycles on AY, 5 on
+// AX), so its first-edge bound runs to about 3.4 s, well within its purpose.
 #define PSCU_BIOS_POLL_CYCLES (38UL)
-#define PSCU_BIOS_START_POLLS ((uint32_t)((3UL * F_CPU) / PSCU_BIOS_POLL_CYCLES))
+#define PSCU_BIOS_START_POLLS ((3UL * F_CPU) / PSCU_BIOS_POLL_CYCLES)
 // Later waits sit inside the boot ROM's own activity, where the next AX edge is
 // microseconds away; 65535 polls (about 0.15 s at 8 MHz) is ample.
 #define PSCU_BIOS_EDGE_MAX ((uint32_t)0xFFFFU)
@@ -33,8 +35,10 @@
 #if (PSCU_BIOS_PULSES < 2)
 #error "PSCU_BIOS_PULSES must be at least 2"
 #endif
-#if PSCU_BIOS_TWO_PHASE && (PSCU_BIOS_PULSES_2 < 2)
+#if PSCU_BIOS_TWO_PHASE
+#if (PSCU_BIOS_PULSES_2 < 2)
 #error "PSCU_BIOS_PULSES_2 must be at least 2"
+#endif
 #endif
 
 // Block until the address line (AY when ay is true, otherwise AX) reads the
@@ -118,18 +122,20 @@ void pscu_bios_patch(void) {
     ok = pscu_bios_wait_level(false, 1U, PSCU_BIOS_START_POLLS);
   }
   if (ok) {
-    pscu_port_bios_override((uint8_t)(PSCU_BIOS_PULSES - 1U));
+    uint8_t further = (uint8_t)PSCU_BIOS_PULSES;
+    further--;
+    pscu_port_bios_override(further);
+#if PSCU_BIOS_TWO_PHASE
+    // The two oldest Japanese BIOSes read the region a second time. After its
+    // own run of silent windows, wait for the first falling edge of the second
+    // pulse train on AY, then let the assembly count the rest and override DX
+    // again. Only built for those models; one external interrupt is enough
+    // because both windows are polled, not driven by edge interrupts.
+    ok = pscu_bios_count_silence((uint8_t)PSCU_BIOS_CONFIRMS_2);
+#endif
   }
 
 #if PSCU_BIOS_TWO_PHASE
-  // The two oldest Japanese BIOSes read the region a second time. After its own
-  // run of silent windows, wait for the first falling edge of the second pulse
-  // train on AY, then let the assembly count the rest and override DX again.
-  // Only built for those models; one external interrupt is enough because both
-  // windows are polled, not driven by edge interrupts.
-  if (ok) {
-    ok = pscu_bios_count_silence((uint8_t)PSCU_BIOS_CONFIRMS_2);
-  }
   if (ok) {
     ok = pscu_bios_wait_level(true, 1U, PSCU_BIOS_START_POLLS);
   }
@@ -137,7 +143,9 @@ void pscu_bios_patch(void) {
     ok = pscu_bios_wait_level(true, 0U, PSCU_BIOS_START_POLLS);
   }
   if (ok) {
-    pscu_port_bios_override_ay((uint8_t)(PSCU_BIOS_PULSES_2 - 1U));
+    uint8_t further = (uint8_t)PSCU_BIOS_PULSES_2;
+    further--;
+    pscu_port_bios_override_ay(further);
   }
 #endif
 }
