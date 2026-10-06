@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
+# SPDX-License-Identifier: MIT
+
+# clangd configuration for editor IntelliSense (clangd extension, ccls, Neovim).
+# The firmware is built by avr-gcc inside the pinned Docker toolchain, which the
+# host clangd cannot invoke, so there is no compile_commands.json. The logic and
+# platform C never include an avr/ header (registers live only in src/port.S),
+# so host clangd parses every C translation unit correctly once it is given the
+# include path, the C standard, and the default build variant's defines. These
+# mirror the Makefile default: ATtiny85, internal 8 MHz, region us (NTSC-UC),
+# adaptive timing, BIOS disabled. Other variants' #if branches show as inactive,
+# which is correct, not an error. Change these defines to inspect another variant.
+CompileFlags:
+  Add:
+    # Without a compile_commands.json, clangd anchors a relative -I at the
+    # directory of the file being parsed, not the project root, so one path is
+    # given per source depth: root, src/ (depth 1), tests/host and tests/sim
+    # (depth 2). clangd silently ignores the paths that do not resolve for a
+    # given file, so exactly one hits include/ wherever the file lives.
+    - -Iinclude
+    - -I../include
+    - -I../../include
+    - -std=c17
+    - -D__AVR_ATtiny85__
+    - -DF_CPU=8000000UL
+    - -DPSCU_TIMING_ADAPTIVE=1
+    - -DPSCU_WFCK_PERIODS_PER_BIT=30
+    - -DPSCU_BIOS_ENABLED=0
+    - -DPSCU_BIOS_TWO_PHASE=0
+  Compiler: clang
