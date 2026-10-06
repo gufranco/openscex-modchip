@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+# SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
+# SPDX-License-Identifier: MIT
+
+# Reject a commit whose subject is not a conventional commit of at most 50
+# characters, with the same script CI runs, so a bad subject is caught before it
+# reaches main, where semantic-release versions releases from it.
+
+set -eu
+
+root=$(git rev-parse --show-toplevel)
+exec "${root}/.github/scripts/check-commit-messages.sh" --message-file "$1"

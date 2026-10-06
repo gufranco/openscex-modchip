@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+# SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
+# SPDX-License-Identifier: MIT
+
+# Fast pre-commit gate: C formatting and Python lint and formatting, run in the
+# pinned toolchain like every other check, so a misformatted commit never lands.
+# It is the quick front of `make analyse`; the full gate (build, MISRA, tests,
+# mutation, reproducible build) stays in `make` and CI.
+
+set -eu
+
+root=$(git rev-parse --show-toplevel)
+exec make -C "${root}" precommit
