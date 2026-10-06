@@ -312,7 +312,8 @@ static void check_override(int index, uint64_t edge_cycle, uint8_t level, const 
                 ((g_dx_cycle[index] - edge_cycle) < BIOS_OVERRIDE_WINDOW_CYCLES);
   (void)snprintf(label, sizeof(label), "attiny84 bios %s: fires on the final counted edge", name);
   check(on_time, label);
-  (void)snprintf(label, sizeof(label), "attiny84 bios %s: drives DX %s", name, (level != 0U) ? "high" : "low");
+  (void)snprintf(
+      label, sizeof(label), "attiny84 bios %s: drives DX %s", name, (level != 0U) ? "high" : "low");
   check((g_dx_output > index) && (g_dx_level[index] == level), label);
 }
 

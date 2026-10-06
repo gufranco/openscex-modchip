@@ -74,7 +74,8 @@ static void test_subq_counter(void) {
   check(pscu_subq_update_counter(spiral_miss, 0U) == 0U, "track 01 out of window misses");
 
   uint8_t minute_97[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x97U, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(minute_97, 0U) == 0U, "point 01 at minute 97 is before the window");
+  check(pscu_subq_update_counter(minute_97, 0U) == 0U,
+        "point 01 at minute 97 is before the window");
 
   uint8_t minute_98[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x98U, 0, 0, 0, 0, 0, 0, 0, 0 };
   check(pscu_subq_update_counter(minute_98, 0U) == 1U, "point 01 at minute 98 opens the window");
@@ -205,10 +206,14 @@ static void test_diag(void) {
 }
 
 static void test_program_area(void) {
-  uint8_t data_track2[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x02U, 0x01U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t data_track2[PSCU_SUBQ_FRAME_BYTES] = {
+    0x41U, 0x02U, 0x01U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0
+  };
   check(pscu_subq_is_program_area(data_track2), "data track 2 is program area");
 
-  uint8_t audio_track2[PSCU_SUBQ_FRAME_BYTES] = { 0x01U, 0x02U, 0x01U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t audio_track2[PSCU_SUBQ_FRAME_BYTES] = {
+    0x01U, 0x02U, 0x01U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0
+  };
   check(pscu_subq_is_program_area(audio_track2), "audio track 2 is program area");
 
   uint8_t track1[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -224,7 +229,8 @@ static void test_program_area(void) {
   check(!pscu_subq_is_program_area(toc), "lead-in TOC marker is not program area");
 
   uint8_t toc_entry[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0x05U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(!pscu_subq_is_program_area(toc_entry), "lead-in TOC entry naming a track is not program area");
+  check(!pscu_subq_is_program_area(toc_entry),
+        "lead-in TOC entry naming a track is not program area");
 
   uint8_t lead_out[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0xAAU, 0x01U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
   check(!pscu_subq_is_program_area(lead_out), "lead-out is not program area");
@@ -236,10 +242,13 @@ static void test_program_area(void) {
                                             0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU };
   check(!pscu_subq_is_program_area(failed), "a failed capture is not program area");
 
-  uint8_t noncontent[PSCU_SUBQ_FRAME_BYTES] = { 0x00U, 0x02U, 0x01U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t noncontent[PSCU_SUBQ_FRAME_BYTES] = {
+    0x00U, 0x02U, 0x01U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0
+  };
   check(!pscu_subq_is_program_area(noncontent), "non-content control is not program area");
 
-  uint8_t misframed[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x02U, 0x01U, 0x10U, 0, 0, 0x01U, 0, 0, 0, 0, 0 };
+  uint8_t misframed[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x02U, 0x01U, 0x10U, 0, 0,
+                                               0x01U, 0,     0,     0,     0, 0 };
   check(!pscu_subq_is_program_area(misframed), "a nonzero ZERO byte is not program area");
 }
 
