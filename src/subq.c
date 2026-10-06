@@ -67,19 +67,24 @@ static bool pscu_subq_tracking_hit(const uint8_t *frame, uint8_t counter) {
 }
 
 // The program area is reached once the mechacon has accepted the region string
-// and re-enabled read commands: the console then reads a numbered content track
-// at a normal index, not the lead-in TOC (track 0xA0 and above) and not the
-// track-01 spiral start. Seeing such a frame after injection is the documented
-// sign the region check passed, which the run loop uses to confirm success.
-// Pure and host-tested.
+// and re-enabled read commands. What distinguishes a program-area Q frame is its
+// track number TNO (frame[1]): a BCD value 01 through 99, never the lead-in's
+// 0x00 and never the lead-out's 0xAA. The lead-in TOC entries carry POINT 01..99
+// in frame[2] but TNO 0x00, so they are rejected here even though they name a
+// track; that is exactly the frame the region check reads, and counting it would
+// confirm success before the check had passed. The BCD test on the low nibble
+// also rejects a misaligned or failed capture (the engine fills a failed frame
+// with 0xFF). frame[6] is the Q-channel ZERO byte. Seeing such a frame after
+// injection is the documented sign the region check passed, which the run loop
+// uses to confirm success. Pure and host-tested.
 bool pscu_subq_is_program_area(const uint8_t *frame) {
   PSCU_ASSERT(frame != NULL);
 
-  bool framed = (frame[1] == 0x00U) && (frame[6] == 0x00U);
+  uint8_t tno = frame[1];
+  bool bcd_track = (tno >= 0x01U) && (tno <= 0x99U) && ((uint8_t)(tno & 0x0FU) <= 0x09U);
+  bool zero_byte = frame[6] == 0x00U;
   bool content = (frame[0] == 0x01U) || pscu_subq_is_data_sector(frame[0]);
-  bool numbered_track = (frame[2] >= 0x01U) && (frame[2] < 0xA0U);
-  bool spiral_start = (frame[2] == 0x01U) && ((uint8_t)(frame[3] - 0x03U) >= 0xF5U);
-  return framed && content && numbered_track && !spiral_start;
+  return bcd_track && zero_byte && content;
 }
 
 uint8_t pscu_subq_update_counter(const uint8_t *frame, uint8_t counter) {

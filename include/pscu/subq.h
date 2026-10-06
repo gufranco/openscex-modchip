@@ -16,10 +16,11 @@
 // Pure and host-tested; the firmware feeds it live frames. See subq.c.
 uint8_t pscu_subq_update_counter(const uint8_t *frame, uint8_t counter);
 
-// True when the frame shows the console reading the program area, a numbered
-// content track at a normal index, which the mechacon only allows once it has
-// accepted the region string. The run loop treats seeing this after injection
-// as confirmation that the region check passed. Pure and host-tested.
+// True when the frame shows the console reading the program area: a content
+// frame whose track number TNO is a BCD track 01..99, which the mechacon only
+// allows once it has accepted the region string. Lead-in (TNO 0x00) and lead-out
+// (TNO 0xAA) frames never qualify. The run loop treats seeing this after
+// injection as confirmation that the region check passed. Pure and host-tested.
 bool pscu_subq_is_program_area(const uint8_t *frame);
 
 #endif
