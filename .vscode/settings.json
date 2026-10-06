@@ -7,12 +7,11 @@
   "C_Cpp.default.compilerPath": "",
   "C_Cpp.default.includePath": ["${workspaceFolder}/include"],
   "C_Cpp.default.defines": [
-    "__AVR_ATtiny85__",
-    "F_CPU=8000000UL",
+    "__AVR_ATtiny84__",
+    "F_CPU=4233600UL",
     "PSCU_TIMING_ADAPTIVE=1",
     "PSCU_WFCK_PERIODS_PER_BIT=30",
-    "PSCU_BIOS_ENABLED=0",
-    "PSCU_BIOS_TWO_PHASE=0"
+    "PSCU_VCD_FILTER=0"
   ],
   "[c]": {
     "editor.formatOnSave": false

@@ -201,96 +201,46 @@ static void test_stealth(void) {
   pscu_stealth_t start = pscu_stealth_init();
   check((start.sent == 0U) && !start.accepted, "stealth starts disarmed and unlatched");
 
-  pscu_stealth_step_t first = pscu_stealth_step(start, true, PSCU_FRAME_LEAD_IN, 2U);
+  pscu_stealth_step_t first = pscu_stealth_step(start, true, false, false, 2U);
   check(first.fire && (first.state.sent == 1U), "emits the first string in window");
 
-  pscu_stealth_step_t second = pscu_stealth_step(first.state, true, PSCU_FRAME_LEAD_IN, 2U);
+  pscu_stealth_step_t second = pscu_stealth_step(first.state, true, false, false, 2U);
   check(second.fire && (second.state.sent == 2U), "emits the second string");
 
-  pscu_stealth_step_t capped = pscu_stealth_step(second.state, true, PSCU_FRAME_LEAD_IN, 2U);
+  pscu_stealth_step_t capped = pscu_stealth_step(second.state, true, false, false, 2U);
   check(!capped.fire && (capped.state.sent == 2U), "falls silent at the cap");
 
-  pscu_stealth_step_t rearmed = pscu_stealth_step(capped.state, false, PSCU_FRAME_LOST, 2U);
+  pscu_stealth_step_t rearmed = pscu_stealth_step(capped.state, false, false, false, 2U);
   check(!rearmed.fire && (rearmed.state.sent == 0U), "silent and re-armed out of window");
 
-  pscu_stealth_step_t again = pscu_stealth_step(rearmed.state, true, PSCU_FRAME_LEAD_IN, 2U);
+  pscu_stealth_step_t again = pscu_stealth_step(rearmed.state, true, false, false, 2U);
   check(again.fire, "re-fires on the next window while the console has not accepted");
 }
 
-static void test_frame_kind(void) {
-  uint8_t lead_in[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_frame_kind(lead_in) == PSCU_FRAME_LEAD_IN, "data TOC frame is a lead-in read");
-
-  uint8_t audio_lead_in[PSCU_SUBQ_FRAME_BYTES] = { 0x01U, 0, 0x05U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_frame_kind(audio_lead_in) == PSCU_FRAME_LEAD_IN,
-        "audio TOC frame is a lead-in read");
-
-  uint8_t program[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0, 0x02U, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_frame_kind(program) == PSCU_FRAME_PROGRAM, "track 01 frame is the program area");
-
-  uint8_t zeros[PSCU_SUBQ_FRAME_BYTES] = { 0 };
-  check(pscu_subq_frame_kind(zeros) == PSCU_FRAME_LOST, "an empty frame is lost subcode");
-
-  uint8_t zero_byte_set[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0, 0, 0, 0x01U, 0, 0, 0, 0, 0 };
-  check(pscu_subq_frame_kind(zero_byte_set) == PSCU_FRAME_LOST,
-        "a lead-in frame with a nonzero ZERO byte is lost");
-
-  uint8_t failed[PSCU_SUBQ_FRAME_BYTES] = { 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU,
-                                            0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU };
-  check(pscu_subq_frame_kind(failed) == PSCU_FRAME_LOST, "a failed capture frame is lost");
-}
-
-static pscu_stealth_t stealth_accepted(void) {
-  pscu_stealth_step_t armed = pscu_stealth_step(pscu_stealth_init(), true, PSCU_FRAME_LEAD_IN, 16U);
-  return pscu_stealth_step(armed.state, true, PSCU_FRAME_PROGRAM, 16U).state;
-}
-
-static pscu_stealth_t stealth_feed(pscu_stealth_t state, pscu_frame_kind_t kind, uint16_t count) {
-  pscu_stealth_t next = state;
-  for (uint16_t i = 0U; i < count; i++) {
-    next = pscu_stealth_step(next, false, kind, 16U).state;
-  }
-  return next;
-}
-
-static void test_stealth_acceptance(void) {
-  pscu_stealth_step_t armed = pscu_stealth_step(pscu_stealth_init(), true, PSCU_FRAME_LEAD_IN, 16U);
-  pscu_stealth_step_t accept = pscu_stealth_step(armed.state, true, PSCU_FRAME_PROGRAM, 16U);
+static void test_stealth_lid(void) {
+  pscu_stealth_step_t armed = pscu_stealth_step(pscu_stealth_init(), true, false, false, 16U);
+  pscu_stealth_step_t accept = pscu_stealth_step(armed.state, true, true, false, 16U);
   check(!accept.fire && accept.state.accepted, "a program-area frame stops the burst at once");
 
-  pscu_stealth_step_t reread = pscu_stealth_step(accept.state, true, PSCU_FRAME_LEAD_IN, 16U);
-  check(!reread.fire && reread.state.accepted, "a later lead-in read stays silent");
+  pscu_stealth_step_t reread = pscu_stealth_step(accept.state, true, false, false, 16U);
+  check(!reread.fire && reread.state.accepted,
+        "a later lead-in read with the lid shut stays silent");
 
-  pscu_stealth_t seek = stealth_feed(stealth_accepted(), PSCU_FRAME_LOST, 149U);
-  check(seek.accepted && (seek.lost == 149U), "a lost run below the threshold keeps the latch");
+  pscu_stealth_step_t closed_out = pscu_stealth_step(reread.state, false, false, false, 16U);
+  check(closed_out.state.accepted, "leaving the window does not end the acceptance");
 
-  pscu_stealth_t stopped = stealth_feed(stealth_accepted(), PSCU_FRAME_LOST, 150U);
-  check(!stopped.accepted && (stopped.lost == 0U), "150 lost frames release the latch");
+  pscu_stealth_step_t opened = pscu_stealth_step(closed_out.state, true, false, true, 16U);
+  check(!opened.fire && !opened.state.accepted && (opened.state.sent == 0U),
+        "an open lid emits nothing and forgets the disc");
 
-  pscu_stealth_t clock_8 = stealth_feed(stealth_accepted(), PSCU_FRAME_SILENT, 8U);
-  check(clock_8.accepted && (clock_8.lost == 136U), "eight silent captures keep the latch");
+  pscu_stealth_step_t open_program = pscu_stealth_step(opened.state, true, true, true, 16U);
+  check(!open_program.state.accepted, "a frame read while the lid is open cannot latch");
 
-  pscu_stealth_t clock_9 = stealth_feed(stealth_accepted(), PSCU_FRAME_SILENT, 9U);
-  check(!clock_9.accepted, "nine silent captures release the latch");
+  pscu_stealth_step_t disc2 = pscu_stealth_step(open_program.state, true, false, false, 16U);
+  check(disc2.fire && (disc2.state.sent == 1U), "after the lid closes the next disc is injected");
 
-  pscu_stealth_t interrupted = stealth_feed(stealth_accepted(), PSCU_FRAME_LOST, 149U);
-  interrupted = stealth_feed(interrupted, PSCU_FRAME_LEAD_IN, 1U);
-  interrupted = stealth_feed(interrupted, PSCU_FRAME_LOST, 1U);
-  check(interrupted.accepted && (interrupted.lost == 1U), "a readable frame restarts the lost run");
-
-  pscu_stealth_t toc = stealth_feed(stealth_accepted(), PSCU_FRAME_LEAD_IN, 224U);
-  check(toc.accepted && (toc.lead_in == 224U), "a TOC re-read below the threshold stays silent");
-
-  pscu_stealth_t stuck = stealth_feed(stealth_accepted(), PSCU_FRAME_LEAD_IN, 225U);
-  check(!stuck.accepted && (stuck.lead_in == 0U), "225 lead-in frames without play release it");
-
-  pscu_stealth_t back = stealth_feed(stealth_accepted(), PSCU_FRAME_LEAD_IN, 224U);
-  back = stealth_feed(back, PSCU_FRAME_PROGRAM, 1U);
-  back = stealth_feed(back, PSCU_FRAME_LEAD_IN, 1U);
-  check(back.accepted && (back.lead_in == 1U), "returning to play restarts the lead-in run");
-
-  pscu_stealth_step_t disc2 = pscu_stealth_step(stuck, true, PSCU_FRAME_LEAD_IN, 16U);
-  check(disc2.fire, "after release the next disc's check is injected");
+  pscu_stealth_step_t mid = pscu_stealth_step(disc2.state, true, false, true, 16U);
+  check(!mid.fire && (mid.state.sent == 0U), "an open lid mid-burst ends the burst");
 }
 
 static void test_diag(void) {
@@ -414,8 +364,7 @@ int main(void) {
   test_board_saturates();
   test_inject();
   test_stealth();
-  test_frame_kind();
-  test_stealth_acceptance();
+  test_stealth_lid();
   test_diag();
   test_program_area();
   test_failed_capture();

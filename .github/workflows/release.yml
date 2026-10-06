@@ -15,8 +15,7 @@ name: Release
 # CHANGELOG.md, commits it with [skip ci], tags, and creates the GitHub release
 # with generated notes. The per-console SCEx images are then built in the pinned
 # toolchain, hashed into SHA256SUMS, given a build-provenance attestation, and
-# attached with the LICENSE. BIOS-patch images are not published: their timing
-# constants are not yet derived for this chip (AGENTS.md rule 9).
+# attached with the LICENSE.
 on:
   workflow_run:
     workflows: [CI]

@@ -43,10 +43,4 @@
 // what makes it stealth.
 #define PSCU_STEALTH_STRINGS ((uint8_t)16U)
 
-// The boot-ROM BIOS patch constants (PSCU_BIOS_ENABLED and, when enabled, the
-// per-model PSCU_BIOS_SILENCE/CONFIRMS/PULSES/OFFSET_CYCLES/OVERRIDE_CYCLES)
-// are supplied on the command line by the Makefile's BIOS knob, not here: only
-// the selected model's values then exist, and assembly as well as C can read
-// them. See the BIOS block in the Makefile and bios.c.
-
 #endif

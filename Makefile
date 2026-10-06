@@ -5,19 +5,20 @@ PYTHON ?= python3
 BUILD := build
 NAME := openscex-modchip
 
-MCU ?= attiny85
-MCUS := attiny85 attiny84
+# The ATtiny84 is the only target: its spare pins carry the mandatory lid line,
+# and its clock input, which takes the console clock, does not share a pin with
+# the LED as the ATtiny85's does.
+MCU := attiny84
 FLASH_BYTES := 8192
 
-CLOCK ?= internal
-EXT_F_CPU ?= 4233600UL
-ifeq ($(CLOCK),external)
-F_CPU := $(EXT_F_CPU)
-CLOCK_TAG := -extclk
-else
-F_CPU := 8000000UL
-CLOCK_TAG :=
-endif
+# The chip always runs from the console clock on CLKI (PB0), never from its
+# internal RC oscillator, so every delay is locked to the console's crystal.
+# 4.2336 MHz is the mechacon clock, 16.9344 MHz divided by four: Concluded from
+# that snippet and from the Mayumi V4 binary, which runs from the same clock
+# with a delay loop of 182 x 6 cycles where the MM3 port on a 4 MHz RC uses 170,
+# a ratio of 1.071 against 4.2336 / 4.0 = 1.058. The 2026-10-05 hardware results
+# on PU-18 and PM-41 include external-clock builds at this default.
+F_CPU := 4233600UL
 
 # Injection bit timing. adaptive (default) locks the WFCK-carrier injection bit
 # to the console clock by counting WFCK periods, so the modern-board bit cell is
@@ -67,74 +68,11 @@ REGION_DEF :=
 REGION_TAG :=
 endif
 
-# Boot-ROM BIOS patch model, ATtiny84 only. none (default) links the no-op and
-# builds the SCEx-only firmware both chips share; a model name selects the real
-# patch and defines its per-BIOS constants. Use it as, e.g.,
-# make MCU=attiny84 BIOS=scph_102.
-BIOS ?= none
-# One-phase models drive a single override; the two oldest Japanese models drive
-# a second one on AY, selected by PSCU_BIOS_TWO_PHASE with its own constants.
-# PSCU_BIOS_NOISE_TOLERANCE is how many spurious AX highs a quiet window may
-# carry and still count as silent, so a brief line glitch does not reset the
-# boot-stage detection. It is small against PSCU_BIOS_SILENCE, so a real pulse
-# train still breaks a window. Simulation-only, like every BIOS constant.
-#
-# The per-model values below are Read from PsNee V9.0 settings.h:81-145, the
-# ATmega328P column, which PsNee marks as its tested values (kalymos/PsNee
-# commit 0d2290a). SCPH-100 and SCPH-102 share one block there. They are
-# PsNee's figures for a 16 MHz ATmega that counts the final edge in an
-# interrupt; this chip polls at 8 MHz, so the silence counts and cycle offsets
-# are not yet derived for it (AGENTS rule 10) and the BIOS builds stay
-# experimental until that derivation and a console confirm them.
-BIOS_NOISE := -DPSCU_BIOS_NOISE_TOLERANCE=2U
-BIOS_ONE := -DPSCU_BIOS_ENABLED=1 -DPSCU_BIOS_TWO_PHASE=0 $(BIOS_NOISE)
-BIOS_TWO := -DPSCU_BIOS_ENABLED=1 -DPSCU_BIOS_TWO_PHASE=1 $(BIOS_NOISE)
-ifeq ($(BIOS),none)
-BIOS_DEF := -DPSCU_BIOS_ENABLED=0 -DPSCU_BIOS_TWO_PHASE=0
-BIOS_SRC := src/bios_none.c
-BIOS_TAG :=
-else ifeq ($(BIOS),scph_102)
-BIOS_DEF := $(BIOS_ONE) -DPSCU_BIOS_SILENCE=1500U -DPSCU_BIOS_CONFIRMS=8U -DPSCU_BIOS_PULSES=47U -DPSCU_BIOS_OFFSET_CYCLES=47 -DPSCU_BIOS_OVERRIDE_CYCLES=3
-BIOS_SRC := src/bios.c
-BIOS_TAG := -scph_102
-else ifeq ($(BIOS),scph_100)
-BIOS_DEF := $(BIOS_ONE) -DPSCU_BIOS_SILENCE=1500U -DPSCU_BIOS_CONFIRMS=8U -DPSCU_BIOS_PULSES=47U -DPSCU_BIOS_OFFSET_CYCLES=47 -DPSCU_BIOS_OVERRIDE_CYCLES=3
-BIOS_SRC := src/bios.c
-BIOS_TAG := -scph_100
-else ifeq ($(BIOS),scph_7000_9000)
-BIOS_DEF := $(BIOS_ONE) -DPSCU_BIOS_SILENCE=1500U -DPSCU_BIOS_CONFIRMS=1U -DPSCU_BIOS_PULSES=15U -DPSCU_BIOS_OFFSET_CYCLES=47 -DPSCU_BIOS_OVERRIDE_CYCLES=3
-BIOS_SRC := src/bios.c
-BIOS_TAG := -scph_7000_9000
-else ifeq ($(BIOS),scph_3500_5500)
-BIOS_DEF := $(BIOS_ONE) -DPSCU_BIOS_SILENCE=32000U -DPSCU_BIOS_CONFIRMS=1U -DPSCU_BIOS_PULSES=84U -DPSCU_BIOS_OFFSET_CYCLES=47 -DPSCU_BIOS_OVERRIDE_CYCLES=3
-BIOS_SRC := src/bios.c
-BIOS_TAG := -scph_3500_5500
-else ifeq ($(BIOS),scph_1000)
-BIOS_DEF := $(BIOS_TWO) -DPSCU_BIOS_SILENCE=1500U -DPSCU_BIOS_CONFIRMS=9U -DPSCU_BIOS_PULSES=91U -DPSCU_BIOS_OFFSET_CYCLES=45 -DPSCU_BIOS_OVERRIDE_CYCLES=3 -DPSCU_BIOS_CONFIRMS_2=222U -DPSCU_BIOS_PULSES_2=70U -DPSCU_BIOS_OFFSET_2_CYCLES=48 -DPSCU_BIOS_OVERRIDE_2_CYCLES=3
-BIOS_SRC := src/bios.c
-BIOS_TAG := -scph_1000
-else ifeq ($(BIOS),scph_3000)
-BIOS_DEF := $(BIOS_TWO) -DPSCU_BIOS_SILENCE=1500U -DPSCU_BIOS_CONFIRMS=9U -DPSCU_BIOS_PULSES=59U -DPSCU_BIOS_OFFSET_CYCLES=45 -DPSCU_BIOS_OVERRIDE_CYCLES=3 -DPSCU_BIOS_CONFIRMS_2=206U -DPSCU_BIOS_PULSES_2=42U -DPSCU_BIOS_OFFSET_2_CYCLES=48 -DPSCU_BIOS_OVERRIDE_2_CYCLES=3
-BIOS_SRC := src/bios.c
-BIOS_TAG := -scph_3000
-else
-$(error unknown BIOS model '$(BIOS)'; use none, scph_102, scph_100, scph_7000_9000, scph_3500_5500, scph_1000 or scph_3000)
-endif
-
-# The BIOS patch needs the ATtiny84's spare pins, so refuse it on any other chip
-# with a clear message rather than a cryptic assembler error about the missing
-# pin macros.
-ifneq ($(BIOS),none)
-ifneq ($(MCU),attiny84)
-$(error BIOS=$(BIOS) needs MCU=attiny84; the ATtiny85 has no pins for the boot-ROM patch)
-endif
-endif
-
-# Each clock, region, BIOS, timing and filter build differs in generated code,
-# so their objects must never share a directory; VARIANT keeps them separate.
-# An empty VARIANT (internal-clock America, no patch) keeps the plain artifact
-# name the sim uses.
-VARIANT := $(CLOCK_TAG)$(REGION_TAG)$(BIOS_TAG)$(TIMING_TAG)$(VCD_TAG)
+# Each region, timing and filter build differs in generated code, so their
+# objects must never share a directory; VARIANT keeps them separate. An empty
+# VARIANT (America, adaptive timing, no filter) keeps the plain artifact name
+# the sim uses.
+VARIANT := $(REGION_TAG)$(TIMING_TAG)$(VCD_TAG)
 
 CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate format \
 	precommit image image_size image_misra
@@ -152,7 +90,7 @@ hooks:
 ifndef PSCU_TOOLCHAIN
 
 $(CONTAINER_TARGETS):
-	$(PYTHON) tools/docker_make.py $@ MCU=$(MCU) CLOCK=$(CLOCK) EXT_F_CPU=$(EXT_F_CPU) REGION=$(REGION) BIOS=$(BIOS) TIMING=$(TIMING) VCD_FILTER=$(VCD_FILTER)
+	$(PYTHON) tools/docker_make.py $@ REGION=$(REGION) TIMING=$(TIMING) VCD_FILTER=$(VCD_FILTER)
 
 else
 
@@ -170,17 +108,10 @@ HOST_CFLAGS := $(C_STD) -Iinclude $(WARNINGS)
 LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c src/diag.c
 HOST_LOGIC_C := $(LOGIC_C)
 
-# The SCEx stealth firmware is shared by both chips; BIOS_SRC adds the patch
-# (bios.c) or the no-op (bios_none.c).
-SCEX_C := $(LOGIC_C) src/engine.c src/run.c src/main.c
-FIRMWARE_C := $(SCEX_C) $(BIOS_SRC)
-ifeq ($(MCU),attiny84)
+FIRMWARE_C := $(LOGIC_C) src/engine.c src/run.c src/main.c
 CPPCHECK_MCU_DEF := -D__AVR_ATtiny84__
-else
-CPPCHECK_MCU_DEF := -D__AVR_ATtiny85__
-endif
 
-ALL_SRC_C := $(SCEX_C) src/bios.c src/bios_none.c
+ALL_SRC_C := $(FIRMWARE_C)
 FIRMWARE_S := src/port.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
 HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c
@@ -191,16 +122,15 @@ SIM_TEST := $(BUILD)/sim/sim_test
 SIM_CFLAGS := $(C_STD) -O2 -Wall -Wextra -Werror \
 	$(patsubst -I%,-isystem %,$(shell pkg-config --cflags simavr libelf))
 SIM_LIBS := $(shell pkg-config --libs simavr libelf)
-SIM_CLOCKS_HZ := 7200000 8000000 8800000
 
 RELEASE := $(BUILD)/$(MCU)$(VARIANT)/release
 RELEASE_ELF := $(RELEASE)/$(NAME)-$(MCU)$(VARIANT).elf
 RELEASE_HEX := $(RELEASE)/$(NAME)-$(MCU)$(VARIANT).hex
 RELEASE_OBJECTS := $(patsubst src/%,$(RELEASE)/%.o,$(FIRMWARE_C) $(FIRMWARE_S))
 
-AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(BIOS_DEF) $(TIMING_DEF) $(VCD_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
+AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(TIMING_DEF) $(VCD_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
 	$(WARNINGS) -fno-common -ffunction-sections -fdata-sections
-AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) $(BIOS_DEF) $(TIMING_DEF) -Iinclude -Wall -Wextra -Werror
+AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) $(TIMING_DEF) -Iinclude -Wall -Wextra -Werror
 AVR_LDFLAGS := -mmcu=$(MCU) -Os -flto -Wl,--gc-sections
 
 AVR_INCLUDE := /usr/lib/avr/include
@@ -209,17 +139,15 @@ CPPCHECK_FLAGS := --std=c17 --platform=avr8 --enable=all --check-level=exhaustiv
 	--error-exitcode=1 --suppress=checkersReport --inline-suppr \
 	'--suppress=*:$(AVR_INCLUDE)/*' '--suppress=*:$(AVR_GCC_INCLUDE)/*' \
 	-Iinclude -I$(AVR_INCLUDE) -I$(AVR_GCC_INCLUDE) \
-	$(CPPCHECK_MCU_DEF) $(REGION_DEF) $(BIOS_DEF) $(TIMING_DEF) $(VCD_DEF) -DF_CPU=$(F_CPU)
+	$(CPPCHECK_MCU_DEF) $(REGION_DEF) $(TIMING_DEF) $(VCD_DEF) -DF_CPU=$(F_CPU)
 CPPCHECK_CONFIGS := -DPSCU_DEBUG -UPSCU_DEBUG
 
-all:
-	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) image &&) true
+all: image
 
 image: $(RELEASE_HEX)
 
-# Objects also depend on this Makefile: the per-model BIOS constants and the
-# build knobs live here as -D flags, so changing one must rebuild the objects
-# rather than link stale ones.
+# Objects also depend on this Makefile: the build knobs live here as -D flags,
+# so changing one must rebuild the objects rather than link stale ones.
 $(RELEASE)/%.c.o: src/%.c $(FIRMWARE_H) Makefile
 	@mkdir -p $(@D)
 	$(AVR_CC) $(AVR_CFLAGS) -c -o $@ $<
@@ -234,8 +162,7 @@ $(RELEASE_ELF): $(RELEASE_OBJECTS)
 $(RELEASE_HEX): $(RELEASE_ELF)
 	$(AVR_OBJCOPY) -O ihex -R .eeprom $< $@
 
-size:
-	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) image_size &&) true
+size: image_size
 
 image_size: $(RELEASE_ELF)
 	$(AVR_SIZE) $(RELEASE_ELF)
@@ -250,26 +177,19 @@ $(HOST_TEST): $(HOST_LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -O0 -DPSCU_DEBUG --coverage -o $@ $(HOST_LOGIC_C) $(HOST_TEST_C)
 
-SIM_ELF85 := $(BUILD)/attiny85/release/$(NAME)-attiny85.elf
-SIM_ELF84 := $(BUILD)/attiny84/release/$(NAME)-attiny84.elf
-SIM_ELF84_BIOS := $(BUILD)/attiny84-scph_102/release/$(NAME)-attiny84-scph_102.elf
-SIM_ELF84_BIOS2 := $(BUILD)/attiny84-scph_1000/release/$(NAME)-attiny84-scph_1000.elf
-SIM_ELF85_VCD := $(BUILD)/attiny85-jp-vcd/release/$(NAME)-attiny85-jp-vcd.elf
+SIM_ELF := $(BUILD)/attiny84/release/$(NAME)-attiny84.elf
+SIM_ELF_VCD := $(BUILD)/attiny84-jp-vcd/release/$(NAME)-attiny84-jp-vcd.elf
 
 $(SIM_TEST): $(SIM_TEST_C) all
 	@mkdir -p $(@D)
 	$(HOST_CC) $(SIM_CFLAGS) -o $@ $(SIM_TEST_C) $(SIM_LIBS)
 
-# Build one single-phase and one two-phase ATtiny84 BIOS image and the ATtiny85
-# SCPH-5903 Video-CD image, and hand them to the 8 MHz run as the fourth, fifth
-# and sixth arguments; the SCEx scenarios run on both base images at every clock.
+# The simulator runs the firmware at the console clock it is built for; there is
+# no oscillator tolerance band to sweep, because the chip never runs from its own
+# RC. The SCPH-5903 Video-CD image is the optional second argument.
 simtest: $(SIM_TEST)
-	$(MAKE) --no-print-directory MCU=attiny84 BIOS=scph_102 image
-	$(MAKE) --no-print-directory MCU=attiny84 BIOS=scph_1000 image
-	$(MAKE) --no-print-directory MCU=attiny85 REGION=jp VCD_FILTER=on image
-	$(SIM_TEST) $(SIM_ELF85) $(SIM_ELF84) 7200000
-	$(SIM_TEST) $(SIM_ELF85) $(SIM_ELF84) 8000000 $(SIM_ELF84_BIOS) $(SIM_ELF84_BIOS2) $(SIM_ELF85_VCD)
-	$(SIM_TEST) $(SIM_ELF85) $(SIM_ELF84) 8800000
+	$(MAKE) --no-print-directory REGION=jp VCD_FILTER=on image
+	$(SIM_TEST) $(SIM_ELF) $(F_CPU) $(SIM_ELF_VCD)
 
 test: hosttest simtest
 
@@ -292,8 +212,7 @@ analyse: all
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage run --branch --source=tools -m unittest discover -s tests -t . -p 'test_*.py'
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage report -m
 
-misra:
-	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) image_misra &&) true
+misra: image_misra
 
 image_misra:
 	$(foreach config,$(CPPCHECK_CONFIGS),cppcheck $(CPPCHECK_FLAGS) $(config) --addon=misra $(FIRMWARE_C) &&) true
@@ -303,8 +222,8 @@ REPRO_B := $(BUILD)/repro-b
 
 repro:
 	rm -rf $(REPRO_A) $(REPRO_B)
-	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) BUILD=$(REPRO_A) image &&) true
-	$(foreach mcu,$(MCUS),$(MAKE) --no-print-directory MCU=$(mcu) BUILD=$(REPRO_B) image &&) true
+	$(MAKE) --no-print-directory BUILD=$(REPRO_A) image
+	$(MAKE) --no-print-directory BUILD=$(REPRO_B) image
 	cd $(REPRO_A) && find . -type f \( -name '*.hex' -o -name '*.elf' \) | sort | xargs sha256sum > $(CURDIR)/$(BUILD)/repro-a.sums
 	cd $(REPRO_B) && find . -type f \( -name '*.hex' -o -name '*.elf' \) | sort | xargs sha256sum > $(CURDIR)/$(BUILD)/repro-b.sums
 	diff $(BUILD)/repro-a.sums $(BUILD)/repro-b.sums

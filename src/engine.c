@@ -26,9 +26,6 @@
 // 300 ms "for WFCK to stabilize" before the same 10000-sample window, field-proven
 // across PU-7 to PM-41.
 #define PSCU_DETECT_SETTLE_MS ((uint16_t)300U)
-// Upper bound on polling for an SQCK edge, so a dead clock can never hang the
-// loop forever; the watchdog is also kicked while waiting.
-#define PSCU_WAIT_MAX ((uint16_t)0xFFFFU)
 // One SCEx bit cell is 4 ms (about 250 baud), the rate the mechacon expects.
 #define PSCU_BIT_MS ((uint16_t)4U)
 #define PSCU_SUBQ_BITS ((uint8_t)8U)
@@ -42,22 +39,34 @@
 // Polling for continuous idle rather than sleeping a fixed time also realigns
 // when the previous capture ended inside a burst, as it can at boot or after the
 // blocking injection. The poll count is the millisecond divided by the cost of
-// one idle pass of pscu_wait_sqck_idle: 36 cycles, counted from the avr-gcc
-// 14.2 -Os listing of that loop (the read and watchdog calls are rcall plus ret,
-// 3 and 4 cycles on the ATtiny core; the 32-bit count adds the rest). Recount it
-// if the loop changes. The count stays unsigned long so no cast narrows it.
-#define PSCU_SQCK_IDLE_POLL_CYCLES (36UL)
+// one idle pass of pscu_wait_sqck_idle with SQCK high: 40 cycles, counted from
+// the avr-gcc 14.2 -Os listing of the ATtiny84 image (the read and watchdog
+// calls are rcall plus ret, 3 and 4 cycles on the ATtiny core; the 32-bit quiet
+// count and the bound compare add the rest). Recount it if the loop changes.
+// The count stays unsigned long so no cast narrows it.
+#define PSCU_SQCK_IDLE_POLL_CYCLES (40UL)
 #define PSCU_SQCK_IDLE_POLLS (F_CPU / (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES))
+// Every SQCK wait gives up after 30 ms. That still covers the longest real wait,
+// the inter-frame gap before a burst's first edge (a frame every 13.3 ms at
+// single speed), yet a stopped drive fails a capture within about 60 ms, so the
+// run loop reads the lid at least that often and no disc swap can open and
+// close the lid unseen. The poll counts are 30 ms divided by the measured cost
+// of one pass: 32 cycles for either edge wait, 40 for the idle wait, from the
+// same listing as above.
+#define PSCU_WAIT_MS (30UL)
+#define PSCU_SQCK_EDGE_POLL_CYCLES (32UL)
+#define PSCU_SQCK_EDGE_WAIT_POLLS ((F_CPU * PSCU_WAIT_MS) / (1000UL * PSCU_SQCK_EDGE_POLL_CYCLES))
+#define PSCU_SQCK_IDLE_WAIT_POLLS ((F_CPU * PSCU_WAIT_MS) / (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES))
 // A frame that could not be captured is filled with this value. Its TNO and ZERO
 // bytes are nonzero, so the pure SUBQ logic treats it as a miss and never as the
 // program area.
 #define PSCU_SUBQ_FAILED_BYTE ((uint8_t)0xFFU)
 
 // SUBQ is clocked by SQCK; each bit is valid across one low-then-high cycle.
-// These two helpers block until the next edge, bounded by PSCU_WAIT_MAX.
+// These two helpers block until the next edge, bounded by 30 ms of polls.
 static bool pscu_wait_sqck_low(void) {
   bool found = false;
-  for (uint16_t i = 0U; (i < PSCU_WAIT_MAX) && !found; i++) {
+  for (uint32_t i = 0U; (i < PSCU_SQCK_EDGE_WAIT_POLLS) && !found; i++) {
     if (pscu_port_read_sqck() == 0U) {
       found = true;
     } else {
@@ -69,7 +78,7 @@ static bool pscu_wait_sqck_low(void) {
 
 static bool pscu_wait_sqck_high(void) {
   bool found = false;
-  for (uint16_t i = 0U; (i < PSCU_WAIT_MAX) && !found; i++) {
+  for (uint32_t i = 0U; (i < PSCU_SQCK_EDGE_WAIT_POLLS) && !found; i++) {
     if (pscu_port_read_sqck() != 0U) {
       found = true;
     } else {
@@ -81,11 +90,11 @@ static bool pscu_wait_sqck_high(void) {
 
 // Block until SQCK has read high for PSCU_SQCK_IDLE_POLLS consecutive polls,
 // meaning the clock is in the gap between frames. Any low restarts the count. The
-// whole wait is bounded by PSCU_WAIT_MAX polls, so a clock that never idles (or a
+// whole wait is bounded by 30 ms of polls, so a clock that never idles (or a
 // line stuck low) fails the capture instead of hanging the loop.
 static bool pscu_wait_sqck_idle(void) {
   uint32_t quiet = 0U;
-  for (uint16_t i = 0U; (i < PSCU_WAIT_MAX) && (quiet < PSCU_SQCK_IDLE_POLLS); i++) {
+  for (uint32_t i = 0U; (i < PSCU_SQCK_IDLE_WAIT_POLLS) && (quiet < PSCU_SQCK_IDLE_POLLS); i++) {
     if (pscu_port_read_sqck() != 0U) {
       quiet = quiet + 1U;
     } else {
@@ -145,12 +154,18 @@ static void pscu_inject_bit(uint8_t bit_value, pscu_board_mode_t mode) {
   pscu_port_watchdog_reset();
 }
 
+// The lid is read before every bit, so a string stops within one 4 ms bit cell
+// of the lid opening, mid-string included, and the caller then releases DATA. A
+// disc that is leaving the drive never sees the rest of a region string, the
+// same reaction Mayumi V4 gets by polling its door input inside every delay.
 static void pscu_inject_region(pscu_region_t region, pscu_board_mode_t mode) {
   PSCU_ASSERT((uint8_t)region < PSCU_REGION_COUNT);
 
-  for (uint8_t bit = 0U; bit < PSCU_SCEX_BIT_COUNT; bit++) {
+  bool lid_closed = pscu_port_read_lid() == 0U;
+  for (uint8_t bit = 0U; (bit < PSCU_SCEX_BIT_COUNT) && lid_closed; bit++) {
     uint8_t bit_value = pscu_region_bit(region, bit);
     pscu_inject_bit(bit_value, mode);
+    lid_closed = pscu_port_read_lid() == 0U;
   }
 }
 
@@ -169,9 +184,8 @@ pscu_board_mode_t pscu_engine_detect_board(void) {
 
 // Wait for the inter-frame gap, then clock in one whole frame. If the gap never
 // comes or any edge times out, the frame is filled with PSCU_SUBQ_FAILED_BYTE so
-// the logic layer reads it as a miss, a partial frame is never passed on, and
-// the call returns false so the run loop knows the clock went silent.
-bool pscu_engine_capture_frame(uint8_t *frame) {
+// the logic layer reads it as a miss; a partial frame is never passed on.
+void pscu_engine_capture_frame(uint8_t *frame) {
   PSCU_ASSERT(frame != NULL);
 
   bool ok = pscu_wait_sqck_idle();
@@ -183,7 +197,6 @@ bool pscu_engine_capture_frame(uint8_t *frame) {
       frame[byte] = PSCU_SUBQ_FAILED_BYTE;
     }
   }
-  return ok;
 }
 
 // Emit exactly one region word, the one this build was configured for, then

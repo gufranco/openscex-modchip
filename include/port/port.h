@@ -48,29 +48,14 @@ void pscu_port_bit_mirror(void);
 // wait for any prior write to finish and kick the watchdog while waiting, so a
 // call is self-contained. The firmware writes only after it has gone idle, never
 // at boot or inside the injection window, so the write latency never perturbs
-// injection timing. Both chips expose the same EEPROM registers, so one
-// implementation serves the ATtiny85 and ATtiny84.
+// injection timing.
 uint8_t pscu_port_eeprom_read(uint8_t address);
 
 void pscu_port_eeprom_write(uint8_t address, uint8_t value);
 
-// BIOS-patch primitives, implemented only in the ATtiny84 full build. One reports
-// (and clears) whether the last reset came from the watchdog; two read the
-// address lines AX and AY; the override counts the given number of further AX
-// rising edges and then drives the data-bus override DX for the configured,
-// cycle-accurate window. They are declared here for every build but referenced
-// only by the BIOS patch, so non-patch builds neither link nor call them.
-uint8_t pscu_port_reset_was_watchdog(void);
-
-uint8_t pscu_port_bios_ax(void);
-
-uint8_t pscu_port_bios_ay(void);
-
-void pscu_port_bios_override(uint8_t pulses);
-
-// The second override, driven by the AY address line, for the two oldest
-// Japanese models whose BIOS reads the region twice. Built only in two-phase
-// BIOS builds, otherwise neither linked nor called.
-void pscu_port_bios_override_ay(uint8_t pulses);
+// The lid line: nonzero while the lid is open. A swap is seen here directly, so
+// the run loop re-arms injection for the next disc on the close, and the
+// injection path stops a string the moment the lid opens.
+uint8_t pscu_port_read_lid(void);
 
 #endif

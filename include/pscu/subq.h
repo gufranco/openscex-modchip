@@ -18,22 +18,6 @@
 // frames. See subq.c.
 uint8_t pscu_subq_update_counter(const uint8_t *frame, uint8_t counter, bool vcd_filter);
 
-// What one capture says about the drive, as the stealth latch needs it. LEAD_IN
-// is a well-formed lead-in frame (TNO and ZERO byte 0x00, audio or data content),
-// PROGRAM a program-area frame, LOST anything else the drive clocked out (seek
-// noise, a stopping disc, a malformed frame), and SILENT a capture that failed
-// because SQCK never clocked, which the run loop reports since the frame itself
-// carries no sign of it.
-typedef enum {
-  PSCU_FRAME_LEAD_IN = 0,
-  PSCU_FRAME_PROGRAM = 1,
-  PSCU_FRAME_LOST = 2,
-  PSCU_FRAME_SILENT = 3
-} pscu_frame_kind_t;
-
-// Classify one captured frame as LEAD_IN, PROGRAM or LOST. Pure and host-tested.
-pscu_frame_kind_t pscu_subq_frame_kind(const uint8_t *frame);
-
 // True when the frame shows the console reading the program area: a content
 // frame whose track number TNO is a BCD track 01..99, which the mechacon only
 // allows once it has accepted the region string. Lead-in (TNO 0x00) and lead-out

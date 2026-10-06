@@ -10,13 +10,12 @@
 
 #include "port/registers.h"
 
-// Busy-loop iteration counts, derived from F_CPU so the delays recalibrate
-// automatically for the internal 8 MHz build and the external-clock build. The
-// delay inner loop is 4 cycles. The mirror inner loop is (10 + shift) cycles,
-// where shift is the pin distance WFCK-DATA that aligns the carrier bit onto
-// DATA (2 on the ATtiny85, 1 on the ATtiny84); computing it from the pins keeps
-// the one-bit cell exactly one millisecond on either chip rather than assuming
-// a fixed loop length.
+// Busy-loop iteration counts, derived from F_CPU, the console clock on CLKI, so
+// every delay is locked to the console's own crystal. The delay inner loop is 4
+// cycles. The mirror inner loop is (10 + shift) cycles, where shift is the pin
+// distance WFCK-DATA that aligns the carrier bit onto DATA; computing it from the
+// pins keeps the one-bit cell exactly one millisecond rather than assuming a
+// fixed loop length.
 #define PSCU_MIRROR_LOOP_CYCLES (10UL + (PSCU_PIN_WFCK - PSCU_PIN_DATA))
 #define PSCU_DELAY_1MS_ITERS (F_CPU / 4000UL)
 #define PSCU_MIRROR_1MS_ITERS (F_CPU / (PSCU_MIRROR_LOOP_CYCLES * 1000UL))
@@ -26,7 +25,7 @@
 // is the single idiom the WFCK read and mirror paths repeat six times; the macro
 // expands to the identical lsr/andi stream, so the emitted machine code is byte
 // for byte unchanged while the call sites read as one named operation. The count
-// is a build-time pin distance from registers.h, so it is exact on either chip.
+// is a build-time pin distance from registers.h, so it follows the board profile.
 .macro pscu_shr_mask reg, count, mask
 	.rept \count
 	lsr \reg
@@ -37,12 +36,15 @@
 	.text
 
 // Bring the chip up. Writing 0x80 then 0x00 to CLKPR within four cycles is the
-// AVR timed sequence that clears the clock prescaler, forcing a true 8 MHz core
-// regardless of the factory CKDIV8 fuse. LED is the only output at boot; the
-// board profile's PORT_INIT enables any pull-ups the variant needs. The two
-// writes to the watchdog register are its own timed sequence: the first arms
-// the change, the second enables the watchdog at a ~0.5 s timeout (WDP2|WDP0),
-// so any hang longer than one loop pass resets the chip instead of wedging it.
+// AVR timed sequence that clears the clock prescaler, so the core runs at the
+// full console clock regardless of the factory CKDIV8 fuse. LED is the only
+// output at boot. The lid input gets its pull-up, so a missing or broken lid
+// wire reads as open and the chip stays silent rather than injecting blind. The
+// two writes to the watchdog register are its own timed sequence: the first
+// arms the change, the second enables the watchdog at a ~0.5 s timeout
+// (WDP2|WDP0), so any hang longer than one loop pass resets the chip instead of
+// wedging it. The watchdog runs from its own 128 kHz oscillator, so its timeout
+// does not depend on the console clock.
 
 	.global pscu_port_init
 	.func pscu_port_init
@@ -55,6 +57,7 @@ pscu_port_init:
 	out _SFR_IO_ADDR(PSCU_DDR), r24
 	ldi r24, PSCU_PORT_INIT
 	out _SFR_IO_ADDR(PSCU_PORT), r24
+	sbi _SFR_IO_ADDR(PORTB), PSCU_PIN_LID
 	wdr
 	ldi r24, (1 << WDCE) | (1 << WDE)
 	out _SFR_IO_ADDR(PSCU_WDT_REG), r24
@@ -185,8 +188,7 @@ pscu_port_data_mirror_wfck_ms:
 	.endfunc
 
 // EEPROM primitives for the diagnostics recorder. The AVR EEPROM is reached
-// through EECR/EEDR/EEAR, identical on the ATtiny85 and ATtiny84, so one copy
-// serves both. Each call first spins until EEPE clears, meaning any earlier
+// through EECR/EEDR/EEAR. Each call first spins until EEPE clears, meaning any earlier
 // write has finished, kicking the watchdog so the wait can never wedge the chip.
 // r1 is the compiler's fixed zero register, so the high address byte is cleared
 // by writing it; our addresses are always below 256. The firmware calls these
@@ -334,132 +336,12 @@ pscu_port_bit_mirror:
 #endif
 	.endfunc
 
-#if PSCU_BIOS_ENABLED
-
-// Report whether the last reset came from the watchdog, and clear the reset
-// flags so the next reset reports its own cause. The BIOS patch only makes sense
-// while the console is booting; after a watchdog reset (a stalled carrier or AX
-// line mid-session) the console is already running, and overriding its data bus
-// then would corrupt it, so the patch is skipped. Clearing WDRF also lifts the
-// hardware override that forces WDE on; the watchdog stays enabled because
-// pscu_port_init set WDE itself. r1 is the compiler's zero register.
-	.global pscu_port_reset_was_watchdog
-	.func pscu_port_reset_was_watchdog
-pscu_port_reset_was_watchdog:
-	in r24, _SFR_IO_ADDR(MCUSR)
-	andi r24, (1 << WDRF)
-	out _SFR_IO_ADDR(MCUSR), r1
-	ret
-	.endfunc
-
-// Read the address line AX. Unlike the SCEx signals on PORTA, AX is on PB2
-// (INT0), so it reads PINB directly and returns the masked bit.
-	.global pscu_port_bios_ax
-	.func pscu_port_bios_ax
-pscu_port_bios_ax:
+// The lid line sits on PORTB, apart from the SCEx signals on PORTA, so it reads
+// PINB directly and returns the masked bit: nonzero while the lid is open.
+	.global pscu_port_read_lid
+	.func pscu_port_read_lid
+pscu_port_read_lid:
 	in r24, _SFR_IO_ADDR(PINB)
-	andi r24, (1 << PSCU_PIN_AX)
+	andi r24, (1 << PSCU_PIN_LID)
 	ret
 	.endfunc
-
-// Read the address line AY, which the two-phase models watch for their second
-// window. It sits on PORTA with the SCEx signals.
-	.global pscu_port_bios_ay
-	.func pscu_port_bios_ay
-pscu_port_bios_ay:
-	in r24, _SFR_IO_ADDR(PINA)
-	andi r24, (1 << PSCU_PIN_AY)
-	ret
-	.endfunc
-
-// Count r24 further rising edges on AX, then override the data-bus bit DX. The C
-// caller has already waited, bounded, for the train's first rising edge, so the
-// gaps left to wait out here are the microsecond ones inside the train. On the
-// final edge the cycle-accurate window begins: wait the model's bit-offset, drive DX
-// (low on the one-phase models, high then low on the two-phase ones, see
-// below), hold for the override window, then release to high-Z. The offset and override lengths are fixed nop
-// runs sized at assemble time from the per-model constants, so the timing is
-// exact and carries no loop overhead. The watchdog is kicked once per counted
-// pulse, outside both polling loops, never on every poll and never inside the
-// offset-and-override window where the timing must be exact. Pulses inside a
-// train are microseconds apart, so a live train keeps it fed; if AX stops
-// mid-train (miswired pad, console halted) the watchdog expires after about
-// 0.5 s and resets the chip instead of leaving it waiting forever. The path from
-// the final edge to the override is the same as without the kick.
-	.global pscu_port_bios_override
-	.func pscu_port_bios_override
-pscu_port_bios_override:
-8:
-	wdr
-9:
-	sbic _SFR_IO_ADDR(PINB), PSCU_PIN_AX
-	rjmp 9b
-10:
-	sbis _SFR_IO_ADDR(PINB), PSCU_PIN_AX
-	rjmp 10b
-	subi r24, 1
-	brne 8b
-	.rept PSCU_BIOS_OFFSET_CYCLES
-	nop
-	.endr
-#if PSCU_BIOS_TWO_PHASE
-	// The two-phase models force DX high in this first window, then clear the
-	// port bit while still driving before releasing, so the line ends low and the
-	// second window, which only switches direction, also drives low. Read: PsNee
-	// V9.0 PSNee.ino:202-215, PIN_DX_SET, PIN_DX_OUTPUT, the override delay,
-	// PIN_DX_CLEAR, then PIN_DX_INPUT, for PHASE_TWO_PATCH builds.
-	sbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_DX
-	sbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DX
-	.rept PSCU_BIOS_OVERRIDE_CYCLES
-	nop
-	.endr
-	cbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_DX
-	cbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DX
-#else
-	cbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_DX
-	sbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DX
-	.rept PSCU_BIOS_OVERRIDE_CYCLES
-	nop
-	.endr
-	cbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DX
-#endif
-	ret
-	.endfunc
-
-#if PSCU_BIOS_TWO_PHASE
-
-// The second override for the two-phase models. It counts r24 further falling
-// edges on AY, not rising ones: wait for AY high, then for it to drop, and count
-// that drop. As with AX, the caller has already waited for the first one.
-// Read: PsNee V9.0 PSNee.ino:333 arms the AY interrupt with
-// PIN_AY_INTERRUPT_FALLING. On the last edge it drives DX low for the second
-// window's offset and length; DX is the same data-bus line, and its port bit was
-// left low by the first window.
-	.global pscu_port_bios_override_ay
-	.func pscu_port_bios_override_ay
-pscu_port_bios_override_ay:
-13:
-	wdr
-11:
-	sbis _SFR_IO_ADDR(PINA), PSCU_PIN_AY
-	rjmp 11b
-12:
-	sbic _SFR_IO_ADDR(PINA), PSCU_PIN_AY
-	rjmp 12b
-	subi r24, 1
-	brne 13b
-	.rept PSCU_BIOS_OFFSET_2_CYCLES
-	nop
-	.endr
-	cbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_DX
-	sbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DX
-	.rept PSCU_BIOS_OVERRIDE_2_CYCLES
-	nop
-	.endr
-	cbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DX
-	ret
-	.endfunc
-
-#endif
-
-#endif

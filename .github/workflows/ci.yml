@@ -34,22 +34,14 @@ jobs:
       - name: Mutation testing
         run: make mutate
 
-      - name: Build external-clock variant (compile check)
-        run: make CLOCK=external size
-
       - name: Build other-region variants (compile check)
         run: make REGION=jp size && make REGION=eu size
 
       - name: Build and check the fixed-timing variant
-        run: make TIMING=fixed size && make MCU=attiny85 TIMING=fixed image_misra
+        run: make TIMING=fixed size && make TIMING=fixed image_misra
 
       - name: Build and check the SCPH-5903 Video-CD variant
-        run: make MCU=attiny85 REGION=jp VCD_FILTER=on image_size image_misra
-
-      - name: Build and check the ATtiny84 BIOS variants
-        run: |
-          make MCU=attiny84 BIOS=scph_102 image_size image_misra
-          make MCU=attiny84 BIOS=scph_1000 image_size image_misra
+        run: make REGION=jp VCD_FILTER=on image_size image_misra
 
   # Runs on pull requests and on pushes to main, because releases are versioned
   # from these subjects and most changes land on main directly. Dependabot's own

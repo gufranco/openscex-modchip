@@ -20,8 +20,8 @@
 // it emits up to the cap then goes silent; outside it emits nothing and re-arms,
 // so during play DATA is high-Z and the LED off. The first program-area frame
 // shows the console accepted the string, and from then on the chip stays silent
-// through any later lead-in read until a disc swap, seen as the drive stopping or
-// the console stuck at a new check, re-arms it for the next disc. This is the single
+// through any later lead-in read until the lid opens; the close re-arms it for
+// the next disc, so every swap in a multi-disc game is seen, not inferred. This is the single
 // non-terminating loop the firmware is built around; every call inside it is bounded, and the
 // watchdog is kicked each pass so a stuck signal resets the chip rather than wedging it.
 void pscu_run(void) {
@@ -34,11 +34,13 @@ void pscu_run(void) {
 
   for (;;) {
     uint8_t frame[PSCU_SUBQ_FRAME_BYTES];
-    bool captured = pscu_engine_capture_frame(frame);
-    pscu_frame_kind_t kind = captured ? pscu_subq_frame_kind(frame) : PSCU_FRAME_SILENT;
+    pscu_engine_capture_frame(frame);
     counter = pscu_subq_update_counter(frame, counter, PSCU_VCD_FILTER_ENABLED);
     bool in_window = pscu_should_inject(counter, PSCU_INJECT_TRIGGER);
-    pscu_stealth_step_t step = pscu_stealth_step(stealth, in_window, kind, PSCU_STEALTH_STRINGS);
+    bool program = pscu_subq_is_program_area(frame);
+    bool lid_open = pscu_port_read_lid() != 0U;
+    pscu_stealth_step_t step =
+        pscu_stealth_step(stealth, in_window, program, lid_open, PSCU_STEALTH_STRINGS);
     stealth = step.state;
     if (step.fire) {
       // The first string of an arming starts a new session: a disc swap re-arms
@@ -60,8 +62,8 @@ void pscu_run(void) {
     // or after a bounded idle wait, and each session is recorded once, off the
     // injection path, so the write never costs injection timing.
     if ((injects > 0U) && !logged) {
-      pscu_confirm_step_t outcome = pscu_confirm_step(
-          confirm, !step.fire, pscu_subq_is_program_area(frame), PSCU_CONFIRM_FRAMES);
+      pscu_confirm_step_t outcome =
+          pscu_confirm_step(confirm, !step.fire, program, PSCU_CONFIRM_FRAMES);
       confirm = outcome.state;
       if (outcome.resolved) {
         pscu_engine_log_session(board, injects, outcome.confirmed ? 1U : 0U);

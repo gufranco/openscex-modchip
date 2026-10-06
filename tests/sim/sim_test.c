@@ -16,9 +16,10 @@
 // A software PlayStation, just enough to exercise the firmware end to end in
 // simavr: it drives the console-side pins (SQCK, SUBQ, WFCK) and watches the
 // firmware-side pins (DATA, LED), then decodes the injected bitstream and
-// checks it equals the expected region word. Timing is in CPU cycles, which is
-// independent of the simulated clock frequency, so the same model runs across
-// the oscillator tolerance band.
+// checks it equals the expected region word. It also drives the lid line, a
+// mandatory wire on the ATtiny84's PORTB. Timing is in CPU cycles at the console
+// clock the firmware is built for, 4.2336 MHz, where one cycle is about 236 ns;
+// the comments give each figure in time at that clock.
 
 #define SUBQ_FRAME_BYTES 12
 #define SUBQ_BITS 8
@@ -26,20 +27,21 @@
 #define EDGE_CYCLES 60
 // Idle-high SQCK gap after each frame. A console clocks one frame per sector at
 // 75 Hz, so bursts are separated by most of ~13.3 ms; the firmware resyncs on a
-// gap of at least 1 ms, and 5 ms at 8 MHz sits clearly inside the real gap.
+// gap of at least 1 ms, and 9.4 ms sits clearly inside the real gap.
 #define FRAME_GAP_CYCLES 40000UL
 // Cycles to let the firmware's boot-time board detection complete: the 300 ms
-// WFCK settle (2.4M cycles at 8 MHz) plus the 10000-sample window, with margin.
+// WFCK settle (1.27M cycles) plus the 10000-sample window, with margin (756 ms).
 #define DETECT_CYCLES 3200000UL
-// A carrier that starts this long after power-on (150 ms at 8 MHz) is still
-// inside the settle time, so it must be detected as a carrier board.
+// A carrier that starts this long after power-on (283 ms) is still inside the
+// 300 ms settle time, so it must be detected as a carrier board.
 #define LATE_CARRIER_CYCLES 1200000UL
 #define INJECT_CYCLES 7000000UL
 #define TRIGGER_FRAMES 10
 #define SCEX_BITS 44
-// One SCEx bit cell is 4 ms; at 8 MHz that is 32000 cycles. The decoder samples
-// at this spacing from the LED edge that marks injection start.
-#define BIT_CYCLES 32000UL
+// One SCEx bit cell is 4 ms, so a quarter of a thousandth of the clock rate in
+// cycles. The decoder samples at this spacing from the LED edge that marks
+// injection start.
+#define BIT_CYCLES(freq) ((uint64_t)(freq) / 250U)
 // WFCK carrier the modern-board model oscillates at: ~7.3 kHz during init, and
 // ~14.6 kHz during a 2x data read. The band between them is the real variation
 // the carrier-mirror injection timing must tolerate, so both ends are tested.
@@ -65,27 +67,16 @@ typedef struct {
 // LSB-first. This is the default build's single configured region, so it is
 // the only word the firmware emits; the decoder reconstructs it and compares. A
 // correct decode on both board models proves the encoder and the bit timing.
+
+// The lid line: PB1, read high while the lid is open. The harness drives it on
+// every boot, closed, so each scenario starts as a console with a disc in.
+#define LID_PORT 'B'
+#define LID_PIN 1
 static const char SCEA_BITS[SCEX_BITS + 1] = "10011010100100111101001010111010010111110100";
 
 // The Japan (SCEI) word, which the SCPH-5903 Video-CD build emits: that console
 // is NTSC-J, so its image is built with REGION=jp.
 static const char SCEI_BITS[SCEX_BITS + 1] = "10011010100100111101001010111010010110110100";
-
-#define BIOS_AX_PIN 2
-#define BIOS_AY_PIN 6
-#define BIOS_DX_PIN 5
-// SCPH-102 (one-phase) pulse count, Read from PsNee V9.0 settings.h, and a quiet
-// stretch long enough for its 8 silent windows of 1500 polls.
-#define BIOS_PULSES 47
-#define BIOS_CONFIRM_CYCLES 800000UL
-// SCPH-1000 (two-phase) pulse counts, Read from PsNee V9.0 settings.h, and a run
-// long enough for its 222 second-phase silent windows before the AY pulses.
-#define BIOS2_PULSES_1 91
-#define BIOS2_PULSES_2 70
-#define BIOS2_SILENCE2_CYCLES 12000000UL
-// The override must start right after the final counted edge: well inside the
-// pulse that edge belongs to, never on an earlier pulse.
-#define BIOS_OVERRIDE_WINDOW_CYCLES 200U
 
 static int g_checks = 0;
 static int g_failures = 0;
@@ -93,9 +84,6 @@ static int g_led_seen = 0;
 // The LED rises once per region string, so counting rises counts strings.
 static int g_led_rises = 0;
 static uint64_t g_led_cycle = 0;
-static int g_dx_output = 0;
-static uint64_t g_dx_cycle[2] = { 0, 0 };
-static uint8_t g_dx_level[2] = { 0, 0 };
 
 typedef struct {
   avr_irq_t *irq;
@@ -148,6 +136,17 @@ static avr_irq_t *pin_irq(avr_t *avr, const target_t *t, uint8_t pin) {
   return avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ((uint32_t)t->port), pin);
 }
 
+static avr_irq_t *lid_irq(avr_t *avr) {
+  return avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ((uint32_t)LID_PORT), LID_PIN);
+}
+
+// The firmware's port init turns on the lid pull-up, which simavr reflects on the
+// pin until an external level is driven again. So the harness lets init run,
+// then pulses the lid line high and back low: the console's closed-lid level
+// then holds over the weak pull-up, as on the real board, and every scenario
+// starts with a disc in.
+#define PORT_INIT_CYCLES 2000U
+
 static avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
   elf_firmware_t firmware;
   memset(&firmware, 0, sizeof(firmware));
@@ -157,6 +156,11 @@ static avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
   avr_init(avr);
   avr_load_firmware(avr, &firmware);
   avr->frequency = freq;
+  avr_irq_t *lid = lid_irq(avr);
+  avr_raise_irq(lid, 0U);
+  run_cycles(avr, PORT_INIT_CYCLES);
+  avr_raise_irq(lid, 1U);
+  avr_raise_irq(lid, 0U);
   return avr;
 }
 
@@ -273,7 +277,7 @@ static void scenario_inject(const target_t *t,
   // WFCK_PERIODS_PER_BIT carrier periods, so its length scales with the carrier
   // frequency and the decoder must measure it from wfck_hz, not a constant.
   uint64_t bit_cycles =
-      (modern != 0) ? ((uint64_t)WFCK_PERIODS_PER_BIT * freq / wfck_hz) : BIT_CYCLES;
+      (modern != 0) ? ((uint64_t)WFCK_PERIODS_PER_BIT * freq / wfck_hz) : BIT_CYCLES(freq);
   const char *tag = family;
   char label[96];
   char decoded[SCEX_BITS + 1];
@@ -292,119 +296,6 @@ static void scenario_inject(const target_t *t,
     (void)snprintf(label, sizeof(label), "%s: non-TOC does not inject at %u Hz", tag, freq);
     check(g_led_seen == 0, label);
   }
-}
-
-// Watch the ATtiny84 PORTA direction register: the BIOS patch overrides the
-// data bus by switching DX to an output for a few cycles, so a direction-change
-// IRQ with the DX bit set is the override firing. Catching it by IRQ, not by
-// polling, means the three-cycle window is never missed. For each of the first
-// two overrides it records when it fired and the level DX was driven to, read
-// from the port register at that instant (the port bit is set before the
-// direction switches, so it already holds the driven level).
-static void on_dx_direction(struct avr_irq_t *irq, uint32_t value, void *param) {
-  avr_t *avr = param;
-  (void)irq;
-  if (((value >> BIOS_DX_PIN) & 1U) != 0U) {
-    if (g_dx_output < 2) {
-      avr_ioport_state_t state;
-      (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE('A'), &state);
-      g_dx_cycle[g_dx_output] = avr->cycle;
-      g_dx_level[g_dx_output] = (uint8_t)((state.port >> BIOS_DX_PIN) & 1U);
-    }
-    g_dx_output = g_dx_output + 1;
-  }
-}
-
-static void check_override(int index, uint64_t edge_cycle, uint8_t level, const char *name) {
-  char label[96];
-  int on_time = (g_dx_output > index) && (g_dx_cycle[index] > edge_cycle) &&
-                ((g_dx_cycle[index] - edge_cycle) < BIOS_OVERRIDE_WINDOW_CYCLES);
-  (void)snprintf(label, sizeof(label), "attiny84 bios %s: fires on the final counted edge", name);
-  check(on_time, label);
-  (void)snprintf(
-      label, sizeof(label), "attiny84 bios %s: drives DX %s", name, (level != 0U) ? "high" : "low");
-  check((g_dx_output > index) && (g_dx_level[index] == level), label);
-}
-
-// Drive the ATtiny84 address line AX (on PORTB) through what the patch expects:
-// align to a rising edge, hold quiet long enough for the silent-window count,
-// then emit the model's pulse count. After the final pulse the firmware must
-// drive the DX override, which on_dx_direction records. This checks the port
-// mechanism (count pulses, then override); the cycle-exact constants themselves
-// are hardware values and stay unverified until a console.
-static void scenario_bios(const char *elf, uint32_t freq) {
-  target_t t84 = { "attiny84", 'A', 0U, 1U, 2U, 4U, 3U };
-  avr_t *avr = build_avr(&t84, elf, freq);
-  g_dx_output = 0;
-
-  avr_irq_t *direction = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('A'), IOPORT_IRQ_DIRECTION_ALL);
-  avr_irq_register_notify(direction, on_dx_direction, avr);
-  avr_irq_t *ax = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('B'), BIOS_AX_PIN);
-
-  avr_raise_irq(ax, 0U);
-  run_cycles(avr, 3000U);
-  avr_raise_irq(ax, 1U);
-  run_cycles(avr, 3000U);
-  avr_raise_irq(ax, 0U);
-  run_cycles(avr, BIOS_CONFIRM_CYCLES);
-
-  uint64_t last_rise = 0U;
-  for (int p = 0; p < BIOS_PULSES; p++) {
-    avr_raise_irq(ax, 1U);
-    last_rise = avr->cycle;
-    run_cycles(avr, 200U);
-    avr_raise_irq(ax, 0U);
-    run_cycles(avr, 200U);
-  }
-  run_cycles(avr, 4000U);
-
-  check(g_dx_output == 1, "attiny84 bios: one override after the pulse count");
-  check_override(0, last_rise, 0U, "one-phase");
-}
-
-// The two oldest Japanese models override twice. Drive the first pulse train on
-// AX as before, then, after the longer second silent gap, the second train on
-// AY. The first window must fire on the last AX rising edge and drive DX high;
-// the second must fire on the last AY falling edge and drive DX low.
-static void scenario_bios_two_phase(const char *elf, uint32_t freq) {
-  target_t t84 = { "attiny84", 'A', 0U, 1U, 2U, 4U, 3U };
-  avr_t *avr = build_avr(&t84, elf, freq);
-  g_dx_output = 0;
-
-  avr_irq_t *direction = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('A'), IOPORT_IRQ_DIRECTION_ALL);
-  avr_irq_register_notify(direction, on_dx_direction, avr);
-  avr_irq_t *ax = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('B'), BIOS_AX_PIN);
-  avr_irq_t *ay = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('A'), BIOS_AY_PIN);
-
-  avr_raise_irq(ax, 0U);
-  run_cycles(avr, 3000U);
-  avr_raise_irq(ax, 1U);
-  run_cycles(avr, 3000U);
-  avr_raise_irq(ax, 0U);
-  run_cycles(avr, BIOS_CONFIRM_CYCLES);
-  uint64_t last_ax_rise = 0U;
-  for (int p = 0; p < BIOS2_PULSES_1; p++) {
-    avr_raise_irq(ax, 1U);
-    last_ax_rise = avr->cycle;
-    run_cycles(avr, 200U);
-    avr_raise_irq(ax, 0U);
-    run_cycles(avr, 200U);
-  }
-
-  run_cycles(avr, BIOS2_SILENCE2_CYCLES);
-  uint64_t last_ay_fall = 0U;
-  for (int p = 0; p < BIOS2_PULSES_2; p++) {
-    avr_raise_irq(ay, 1U);
-    run_cycles(avr, 200U);
-    avr_raise_irq(ay, 0U);
-    last_ay_fall = avr->cycle;
-    run_cycles(avr, 200U);
-  }
-  run_cycles(avr, 4000U);
-
-  check(g_dx_output == 2, "attiny84 bios: both patch windows override the data bus");
-  check_override(0, last_ax_rise, 1U, "two-phase first window");
-  check_override(1, last_ay_fall, 0U, "two-phase second window");
 }
 
 // Prove the in-field diagnostics recorder and that closed-loop confirmation
@@ -448,7 +339,7 @@ static void scenario_diag(const target_t *t, const char *elf, uint32_t freq, int
   uint8_t raw[5] = { 0, 0, 0, 0, 0 };
   read_record(avr, raw);
 
-  const char *tag = (strcmp(t->mcu, "attiny85") == 0) ? "85" : "84";
+  const char *tag = t->mcu;
   const char *path = (program != 0) ? "confirmed" : "unconfirmed";
   char label[96];
   (void)snprintf(label, sizeof(label), "diag %s %s: injection ran before logging", tag, path);
@@ -496,7 +387,7 @@ static void scenario_diag_two_sessions(const target_t *t, const char *elf, uint3
 
   uint8_t raw[5] = { 0, 0, 0, 0, 0 };
   read_record(avr, raw);
-  const char *tag = (strcmp(t->mcu, "attiny85") == 0) ? "85" : "84";
+  const char *tag = t->mcu;
   char label[96];
   (void)snprintf(label, sizeof(label), "diag %s two discs: two sessions recorded", tag);
   check(raw[2] == 2U, label);
@@ -543,7 +434,7 @@ static void scenario_resync(const target_t *t, const char *elf, uint32_t freq) {
     run_cycles(avr, 2000U);
   }
 
-  const char *tag = (strcmp(t->mcu, "attiny85") == 0) ? "85" : "84";
+  const char *tag = t->mcu;
   char label[96];
   (void)snprintf(label, sizeof(label), "resync %s: injects after a capture starts mid-burst", tag);
   check(g_led_seen != 0, label);
@@ -577,7 +468,7 @@ static void scenario_late_carrier(const target_t *t, const char *elf, uint32_t f
     run_cycles(avr, 2000U);
   }
 
-  const char *tag = (strcmp(t->mcu, "attiny85") == 0) ? "85" : "84";
+  const char *tag = t->mcu;
   char label[96];
   char decoded[SCEX_BITS + 1] = { 0 };
   (void)snprintf(label, sizeof(label), "late carrier %s: injection triggered", tag);
@@ -615,7 +506,7 @@ static void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
     run_cycles(avr, 2000U);
   }
 
-  const char *tag = (strcmp(t->mcu, "attiny85") == 0) ? "85" : "84";
+  const char *tag = t->mcu;
   char label[96];
   (void)snprintf(label, sizeof(label), "stall %s: injection started", tag);
   check(g_led_seen != 0, label);
@@ -627,81 +518,6 @@ static void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
   run_cycles(avr, STALL_WAIT_CYCLES);
   (void)snprintf(label, sizeof(label), "stall %s: DATA released after the carrier stops", tag);
   check(data_ddr(avr, t) == 0U, label);
-}
-
-// The BIOS patch must never stop the SCEx part from running. Two failures of the
-// AX line are driven on a one-phase BIOS image, then ordinary TOC frames, and
-// the SCEx injection must still fire:
-// - AX never toggles (dead or miswired pad): the first-edge wait gives up after
-//   its 3 s bound and the patch hands over to the run loop.
-// - AX stops partway through the counted pulse train: the override loop stops
-//   kicking the watchdog, the watchdog resets the chip, and on that reboot the
-//   patch is skipped because the reset came from the watchdog. The window is
-//   short enough that a reboot which retried the patch, and so sat in the 3 s
-//   first-edge wait, would miss it.
-#define BIOS_DEAD_AX_CYCLES 30000000UL
-#define BIOS_PARTIAL_PULSES 10
-#define BIOS_WDT_REBOOT_CYCLES 8000000UL
-
-// Two frames more than the trigger: after a simulated watchdog reset simavr
-// drops the externally driven pin levels, so SQCK reads low until the next frame
-// drives it and the firmware resyncs one frame late, as it would on hardware
-// only if it booted mid-burst.
-static void run_toc_until_led(avr_t *avr, const target_t *t) {
-  uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  for (int i = 0; i < (TRIGGER_FRAMES + 2); i++) {
-    clock_frame(avr, t, toc);
-  }
-  uint64_t deadline = avr->cycle + LED_DEADLINE;
-  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
-    run_cycles(avr, 2000U);
-  }
-}
-
-static avr_t *boot_bios_image(const target_t *t, const char *elf, uint32_t freq) {
-  avr_t *avr = build_avr(t, elf, freq);
-  g_led_seen = 0;
-  g_led_cycle = 0;
-  g_dx_output = 0;
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
-  avr_irq_t *direction = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('A'), IOPORT_IRQ_DIRECTION_ALL);
-  avr_irq_register_notify(direction, on_dx_direction, avr);
-  avr_raise_irq(pin_irq(avr, t, t->sqck), 1U);
-  avr_raise_irq(pin_irq(avr, t, t->subq), 0U);
-  avr_raise_irq(pin_irq(avr, t, t->wfck), 1U);
-  return avr;
-}
-
-static void scenario_bios_dead_ax(const char *elf, uint32_t freq) {
-  target_t t84 = { "attiny84", 'A', 0U, 1U, 2U, 4U, 3U };
-  avr_t *avr = boot_bios_image(&t84, elf, freq);
-  avr_raise_irq(avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('B'), BIOS_AX_PIN), 0U);
-  run_cycles(avr, BIOS_DEAD_AX_CYCLES);
-  run_toc_until_led(avr, &t84);
-  check(g_led_seen != 0, "attiny84 bios dead AX: falls through to SCEx injection");
-  check(g_dx_output == 0, "attiny84 bios dead AX: never overrides the data bus");
-}
-
-static void scenario_bios_stalled_train(const char *elf, uint32_t freq) {
-  target_t t84 = { "attiny84", 'A', 0U, 1U, 2U, 4U, 3U };
-  avr_t *avr = boot_bios_image(&t84, elf, freq);
-  avr_irq_t *ax = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('B'), BIOS_AX_PIN);
-  avr_raise_irq(ax, 0U);
-  run_cycles(avr, 3000U);
-  avr_raise_irq(ax, 1U);
-  run_cycles(avr, 3000U);
-  avr_raise_irq(ax, 0U);
-  run_cycles(avr, BIOS_CONFIRM_CYCLES);
-  for (int p = 0; p < BIOS_PARTIAL_PULSES; p++) {
-    avr_raise_irq(ax, 1U);
-    run_cycles(avr, 200U);
-    avr_raise_irq(ax, 0U);
-    run_cycles(avr, 200U);
-  }
-  run_cycles(avr, BIOS_WDT_REBOOT_CYCLES);
-  run_toc_until_led(avr, &t84);
-  check(g_led_seen != 0, "attiny84 bios stalled train: watchdog reboot skips the patch, SCEx runs");
-  check(g_dx_output == 0, "attiny84 bios stalled train: never overrides the data bus");
 }
 
 // The board-family matrix. The firmware has no per-family code path, only the
@@ -716,27 +532,27 @@ typedef struct {
 } board_family_t;
 
 static const board_family_t FAMILIES[] = {
-  { "PU-7 to PU-20 legacy gate", 0, WFCK_HZ },
+  { "PU-18 and PU-20 legacy gate", 0, WFCK_HZ },
   { "PU-22 to PM-41 carrier 7.3kHz", 1, WFCK_HZ },
   { "PU-22 to PM-41 carrier 14.6kHz", 1, WFCK_READ_HZ },
 };
 #define FAMILY_COUNT ((int)(sizeof(FAMILIES) / sizeof(FAMILIES[0])))
 
-// Boot one legacy ATtiny85 image, clock TRIGGER_FRAMES copies of one lead-in
+// Boot one legacy-board image, clock TRIGGER_FRAMES copies of one lead-in
 // frame, and report whether the LED marked an injection; when it did and an
 // expected word is given, decode DATA and compare it. Each call is a fresh
 // power-on, so one frame kind is judged on its own.
 static void vcd_case(
     const char *elf, uint32_t freq, const uint8_t *frame, const char *expect, const char *what) {
-  target_t t85 = { "attiny85", 'B', 0U, 1U, 2U, 3U, 4U };
-  avr_t *avr = build_avr(&t85, elf, freq);
+  target_t t84 = { "attiny84", 'A', 0U, 1U, 2U, 4U, 3U };
+  avr_t *avr = build_avr(&t84, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
   g_led_seen = 0;
   g_led_cycle = 0;
-  avr_irq_register_notify(pin_irq(avr, &t85, t85.led), on_led, avr);
-  boot_quiet(avr, &t85, 0, &ctx);
+  avr_irq_register_notify(pin_irq(avr, &t84, t84.led), on_led, avr);
+  boot_quiet(avr, &t84, 0, &ctx);
   for (int i = 0; i < TRIGGER_FRAMES; i++) {
-    clock_frame(avr, &t85, frame);
+    clock_frame(avr, &t84, frame);
   }
   uint64_t deadline = avr->cycle + LED_DEADLINE;
   while ((g_led_seen == 0) && (avr->cycle < deadline)) {
@@ -752,7 +568,7 @@ static void vcd_case(
   check(g_led_seen != 0, label);
   if (g_led_seen != 0) {
     char decoded[SCEX_BITS + 1];
-    decode_region(avr, &t85, 0, BIT_CYCLES, decoded);
+    decode_region(avr, &t84, 0, BIT_CYCLES(freq), decoded);
     (void)snprintf(label, sizeof(label), "vcd build: decodes SCEI at %u Hz", freq);
     check(strcmp(decoded, expect) == 0, label);
   }
@@ -772,22 +588,20 @@ static void scenario_vcd(const char *elf, uint32_t freq) {
   vcd_case(elf, freq, spiral, NULL, "point-01 spiral does not inject");
 }
 
-// A multi-disc game, end to end, after the console accepted disc 1. Each phase
-// counts region strings by LED rises. The first program-area frame must stop the
-// burst; a table-of-contents re-read with no stop, as an anti-mod check might do,
-// must stay silent; and every way a disc swap can look to the chip must re-arm it
-// so the next disc is injected: the drive stopping with SQCK silent, a swap so
-// fast that only a long lead-in read shows it, and a stop that keeps clocking
-// garbage subcode. Phase lengths sit well past the firmware thresholds: the
-// harness clocks a frame about every 6.4 ms at 8 MHz, and the firmware may miss
-// frames while an injection blocks.
+// A multi-disc game, end to end. Each phase counts region strings by LED rises.
+// The first program-area frame must stop the burst; a table-of-contents re-read
+// with the lid shut, however long, as an anti-mod check might do, must stay
+// silent; and every lid open and close must re-arm the chip so the next disc is
+// injected, including a swap fast enough that the drive never visibly stops.
+// The harness clocks a frame about every 12 ms, and the firmware may miss frames
+// while an injection blocks, so phase lengths sit well past the trigger.
 #define MD_TOC_FRAMES 40
 #define MD_PLAY_FRAMES 30
-#define MD_REREAD_FRAMES 60
-#define MD_STOP_CYCLES 20000000UL
-#define MD_FAST_SWAP_FRAMES 520
-#define MD_GARBAGE_FRAMES 400
+#define MD_REREAD_FRAMES 520
 #define MD_SETTLE_FRAMES 3
+// How long the lid stays open on a swap: 236 ms, far shorter than a person
+// takes, so the re-arm cannot depend on the drive stopping.
+#define MD_LID_OPEN_CYCLES 1000000UL
 
 static void clock_frames(avr_t *avr, const target_t *t, const uint8_t *frame, int count) {
   for (int i = 0; i < count; i++) {
@@ -807,6 +621,12 @@ static void md_check(const target_t *t, int ok, const char *what, int strings) {
   check(ok, label);
 }
 
+static void swap_disc(avr_t *avr) {
+  avr_raise_irq(lid_irq(avr), 1U);
+  run_cycles(avr, MD_LID_OPEN_CYCLES);
+  avr_raise_irq(lid_irq(avr), 0U);
+}
+
 static void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
@@ -819,7 +639,6 @@ static void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
                                            0,     0,     0x02U, 0,     0,     0 };
-  const uint8_t garbage[SUBQ_FRAME_BYTES] = { 0 };
 
   int disc1 = strings_while(avr, t, toc, MD_TOC_FRAMES);
   md_check(t, disc1 >= 1, "disc 1 is injected", disc1);
@@ -830,85 +649,103 @@ static void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq
 
   int reread = strings_while(avr, t, toc, MD_REREAD_FRAMES);
   reread += strings_while(avr, t, play, MD_PLAY_FRAMES);
-  md_check(t, reread == 0, "a TOC re-read without a stop stays silent", reread);
+  md_check(t, reread == 0, "a long TOC re-read with the lid shut stays silent", reread);
 
-  avr_raise_irq(pin_irq(avr, t, t->sqck), 1U);
-  run_cycles(avr, MD_STOP_CYCLES);
+  swap_disc(avr);
   int disc2 = strings_while(avr, t, toc, MD_TOC_FRAMES);
-  md_check(t, disc2 >= 1, "disc 2 after a drive stop is injected", disc2);
+  md_check(t, disc2 >= 1, "disc 2 after a lid open and close is injected", disc2);
   clock_frames(avr, t, play, MD_PLAY_FRAMES);
 
-  int disc3 = strings_while(avr, t, toc, MD_FAST_SWAP_FRAMES);
-  md_check(t, disc3 >= 1, "disc 3 swapped with no visible stop is injected", disc3);
-  clock_frames(avr, t, play, MD_PLAY_FRAMES);
+  swap_disc(avr);
+  int disc3 = strings_while(avr, t, toc, MD_TOC_FRAMES);
+  md_check(t, disc3 >= 1, "disc 3 after another swap is injected", disc3);
+}
 
-  clock_frames(avr, t, garbage, MD_GARBAGE_FRAMES);
-  int disc4 = strings_while(avr, t, toc, MD_TOC_FRAMES);
-  md_check(t, disc4 >= 1, "disc 4 after a garbage-clocking stop is injected", disc4);
+// The lid is the chip's hard stop. With the lid open the chip never injects,
+// whatever SUBQ shows; and when the lid opens partway through a string, DATA
+// must be released within about one 4 ms bit cell and stay released for the rest
+// of what would have been the string, not keep driving the remaining 40-odd
+// bits. The lid opens 3 bit cells in; from 2 bit cells after that, DATA is
+// sampled every quarter bit cell to the end of the string, so a single sample
+// cannot pass by landing on a high-Z one bit.
+#define LID_OPEN_AT_BITS 3U
+#define LID_GRACE_BITS 2U
+
+static void scenario_lid(const target_t *t, const char *elf, uint32_t freq) {
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  char label[96];
+
+  avr_t *open_avr = build_avr(t, elf, freq);
+  wfck_ctx_t open_ctx = { NULL, 1U, 0U };
+  g_led_seen = 0;
+  avr_irq_register_notify(pin_irq(open_avr, t, t->led), on_led, open_avr);
+  boot_quiet(open_avr, t, 0, &open_ctx);
+  avr_raise_irq(lid_irq(open_avr), 1U);
+  clock_frames(open_avr, t, toc, MD_TOC_FRAMES);
+  (void)snprintf(label, sizeof(label), "lid %s: no injection while the lid is open", t->mcu);
+  check(g_led_seen == 0, label);
+
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  g_led_seen = 0;
+  g_led_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+  clock_frames(avr, t, toc, TRIGGER_FRAMES);
+  uint64_t deadline = avr->cycle + LED_DEADLINE;
+  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+    run_cycles(avr, 2000U);
+  }
+  (void)snprintf(label, sizeof(label), "lid %s: injection starts with the lid shut", t->mcu);
+  check(g_led_seen != 0, label);
+
+  uint64_t bit = BIT_CYCLES(freq);
+  run_to(avr, g_led_cycle + (LID_OPEN_AT_BITS * bit));
+  avr_raise_irq(lid_irq(avr), 1U);
+  uint64_t from = avr->cycle + (LID_GRACE_BITS * bit);
+  uint64_t until = g_led_cycle + ((uint64_t)SCEX_BITS * bit);
+  int driven = 0;
+  for (uint64_t c = from; c < until; c += bit / 4U) {
+    run_to(avr, c);
+    if (data_ddr(avr, t) != 0U) {
+      driven = 1;
+    }
+  }
+  (void)snprintf(
+      label, sizeof(label), "lid %s: DATA stays released once the lid opens mid-string", t->mcu);
+  check(driven == 0, label);
 }
 
 int main(int argc, char *argv[]) {
-  if (argc < 4) {
-    (void)fprintf(
-        stderr, "usage: %s elf85 elf84 freq_hz [elf84bios [elf84bios2 [elf85vcd]]]\n", argv[0]);
+  if (argc < 3) {
+    (void)fprintf(stderr, "usage: %s elf freq_hz [vcd_elf]\n", argv[0]);
     return 2;
   }
-  const char *elf85 = argv[1];
-  const char *elf84 = argv[2];
-  uint32_t freq = (uint32_t)strtoul(argv[3], NULL, 10);
+  const char *elf = argv[1];
+  uint32_t freq = (uint32_t)strtoul(argv[2], NULL, 10);
 
-  // Both chips run the same SCEx stealth firmware on different ports (85 PORTB,
-  // 84 PORTA). Each image is driven through the whole board-family matrix plus a
-  // non-TOC negative, so every family and both ends of the WFCK carrier band are
-  // verified per chip. The 84's BIOS patch has its own scenario.
-  target_t t85 = { "attiny85", 'B', 0U, 1U, 2U, 3U, 4U };
+  // The SCEx signals sit on the ATtiny84's PORTA. The image is driven through
+  // the whole board-family matrix plus a non-TOC negative, so both board models
+  // and both ends of the WFCK carrier band are verified, then through every
+  // behaviour scenario.
   target_t t84 = { "attiny84", 'A', 0U, 1U, 2U, 4U, 3U };
 
-  const target_t *images[2] = { &t85, &t84 };
-  const char *elfs[2] = { elf85, elf84 };
-  for (int chip = 0; chip < 2; chip++) {
-    for (int f = 0; f < FAMILY_COUNT; f++) {
-      scenario_inject(images[chip],
-                      elfs[chip],
-                      freq,
-                      FAMILIES[f].modern,
-                      1,
-                      FAMILIES[f].wfck_hz,
-                      FAMILIES[f].name);
-    }
-    scenario_inject(images[chip], elfs[chip], freq, 0, 0, WFCK_HZ, "legacy non-TOC negative");
+  for (int f = 0; f < FAMILY_COUNT; f++) {
+    scenario_inject(&t84, elf, freq, FAMILIES[f].modern, 1, FAMILIES[f].wfck_hz, FAMILIES[f].name);
   }
+  scenario_inject(&t84, elf, freq, 0, 0, WFCK_HZ, "legacy non-TOC negative");
+  scenario_diag(&t84, elf, freq, 0);
+  scenario_diag(&t84, elf, freq, 1);
+  scenario_diag_two_sessions(&t84, elf, freq);
+  scenario_resync(&t84, elf, freq);
+  scenario_late_carrier(&t84, elf, freq);
+  scenario_stall(&t84, elf, freq);
+  scenario_multidisc(&t84, elf, freq);
+  scenario_lid(&t84, elf, freq);
 
-  if (freq == 8000000U) {
-    scenario_diag(&t85, elf85, freq, 0);
-    scenario_diag(&t84, elf84, freq, 0);
-    scenario_diag(&t85, elf85, freq, 1);
-    scenario_diag(&t84, elf84, freq, 1);
-    scenario_diag_two_sessions(&t85, elf85, freq);
-    scenario_resync(&t85, elf85, freq);
-    scenario_resync(&t84, elf84, freq);
-    scenario_late_carrier(&t85, elf85, freq);
-    scenario_late_carrier(&t84, elf84, freq);
-    scenario_stall(&t85, elf85, freq);
-    scenario_stall(&t84, elf84, freq);
-    scenario_multidisc(&t85, elf85, freq);
-    scenario_multidisc(&t84, elf84, freq);
-  }
-
-  // The optional fourth and fifth arguments are the ATtiny84 BIOS images,
-  // single-phase then two-phase; both are slow, so simtest passes them at one
-  // clock only.
-  if (argc >= 5) {
-    scenario_bios(argv[4], freq);
-    scenario_bios_dead_ax(argv[4], freq);
-    scenario_bios_stalled_train(argv[4], freq);
-  }
-  if (argc >= 6) {
-    scenario_bios_two_phase(argv[5], freq);
-  }
-  // The optional sixth argument is the ATtiny85 SCPH-5903 Video-CD image.
-  if (argc >= 7) {
-    scenario_vcd(argv[6], freq);
+  // The optional third argument is the SCPH-5903 Video-CD image.
+  if (argc >= 4) {
+    scenario_vcd(argv[3], freq);
   }
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
