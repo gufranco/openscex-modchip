@@ -48,6 +48,22 @@ static bool pscu_subq_lead_in_hit(const uint8_t *frame) {
   return hit;
 }
 
+// The SCPH-5903 is the Asian model with a second interface that plays Video CDs.
+// A Video CD lead-in also carries data-sector TOC frames, so the ordinary rule
+// above would arm injection on a movie disc and put a region string on the bus
+// for media that never asks for one. This variant accepts only the TOC markers
+// POINT 0xA0..0xA2 (first track, last track, lead-out start), drops the point-01
+// spiral window, and rejects any marker whose frame[3] is 0x02, the pattern PsNee
+// attributes to a Video CD lead-in. Read: kalymos PsNee V9.0 (df52aec,
+// PSNee.ino:471-502, its SCPH_5903 FilterSUBQSamples). Why 0x02 in the running
+// minute singles out a Video CD is PsNee's empirical rule, Unknown here beyond it.
+static bool pscu_subq_vcd_lead_in_hit(const uint8_t *frame) {
+  PSCU_ASSERT(frame != NULL);
+
+  bool toc_marker = (frame[2] >= 0xA0U) && (frame[2] <= 0xA2U);
+  return pscu_subq_is_data_sector(frame[0]) && toc_marker && (frame[3] != 0x02U);
+}
+
 // Once injection is already armed (counter > 0), any further lead-in frame whose
 // control byte marks audio (0x01) or data keeps it armed, so the lead-in reads
 // between the TOC markers do not decay it while the console is checking. This
@@ -87,14 +103,17 @@ bool pscu_subq_is_program_area(const uint8_t *frame) {
   return bcd_track && zero_byte && content;
 }
 
-uint8_t pscu_subq_update_counter(const uint8_t *frame, uint8_t counter) {
+uint8_t pscu_subq_update_counter(const uint8_t *frame, uint8_t counter, bool vcd_filter) {
   PSCU_ASSERT(frame != NULL);
 
   // frame[1] is TNO, which is 0x00 only in the lead-in, and frame[6] is the
   // Q-channel ZERO byte. Requiring both accepts only well-formed lead-in frames:
   // a program-area frame, noise, or a misaligned capture cannot raise the counter.
+  // The filter is a parameter rather than a compile-time switch so the host
+  // suite drives both rules from one binary; the firmware passes a constant.
   bool framed = (frame[1] == 0x00U) && (frame[6] == 0x00U);
-  bool hit = framed && (pscu_subq_lead_in_hit(frame) || pscu_subq_tracking_hit(frame, counter));
+  bool lead_in = vcd_filter ? pscu_subq_vcd_lead_in_hit(frame) : pscu_subq_lead_in_hit(frame);
+  bool hit = framed && (lead_in || pscu_subq_tracking_hit(frame, counter));
   uint8_t result = counter;
 
   // The counter is a leaky integrator: a hit raises it toward the inject

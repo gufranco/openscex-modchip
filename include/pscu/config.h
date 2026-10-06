@@ -27,6 +27,15 @@
 #define PSCU_CONFIGURED_REGION PSCU_REGION_NTSC_UC
 #endif
 
+// Video-CD filter for the SCPH-5903. The Makefile's VCD_FILTER knob always
+// defines PSCU_VCD_FILTER as 0 or 1 on the command line; a build outside the
+// Makefile gets the ordinary filter. The SCPH-5903 is NTSC-J, so this pairs
+// with REGION=jp.
+#ifndef PSCU_VCD_FILTER
+#define PSCU_VCD_FILTER 0
+#endif
+#define PSCU_VCD_FILTER_ENABLED (PSCU_VCD_FILTER != 0)
+
 // Upper bound on region strings emitted per arming. The console latches the
 // region within a few reads, so this only has to be large enough to be
 // reliable; its real purpose is a safety cap so a stuck window can never make

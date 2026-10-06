@@ -33,7 +33,7 @@ void pscu_run(void) {
   for (;;) {
     uint8_t frame[PSCU_SUBQ_FRAME_BYTES];
     pscu_engine_capture_frame(frame);
-    counter = pscu_subq_update_counter(frame, counter);
+    counter = pscu_subq_update_counter(frame, counter, PSCU_VCD_FILTER_ENABLED);
     bool in_window = pscu_should_inject(counter, PSCU_INJECT_TRIGGER);
     pscu_stealth_step_t step = pscu_stealth_step(stealth, in_window, PSCU_STEALTH_STRINGS);
     stealth = step.state;

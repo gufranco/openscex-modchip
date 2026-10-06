@@ -37,6 +37,22 @@ TIMING_DEF := -DPSCU_TIMING_ADAPTIVE=1 -DPSCU_WFCK_PERIODS_PER_BIT=30
 TIMING_TAG :=
 endif
 
+# Video-CD filter for the SCPH-5903, the Asian dual-interface model that also
+# plays Video CDs. on narrows the lead-in match to the TOC markers A0..A2 and
+# rejects the Video-CD lead-in pattern, so a Video CD never draws a region
+# string; off (default) is the filter every other console uses. Read: PsNee V9.0
+# PSNee.ino:471-502, its SCPH_5903 variant.
+VCD_FILTER ?= off
+ifeq ($(VCD_FILTER),on)
+VCD_DEF := -DPSCU_VCD_FILTER=1
+VCD_TAG := -vcd
+else ifeq ($(VCD_FILTER),off)
+VCD_DEF := -DPSCU_VCD_FILTER=0
+VCD_TAG :=
+else
+$(error unknown VCD_FILTER '$(VCD_FILTER)'; use off or on)
+endif
+
 # Region the chip emulates. The build is region-specific so the firmware emits
 # only the console's own region string. us is the default and carries no tag.
 REGION ?= us
@@ -114,10 +130,11 @@ $(error BIOS=$(BIOS) needs MCU=attiny84; the ATtiny85 has no pins for the boot-R
 endif
 endif
 
-# Each clock, region and BIOS build differs in generated code, so their objects
-# must never share a directory; VARIANT keeps them separate. An empty VARIANT
-# (internal-clock America, no patch) keeps the plain artifact name the sim uses.
-VARIANT := $(CLOCK_TAG)$(REGION_TAG)$(BIOS_TAG)$(TIMING_TAG)
+# Each clock, region, BIOS, timing and filter build differs in generated code,
+# so their objects must never share a directory; VARIANT keeps them separate.
+# An empty VARIANT (internal-clock America, no patch) keeps the plain artifact
+# name the sim uses.
+VARIANT := $(CLOCK_TAG)$(REGION_TAG)$(BIOS_TAG)$(TIMING_TAG)$(VCD_TAG)
 
 CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate format \
 	precommit image image_size image_misra
@@ -135,7 +152,7 @@ hooks:
 ifndef PSCU_TOOLCHAIN
 
 $(CONTAINER_TARGETS):
-	$(PYTHON) tools/docker_make.py $@ MCU=$(MCU) CLOCK=$(CLOCK) EXT_F_CPU=$(EXT_F_CPU) REGION=$(REGION) BIOS=$(BIOS) TIMING=$(TIMING)
+	$(PYTHON) tools/docker_make.py $@ MCU=$(MCU) CLOCK=$(CLOCK) EXT_F_CPU=$(EXT_F_CPU) REGION=$(REGION) BIOS=$(BIOS) TIMING=$(TIMING) VCD_FILTER=$(VCD_FILTER)
 
 else
 
@@ -181,7 +198,7 @@ RELEASE_ELF := $(RELEASE)/$(NAME)-$(MCU)$(VARIANT).elf
 RELEASE_HEX := $(RELEASE)/$(NAME)-$(MCU)$(VARIANT).hex
 RELEASE_OBJECTS := $(patsubst src/%,$(RELEASE)/%.o,$(FIRMWARE_C) $(FIRMWARE_S))
 
-AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(BIOS_DEF) $(TIMING_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
+AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(BIOS_DEF) $(TIMING_DEF) $(VCD_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
 	$(WARNINGS) -fno-common -ffunction-sections -fdata-sections
 AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) $(BIOS_DEF) $(TIMING_DEF) -Iinclude -Wall -Wextra -Werror
 AVR_LDFLAGS := -mmcu=$(MCU) -Os -flto -Wl,--gc-sections
@@ -192,7 +209,7 @@ CPPCHECK_FLAGS := --std=c17 --platform=avr8 --enable=all --check-level=exhaustiv
 	--error-exitcode=1 --suppress=checkersReport --inline-suppr \
 	'--suppress=*:$(AVR_INCLUDE)/*' '--suppress=*:$(AVR_GCC_INCLUDE)/*' \
 	-Iinclude -I$(AVR_INCLUDE) -I$(AVR_GCC_INCLUDE) \
-	$(CPPCHECK_MCU_DEF) $(REGION_DEF) $(BIOS_DEF) $(TIMING_DEF) -DF_CPU=$(F_CPU)
+	$(CPPCHECK_MCU_DEF) $(REGION_DEF) $(BIOS_DEF) $(TIMING_DEF) $(VCD_DEF) -DF_CPU=$(F_CPU)
 CPPCHECK_CONFIGS := -DPSCU_DEBUG -UPSCU_DEBUG
 
 all:
@@ -237,19 +254,21 @@ SIM_ELF85 := $(BUILD)/attiny85/release/$(NAME)-attiny85.elf
 SIM_ELF84 := $(BUILD)/attiny84/release/$(NAME)-attiny84.elf
 SIM_ELF84_BIOS := $(BUILD)/attiny84-scph_102/release/$(NAME)-attiny84-scph_102.elf
 SIM_ELF84_BIOS2 := $(BUILD)/attiny84-scph_1000/release/$(NAME)-attiny84-scph_1000.elf
+SIM_ELF85_VCD := $(BUILD)/attiny85-jp-vcd/release/$(NAME)-attiny85-jp-vcd.elf
 
 $(SIM_TEST): $(SIM_TEST_C) all
 	@mkdir -p $(@D)
 	$(HOST_CC) $(SIM_CFLAGS) -o $@ $(SIM_TEST_C) $(SIM_LIBS)
 
-# Build one single-phase and one two-phase ATtiny84 BIOS image and hand them to
-# the 8 MHz run as the fourth and fifth arguments; the SCEx scenarios run on
-# both base images at every clock.
+# Build one single-phase and one two-phase ATtiny84 BIOS image and the ATtiny85
+# SCPH-5903 Video-CD image, and hand them to the 8 MHz run as the fourth, fifth
+# and sixth arguments; the SCEx scenarios run on both base images at every clock.
 simtest: $(SIM_TEST)
 	$(MAKE) --no-print-directory MCU=attiny84 BIOS=scph_102 image
 	$(MAKE) --no-print-directory MCU=attiny84 BIOS=scph_1000 image
+	$(MAKE) --no-print-directory MCU=attiny85 REGION=jp VCD_FILTER=on image
 	$(SIM_TEST) $(SIM_ELF85) $(SIM_ELF84) 7200000
-	$(SIM_TEST) $(SIM_ELF85) $(SIM_ELF84) 8000000 $(SIM_ELF84_BIOS) $(SIM_ELF84_BIOS2)
+	$(SIM_TEST) $(SIM_ELF85) $(SIM_ELF84) 8000000 $(SIM_ELF84_BIOS) $(SIM_ELF84_BIOS2) $(SIM_ELF85_VCD)
 	$(SIM_TEST) $(SIM_ELF85) $(SIM_ELF84) 8800000
 
 test: hosttest simtest

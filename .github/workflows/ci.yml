@@ -43,6 +43,9 @@ jobs:
       - name: Build and check the fixed-timing variant
         run: make TIMING=fixed size && make MCU=attiny85 TIMING=fixed image_misra
 
+      - name: Build and check the SCPH-5903 Video-CD variant
+        run: make MCU=attiny85 REGION=jp VCD_FILTER=on image_size image_misra
+
       - name: Build and check the ATtiny84 BIOS variants
         run: |
           make MCU=attiny84 BIOS=scph_102 image_size image_misra

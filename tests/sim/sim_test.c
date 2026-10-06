@@ -67,6 +67,10 @@ typedef struct {
 // correct decode on both board models proves the encoder and the bit timing.
 static const char SCEA_BITS[SCEX_BITS + 1] = "10011010100100111101001010111010010111110100";
 
+// The Japan (SCEI) word, which the SCPH-5903 Video-CD build emits: that console
+// is NTSC-J, so its image is built with REGION=jp.
+static const char SCEI_BITS[SCEX_BITS + 1] = "10011010100100111101001010111010010110110100";
+
 #define BIOS_AX_PIN 2
 #define BIOS_AY_PIN 6
 #define BIOS_DX_PIN 5
@@ -713,9 +717,60 @@ static const board_family_t FAMILIES[] = {
 };
 #define FAMILY_COUNT ((int)(sizeof(FAMILIES) / sizeof(FAMILIES[0])))
 
+// Boot one legacy ATtiny85 image, clock TRIGGER_FRAMES copies of one lead-in
+// frame, and report whether the LED marked an injection; when it did and an
+// expected word is given, decode DATA and compare it. Each call is a fresh
+// power-on, so one frame kind is judged on its own.
+static void vcd_case(
+    const char *elf, uint32_t freq, const uint8_t *frame, const char *expect, const char *what) {
+  target_t t85 = { "attiny85", 'B', 0U, 1U, 2U, 3U, 4U };
+  avr_t *avr = build_avr(&t85, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  g_led_seen = 0;
+  g_led_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, &t85, t85.led), on_led, avr);
+  boot_quiet(avr, &t85, 0, &ctx);
+  for (int i = 0; i < TRIGGER_FRAMES; i++) {
+    clock_frame(avr, &t85, frame);
+  }
+  uint64_t deadline = avr->cycle + LED_DEADLINE;
+  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+    run_cycles(avr, 2000U);
+  }
+
+  char label[96];
+  (void)snprintf(label, sizeof(label), "vcd build: %s at %u Hz", what, freq);
+  if (expect == NULL) {
+    check(g_led_seen == 0, label);
+    return;
+  }
+  check(g_led_seen != 0, label);
+  if (g_led_seen != 0) {
+    char decoded[SCEX_BITS + 1];
+    decode_region(avr, &t85, 0, BIT_CYCLES, decoded);
+    (void)snprintf(label, sizeof(label), "vcd build: decodes SCEI at %u Hz", freq);
+    check(strcmp(decoded, expect) == 0, label);
+  }
+}
+
+// The SCPH-5903 build (REGION=jp VCD_FILTER=on) must still unlock a game, whose
+// lead-in carries the TOC markers, and must stay silent on a Video CD, whose
+// lead-in marker carries 0x02 in frame[3]. The point-01 spiral frame that arms
+// the ordinary build must not arm this one either. Read: PsNee V9.0 SCPH_5903
+// FilterSUBQSamples, PSNee.ino:471-502.
+static void scenario_vcd(const char *elf, uint32_t freq) {
+  const uint8_t game[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0x00U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  const uint8_t vcd[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  const uint8_t spiral[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0x01U, 0x98U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  vcd_case(elf, freq, game, SCEI_BITS, "game TOC injects");
+  vcd_case(elf, freq, vcd, NULL, "video CD lead-in does not inject");
+  vcd_case(elf, freq, spiral, NULL, "point-01 spiral does not inject");
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 4) {
-    (void)fprintf(stderr, "usage: %s elf85 elf84 freq_hz [elf84bios]\n", argv[0]);
+    (void)fprintf(
+        stderr, "usage: %s elf85 elf84 freq_hz [elf84bios [elf84bios2 [elf85vcd]]]\n", argv[0]);
     return 2;
   }
   const char *elf85 = argv[1];
@@ -768,6 +823,10 @@ int main(int argc, char *argv[]) {
   }
   if (argc >= 6) {
     scenario_bios_two_phase(argv[5], freq);
+  }
+  // The optional sixth argument is the ATtiny85 SCPH-5903 Video-CD image.
+  if (argc >= 7) {
+    scenario_vcd(argv[6], freq);
   }
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
