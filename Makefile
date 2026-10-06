@@ -120,12 +120,17 @@ endif
 VARIANT := $(CLOCK_TAG)$(REGION_TAG)$(BIOS_TAG)$(TIMING_TAG)
 
 CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate format \
-	image image_size image_misra
+	precommit image image_size image_misra
 
-.PHONY: $(CONTAINER_TARGETS) clean
+.PHONY: $(CONTAINER_TARGETS) clean hooks
 
 clean:
 	rm -rf $(BUILD)
+
+# Point git at the versioned hooks in .githooks: the commit-msg hook checks the
+# subject with the CI script, and the pre-commit hook runs `make precommit`.
+hooks:
+	git config core.hooksPath .githooks
 
 ifndef PSCU_TOOLCHAIN
 
@@ -251,6 +256,13 @@ test: hosttest simtest
 
 format:
 	clang-format -i $(C_FILES)
+
+# The quick front of analyse, for the pre-commit hook: formatting and Python
+# lint only, no build.
+precommit:
+	clang-format --dry-run --Werror $(C_FILES)
+	ruff check
+	ruff format --check
 
 analyse: all
 	clang-format --dry-run --Werror $(C_FILES)
