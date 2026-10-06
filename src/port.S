@@ -336,6 +336,22 @@ pscu_port_bit_mirror:
 
 #if PSCU_BIOS_ENABLED
 
+// Report whether the last reset came from the watchdog, and clear the reset
+// flags so the next reset reports its own cause. The BIOS patch only makes sense
+// while the console is booting; after a watchdog reset (a stalled carrier or AX
+// line mid-session) the console is already running, and overriding its data bus
+// then would corrupt it, so the patch is skipped. Clearing WDRF also lifts the
+// hardware override that forces WDE on; the watchdog stays enabled because
+// pscu_port_init set WDE itself. r1 is the compiler's zero register.
+	.global pscu_port_reset_was_watchdog
+	.func pscu_port_reset_was_watchdog
+pscu_port_reset_was_watchdog:
+	in r24, _SFR_IO_ADDR(MCUSR)
+	andi r24, (1 << WDRF)
+	out _SFR_IO_ADDR(MCUSR), r1
+	ret
+	.endfunc
+
 // Read the address line AX. Unlike the SCEx signals on PORTA, AX is on PB2
 // (INT0), so it reads PINB directly and returns the masked bit.
 	.global pscu_port_bios_ax
@@ -346,27 +362,43 @@ pscu_port_bios_ax:
 	ret
 	.endfunc
 
-// Count r24 rising edges on AX, then override the data-bus bit DX. On the final
-// edge the cycle-accurate window begins: wait the model's bit-offset, drive DX
+// Read the address line AY, which the two-phase models watch for their second
+// window. It sits on PORTA with the SCEx signals.
+	.global pscu_port_bios_ay
+	.func pscu_port_bios_ay
+pscu_port_bios_ay:
+	in r24, _SFR_IO_ADDR(PINA)
+	andi r24, (1 << PSCU_PIN_AY)
+	ret
+	.endfunc
+
+// Count r24 further rising edges on AX, then override the data-bus bit DX. The C
+// caller has already waited, bounded, for the train's first rising edge, so the
+// gaps left to wait out here are the microsecond ones inside the train. On the
+// final edge the cycle-accurate window begins: wait the model's bit-offset, drive DX
 // (low on the one-phase models, high then low on the two-phase ones, see
 // below), hold for the override window, then release to high-Z. The offset and override lengths are fixed nop
 // runs sized at assemble time from the per-model constants, so the timing is
-// exact and carries no loop overhead. The watchdog is kicked while waiting for
-// an edge, since a slow console boot can leave a long quiet gap, but never
-// inside the offset-and-override window where the timing must be exact.
+// exact and carries no loop overhead. The watchdog is kicked once per counted
+// pulse, outside both polling loops, never on every poll and never inside the
+// offset-and-override window where the timing must be exact. Pulses inside a
+// train are microseconds apart, so a live train keeps it fed; if AX stops
+// mid-train (miswired pad, console halted) the watchdog expires after about
+// 0.5 s and resets the chip instead of leaving it waiting forever. The path from
+// the final edge to the override is the same as without the kick.
 	.global pscu_port_bios_override
 	.func pscu_port_bios_override
 pscu_port_bios_override:
-9:
+8:
 	wdr
+9:
 	sbic _SFR_IO_ADDR(PINB), PSCU_PIN_AX
 	rjmp 9b
 10:
-	wdr
 	sbis _SFR_IO_ADDR(PINB), PSCU_PIN_AX
 	rjmp 10b
 	subi r24, 1
-	brne 9b
+	brne 8b
 	.rept PSCU_BIOS_OFFSET_CYCLES
 	nop
 	.endr
@@ -396,8 +428,9 @@ pscu_port_bios_override:
 
 #if PSCU_BIOS_TWO_PHASE
 
-// The second override for the two-phase models. It counts falling edges on AY,
-// not rising ones: wait for AY high, then for it to drop, and count that drop.
+// The second override for the two-phase models. It counts r24 further falling
+// edges on AY, not rising ones: wait for AY high, then for it to drop, and count
+// that drop. As with AX, the caller has already waited for the first one.
 // Read: PsNee V9.0 PSNee.ino:333 arms the AY interrupt with
 // PIN_AY_INTERRUPT_FALLING. On the last edge it drives DX low for the second
 // window's offset and length; DX is the same data-bus line, and its port bit was
@@ -405,16 +438,16 @@ pscu_port_bios_override:
 	.global pscu_port_bios_override_ay
 	.func pscu_port_bios_override_ay
 pscu_port_bios_override_ay:
-11:
+13:
 	wdr
+11:
 	sbis _SFR_IO_ADDR(PINA), PSCU_PIN_AY
 	rjmp 11b
 12:
-	wdr
 	sbic _SFR_IO_ADDR(PINA), PSCU_PIN_AY
 	rjmp 12b
 	subi r24, 1
-	brne 11b
+	brne 13b
 	.rept PSCU_BIOS_OFFSET_2_CYCLES
 	nop
 	.endr

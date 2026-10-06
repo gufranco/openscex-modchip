@@ -580,6 +580,81 @@ static void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
   check(data_ddr(avr, t) == 0U, label);
 }
 
+// The BIOS patch must never stop the SCEx part from running. Two failures of the
+// AX line are driven on a one-phase BIOS image, then ordinary TOC frames, and
+// the SCEx injection must still fire:
+// - AX never toggles (dead or miswired pad): the first-edge wait gives up after
+//   its 3 s bound and the patch hands over to the run loop.
+// - AX stops partway through the counted pulse train: the override loop stops
+//   kicking the watchdog, the watchdog resets the chip, and on that reboot the
+//   patch is skipped because the reset came from the watchdog. The window is
+//   short enough that a reboot which retried the patch, and so sat in the 3 s
+//   first-edge wait, would miss it.
+#define BIOS_DEAD_AX_CYCLES 30000000UL
+#define BIOS_PARTIAL_PULSES 10
+#define BIOS_WDT_REBOOT_CYCLES 8000000UL
+
+// Two frames more than the trigger: after a simulated watchdog reset simavr
+// drops the externally driven pin levels, so SQCK reads low until the next frame
+// drives it and the firmware resyncs one frame late, as it would on hardware
+// only if it booted mid-burst.
+static void run_toc_until_led(avr_t *avr, const target_t *t) {
+  uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  for (int i = 0; i < (TRIGGER_FRAMES + 2); i++) {
+    clock_frame(avr, t, toc);
+  }
+  uint64_t deadline = avr->cycle + LED_DEADLINE;
+  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+    run_cycles(avr, 2000U);
+  }
+}
+
+static avr_t *boot_bios_image(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  g_led_seen = 0;
+  g_led_cycle = 0;
+  g_dx_output = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_t *direction = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('A'), IOPORT_IRQ_DIRECTION_ALL);
+  avr_irq_register_notify(direction, on_dx_direction, avr);
+  avr_raise_irq(pin_irq(avr, t, t->sqck), 1U);
+  avr_raise_irq(pin_irq(avr, t, t->subq), 0U);
+  avr_raise_irq(pin_irq(avr, t, t->wfck), 1U);
+  return avr;
+}
+
+static void scenario_bios_dead_ax(const char *elf, uint32_t freq) {
+  target_t t84 = { "attiny84", 'A', 0U, 1U, 2U, 4U, 3U };
+  avr_t *avr = boot_bios_image(&t84, elf, freq);
+  avr_raise_irq(avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('B'), BIOS_AX_PIN), 0U);
+  run_cycles(avr, BIOS_DEAD_AX_CYCLES);
+  run_toc_until_led(avr, &t84);
+  check(g_led_seen != 0, "attiny84 bios dead AX: falls through to SCEx injection");
+  check(g_dx_output == 0, "attiny84 bios dead AX: never overrides the data bus");
+}
+
+static void scenario_bios_stalled_train(const char *elf, uint32_t freq) {
+  target_t t84 = { "attiny84", 'A', 0U, 1U, 2U, 4U, 3U };
+  avr_t *avr = boot_bios_image(&t84, elf, freq);
+  avr_irq_t *ax = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ('B'), BIOS_AX_PIN);
+  avr_raise_irq(ax, 0U);
+  run_cycles(avr, 3000U);
+  avr_raise_irq(ax, 1U);
+  run_cycles(avr, 3000U);
+  avr_raise_irq(ax, 0U);
+  run_cycles(avr, BIOS_CONFIRM_CYCLES);
+  for (int p = 0; p < BIOS_PARTIAL_PULSES; p++) {
+    avr_raise_irq(ax, 1U);
+    run_cycles(avr, 200U);
+    avr_raise_irq(ax, 0U);
+    run_cycles(avr, 200U);
+  }
+  run_cycles(avr, BIOS_WDT_REBOOT_CYCLES);
+  run_toc_until_led(avr, &t84);
+  check(g_led_seen != 0, "attiny84 bios stalled train: watchdog reboot skips the patch, SCEx runs");
+  check(g_dx_output == 0, "attiny84 bios stalled train: never overrides the data bus");
+}
+
 // The board-family matrix. The firmware has no per-family code path, only the
 // legacy static gate and the live WFCK carrier, so each family collapses to one
 // of those with its carrier frequency. Distinct behaviours only, no duplicate
@@ -647,6 +722,8 @@ int main(int argc, char *argv[]) {
   // clock only.
   if (argc >= 5) {
     scenario_bios(argv[4], freq);
+    scenario_bios_dead_ax(argv[4], freq);
+    scenario_bios_stalled_train(argv[4], freq);
   }
   if (argc >= 6) {
     scenario_bios_two_phase(argv[5], freq);
