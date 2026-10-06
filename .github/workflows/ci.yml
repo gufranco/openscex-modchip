@@ -46,9 +46,13 @@ jobs:
           make MCU=attiny84 BIOS=scph_102 image_size image_misra
           make MCU=attiny84 BIOS=scph_1000 image_size image_misra
 
+  # Runs on pull requests and on pushes to main, because releases are versioned
+  # from these subjects and most changes land on main directly. Dependabot's own
+  # pull requests are skipped; its commits are also skipped by author when they
+  # are merged.
   commit-messages:
     name: Commit messages
-    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout
@@ -58,6 +62,6 @@ jobs:
 
       - name: Validate conventional commit subjects
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.after }}
         run: ./.github/scripts/check-commit-messages.sh "$BASE_SHA" "$HEAD_SHA"
