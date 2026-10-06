@@ -36,6 +36,8 @@
 
 上述硬件结果是在 `TIMING=fixed` 下取得的。旧式（PU-8、PU-18）各行不受 `TIMING` 影响，因为两种构建都用 MCU 延时。PM-41 载波各行用的是 fixed 时序；adaptive 默认的载波位（锁定 WFCK）在主机重新测试前仅经仿真。可用 `make TIMING=fixed` 重建已验证的二进制。
 
+以上结果均早于 2026-10-06 的固件改动（SUBQ 采集重新同步、主板检测前等待 WFCK 稳定、引入区窗口修正、载波停摆看门狗、按会话的诊断）。这些改动已通过全部仿真关卡，仍需在主机上重新测试。
+
 各主机的验证由社区驱动。在你的主机上试过后，请开一个 [兼容性报告](../../issues/new?template=compatibility.yml)，此表将从确认的安装中成长。
 
 ## 功能
@@ -48,10 +50,11 @@
 | 单一区域 | 只送出 `REGION` 一个，不送三个 |
 | 隐身 | 只在 SUBQ 区域检查窗口内、每次武装有上限地注入，之后 DATA 高阻、LED 关闭 |
 | 换盘重新武装 | 离开窗口后一次性动作重新武装 |
-| 引导 ROM BIOS 补丁 | 仅 ATtiny84，日本厚机与 PAL 的 PSone，包含两段式 SCPH-1000/3000 的所有型号 |
+| 引导 ROM BIOS 补丁 | 实验性，仅 ATtiny84，日本厚机与 PAL 的 PSone，包含两段式 SCPH-1000/3000 的所有型号；见构建表下方的说明 |
+| 自我恢复 | 每次 SUBQ 采集都在帧间空隙重新对齐；注入中途 WFCK 载波停止时由看门狗释放 DATA；BIOS 补丁找不到脉冲时退回 SCEx |
 | 可选 LED | 状态输出，无 LED 时固件也正确 |
-| 实地诊断 | 芯片空闲后向 EEPROM 写入 5 字节飞行记录（检测到的主板、会话数、注入次数、确认），用 avrdude 读回；既有 PS1 改机芯片都不报告其所见 |
-| 闭环确认 | 注入后芯片监视 SUBQ 的程序区，mechacon 只有在接受区域字符串后才允许读取该区，于是记录区域检查是否通过 |
+| 实地诊断 | 每个会话向 EEPROM 写入 5 字节飞行记录，芯片应答的每张光盘为一个会话（检测到的主板、会话数、注入次数、确认），用 avrdude 读回；既有 PS1 改机芯片都不报告其所见 |
+| 闭环确认 | 注入后芯片监视 SUBQ 中的程序区帧（真实的曲目号），mechacon 只有在接受区域字符串后才允许读取该区，于是记录区域检查是否通过 |
 | 验证 | 主机测试行与分支覆盖率 100%，跨振荡器带的 simavr 模型，变异测试，可复现构建 |
 
 ## 置信度标签
@@ -71,7 +74,7 @@
 | 各焊盘电压 | 从 PsNee 与 Mayumi 的安装 Concluded（厚机约 5 V，PSone 更低且对噪声敏感）；测量以确认 |
 | PU-8、PU-18、PSone 的 SCEx 解锁 | Verified 2026-10-05（见上表） |
 | PU-18 与 PSone 的外部时钟构建 | Verified 2026-10-05，其他主板为前提门控 |
-| BIOS 补丁时序 | Read 自 PsNee 并在 simavr 演练，硬件上未 Verified |
+| BIOS 补丁常量 | Read 自 PsNee V9.0，为 16 MHz 的 ATmega 编写；尚未针对本 8 MHz 芯片推导；机制已在 simavr 演练，硬件上未 Verified |
 
 ## 各主机对应的构建
 
@@ -89,6 +92,8 @@ BIOS 型号依据主机实际的 BIOS 版本，这比 SCPH 编号更重要。
 | 厚机日本，SCPH-3000 | PU-8 | `attiny84` | `jp` | `scph_3000` | SCEx + 两段 BIOS 补丁 |
 | 厚机日本，SCPH-1000 | PU-7 | `attiny84` | `jp` | `scph_1000` | SCEx + 两段 BIOS 补丁 |
 
+BIOS 补丁构建为实验性。补丁机制遵循 PsNee V9.0 并经仿真验证，但各型号常量是 PsNee 针对 16 MHz ATmega 的数值，而本芯片运行于 8 MHz。在这些常量推导完成并经主机确认之前，BIOS 构建可能无法打补丁，其镜像也不随发布提供。即使补丁失败，BIOS 构建中的 SCEx 部分也始终运行。
+
 BIOS 型号未覆盖: 亚洲型号（SCPH-xxx3，例 SCPH-5003/5903）带无第二道检查的英文 ROM，但 NTSC-J 的 CD 控制器无后门，仅 SCEx 不足；开发机（DTL-H120x、PU-9）原生即可读刻录盘，无需芯片。
 
 ## 配置
@@ -101,7 +106,7 @@ BIOS 型号未覆盖: 亚洲型号（SCPH-xxx3，例 SCPH-5003/5903）带无第�
 | `REGION` | `jp`、`us`、`eu` | `us` | 芯片送出的那一个区域字符串 |
 | `CLOCK` | `internal`、`external` | `internal` | 内部 8 MHz RC，或主机时钟（`CLOCK=external EXT_F_CPU=<hz>`），前提是先测量该时钟与引脚电压 |
 | `TIMING` | `adaptive`、`fixed` | `adaptive` | adaptive 以计数 WFCK 周期来计时 WFCK 载波注入位，使其锁定到主机时钟；fixed 使用编译期 MCU 延时，即在硬件上跑过的那套时序 |
-| `BIOS` | `none`、`scph_102`、`scph_100`、`scph_7000_9000`、`scph_3500_5500`、`scph_1000`、`scph_3000` | `none` | 仅 ATtiny84，针对该 BIOS 版本的引导 ROM 补丁 |
+| `BIOS` | `none`、`scph_102`、`scph_100`、`scph_7000_9000`、`scph_3500_5500`、`scph_1000`、`scph_3000` | `none` | 仅 ATtiny84，针对该 BIOS 版本的实验性引导 ROM 补丁 |
 
 非默认区域会在产物名上加标签，例如 `openscex-modchip-attiny85-jp.hex`。
 
@@ -162,7 +167,14 @@ BIOS 补丁焊盘（ATtiny84，日本厚机与 PAL PSone）: MCU 侧引脚如上
 
 ## 构建与烧录
 
-各[发布](../../releases)都附有按主机预构建的 `.hex`，可跳过工具链，直接用下面的 `avrdude` 步骤烧录。发布版本号依据提交历史自动生成，`0.x` 系列表示该固件尚未经过实机验证。若要从源码构建: 所有构建、检查与测试都在固定 Docker 工具链中通过 `make` 运行，主机上只运行 `avrdude`。
+各[发布](../../releases)都附有按主机预构建的 `.hex`，可跳过工具链，直接用下面的 `avrdude` 步骤烧录。每个发布附带三份 ATtiny85 SCEx 镜像（`us`、`eu`、`jp`）、`SHA256SUMS` 文件、许可证与构建来源证明；在该补丁仍为实验性期间不发布 BIOS 补丁镜像。烧录前请先校验下载文件:
+
+```bash
+sha256sum -c SHA256SUMS --ignore-missing
+gh attestation verify openscex-modchip-attiny85.hex --repo gufranco/openscex-modchip
+```
+
+发布版本号依据提交历史自动生成，且只来自 CI 通过的提交；`0.x` 系列表示该固件尚未经过实机验证。若要从源码构建: 所有构建、检查与测试都在固定 Docker 工具链中通过 `make` 运行，主机上只运行 `avrdude`。
 
 | 工具 | 用途 |
 |:-----|:-----|
@@ -182,8 +194,11 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 
 | 构建 | 熔丝（low / high / extended） |
 |:-----|:------------------------------|
-| 内部 8 MHz RC | `0xE2` / `0xDF` / `0xFF` |
+| 内部 8 MHz RC，已验证安装所用 | `0xE2` / `0xDF` / `0xFF` |
+| 内部 8 MHz RC，带 2.7 V 欠压检测 | `0xE2` / `0xDD` / `0xFF` |
 | 外部时钟 | 取决于测得频率，从芯片数据手册读取 |
+
+欠压检测在电源低于 2.7 V 时使芯片保持复位，因此诊断写入期间断电也不会写坏 EEPROM 记录。同一 high 熔丝值同样适用于 ATtiny85 与 ATtiny84，二者欠压位布局相同（Read，两份数据手册）；尚未在主机上实测。
 
 外部时钟构建已在 PU-18 与 PSone 实机 Verified（2026-10-05），在其他主板上为前提门控。用测得的 mechacon 频率构建，`make CLOCK=external EXT_F_CPU=<hz>UL`，产物名带 `-extclk`。候选频率为 4.2336 MHz（16.9344 MHz 除以四），从片段 Concluded，此处未实测。在测量时钟引脚电压之前，不要烧录外部时钟熔丝。
 
@@ -195,11 +210,11 @@ make repro       # 两次全新构建，逐字节一致
 make mutate      # 逻辑层变异测试
 ```
 
-同样的关卡在每次 push 与 pull request 时也在 CI 中运行，定义见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。
+同样的关卡在每次 push 与 pull request 时也在 CI 中运行，定义见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。贡献者可运行一次 `make hooks`，在本地启用提交信息与格式检查。
 
 ## 诊断
 
-芯片在完成注入并空闲后，向 EEPROM 写入一条 5 字节飞行记录，使安装可被诊断而非猜测。写入绝不发生在上电时或区域检查窗口内，故不影响注入时序；每个上电周期仅写一次，故 EEPROM 寿命无虞。用编程器读回:
+芯片在每个会话后向 EEPROM 写入一条 5 字节飞行记录，一个会话即一张光盘的区域检查，从首次注入的字符串开始直至检查有结论，使安装可被诊断而非猜测。写入绝不发生在上电时或区域检查窗口内，故不影响注入时序；只写入值有变化的字节，故 EEPROM 寿命无虞。用编程器读回:
 
 ```bash
 avrdude -c <programmer> -p attiny85 -U eeprom:r:diag.bin:r
@@ -209,9 +224,9 @@ avrdude -c <programmer> -p attiny85 -U eeprom:r:diag.bin:r
 |:-----|:-----|
 | 0 | 魔数 `0x50`，其他值表示尚无记录 |
 | 1 | 检测到的主板: `0` 旧式门控，`1` WFCK 载波 |
-| 2 | 达到空闲的会话数，到 255 回绕 |
+| 2 | 已记录的会话数，芯片应答的每张光盘计一次，到 255 回绕 |
 | 3 | 最近一次会话送出的区域字符串数 |
-| 4 | 区域检查确认: 注入后主机到达程序区则为 1，否则为 0 |
+| 4 | 区域检查确认: 最近一次会话注入后主机到达程序区则为 1，否则为 0 |
 
 ## 安全
 

@@ -36,6 +36,8 @@ Not confirmed on hardware (built and simulated only): PU-7, PU-20, PU-22, PU-23,
 
 The hardware results above were taken with `TIMING=fixed`. The legacy (PU-8, PU-18) rows are unaffected by `TIMING`, since legacy boards use the MCU delay in both builds. The PM-41 carrier rows used the fixed timing; the adaptive default's carrier bit (WFCK-locked) is simulation-only until a console retests it. Rebuild the exact verified binary with `make TIMING=fixed`.
 
+All of these results predate the 2026-10-06 firmware changes (SUBQ capture resync, the WFCK settle before board detection, the lead-in window fix, the stalled-carrier watchdog, and per-session diagnostics). Those changes pass the full simulation gate and need a console re-test.
+
 Per-console validation is community-driven. Tested it on your console? Open a [compatibility report](../../issues/new?template=compatibility.yml) and this table grows from confirmed installs.
 
 ## Features
@@ -48,10 +50,11 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 | Single configured region | emits only `REGION`, never all three |
 | Stealth | injects only inside the SUBQ region-check window, capped per arming, then DATA high-Z and LED off |
 | Disc-swap re-arm | leaving the window re-arms the one-shot |
-| Boot-ROM BIOS patch | ATtiny84 only, Japanese fat and PAL PSone, every model including two-phase SCPH-1000 and SCPH-3000 |
+| Boot-ROM BIOS patch | experimental, ATtiny84 only, Japanese fat and PAL PSone, every model including two-phase SCPH-1000 and SCPH-3000; see the note under the build table |
+| Self-recovery | each SUBQ capture realigns on the gap between frames; a WFCK carrier that stalls mid-injection lets the watchdog release DATA; a BIOS patch that cannot find its pulses falls back to SCEx |
 | Optional LED | status output; firmware is correct with no LED fitted |
-| In-field diagnostics | a five-byte flight recorder written to EEPROM after the chip goes idle (detected board, session count, injection count, confirmation), read back with avrdude; no existing PS1 modchip reports what it saw |
-| Closed-loop confirmation | after injecting, the chip watches SUBQ for the program area, which the mechacon only allows once it accepts the region string, and records whether the region check passed |
+| In-field diagnostics | a five-byte flight recorder written to EEPROM once per session, one session per disc the chip answers (detected board, session count, injection count, confirmation), read back with avrdude; no existing PS1 modchip reports what it saw |
+| Closed-loop confirmation | after injecting, the chip watches SUBQ for a program-area frame (a real track number), which the mechacon only allows once it accepts the region string, and records whether the region check passed |
 | Verification | host tests 100% line and branch coverage, simavr console model across the oscillator band, mutation testing, reproducible builds |
 
 ## Confidence tags
@@ -71,7 +74,7 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 | Per-pad voltages | Concluded from the PsNee and Mayumi installs (fat around 5 V, PSone lower and noise-sensitive); measure to confirm |
 | SCEx unlock on PU-8, PU-18, PSone | Verified 2026-10-05 (see table above) |
 | External-clock build on PU-18 and PSone | Verified 2026-10-05; gated on every other board |
-| BIOS-patch timing | Read from PsNee and exercised in simavr, not Verified on hardware |
+| BIOS-patch constants | Read from PsNee V9.0, written for a 16 MHz ATmega; not yet derived for this 8 MHz chip; mechanism exercised in simavr, not Verified on hardware |
 
 ## Supported build per console
 
@@ -89,6 +92,8 @@ The BIOS model follows the console's actual BIOS version, which matters more tha
 | Fat Japan, SCPH-3000 | PU-8 | `attiny84` | `jp` | `scph_3000` | SCEx + two-phase BIOS patch |
 | Fat Japan, SCPH-1000 | PU-7 | `attiny84` | `jp` | `scph_1000` | SCEx + two-phase BIOS patch |
 
+The BIOS-patch builds are experimental. The patch mechanism follows PsNee V9.0 and is verified in simulation, but its per-model constants are PsNee's figures for a 16 MHz ATmega, and this chip runs at 8 MHz. Until they are derived and confirmed on a console, a BIOS build may not patch, and its images are not published in releases. The SCEx part of a BIOS build always runs, even if the patch fails.
+
 Not covered by a BIOS model: Asian models (SCPH-xxx3, for example SCPH-5003/5903) carry an English ROM with no second check but an NTSC-J CD controller with no backdoor, so SCEx alone is insufficient; dev boards (DTL-H120x, PU-9) read burned discs natively and need no chip.
 
 ## Configuration
@@ -101,7 +106,7 @@ One source builds every variant; the knobs are passed to `make`.
 | `REGION` | `jp`, `us`, `eu` | `us` | the one region string the chip emits |
 | `CLOCK` | `internal`, `external` | `internal` | internal 8 MHz RC, or the console clock (`CLOCK=external EXT_F_CPU=<hz>`), gated on measuring that clock and the pin voltage first |
 | `TIMING` | `adaptive`, `fixed` | `adaptive` | adaptive times the WFCK-carrier injection bit by counting WFCK periods, locking it to the console clock; fixed uses the compile-time MCU delay, the timing exercised on hardware |
-| `BIOS` | `none`, `scph_102`, `scph_100`, `scph_7000_9000`, `scph_3500_5500`, `scph_1000`, `scph_3000` | `none` | ATtiny84 only; the boot-ROM patch tuned to that BIOS version |
+| `BIOS` | `none`, `scph_102`, `scph_100`, `scph_7000_9000`, `scph_3500_5500`, `scph_1000`, `scph_3000` | `none` | ATtiny84 only; the experimental boot-ROM patch for that BIOS version |
 
 A non-default region tags the artifact name, for example `openscex-modchip-attiny85-jp.hex`.
 
@@ -162,7 +167,14 @@ BIOS-patch pads (ATtiny84, Japanese fat and PAL PSone): the MCU-side pins are fi
 
 ## Build and program
 
-Prebuilt per-console `.hex` images are attached to each [release](../../releases), so you can skip the toolchain and go straight to flashing with the `avrdude` steps below. Releases are versioned automatically from the commit history; the `0.x` line marks the firmware as pre-hardware-validation. To build from source instead: every build, check and test runs in the pinned Docker toolchain through `make`, and only `avrdude` runs on the host.
+Prebuilt per-console `.hex` images are attached to each [release](../../releases), so you can skip the toolchain and go straight to flashing with the `avrdude` steps below. Each release carries the three ATtiny85 SCEx images (`us`, `eu`, `jp`), a `SHA256SUMS` file, the license, and a build-provenance attestation; BIOS-patch images are not published while that patch is experimental. Check a download before flashing it:
+
+```bash
+sha256sum -c SHA256SUMS --ignore-missing
+gh attestation verify openscex-modchip-attiny85.hex --repo gufranco/openscex-modchip
+```
+
+Releases are versioned automatically from the commit history, and only from a commit whose CI run passed; the `0.x` line marks the firmware as pre-hardware-validation. To build from source instead: every build, check and test runs in the pinned Docker toolchain through `make`, and only `avrdude` runs on the host.
 
 | Tool | Purpose |
 |:-----|:--------|
@@ -182,8 +194,11 @@ Any ISP works, including an Arduino as ISP. The firmware resets the clock presca
 
 | Build | Fuses (low / high / extended) |
 |:------|:------------------------------|
-| Internal 8 MHz RC | `0xE2` / `0xDF` / `0xFF` |
+| Internal 8 MHz RC, as used on the verified installs | `0xE2` / `0xDF` / `0xFF` |
+| Internal 8 MHz RC with brown-out detection at 2.7 V | `0xE2` / `0xDD` / `0xFF` |
 | External clock | depends on the measured frequency; read from the chip datasheet |
+
+Brown-out detection holds the chip in reset while the supply is below 2.7 V, so a power-off during a diagnostics write cannot tear the EEPROM record. The same high fuse value applies to the ATtiny85 and ATtiny84, whose brown-out bits share a layout (Read, the two datasheets); it is not yet exercised on a console.
 
 The external-clock build is Verified on hardware on PU-18 and PSone (2026-10-05) and gated on every other board. Build it with the measured mechacon frequency, `make CLOCK=external EXT_F_CPU=<hz>UL`; the output name carries `-extclk`. The candidate frequency is 4.2336 MHz (16.9344 MHz divided by four), Concluded from a snippet, not measured here. Do not program external-clock fuses before measuring the clock pin voltage.
 
@@ -195,11 +210,11 @@ make repro       # two fresh builds, byte-identical
 make mutate      # mutation testing on the logic layer
 ```
 
-The same gates run in CI on every push and pull request, defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+The same gates run in CI on every push and pull request, defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Contributors can run `make hooks` once to enable the commit-message and formatting checks locally.
 
 ## Diagnostics
 
-The chip writes a five-byte flight recorder to EEPROM once it has finished injecting and gone idle, so an install can be diagnosed rather than guessed. The write never happens at boot or inside the region-check window, so it does not affect injection timing, and it is one write per power cycle so EEPROM endurance is not a concern. Read it back with the programmer:
+The chip writes a five-byte flight recorder to EEPROM after each session, a session being one disc's region check from the first injected string until the check resolves, so an install can be diagnosed rather than guessed. The write never happens at boot or inside the region-check window, so it does not affect injection timing, and only bytes whose value changed are written, so EEPROM endurance is not a concern. Read it back with the programmer:
 
 ```bash
 avrdude -c <programmer> -p attiny85 -U eeprom:r:diag.bin:r
@@ -209,9 +224,9 @@ avrdude -c <programmer> -p attiny85 -U eeprom:r:diag.bin:r
 |:-----|:--------|
 | 0 | magic `0x50`; any other value means no record was written yet |
 | 1 | detected board: `0` legacy gate, `1` WFCK carrier |
-| 2 | sessions that reached idle, wraps at 255 |
-| 3 | region strings emitted in the last session |
-| 4 | region check confirmed: 1 if the console reached the program area after injection, else 0 |
+| 2 | sessions recorded, one per disc the chip answered; wraps at 255 |
+| 3 | region strings emitted in the latest session |
+| 4 | region check confirmed: 1 if the console reached the program area after the latest session's injection, else 0 |
 
 ## Safety
 
