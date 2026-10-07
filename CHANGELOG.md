@@ -1,3 +1,10 @@
+# [0.5.0](https://github.com/gufranco/openscex-modchip/compare/v0.4.0...v0.5.0) (2026-10-07)
+
+
+### Features
+
+* learn per-console string cap and start ([198cadf](https://github.com/gufranco/openscex-modchip/commit/198cadffe12bb00786c57ad66ab2d45796dd81dd))
+
 # [0.4.0](https://github.com/gufranco/openscex-modchip/compare/v0.3.1...v0.4.0) (2026-10-07)
 
 
