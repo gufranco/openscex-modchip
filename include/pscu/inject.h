@@ -19,10 +19,13 @@ bool pscu_should_inject(uint8_t counter, uint8_t trigger);
 // drive stays unlocked until the lid opens (Concluded: the check runs at spin-up,
 // which is why a disc swap needs a new string), so any further string could only
 // expose the chip. The lid line, a mandatory wire, is what ends the latch: a
-// swap is seen, never inferred.
+// swap is seen, never inferred. wait counts the frames still to pass before the
+// next string may start, so strings are spaced the way a disc and the
+// long-deployed chips space them rather than sent back to back.
 typedef struct {
   uint8_t sent;
   bool accepted;
+  uint8_t wait;
 } pscu_stealth_t;
 
 // One step of the stealth state machine plus whether to inject right now.
@@ -39,9 +42,14 @@ pscu_stealth_t pscu_stealth_init(void);
 // the console accepted the string and latches the chip silent at once, mid-burst
 // included, through every later lead-in read until the lid opens. Before that,
 // inside the window the chip emits up to max_strings and then falls silent, and
-// outside the window it emits nothing and resets the count.
-pscu_stealth_step_t pscu_stealth_step(
-    pscu_stealth_t state, bool in_window, bool program, bool lid_open, uint8_t max_strings);
+// outside the window it emits nothing and resets the count. After each string
+// the next waits gap window frames; each call is one frame.
+pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state,
+                                      bool in_window,
+                                      bool program,
+                                      bool lid_open,
+                                      uint8_t max_strings,
+                                      uint8_t gap);
 
 // Closed-loop confirmation state: how many idle frames have passed since
 // injection while waiting for the program area, and whether it was seen.

@@ -122,6 +122,29 @@ pscu_port_data_release:
 	ret
 	.endfunc
 
+// The gate on PU-18 and PU-20 boards. There WFCK is a static level rather than
+// a carrier, and the chip holds it low for the whole region string, then
+// releases it, as both long-deployed chips do: PsNee drives it as an output low
+// around every legacy string (Read: PsNee V9.0 PSNee.ino:593-595 and :652-655),
+// and Mayumi V4 makes its gate pin an output on legacy boards (Read: its binary).
+// Same drive order as DATA: PORT cleared before DDR is set, so the line never
+// glitches high. A carrier board never calls these; its WFCK stays an input.
+	.global pscu_port_gate_drive_low
+	.func pscu_port_gate_drive_low
+pscu_port_gate_drive_low:
+	cbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_WFCK
+	sbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_WFCK
+	ret
+	.endfunc
+
+	.global pscu_port_gate_release
+	.func pscu_port_gate_release
+pscu_port_gate_release:
+	cbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_WFCK
+	cbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_WFCK
+	ret
+	.endfunc
+
 	.global pscu_port_led_on
 	.func pscu_port_led_on
 pscu_port_led_on:

@@ -22,7 +22,10 @@
 #define MD_TOC_FRAMES 40
 #define MD_PLAY_FRAMES 30
 #define MD_REREAD_FRAMES 520
-#define MD_SETTLE_FRAMES 3
+// Settle frames let a string already in flight when the TOC phase ends finish
+// before strings are counted again: a string lasts 177 ms, about 15 harness
+// frames, and is counted when it ends.
+#define MD_SETTLE_FRAMES 20
 static void md_check(const target_t *t, int ok, const char *what, int strings) {
   char label[112];
   (void)snprintf(label, sizeof(label), "multi-disc %s: %s (%d strings)", t->mcu, what, strings);

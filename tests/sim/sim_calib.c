@@ -132,3 +132,24 @@ void scenario_calib_missed(const target_t *t, const char *elf, uint32_t freq) {
               (raw[3] == (CALIB_TRIGGER_MAX - CALIB_TRIGGER_STEP)) && (raw[4] == 1U),
               "a missed window steps the start back, frozen");
 }
+
+// A Japanese build never probes the start point: PsNee warns against a trigger
+// above 11 on Japanese models. An accepted disc still teaches the cap, and the
+// probe freezes at the default trigger.
+void scenario_calib_jp(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
+                                           0,     0,     0x02U, 0,     0,     0 };
+  clock_until_inject(avr, t, toc);
+  clock_frames(avr, t, play, CALIB_SETTLE_FRAMES);
+  uint8_t raw[CALIB_BYTES] = { 0 };
+  read_calib(avr, raw);
+  calib_check(t,
+              calib_valid(raw) && (raw[2] == (uint8_t)(g_strings + (int)CALIB_CAP_MARGIN)) &&
+                  (raw[3] == CALIB_TRIGGER) && (raw[4] == 1U),
+              "a Japanese build learns the cap but keeps the default start");
+}

@@ -46,10 +46,14 @@ int main(int argc, char *argv[]) {
   scenario_calib_cap(&t84, elf, freq);
   scenario_calib_board(&t84, elf, freq);
   scenario_calib_missed(&t84, elf, freq);
+  scenario_gate(&t84, elf, freq, 0);
+  scenario_gate(&t84, elf, freq, 1);
+  scenario_string_gap(&t84, elf, freq);
 
   // The optional third argument is the SCPH-5903 Video-CD image.
   if (argc >= 4) {
     scenario_vcd(argv[3], freq);
+    scenario_calib_jp(&t84, argv[3], freq);
   }
 
   return sim_report();

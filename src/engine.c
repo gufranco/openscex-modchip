@@ -161,13 +161,21 @@ bool pscu_engine_capture_frame(uint8_t *frame) {
 // three) is a stealth choice: the bus carries precisely what that console
 // expects and nothing more. The run loop calls this only inside the check
 // window and only up to the stealth cap, so DATA is high-Z and the LED off
-// during normal play.
+// during normal play. On a gate board the WFCK gate is held low for the string
+// and released with DATA, so both lines are high-Z between strings.
 void pscu_engine_inject(pscu_board_mode_t board) {
   PSCU_ASSERT((board == PSCU_BOARD_MODE_GATE) || (board == PSCU_BOARD_MODE_WFCK));
 
+  bool gate = board == PSCU_BOARD_MODE_GATE;
   pscu_port_led_on();
+  if (gate) {
+    pscu_port_gate_drive_low();
+  }
   pscu_inject_region(PSCU_CONFIGURED_REGION, board);
   pscu_port_data_release();
+  if (gate) {
+    pscu_port_gate_release();
+  }
   pscu_port_led_off();
 }
 

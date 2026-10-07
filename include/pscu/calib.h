@@ -62,9 +62,19 @@
 // start this console has accepted. Step and bound are design choices, Unknown
 // until hardware. The trigger only ever moves in whole steps from the default
 // and the bound sits on that grid, so a stored trigger off the grid is corrupt.
+// A Japanese build does not probe at all: PsNee warns that a trigger above 11 on
+// Japanese models causes problems with anti-mod discs (Read: PsNee V9.0
+// PSNee.ino:44-51), and the first step from the default of 10 already lands on
+// 12. The bound then equals the default, so the first accepted disc freezes the
+// probe where it started.
 #define PSCU_CALIB_TRIGGER_MIN PSCU_INJECT_TRIGGER
 #define PSCU_CALIB_TRIGGER_STEP ((uint8_t)2U)
-#define PSCU_CALIB_TRIGGER_MAX ((uint8_t)(PSCU_INJECT_TRIGGER + 20U))
+#if defined(PSCU_REGION_JP)
+#define PSCU_CALIB_PROBE_FRAMES 0U
+#else
+#define PSCU_CALIB_PROBE_FRAMES 20U
+#endif
+#define PSCU_CALIB_TRIGGER_MAX ((uint8_t)(PSCU_INJECT_TRIGGER + PSCU_CALIB_PROBE_FRAMES))
 
 // board is the detected board (0 static gate, 1 WFCK carrier, or NONE), cap the
 // string cap, trigger the counter value that opens the window, and frozen whether

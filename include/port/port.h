@@ -29,6 +29,12 @@ void pscu_port_data_drive_low(void);
 
 void pscu_port_data_release(void);
 
+// Hold the WFCK gate low for a legacy-board string, and release it to high-Z.
+// Only gate boards use these; on a carrier board WFCK stays an input.
+void pscu_port_gate_drive_low(void);
+
+void pscu_port_gate_release(void);
+
 void pscu_port_led_on(void);
 
 void pscu_port_led_off(void);

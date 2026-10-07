@@ -15,15 +15,19 @@ bool pscu_should_inject(uint8_t counter, uint8_t trigger) {
 }
 
 pscu_stealth_t pscu_stealth_init(void) {
-  pscu_stealth_t state = { 0U, false };
+  pscu_stealth_t state = { 0U, false, 0U };
 
-  PSCU_ASSERT((state.sent == 0U) && !state.accepted);
+  PSCU_ASSERT((state.sent == 0U) && !state.accepted && (state.wait == 0U));
 
   return state;
 }
 
-pscu_stealth_step_t pscu_stealth_step(
-    pscu_stealth_t state, bool in_window, bool program, bool lid_open, uint8_t max_strings) {
+pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state,
+                                      bool in_window,
+                                      bool program,
+                                      bool lid_open,
+                                      uint8_t max_strings,
+                                      uint8_t gap) {
   pscu_stealth_step_t out;
   out.state = state;
   out.fire = false;
@@ -33,7 +37,8 @@ pscu_stealth_step_t pscu_stealth_step(
   // the lid closed, a program-area frame proves the console accepted the
   // string. Out of the window the count resets; inside it the chip emits until
   // the safety cap, and not at all once accepted, so it never drives the bus
-  // without bound and never after the console has what it needs.
+  // without bound and never after the console has what it needs. Between two
+  // strings it lets gap frames pass, as PsNee and Mayumi V4 do.
   if (lid_open) {
     out.state = pscu_stealth_init();
   } else {
@@ -42,9 +47,13 @@ pscu_stealth_step_t pscu_stealth_step(
     }
     if (!in_window) {
       out.state.sent = 0U;
+      out.state.wait = 0U;
     } else if (out.state.accepted) {
+    } else if (state.wait > 0U) {
+      out.state.wait = (uint8_t)(state.wait - 1U);
     } else if (state.sent < max_strings) {
       out.state.sent = (uint8_t)(state.sent + 1U);
+      out.state.wait = gap;
       out.fire = true;
     } else {
     }

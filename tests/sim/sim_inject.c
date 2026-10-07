@@ -10,8 +10,8 @@
 #include "sim_cycle_timers.h"
 
 // Injection scenarios: every board family decodes the right word, results,
-// resync after a partial burst, a late or stalled carrier, a fast SQCK, and the
-// VCD build.
+// resync after a partial burst, a late or stalled carrier, a fast SQCK, the VCD
+// build, the gate line on legacy boards and the gap between strings.
 
 static void scenario_inject(const target_t *t,
                             const char *elf,
@@ -298,6 +298,78 @@ void scenario_fast_sqck(const target_t *t, const char *elf, uint32_t freq) {
   g_edge_cycles = FAST_EDGE_CYCLES;
   scenario_inject(t, elf, freq, 0, 1, WFCK_HZ, "fast SQCK, 4.7 us half period");
   g_edge_cycles = EDGE_CYCLES;
+}
+
+// The gate line. On a gate board the chip holds WFCK low for the whole string
+// and releases it with DATA, as PsNee and Mayumi V4 do; on a carrier board WFCK
+// is the console's clock and the chip never drives it. Sampled 80 ms into the
+// string, then 30 ms after its 177 ms end.
+static uint8_t wfck_driven_low(avr_t *avr, const target_t *t) {
+  avr_ioport_state_t state;
+  (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE((uint32_t)t->port), &state);
+  uint8_t output = (uint8_t)((state.ddr >> t->wfck) & 1U);
+  uint8_t high = (uint8_t)((state.port >> t->wfck) & 1U);
+  return (uint8_t)((output != 0U) && (high == 0U));
+}
+
+void scenario_gate(const target_t *t, const char *elf, uint32_t freq, int modern) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, modern, &ctx);
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  clock_until_inject(avr, t, toc);
+  uint64_t deadline = avr->cycle + LED_DEADLINE;
+  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+    run_cycles(avr, 2000U);
+  }
+  run_to(avr, g_led_cycle + ms_cycles(80U));
+  uint8_t during = wfck_driven_low(avr, t);
+  run_to(avr, g_led_cycle + ms_cycles(210U));
+  uint8_t after = wfck_driven_low(avr, t);
+
+  char label[96];
+  const char *board = (modern != 0) ? "carrier" : "gate";
+  (void)snprintf(label,
+                 sizeof(label),
+                 "%s board: WFCK %s during a string",
+                 board,
+                 (modern != 0) ? "left alone" : "held low");
+  check((g_led_seen != 0) && (during == ((modern != 0) ? 0U : 1U)), label);
+  (void)snprintf(label, sizeof(label), "%s board: WFCK released after the string", board);
+  check(after == 0U, label);
+}
+
+// Strings are spaced by the stealth gap, five frames, not sent back to back:
+// the quiet time between the first two strings must exceed four frame periods,
+// against about 5 ms before the gap existed.
+// Long enough for the first string, the gap and the whole second string, which
+// is counted only when it ends.
+#define GAP_TOC_FRAMES 80
+#define GAP_MIN_MS 45U
+
+void scenario_string_gap(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  clock_frames(avr, t, toc, GAP_TOC_FRAMES);
+
+  uint64_t ends[2] = { 0U, 0U };
+  uint64_t starts[2] = { 0U, 0U };
+  int found = 0;
+  for (int q = 0; (q < g_pulses) && (found < 2); q++) {
+    uint64_t len = g_pulse_len[q];
+    if ((g_pulse_rise[q] >= DETECT_CYCLES) && (len >= ms_cycles(60U)) && (len <= ms_cycles(200U))) {
+      starts[found] = g_pulse_rise[q];
+      ends[found] = g_pulse_rise[q] + len;
+      found++;
+    }
+  }
+  char label[96];
+  (void)snprintf(label, sizeof(label), "%s: strings are spaced by the stealth gap", t->mcu);
+  check((found == 2) && ((starts[1] - ends[0]) >= ms_cycles(GAP_MIN_MS)), label);
 }
 
 void scenario_families(const target_t *t, const char *elf, uint32_t freq) {

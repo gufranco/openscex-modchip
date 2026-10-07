@@ -216,7 +216,8 @@ void pscu_run(void) {
     bool program = pscu_subq_is_program_area(frame);
     bool lid_open = pscu_port_read_lid() != 0U;
     cap = (stealth.sent == 0U) ? calib.cap : cap;
-    pscu_stealth_step_t step = pscu_stealth_step(stealth, in_window, program, lid_open, cap);
+    pscu_stealth_step_t step =
+        pscu_stealth_step(stealth, in_window, program, lid_open, cap, PSCU_STEALTH_GAP_FRAMES);
     stealth = step.state;
     if (step.fire) {
       session = pscu_session_fired(session, step.state.sent);

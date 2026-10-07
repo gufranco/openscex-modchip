@@ -43,4 +43,12 @@
 // what makes it stealth.
 #define PSCU_STEALTH_STRINGS ((uint8_t)16U)
 
+// Frames between two strings. A pressed disc does not carry its region string
+// back to back, and neither long-deployed chip sends it so: PsNee V9.0 needs
+// five more lead-in hits before the next string (Read: PSNee.ino:53 and :736,
+// REQUEST_INJECT_GAP 5), and Mayumi V4 pauses about 72 ms (Read: its binary,
+// disassembled for this project). Five frames is 67 ms at the 75 Hz subcode
+// rate, between the two.
+#define PSCU_STEALTH_GAP_FRAMES ((uint8_t)5U)
+
 #endif
