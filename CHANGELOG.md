@@ -1,3 +1,10 @@
+# [0.9.0](https://github.com/gufranco/openscex-modchip/compare/v0.8.0...v0.9.0) (2026-10-07)
+
+
+### Features
+
+* target the attiny85 only ([c9a1665](https://github.com/gufranco/openscex-modchip/commit/c9a16655de710d2fcff159a8dca31cc3aaeabb9c))
+
 # [0.8.0](https://github.com/gufranco/openscex-modchip/compare/v0.7.0...v0.8.0) (2026-10-07)
 
 
