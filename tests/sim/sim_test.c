@@ -667,6 +667,43 @@ static void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq
   md_check(t, disc3 >= 1, "disc 3 after another swap is injected", disc3);
 }
 
+// A failed disc must still reach the flight recorder when it is swapped out
+// fast. Disc 1 is injected but never reaches the program area, and its lid opens
+// after only a few frames, long before the idle wait that would otherwise
+// resolve its session; the record must already hold it as unconfirmed. Disc 2 is
+// then confirmed and becomes the second session.
+#define SWAP_IDLE_FRAMES 5
+
+static void scenario_fast_swap_record(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  g_led_seen = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
+  const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
+                                           0,     0,     0x02U, 0,     0,     0 };
+  uint8_t raw[5] = { 0, 0, 0, 0, 0 };
+  char label[96];
+
+  clock_frames(avr, t, toc, DIAG_TOC_FRAMES);
+  clock_frames(avr, t, silence, SWAP_IDLE_FRAMES);
+  swap_disc(avr);
+  run_cycles(avr, DIAG_WRITE_CYCLES);
+  read_record(avr, raw);
+  (void)snprintf(label, sizeof(label), "fast swap %s: failed disc 1 recorded on lid open", t->mcu);
+  check((raw[0] == 0x50U) && (raw[2] == 1U) && (raw[4] == 0U), label);
+
+  clock_frames(avr, t, toc, DIAG_TOC_FRAMES);
+  clock_frames(avr, t, play, DIAG_AFTER_FRAMES);
+  run_cycles(avr, DIAG_WRITE_CYCLES);
+  read_record(avr, raw);
+  (void)snprintf(label, sizeof(label), "fast swap %s: disc 2 confirmed as session 2", t->mcu);
+  check((raw[2] == 2U) && (raw[4] == 1U), label);
+}
+
 // The lid is the chip's hard stop. With the lid open the chip never injects,
 // whatever SUBQ shows; and when the lid opens partway through a string, DATA
 // must be released within about one 4 ms bit cell and stay released for the rest
@@ -759,6 +796,7 @@ int main(int argc, char *argv[]) {
   scenario_multidisc(&t84, elf, freq);
   scenario_lid(&t84, elf, freq);
   scenario_fast_sqck(&t84, elf, freq);
+  scenario_fast_swap_record(&t84, elf, freq);
 
   // The optional third argument is the SCPH-5903 Video-CD image.
   if (argc >= 4) {
