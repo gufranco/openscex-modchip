@@ -99,6 +99,17 @@ extern const char SCEI_BITS[SCEX_BITS + 1];
 #define SIM_TCCR1_ADDR 0x50U
 #define SIM_TCNT1_ADDR 0x4FU
 #define SIM_OSCCAL_FACTORY 0x50U
+// The stack pointer, SPL at data address 0x5D and SPH at 0x5E (Read: ATtiny25/45/85
+// datasheet 2586Q, register summary, 0x3D (0x5D) and 0x3E (0x5E)). The ATtiny85
+// has 512 bytes of SRAM, no heap, and no other RAM user than the static data the
+// linker places at its bottom, so the stack can grow down only as far as the end
+// of that data. The harness watches the stack pointer on every instruction and
+// requires the lowest it reaches to stay this many bytes above the data: the
+// worst case measured across the whole suite left 229 bytes (2026-10-07), so 96
+// still catches a change that eats most of the margin, before it corrupts data.
+#define SIM_SPL_ADDR 0x5DU
+#define SIM_SPH_ADDR 0x5EU
+#define SIM_STACK_MARGIN 96
 // The 75 Hz single-speed sector rate a console reads the lead-in at.
 #define SIM_SECTOR_NS 13333333ULL
 
@@ -151,6 +162,9 @@ void boot_quiet(avr_t *avr, const target_t *t, int modern, wfck_ctx_t *ctx);
 void decode_region(avr_t *avr, const target_t *t, int modern, uint64_t bit_cycles, char *out);
 
 // The process exit status for the run: 0 when every check passed.
+// Check that the stack never came within SIM_STACK_MARGIN bytes of the static
+// data in any scenario run so far.
+void check_stack(void);
 int sim_report(void);
 
 // Load these bytes into EEPROM at the next build_avr, before the firmware runs.

@@ -29,6 +29,11 @@ int g_strings = 0;
 uint32_t g_freq = 8000000U;
 // The SQCK half-period the harness clocks frames with, normally EDGE_NS.
 uint64_t g_edge_ns = EDGE_NS;
+// The data address the static data ends at in the image now running, read from
+// its ELF symbols, and the fewest free bytes of RAM any run has left between
+// the stack and that data.
+static uint32_t g_ram_floor = 0U;
+static int64_t g_min_free = INT64_MAX;
 // When nonzero, frames start this many nanoseconds apart, a console's fixed
 // sector rate; when zero, each frame is followed by FRAME_GAP_CYCLES.
 uint64_t g_frame_period_ns = 0U;
@@ -130,6 +135,9 @@ avr_cycle_count_t wfck_tick(avr_t *avr, avr_cycle_count_t when, void *param) {
 void run_to(avr_t *avr, uint64_t target) {
   while (avr->cycle < target) {
     int state = avr_run(avr);
+    uint32_t sp = (uint32_t)avr->data[SIM_SPL_ADDR] | ((uint32_t)avr->data[SIM_SPH_ADDR] << 8);
+    int64_t free_bytes = (int64_t)sp - (int64_t)g_ram_floor;
+    g_min_free = (free_bytes < g_min_free) ? free_bytes : g_min_free;
     if ((state == cpu_Crashed) || (state == cpu_Done)) {
       break;
     }
@@ -161,10 +169,29 @@ static uint8_t sim_tcnt1_read(struct avr_t *avr, avr_io_addr_t addr, void *param
 // the scenario starts keeps every scenario's pins in their post-init state.
 #define PORT_INIT_CYCLES 2000U
 
+// The end of the static data, the highest of the linker's __data_end and
+// __bss_end symbols. Data addresses carry the 0x800000 offset avr-ld uses for
+// the data space, which is masked off. An image with neither symbol is refused
+// with a floor at the top of RAM, so the stack check fails rather than passing.
+static uint32_t ram_floor(const elf_firmware_t *firmware) {
+  uint32_t floor = 0U;
+  int found = 0;
+  for (uint32_t i = 0U; i < firmware->symbolcount; i++) {
+    const avr_symbol_t *symbol = firmware->symbol[i];
+    if ((strcmp(symbol->symbol, "__data_end") == 0) || (strcmp(symbol->symbol, "__bss_end") == 0)) {
+      uint32_t addr = symbol->addr & 0xFFFFU;
+      floor = (addr > floor) ? addr : floor;
+      found = 1;
+    }
+  }
+  return (found != 0) ? floor : 0xFFFFU;
+}
+
 avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
   elf_firmware_t firmware;
   memset(&firmware, 0, sizeof(firmware));
   (void)elf_read_firmware(elf, &firmware);
+  g_ram_floor = ram_floor(&firmware);
 
   avr_t *avr = avr_make_mcu_by_name(t->mcu);
   avr_init(avr);
@@ -302,6 +329,16 @@ int strings_while(avr_t *avr, const target_t *t, const uint8_t *frame, int count
 
 void swap_disc(avr_t *avr) {
   run_cycles(avr, MD_SWAP_CYCLES);
+}
+
+void check_stack(void) {
+  char label[96];
+  (void)snprintf(label,
+                 sizeof(label),
+                 "stack: at least %d bytes of RAM stay free (%lld left)",
+                 SIM_STACK_MARGIN,
+                 (long long)g_min_free);
+  check(g_min_free >= SIM_STACK_MARGIN, label);
 }
 
 int sim_report(void) {

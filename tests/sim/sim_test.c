@@ -60,5 +60,6 @@ int main(int argc, char *argv[]) {
     scenario_calib_jp(&t85, argv[3], freq);
   }
 
+  check_stack();
   return sim_report();
 }
