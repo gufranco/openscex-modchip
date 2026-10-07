@@ -194,6 +194,15 @@ SCEx 信号保持 PsNee 经验证的顺序（Read 自 PsNee `MCU.h`）；时钟�
 
 DATA 承载 SCEx 位流，WFCK 是门控或载波；这些是 PsNee 与 Mayumi 的接点。时钟线与光驱盖线接到 Mayumi V4 芯片的 2 号与 7 号脚所接的位置，各主板的位置见 quade.co 的图：[PU-18](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/)、[PU-20](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/)、[PU-22](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/)、[PU-23](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-23/)、[PM-41](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41/)、[PM-41(2)](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41-2/)。
 
+在这些图中，2 号点是主机时钟，7 号点是光驱盖线，本芯片只从图中取用这两个点。1 号与 8 号是电源与地，5 号与 6 号是本芯片也使用的 WFCK 与 DATA 点，3 号与 4 号属于 Mayumi 自己的隐身与复位接线，本芯片不使用。SQCK 与 SUBQ 不在这些图中，见下方的机芯控制器引脚。
+
+<table>
+<tr><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/"><img src="https://quade.co/wp-content/uploads/2018/02/PU18L.jpg" alt="William Quade 绘制的 PU-18 Mayumi V4 安装图" width="240"></a><br><sub><b>PU-18</b>。图：William Quade，<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/"><img src="https://quade.co/wp-content/uploads/2018/02/PU20L.jpg" alt="William Quade 绘制的 PU-20 Mayumi V4 安装图" width="240"></a><br><sub><b>PU-20</b>。图：William Quade，<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/"><img src="https://quade.co/wp-content/uploads/2018/02/PU22L.jpg" alt="William Quade 绘制的 PU-22 Mayumi V4 安装图" width="240"></a><br><sub><b>PU-22</b>。图：William Quade，<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/">quade.co</a></sub></td></tr>
+<tr><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-23/"><img src="https://quade.co/wp-content/uploads/2018/01/pu23l.jpg" alt="William Quade 绘制的 PU-23 Mayumi V4 安装图" width="240"></a><br><sub><b>PU-23</b>。图：William Quade，<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-23/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41/"><img src="https://quade.co/wp-content/uploads/2018/11/pm-41-mayumiv4.jpg" alt="William Quade 绘制的 PM-41 Mayumi V4 安装图" width="240"></a><br><sub><b>PM-41</b>。图：William Quade，<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41-2/"><img src="https://quade.co/wp-content/uploads/2020/05/pm-412-m4.jpg" alt="William Quade 绘制的 PM-41(2) Mayumi V4 安装图" width="240"></a><br><sub><b>PM-41(2)</b>。图：William Quade，<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41-2/">quade.co</a></sub></td></tr>
+</table>
+
+这六张图归 William Quade 所有，注明出处后从 quade.co 显示，不属于本仓库，也不受其 MIT 许可证约束。点击图片可打开原页面及其评论。
+
 | 主板系列 | SCPH 年代 | DATA 注入点 | WFCK 作用 | 可信度 |
 |:---------|:----------|:------------|:----------|:-------|
 | PU-18、PU-20 | 550x-750x | 摆动 ASIC 送入机芯控制器的数字 NRZ 输出 | 静态门控 | Read |
