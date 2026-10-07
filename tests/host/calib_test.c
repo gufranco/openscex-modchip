@@ -22,18 +22,18 @@ static pscu_check_fn g_check;
 // The defaults are what an erased chip reads as, so the tests take them from
 // there rather than from a function the firmware has no other use for.
 static pscu_calib_t defaults(void) {
-  pscu_calib_record_t erased = { { 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU } };
+  pscu_calib_record_t erased = { { 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU } };
   return pscu_calib_decode(erased);
 }
 
 static pscu_calib_t make(uint8_t board, uint8_t cap, uint8_t trigger, bool frozen) {
-  pscu_calib_t calib = { board, cap, trigger, frozen };
+  pscu_calib_t calib = { board, cap, trigger, frozen, 0 };
   return calib;
 }
 
 static bool same(pscu_calib_t a, pscu_calib_t b) {
   return (a.board == b.board) && (a.cap == b.cap) && (a.trigger == b.trigger) &&
-         (a.frozen == b.frozen);
+         (a.frozen == b.frozen) && (a.trim == b.trim);
 }
 
 // Encode never validates, so it builds records holding any field value; decoding
@@ -93,6 +93,32 @@ static void test_record_ranges(void) {
   frozen_two.bytes[PSCU_CALIB_AT_FROZEN] = 2U;
   frozen_two.bytes[PSCU_CALIB_AT_CHECK] = (uint8_t)(frozen_two.bytes[PSCU_CALIB_AT_CHECK] ^ 3U);
   g_check(is_default(pscu_calib_decode(frozen_two)), "calib: a frozen byte of 2 is rejected");
+}
+
+static pscu_calib_t trimmed(pscu_calib_t calib, int8_t trim) {
+  pscu_calib_t next = calib;
+  next.trim = trim;
+  return next;
+}
+
+// The trim is a two's-complement byte held to the trim module's bound on both
+// sides, and it describes the chip, so a board change keeps it.
+static void test_record_trim(void) {
+  pscu_calib_t base = make(0U, 7U, MIN_T, false);
+  g_check(accepted_record(trimmed(base, PSCU_TRIM_MAX_OFFSET)), "calib: the largest trim is valid");
+  g_check(accepted_record(trimmed(base, (int8_t)-PSCU_TRIM_MAX_OFFSET)),
+          "calib: the smallest trim is valid");
+  g_check(!accepted_record(trimmed(base, (int8_t)(PSCU_TRIM_MAX_OFFSET + 1))),
+          "calib: a trim past the bound is rejected");
+  g_check(!accepted_record(trimmed(base, (int8_t)(-PSCU_TRIM_MAX_OFFSET - 1))),
+          "calib: a trim below the bound is rejected");
+
+  pscu_calib_boot_t moved = pscu_calib_boot(trimmed(make(1U, 7U, MIN_T, true), -5), 0U);
+  g_check(
+      moved.board_changed && (moved.calib.trim == -5) && (moved.calib.cap == PSCU_CALIB_CAP_MAX),
+      "calib: a board change keeps the oscillator trim");
+  g_check(pscu_calib_learn(trimmed(base, 3), PSCU_CALIB_REFUSED, 7U).trim == 3,
+          "calib: learning leaves the trim alone");
 }
 
 static void test_boot(void) {
@@ -190,6 +216,7 @@ void calib_tests(pscu_check_fn check) {
   g_check = check;
   test_record_round_trip();
   test_record_ranges();
+  test_record_trim();
   test_boot();
   test_learn_cap();
   test_learn_start();

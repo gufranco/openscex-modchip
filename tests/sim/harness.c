@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "avr_eeprom.h"
 #include "avr_ioport.h"
 #include "sim_cycle_timers.h"
 #include "sim_elf.h"
@@ -25,9 +26,24 @@ uint64_t g_pulse_len[MAX_PULSES];
 int g_pulses = 0;
 uint64_t g_rise = 0;
 int g_strings = 0;
-uint32_t g_freq = 4233600U;
-// The SQCK half-period the harness clocks frames with, normally EDGE_CYCLES.
-uint64_t g_edge_cycles = EDGE_CYCLES;
+uint32_t g_freq = 8000000U;
+// The SQCK half-period the harness clocks frames with, normally EDGE_NS.
+uint64_t g_edge_ns = EDGE_NS;
+// When nonzero, frames start this many nanoseconds apart, a console's fixed
+// sector rate; when zero, each frame is followed by FRAME_GAP_CYCLES.
+uint64_t g_frame_period_ns = 0U;
+
+// EEPROM contents for the next build_avr to load before the firmware starts,
+// since the firmware reads its calibration record within its first cycles.
+#define SIM_SEED_MAX 16U
+static uint8_t g_seed[SIM_SEED_MAX];
+static uint8_t g_seed_len = 0U;
+
+void sim_seed_eeprom(const uint8_t *raw, uint8_t size) {
+  uint8_t n = (size < SIM_SEED_MAX) ? size : (uint8_t)SIM_SEED_MAX;
+  memcpy(g_seed, raw, n);
+  g_seed_len = n;
+}
 
 void check(int cond, const char *name) {
   g_checks++;
@@ -39,6 +55,10 @@ void check(int cond, const char *name) {
 
 uint64_t ms_cycles(uint32_t ms) {
   return ((uint64_t)g_freq * ms) / 1000U;
+}
+
+uint64_t ns_cycles(uint64_t ns) {
+  return ((uint64_t)g_freq * ns) / 1000000000ULL;
 }
 
 // The first LED rise after boot marks the first region string, which the
@@ -140,6 +160,12 @@ avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = avr_make_mcu_by_name(t->mcu);
   avr_init(avr);
   avr_load_firmware(avr, &firmware);
+  avr->data[SIM_OSCCAL_ADDR] = SIM_OSCCAL_FACTORY;
+  if (g_seed_len > 0U) {
+    avr_eeprom_desc_t desc = { .ee = g_seed, .offset = 0, .size = g_seed_len };
+    (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_SET, &desc);
+    g_seed_len = 0U;
+  }
   avr->frequency = freq;
   g_freq = freq;
   g_led_seen = 0;
@@ -170,20 +196,22 @@ uint8_t data_pin(avr_t *avr, const target_t *t) {
 void clock_frame(avr_t *avr, const target_t *t, const uint8_t *frame) {
   avr_irq_t *sqck = pin_irq(avr, t, t->sqck);
   avr_irq_t *subq = pin_irq(avr, t, t->subq);
+  uint64_t frame_start = avr->cycle;
   for (int byte = 0; byte < SUBQ_FRAME_BYTES; byte++) {
     for (int bit = 0; bit < SUBQ_BITS; bit++) {
       avr_raise_irq(subq, (uint8_t)((frame[byte] >> bit) & 1U));
       avr_raise_irq(sqck, 0U);
-      run_cycles(avr, g_edge_cycles);
+      run_cycles(avr, ns_cycles(g_edge_ns));
       avr_raise_irq(sqck, 1U);
-      run_cycles(avr, g_edge_cycles);
+      run_cycles(avr, ns_cycles(g_edge_ns));
     }
   }
   // Idle the clock for the inter-frame gap, but stop early the moment the LED
   // marks the start of an injection inside it: the decoder samples DATA forward
   // from that edge and cannot sample cycles the gap has already run past.
   int led_before = g_led_seen;
-  uint64_t gap_end = avr->cycle + FRAME_GAP_CYCLES;
+  uint64_t paced = frame_start + ns_cycles(g_frame_period_ns);
+  uint64_t gap_end = (g_frame_period_ns != 0U) ? paced : (avr->cycle + FRAME_GAP_CYCLES);
   while ((avr->cycle < gap_end) && !((g_led_seen != 0) && (led_before == 0))) {
     run_cycles(avr, 500U);
   }

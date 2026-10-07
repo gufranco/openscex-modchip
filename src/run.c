@@ -14,12 +14,23 @@
 #include "pscu/inject.h"
 #include "pscu/led.h"
 #include "pscu/subq.h"
+#include "pscu/trim.h"
 
-// Console clocks per millisecond, the divisor that turns Timer1 ticks (1024
-// clocks each) into milliseconds for the LED. Integer division drops 0.6 of a
-// clock per millisecond at 4.2336 MHz, a 0.014 percent error no eye can see.
+// Clocks per millisecond, the divisor that turns Timer1 ticks (1024 clocks
+// each) into milliseconds for the LED; 8000 at 8 MHz, an exact division.
 #define PSCU_CLOCKS_PER_MS (F_CPU / 1000UL)
 #define PSCU_CLOCKS_PER_TICK (1024UL)
+
+// The trim's reference at the nominal clock: Timer1 ticks per SUBQ frame at 75
+// per second (104 at 8 MHz), a window of 80 to 120 percent of it that rejects a
+// skipped frame or a double-speed read, and the ticks a nominal clock counts
+// over a batch of PSCU_TRIM_FRAMES periods (6666 at 8 MHz).
+#define PSCU_TRIM_SUBQ_HZ (75UL)
+#define PSCU_TRIM_FRAME_TICKS (F_CPU / (PSCU_CLOCKS_PER_TICK * PSCU_TRIM_SUBQ_HZ))
+#define PSCU_TRIM_LOW ((PSCU_TRIM_FRAME_TICKS * 4UL) / 5UL)
+#define PSCU_TRIM_HIGH ((PSCU_TRIM_FRAME_TICKS * 6UL) / 5UL)
+#define PSCU_TRIM_EXPECTED \
+  (((uint32_t)PSCU_TRIM_FRAMES * F_CPU) / (PSCU_CLOCKS_PER_TICK * PSCU_TRIM_SUBQ_HZ))
 
 // One disc's session: how many strings were emitted for it, whether its result
 // has been shown, and the confirmation state that decides which result it is.
@@ -58,6 +69,24 @@ typedef struct {
   pscu_clock_t clock;
   uint32_t elapsed_ms;
 } pscu_clock_step_t;
+
+// The oscillator trim as the loop runs it: the factory OSCCAL value that bounds
+// every trim, the value in OSCCAL now, the batch being summed, the Timer1 stamp
+// of the last pass and whether that pass read a lead-in frame, and whether a
+// trim is waiting to be stored.
+typedef struct {
+  uint8_t factory;
+  uint8_t osccal;
+  pscu_trim_t batch;
+  uint16_t stamp;
+  bool hit;
+  bool dirty;
+} pscu_osc_t;
+
+typedef struct {
+  pscu_osc_t osc;
+  pscu_calib_t calib;
+} pscu_osc_store_t;
 
 static pscu_session_t pscu_session_init(void) {
   pscu_session_t session = { 0U, false, pscu_confirm_init() };
@@ -127,15 +156,59 @@ static pscu_calib_t pscu_calib_update(pscu_calib_t calib,
 // (nothing is written when it did not change). The boot code is the watchdog's
 // 6 if the last reset came from it, else 7 if the board changed, else none; a
 // boot that has both shows 6, since a hang is the more urgent report.
-static pscu_calib_boot_t pscu_calib_start(pscu_board_mode_t board) {
+static pscu_calib_boot_t pscu_calib_start(pscu_calib_t stored, pscu_board_mode_t board) {
   uint8_t detected = (board == PSCU_BOARD_MODE_WFCK) ? 1U : 0U;
-  pscu_calib_boot_t boot = pscu_calib_boot(pscu_engine_load_calib(), detected);
+  pscu_calib_boot_t boot = pscu_calib_boot(stored, detected);
   pscu_engine_store_calib(boot.calib);
   return boot;
 }
 
+static pscu_osc_t pscu_osc_init(uint8_t factory) {
+  pscu_osc_t osc;
+  osc.factory = factory;
+  osc.osccal = pscu_port_osccal_read();
+  osc.batch = pscu_trim_init();
+  osc.stamp = pscu_port_ticks();
+  osc.hit = false;
+  osc.dirty = false;
+  return osc;
+}
+
+// Time this pass's frame against the last one. Only two lead-in frames in a row
+// make a sample; the batch decides a step, which moves OSCCAL at once, between
+// strings, and marks the trim for storing.
+static pscu_osc_t pscu_osc_step(pscu_osc_t osc, uint16_t stamp, bool hit) {
+  pscu_trim_ref_t ref = { PSCU_TRIM_LOW, PSCU_TRIM_HIGH, PSCU_TRIM_EXPECTED };
+  bool sample = osc.hit && hit;
+  pscu_trim_step_t step = pscu_trim_step(osc.batch, sample, (uint16_t)(stamp - osc.stamp), ref);
+  pscu_osc_t next = osc;
+  next.batch = step.state;
+  next.stamp = stamp;
+  next.hit = hit;
+  next.osccal = pscu_trim_apply(osc.factory, osc.osccal, step.adjust);
+  if (next.osccal != osc.osccal) {
+    pscu_port_osccal_write(next.osccal);
+    next.dirty = true;
+  }
+  return next;
+}
+
+// A new trim reaches EEPROM only while no arming is under way, so the write
+// never lands inside the injection window.
+static pscu_osc_store_t pscu_osc_store(pscu_osc_t osc, pscu_calib_t calib, bool quiet) {
+  pscu_osc_store_t out;
+  out.osc = osc;
+  out.calib = calib;
+  if (osc.dirty && quiet) {
+    out.calib.trim = (int8_t)((int16_t)osc.osccal - (int16_t)osc.factory);
+    out.osc.dirty = false;
+    pscu_engine_store_calib(out.calib);
+  }
+  return out;
+}
+
 // Milliseconds since the last pass, from the free-running Timer1. Unsigned
-// subtraction handles the 16-bit wrap, since no pass comes near its 15.8 s.
+// subtraction handles the 16-bit wrap, since no pass comes near its 8.4 s.
 static pscu_clock_step_t pscu_clock_step(pscu_clock_t clock) {
   uint16_t now = pscu_port_ticks();
   uint32_t ticks = (uint32_t)(uint16_t)(now - clock.last);
@@ -189,13 +262,16 @@ static pscu_led_t pscu_led_show(
 // The window opens at the learned trigger and each arming sends at most the
 // learned cap; the cap is taken when an arming starts, so a value learned
 // mid-window, such as the full cap after a refusal, applies from the next disc
-// rather than restarting strings on this one. Every call inside the loop is
-// bounded, and the watchdog is kicked each pass so a stuck signal resets the
-// chip rather than wedging it.
+// rather than restarting strings on this one. The stored oscillator trim is
+// applied before anything is timed, and each pass's frame timing refines it.
+// Every call inside the loop is bounded, and the watchdog is kicked each pass so
+// a stuck signal resets the chip rather than wedging it.
 void pscu_run(void) {
+  pscu_calib_t stored = pscu_engine_load_calib();
+  pscu_osc_t osc = pscu_osc_init(pscu_engine_apply_trim(stored.trim));
   pscu_board_mode_t board = pscu_engine_detect_board();
   bool watchdog = pscu_port_reset_was_watchdog() != 0U;
-  pscu_calib_boot_t boot = pscu_calib_start(board);
+  pscu_calib_boot_t boot = pscu_calib_start(stored, board);
   pscu_calib_t calib = boot.calib;
   uint8_t changed_code = boot.board_changed ? PSCU_LED_CODE_BOARD_CHANGED : 0U;
   uint8_t boot_code = watchdog ? PSCU_LED_CODE_WATCHDOG : changed_code;
@@ -210,8 +286,10 @@ void pscu_run(void) {
   for (;;) {
     uint8_t frame[PSCU_SUBQ_FRAME_BYTES];
     bool captured = pscu_engine_capture_frame(frame);
+    uint16_t stamp = pscu_port_ticks();
     uint8_t previous = counter;
     counter = pscu_subq_update_counter(frame, counter, PSCU_VCD_FILTER_ENABLED);
+    osc = pscu_osc_step(osc, stamp, captured && (counter > previous));
     bool in_window = pscu_should_inject(counter, calib.trigger);
     bool program = pscu_subq_is_program_area(frame);
     bool lid_open = pscu_port_read_lid() != 0U;
@@ -227,6 +305,9 @@ void pscu_run(void) {
     session = watched.session;
     bool missed = !lid_open && pscu_calib_missed(calib, previous, counter, since.armed);
     calib = pscu_calib_update(calib, watched, missed);
+    pscu_osc_store_t kept = pscu_osc_store(osc, calib, !in_window && (stealth.sent == 0U));
+    osc = kept.osc;
+    calib = kept.calib;
     pscu_clock_step_t tick = pscu_clock_step(clock);
     clock = tick.clock;
     since = pscu_since_close_step(since, lid_open, tick.elapsed_ms, captured, step.fire || program);

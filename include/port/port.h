@@ -54,12 +54,18 @@ void pscu_port_bit_hold_low(void);
 
 void pscu_port_bit_mirror(void);
 
-// Timer1 ticks, one per 1024 console clocks, wrapping at 65536: the LED's time
+// Timer1 ticks, one per 1024 clocks, wrapping at 65536: the LED's time
 // base, read without waiting.
 uint16_t pscu_port_ticks(void);
 
 // Nonzero when the last reset came from the watchdog; clears the reset flags.
 uint8_t pscu_port_reset_was_watchdog(void);
+
+// The oscillator calibration register: the factory value at boot, written one
+// step at a time to trim the internal 8 MHz oscillator.
+uint8_t pscu_port_osccal_read(void);
+
+void pscu_port_osccal_write(uint8_t value);
 
 // One EEPROM byte, for the calibration record. Each call first waits, bounded at
 // 10 ms, for any earlier write to finish. A write starts the hardware's 3.4 ms

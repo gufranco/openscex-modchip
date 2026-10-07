@@ -5,23 +5,23 @@ PYTHON ?= python3
 BUILD := build
 NAME := openscex-modchip
 
-# The ATtiny84 is the only target: its spare pins carry the mandatory lid line,
-# and its clock input, which takes the console clock, does not share a pin with
-# the LED as the ATtiny85's does.
+# The ATtiny84 is the only target: its spare pins carry the mandatory lid line
+# without displacing the LED, which the 8-pin ATtiny85 cannot do.
 MCU := attiny84
 FLASH_BYTES := 8192
 
-# The chip always runs from the console clock on CLKI (PB0), never from its
-# internal RC oscillator, so every delay is locked to the console's crystal.
-# 4.2336 MHz is the mechacon clock, 16.9344 MHz divided by four: Concluded from
-# that snippet and from the Mayumi V4 binary, which runs from the same clock
-# with a delay loop of 182 x 6 cycles where the MM3 port on a 4 MHz RC uses 170,
-# a ratio of 1.071 against 4.2336 / 4.0 = 1.058. The 2026-10-05 hardware results
-# on PU-18 and PM-41 include external-clock builds at this default.
-F_CPU := 4233600UL
+# The chip runs from its internal 8 MHz RC oscillator (CKSEL 0010, low fuse
+# 0xE2), so it needs no clock wire and can be reprogrammed off the console. The
+# factory calibration is guaranteed to +-10 percent and user calibration reaches
+# +-1 percent (Read: ATtiny24A/44A/84A datasheet DS40002269A, Table 20-2); the
+# firmware trims OSCCAL against the SUBQ frame rate, which the console's crystal
+# sets. PsNee ships on the same factory-calibrated internal oscillator. 8 MHz
+# needs about 2.4 V by the speed grade (0-4 MHz from 1.8 V, 0-10 MHz from 2.7
+# V), so the documented fuses enable brown-out detection at 2.7 V.
+F_CPU := 8000000UL
 
 # Injection bit timing. adaptive (default) locks the WFCK-carrier injection bit
-# to the console clock by counting WFCK periods, so the modern-board bit cell is
+# to the console's own timing by counting WFCK periods, so the modern-board bit cell is
 # immune to the MCU RC oscillator drifting; legacy boards keep the MCU delay
 # because WFCK is static there and offers nothing to lock to. fixed restores the
 # original behaviour where every bit cell is a compile-time MCU delay; that is
@@ -105,7 +105,7 @@ WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -Wsh
 	-Wswitch-default -Wdouble-promotion -Wnull-dereference -Wvla -Wredundant-decls -Wformat=2
 HOST_CFLAGS := $(C_STD) -Iinclude $(WARNINGS)
 
-LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c src/led.c src/calib.c
+LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c src/led.c src/calib.c src/trim.c
 HOST_LOGIC_C := $(LOGIC_C)
 
 FIRMWARE_C := $(LOGIC_C) src/engine.c src/run.c src/main.c
@@ -114,7 +114,7 @@ CPPCHECK_MCU_DEF := -D__AVR_ATtiny84__
 ALL_SRC_C := $(FIRMWARE_C)
 FIRMWARE_S := src/port.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
-HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_test.c
+HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_test.c tests/host/trim_test.c
 SIM_TEST_C := tests/sim/sim_test.c tests/sim/harness.c tests/sim/sim_inject.c tests/sim/sim_disc.c tests/sim/sim_calib.c
 SIM_TEST_H := tests/sim/harness.h tests/sim/scenarios.h
 C_FILES := $(ALL_SRC_C) $(FIRMWARE_H) $(HOST_TEST_C) $(SIM_TEST_C) $(SIM_TEST_H)
@@ -185,9 +185,11 @@ $(SIM_TEST): $(SIM_TEST_C) $(SIM_TEST_H) all
 	@mkdir -p $(@D)
 	$(HOST_CC) $(SIM_CFLAGS) -o $@ $(SIM_TEST_C) $(SIM_LIBS)
 
-# The simulator runs the firmware at the console clock it is built for; there is
-# no oscillator tolerance band to sweep, because the chip never runs from its own
-# RC. The SCPH-5903 Video-CD image is the optional second argument.
+# The simulator runs the firmware at the nominal 8 MHz it is built for; the
+# oscillator trim scenarios model a fast or slow RC by running the console side
+# at a different rate. simavr does not change speed when OSCCAL is written, so
+# the trim is checked for direction, bounds and persistence, not its effect. The
+# SCPH-5903 Video-CD image is the optional second argument.
 simtest: $(SIM_TEST)
 	$(MAKE) --no-print-directory REGION=jp VCD_FILTER=on image
 	$(SIM_TEST) $(SIM_ELF) $(F_CPU) $(SIM_ELF_VCD)

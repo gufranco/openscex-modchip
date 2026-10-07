@@ -26,6 +26,7 @@ void scenario_calib_cap(const target_t *t, const char *elf, uint32_t freq);
 void scenario_calib_board(const target_t *t, const char *elf, uint32_t freq);
 void scenario_calib_missed(const target_t *t, const char *elf, uint32_t freq);
 void scenario_calib_jp(const target_t *t, const char *elf, uint32_t freq);
+void scenario_trim(const target_t *t, const char *elf, uint32_t freq);
 void scenario_gate(const target_t *t, const char *elf, uint32_t freq, int modern);
 void scenario_string_gap(const target_t *t, const char *elf, uint32_t freq);
 

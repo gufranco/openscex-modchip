@@ -9,6 +9,7 @@
 
 #include "pscu/config.h"
 #include "pscu/run.h"
+#include "pscu/trim.h"
 
 // Per-console calibration. Every console reads the region string a little
 // differently: how many strings it takes before the mechacon accepts, and how
@@ -19,20 +20,22 @@
 // every value only ever falls back toward the fixed defaults, so a lost or torn
 // record costs stealth, never a disc.
 
-// The record lives at EEPROM address 0, six bytes in this order. The magic marks
-// a record this firmware wrote; an erased chip reads 0xFF everywhere and so
-// starts from the defaults. The check byte is the XOR of the five bytes before
-// it with a fixed seed, so a write cut short by power-off, which leaves some
-// bytes new and some old, almost always fails the check and reads as defaults.
-#define PSCU_CALIB_BYTES ((uint8_t)6U)
-#define PSCU_CALIB_MAGIC ((uint8_t)0xC5U)
+// The record lives at EEPROM address 0, seven bytes in this order. The magic
+// marks a record this firmware wrote, and changes with the layout, so a record
+// from an older layout reads as defaults; an erased chip reads 0xFF everywhere
+// and so starts from the defaults too. The check byte is the XOR of the bytes
+// before it with a fixed seed, so a write cut short by power-off, which leaves
+// some bytes new and some old, almost always fails the check.
+#define PSCU_CALIB_BYTES ((uint8_t)7U)
+#define PSCU_CALIB_MAGIC ((uint8_t)0xC6U)
 #define PSCU_CALIB_SEED ((uint8_t)0x5AU)
 #define PSCU_CALIB_AT_MAGIC ((uint8_t)0U)
 #define PSCU_CALIB_AT_BOARD ((uint8_t)1U)
 #define PSCU_CALIB_AT_CAP ((uint8_t)2U)
 #define PSCU_CALIB_AT_TRIGGER ((uint8_t)3U)
 #define PSCU_CALIB_AT_FROZEN ((uint8_t)4U)
-#define PSCU_CALIB_AT_CHECK ((uint8_t)5U)
+#define PSCU_CALIB_AT_TRIM ((uint8_t)5U)
+#define PSCU_CALIB_AT_CHECK ((uint8_t)6U)
 
 // A board byte that names no board: the state of a fresh chip, which has never
 // detected one, so the first boot can never report a board change.
@@ -77,13 +80,15 @@
 #define PSCU_CALIB_TRIGGER_MAX ((uint8_t)(PSCU_INJECT_TRIGGER + PSCU_CALIB_PROBE_FRAMES))
 
 // board is the detected board (0 static gate, 1 WFCK carrier, or NONE), cap the
-// string cap, trigger the counter value that opens the window, and frozen whether
-// the start-point probe has stopped.
+// string cap, trigger the counter value that opens the window, frozen whether
+// the start-point probe has stopped, and trim the OSCCAL steps from the factory
+// value that bring the oscillator to 8 MHz, stored as a two's-complement byte.
 typedef struct {
   uint8_t board;
   uint8_t cap;
   uint8_t trigger;
   bool frozen;
+  int8_t trim;
 } pscu_calib_t;
 
 // The record as stored, byte for byte.
@@ -118,8 +123,9 @@ pscu_calib_record_t pscu_calib_encode(pscu_calib_t calib);
 
 // Fold the board detected at this boot into the stored calibration. A different
 // board means the chip moved to another console or its WFCK wire is
-// intermittent; either way the learned values describe something else, so they
-// restart from the defaults under the new board.
+// intermittent; either way the learned cap and start describe something else,
+// so they restart from the defaults under the new board. The trim describes the
+// chip's own oscillator, not the console, so it is kept.
 pscu_calib_boot_t pscu_calib_boot(pscu_calib_t stored, uint8_t board);
 
 // Learn from one resolved session. strings is the number sent for it.

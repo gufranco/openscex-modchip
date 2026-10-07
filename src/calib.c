@@ -35,13 +35,17 @@ static bool pscu_calib_valid(pscu_calib_record_t record) {
   bool trigger_ok = pscu_calib_in_range(trigger, PSCU_CALIB_TRIGGER_MIN, PSCU_CALIB_TRIGGER_MAX) &&
                     (((uint8_t)(trigger - PSCU_CALIB_TRIGGER_MIN) % PSCU_CALIB_TRIGGER_STEP) == 0U);
   bool frozen_ok = record.bytes[PSCU_CALIB_AT_FROZEN] <= 1U;
+  int8_t trim = (int8_t)record.bytes[PSCU_CALIB_AT_TRIM];
+  bool trim_ok = (trim >= -PSCU_TRIM_MAX_OFFSET) && (trim <= PSCU_TRIM_MAX_OFFSET);
   bool magic_ok = record.bytes[PSCU_CALIB_AT_MAGIC] == PSCU_CALIB_MAGIC;
   bool check_ok = record.bytes[PSCU_CALIB_AT_CHECK] == pscu_calib_check(record);
-  return magic_ok && board_ok && cap_ok && trigger_ok && frozen_ok && check_ok;
+  return magic_ok && board_ok && cap_ok && trigger_ok && frozen_ok && trim_ok && check_ok;
 }
 
 static pscu_calib_t pscu_calib_defaults(void) {
-  pscu_calib_t calib = { PSCU_CALIB_BOARD_NONE, PSCU_CALIB_CAP_MAX, PSCU_CALIB_TRIGGER_MIN, false };
+  pscu_calib_t calib = {
+    PSCU_CALIB_BOARD_NONE, PSCU_CALIB_CAP_MAX, PSCU_CALIB_TRIGGER_MIN, false, 0
+  };
   return calib;
 }
 
@@ -52,17 +56,19 @@ pscu_calib_t pscu_calib_decode(pscu_calib_record_t record) {
     calib.cap = record.bytes[PSCU_CALIB_AT_CAP];
     calib.trigger = record.bytes[PSCU_CALIB_AT_TRIGGER];
     calib.frozen = record.bytes[PSCU_CALIB_AT_FROZEN] != 0U;
+    calib.trim = (int8_t)record.bytes[PSCU_CALIB_AT_TRIM];
   }
   return calib;
 }
 
 pscu_calib_record_t pscu_calib_encode(pscu_calib_t calib) {
-  pscu_calib_record_t record = { { 0U, 0U, 0U, 0U, 0U, 0U } };
+  pscu_calib_record_t record = { { 0U, 0U, 0U, 0U, 0U, 0U, 0U } };
   record.bytes[PSCU_CALIB_AT_MAGIC] = PSCU_CALIB_MAGIC;
   record.bytes[PSCU_CALIB_AT_BOARD] = calib.board;
   record.bytes[PSCU_CALIB_AT_CAP] = calib.cap;
   record.bytes[PSCU_CALIB_AT_TRIGGER] = calib.trigger;
   record.bytes[PSCU_CALIB_AT_FROZEN] = calib.frozen ? 1U : 0U;
+  record.bytes[PSCU_CALIB_AT_TRIM] = (uint8_t)calib.trim;
   record.bytes[PSCU_CALIB_AT_CHECK] = pscu_calib_check(record);
   return record;
 }
@@ -74,6 +80,7 @@ pscu_calib_boot_t pscu_calib_boot(pscu_calib_t stored, uint8_t board) {
   out.board_changed = (stored.board != PSCU_CALIB_BOARD_NONE) && (stored.board != board);
   out.calib = out.board_changed ? pscu_calib_defaults() : stored;
   out.calib.board = board;
+  out.calib.trim = stored.trim;
   return out;
 }
 

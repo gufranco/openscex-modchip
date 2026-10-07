@@ -7,7 +7,7 @@
 # platform C never include an avr/ header (registers live only in src/port.S),
 # so host clangd parses every C translation unit correctly once it is given the
 # include path, the C standard, and the default build variant's defines. These
-# mirror the Makefile default: ATtiny84 on the 4.2336 MHz console clock, region
+# mirror the Makefile default: ATtiny84 on the internal 8 MHz oscillator, region
 # us (NTSC-UC), adaptive timing. Other variants' #if branches show as inactive,
 # which is correct, not an error. Change these defines to inspect another variant.
 CompileFlags:
@@ -22,7 +22,7 @@ CompileFlags:
     - -I../../include
     - -std=c17
     - -D__AVR_ATtiny84__
-    - -DF_CPU=4233600UL
+    - -DF_CPU=8000000UL
     - -DPSCU_TIMING_ADAPTIVE=1
     - -DPSCU_WFCK_PERIODS_PER_BIT=30
     - -DPSCU_VCD_FILTER=0

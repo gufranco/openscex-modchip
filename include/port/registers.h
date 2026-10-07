@@ -8,8 +8,8 @@
 // registers and pins, so the rest of the firmware names signals, not bits. The
 // SCEx signals sit on PORTA in PsNee's tested order (SQCK, SUBQ, DATA, then
 // WFCK and the LED), read from its MCU.h. PORTB carries what only the 14-pin
-// part can offer: PB0 is CLKI, where the console clock enters, and PB1 is the
-// lid line, which sits apart from the LED so neither displaces the other. PB3
+// part can offer: PB1 is the lid line, which sits apart from the LED so neither
+// displaces the other, and PB0 and PB2 are unused. PB3
 // stays RESET, so the chip remains ISP-programmable. PORT_INIT is the boot value
 // of the PORTA register; no PORTA input needs a pull-up.
 #if defined(__AVR_ATtiny84__) || defined(__AVR_ATtiny84A__) || defined(__AVR_ATtiny44__) || \

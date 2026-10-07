@@ -13,31 +13,30 @@
 // simavr: it drives the console-side pins (SQCK, SUBQ, WFCK) and watches the
 // firmware-side pins (DATA, LED), then decodes the injected bitstream and
 // checks it equals the expected region word. It also drives the lid line, a
-// mandatory wire on the ATtiny84's PORTB. Timing is in CPU cycles at the console
-// clock the firmware is built for, 4.2336 MHz, where one cycle is about 236 ns;
-// the comments give each figure in time at that clock.
+// mandatory wire on the ATtiny84's PORTB. The console side is timed in real
+// time, converted to CPU cycles at the rate the simulated chip runs, so the same
+// console drives a nominal 8 MHz chip or one whose RC runs fast or slow.
 
 #define SUBQ_FRAME_BYTES 12
 #define SUBQ_BITS 8
-// Half-period of the SQCK clock we fake while shifting a SUBQ frame.
-#define EDGE_CYCLES 60
-// A fast SQCK the firmware must still follow: 20 cycles, about 4.7 us per half
-// period at 4.2336 MHz. The assembly capture follows down to about 2.8 us; the
-// earlier C capture failed below about 13 us, so this frame rate pins the margin.
-#define FAST_EDGE_CYCLES 20
+// Half-period of the SQCK clock we fake while shifting a SUBQ frame: 14.2 us.
+#define EDGE_NS 14170ULL
+// A fast SQCK the firmware must still follow: 4.7 us per half period. The
+// assembly capture followed down to about 2.8 us at 4.2336 MHz; the earlier C
+// capture failed below about 13 us, so this frame rate pins the margin.
+#define FAST_EDGE_NS 4720ULL
 // Idle-high SQCK gap after each frame. A console clocks one frame per sector at
 // 75 Hz, so bursts are separated by most of ~13.3 ms; the firmware resyncs on a
 // gap of at least 1 ms, and 9.4 ms sits clearly inside the real gap.
-#define FRAME_GAP_CYCLES 40000UL
-// Cycles to let the firmware's boot complete before the first frame: the 300 ms
+#define FRAME_GAP_CYCLES ns_cycles(9450000ULL)
+// Time to let the firmware's boot complete before the first frame: the 300 ms
 // WFCK settle and the 10000-sample window under the boot light (about 0.4 s),
 // then the board blinks, at most two 300 ms flashes with their gaps (1.2 s).
 // 1.7 s covers both with margin.
-#define DETECT_CYCLES 7200000UL
+#define DETECT_CYCLES ns_cycles(1700000000ULL)
 // A carrier that starts this long after power-on (283 ms) is still inside the
 // 300 ms settle time, so it must be detected as a carrier board.
-#define LATE_CARRIER_CYCLES 1200000UL
-#define INJECT_CYCLES 7000000UL
+#define LATE_CARRIER_CYCLES ns_cycles(283000000ULL)
 #define TRIGGER_FRAMES 10
 // The chip syncs to SUBQ by waiting for the idle gap before a frame, so a frame
 // that starts while it is still qualifying the gap is skipped, as on a console,
@@ -58,7 +57,8 @@
 // PsNee), so the decoder derives the modern bit length from the carrier period
 // instead of a fixed cycle count. Legacy bits stay the fixed MCU-delay length.
 #define WFCK_PERIODS_PER_BIT 30UL
-#define LED_DEADLINE 1000000UL
+// How long to wait for an expected string to start: 236 ms.
+#define LED_DEADLINE ns_cycles(236000000ULL)
 
 typedef struct {
   const char *mcu;
@@ -90,9 +90,18 @@ extern const char SCEI_BITS[SCEX_BITS + 1];
 // a pulse of 60 to 200 ms that starts after boot counts as one string.
 #define MAX_PULSES 512
 
+// OSCCAL, the oscillator calibration register, at data address 0x51 (Read:
+// ATtiny24A/44A/84A datasheet, register summary, 0x31 (0x51)). simavr does not
+// load a factory value, so the harness presets a mid-range one the firmware
+// reads as factory at boot; writes to it do not change simavr's speed.
+#define SIM_OSCCAL_ADDR 0x51U
+#define SIM_OSCCAL_FACTORY 0x50U
+// The 75 Hz single-speed sector rate a console reads the lead-in at.
+#define SIM_SECTOR_NS 13333333ULL
+
 // How long the lid stays open on a swap: 236 ms, far shorter than a person
 // takes, so the re-arm cannot depend on the drive stopping.
-#define MD_LID_OPEN_CYCLES 1000000UL
+#define MD_LID_OPEN_CYCLES ns_cycles(236000000ULL)
 
 typedef struct {
   avr_irq_t *irq;
@@ -113,10 +122,12 @@ extern int g_pulses;
 extern uint64_t g_rise;
 extern int g_strings;
 extern uint32_t g_freq;
-extern uint64_t g_edge_cycles;
+extern uint64_t g_edge_ns;
+extern uint64_t g_frame_period_ns;
 
 void check(int cond, const char *name);
 uint64_t ms_cycles(uint32_t ms);
+uint64_t ns_cycles(uint64_t ns);
 void on_led(struct avr_irq_t *irq, uint32_t value, void *param);
 int pulse_group(uint64_t from, uint32_t min_ms, uint32_t max_ms);
 int code_after(uint64_t from);
@@ -138,5 +149,8 @@ void decode_region(avr_t *avr, const target_t *t, int modern, uint64_t bit_cycle
 
 // The process exit status for the run: 0 when every check passed.
 int sim_report(void);
+
+// Load these bytes into EEPROM at the next build_avr, before the firmware runs.
+void sim_seed_eeprom(const uint8_t *raw, uint8_t size);
 
 #endif

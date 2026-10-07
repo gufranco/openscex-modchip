@@ -29,4 +29,8 @@ pscu_calib_t pscu_engine_load_calib(void);
 // in EEPROM, so an unchanged value costs no write and no wear.
 void pscu_engine_store_calib(pscu_calib_t calib);
 
+// Move OSCCAL from the factory value to the stored trim, one step at a time,
+// and return the factory value the run loop's later trims are bounded by.
+uint8_t pscu_engine_apply_trim(int8_t trim);
+
 #endif

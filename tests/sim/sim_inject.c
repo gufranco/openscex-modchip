@@ -113,9 +113,9 @@ static void clock_partial(avr_t *avr, const target_t *t, int bits) {
   for (int bit = 0; bit < bits; bit++) {
     avr_raise_irq(subq, (uint8_t)(bit & 1));
     avr_raise_irq(sqck, 0U);
-    run_cycles(avr, g_edge_cycles);
+    run_cycles(avr, ns_cycles(g_edge_ns));
     avr_raise_irq(sqck, 1U);
-    run_cycles(avr, g_edge_cycles);
+    run_cycles(avr, ns_cycles(g_edge_ns));
   }
 }
 
@@ -187,8 +187,8 @@ void scenario_late_carrier(const target_t *t, const char *elf, uint32_t freq) {
 // which returns DATA to high-Z. Stop the carrier about 25 ms into an injection
 // (a few bit cells in, while DATA is driven) and check it is released within
 // the next 0.75 s, comfortably past the ~0.5 s watchdog timeout.
-#define STALL_AFTER_CYCLES 200000UL
-#define STALL_WAIT_CYCLES 6000000UL
+#define STALL_AFTER_CYCLES ns_cycles(47000000ULL)
+#define STALL_WAIT_CYCLES ns_cycles(1417000000ULL)
 
 void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
@@ -292,12 +292,12 @@ void scenario_vcd(const char *elf, uint32_t freq) {
 
 // The console's real SQCK rate is not documented anywhere this project cites,
 // so the capture has to keep a wide margin. Drive a whole injection on a legacy
-// board with frames clocked at FAST_EDGE_CYCLES and require the region word to
+// board with frames clocked at FAST_EDGE_NS and require the region word to
 // decode, then restore the normal rate for the scenarios that follow.
 void scenario_fast_sqck(const target_t *t, const char *elf, uint32_t freq) {
-  g_edge_cycles = FAST_EDGE_CYCLES;
+  g_edge_ns = FAST_EDGE_NS;
   scenario_inject(t, elf, freq, 0, 1, WFCK_HZ, "fast SQCK, 4.7 us half period");
-  g_edge_cycles = EDGE_CYCLES;
+  g_edge_ns = EDGE_NS;
 }
 
 // The gate line. On a gate board the chip holds WFCK low for the whole string

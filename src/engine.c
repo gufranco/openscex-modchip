@@ -14,6 +14,7 @@
 #include "pscu/config.h"
 #include "pscu/region.h"
 #include "pscu/subq.h"
+#include "pscu/trim.h"
 
 // Samples of WFCK to observe before deciding the board era. Large enough that a
 // live ~7.3 kHz clock produces far more than PSCU_DETECT_PULSES edges.
@@ -120,7 +121,7 @@ static void pscu_inject_region(pscu_region_t region, pscu_board_mode_t mode) {
 // classify the board. The result picks the injection method (gate high-Z vs
 // WFCK mirror) for the rest of the session. The LED is lit for exactly this
 // wait, about 0.4 s, which the chip spends anyway: an installer who sees it at
-// power-on knows the chip has power, a running console clock and its firmware,
+// power-on knows the chip has power, a running clock and its firmware,
 // before any disc is read. Lighting it here adds no delay and sits on no timing
 // path, and with no LED fitted nothing changes.
 pscu_board_mode_t pscu_engine_detect_board(void) {
@@ -199,4 +200,20 @@ void pscu_engine_store_calib(pscu_calib_t calib) {
       pscu_port_eeprom_write(at, record.bytes[at]);
     }
   }
+}
+
+// The stored trim is replayed step by step from the factory value, through the
+// same bounded step the run loop uses, so a corrupted trim can never move the
+// oscillator further than a live trim could. At most 16 steps, each a single
+// OSCCAL LSB, keep every cycle-to-cycle change small.
+uint8_t pscu_engine_apply_trim(int8_t trim) {
+  uint8_t factory = pscu_port_osccal_read();
+  uint8_t value = factory;
+  int8_t step = (trim < 0) ? (int8_t)-1 : (int8_t)1;
+  uint8_t steps = (uint8_t)((trim < 0) ? -trim : trim);
+  for (uint8_t i = 0U; i < steps; i++) {
+    value = pscu_trim_apply(factory, value, step);
+    pscu_port_osccal_write(value);
+  }
+  return factory;
 }

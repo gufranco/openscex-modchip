@@ -12,9 +12,8 @@
 // simavr: it drives the console-side pins (SQCK, SUBQ, WFCK) and watches the
 // firmware-side pins (DATA, LED), then decodes the injected bitstream and
 // checks it equals the expected region word. It also drives the lid line, a
-// mandatory wire on the ATtiny84's PORTB. Timing is in CPU cycles at the console
-// clock the firmware is built for, 4.2336 MHz, where one cycle is about 236 ns;
-// the comments give each figure in time at that clock.
+// mandatory wire on the ATtiny84's PORTB. The console side is timed in real
+// time, converted to CPU cycles at the rate the simulated chip runs.
 
 int main(int argc, char *argv[]) {
   if (argc < 3) {
@@ -49,6 +48,7 @@ int main(int argc, char *argv[]) {
   scenario_gate(&t84, elf, freq, 0);
   scenario_gate(&t84, elf, freq, 1);
   scenario_string_gap(&t84, elf, freq);
+  scenario_trim(&t84, elf, freq);
 
   // The optional third argument is the SCPH-5903 Video-CD image.
   if (argc >= 4) {

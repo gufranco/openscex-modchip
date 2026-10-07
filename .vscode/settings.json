@@ -8,7 +8,7 @@
   "C_Cpp.default.includePath": ["${workspaceFolder}/include"],
   "C_Cpp.default.defines": [
     "__AVR_ATtiny84__",
-    "F_CPU=4233600UL",
+    "F_CPU=8000000UL",
     "PSCU_TIMING_ADAPTIVE=1",
     "PSCU_WFCK_PERIODS_PER_BIT=30",
     "PSCU_VCD_FILTER=0"

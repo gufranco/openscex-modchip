@@ -12,6 +12,7 @@
 #include "pscu/led.h"
 #include "pscu/region.h"
 #include "pscu/subq.h"
+#include "trim_test.h"
 
 // Host tests for the pure logic layer, run with assertions on. SUBQ frames
 // below follow the Q-channel byte layout: [0] control (0x4x = data sector, 0x01
@@ -466,6 +467,7 @@ int main(void) {
   test_failed_capture();
   test_confirm();
   calib_tests(check);
+  trim_tests(check);
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
   return (g_failures == 0) ? 0 : 1;

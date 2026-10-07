@@ -10,8 +10,8 @@
 
 #include "port/registers.h"
 
-// Busy-loop iteration counts, derived from F_CPU, the console clock on CLKI, so
-// every delay is locked to the console's own crystal. The delay inner loop is 4
+// Busy-loop iteration counts, derived from F_CPU, the internal 8 MHz oscillator,
+// which the run loop trims against the console's SUBQ frame rate. The delay inner loop is 4
 // cycles. The mirror inner loop is (10 + shift) cycles, where shift is the pin
 // distance WFCK-DATA that aligns the carrier bit onto DATA; computing it from the
 // pins keeps the one-bit cell exactly one millisecond rather than assuming a
@@ -43,7 +43,7 @@
 
 // Bring the chip up. Writing 0x80 then 0x00 to CLKPR within four cycles is the
 // AVR timed sequence that clears the clock prescaler, so the core runs at the
-// full console clock regardless of the factory CKDIV8 fuse. LED is the only
+// full 8 MHz regardless of the factory CKDIV8 fuse. LED is the only
 // output at boot. The lid input gets its pull-up, so a missing or broken lid
 // wire reads as open and the chip stays silent rather than injecting blind.
 // Timer1 starts free-running at the clock divided by 1024 as the LED's time
@@ -51,7 +51,7 @@
 // arms the change, the second enables the watchdog at a ~0.5 s timeout
 // (WDP2|WDP0), so any hang longer than one loop pass resets the chip instead of
 // wedging it. The watchdog runs from its own 128 kHz oscillator, so its timeout
-// does not depend on the console clock.
+// does not depend on the main clock or its trim.
 
 	.global pscu_port_init
 	.func pscu_port_init
@@ -265,10 +265,10 @@ pscu_port_capture_frame:
 	ret
 	.endfunc
 
-// A free-running clock for the status LED. Timer1 counts the console clock
-// divided by 1024, one tick every 242 us at 4.2336 MHz, and wraps every 15.8 s,
-// far longer than any pass of the run loop, so the difference of two readings is
-// always the time between them. Reading TCNT1L first latches TCNT1H, which the
+// A free-running clock for the status LED and the oscillator trim. Timer1
+// counts the clock divided by 1024, one tick every 128 us at 8 MHz, and wraps
+// every 8.4 s, far longer than any pass of the run loop, so the difference of
+// two readings is always the time between them. Reading TCNT1L first latches TCNT1H, which the
 // datasheet requires for a consistent 16-bit read. The LED patterns are drawn
 // from this count, so they never cost a delay.
 	.global pscu_port_ticks
@@ -285,6 +285,25 @@ pscu_port_ticks:
 // it once at the next boot. Clearing WDRF also lifts the hardware override that
 // forces WDE on; the watchdog stays enabled because pscu_port_init set WDE
 // itself. r1 is the compiler's zero register.
+// The oscillator calibration register. Hardware loads the factory value into it
+// at every reset, so reading it at boot gives the factory value; writing it
+// retunes the internal 8 MHz oscillator at once. The caller moves it one step at
+// a time, as the datasheet asks (DS40002269A, OSCCAL: change in small steps, a
+// cycle-to-cycle variation over 2 percent is unpredictable).
+	.global pscu_port_osccal_read
+	.func pscu_port_osccal_read
+pscu_port_osccal_read:
+	in r24, _SFR_IO_ADDR(OSCCAL)
+	ret
+	.endfunc
+
+	.global pscu_port_osccal_write
+	.func pscu_port_osccal_write
+pscu_port_osccal_write:
+	out _SFR_IO_ADDR(OSCCAL), r24
+	ret
+	.endfunc
+
 	.global pscu_port_reset_was_watchdog
 	.func pscu_port_reset_was_watchdog
 pscu_port_reset_was_watchdog:

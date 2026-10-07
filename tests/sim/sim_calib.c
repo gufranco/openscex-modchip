@@ -12,11 +12,11 @@
 // Calibration scenarios: what the chip learns per console, across boots.
 
 // Per-console calibration, read and seeded through simavr's EEPROM. The record
-// layout mirrors include/pscu/calib.h: magic, board, cap, trigger, frozen, check,
-// where check folds the five bytes into a fixed seed. Seeding happens right
-// after build_avr, long before the firmware reads the record after detection.
-#define CALIB_BYTES 6
-#define CALIB_MAGIC 0xC5U
+// layout mirrors include/pscu/calib.h: magic, board, cap, trigger, frozen, trim,
+// check, where check folds the six bytes into a fixed seed. A seed is handed to
+// the harness before build_avr, which loads it before the firmware starts.
+#define CALIB_BYTES 7
+#define CALIB_MAGIC 0xC6U
 #define CALIB_SEED 0x5AU
 #define CALIB_TRIGGER 10U
 #define CALIB_TRIGGER_STEP 2U
@@ -32,16 +32,18 @@ static void read_calib(avr_t *avr, uint8_t *raw) {
   (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_GET, &desc);
 }
 
-static void seed_calib(avr_t *avr, uint8_t board, uint8_t cap, uint8_t trigger, uint8_t frozen) {
-  uint8_t raw[CALIB_BYTES] = { CALIB_MAGIC, board, cap, trigger, frozen, 0U };
-  raw[5] = (uint8_t)(CALIB_SEED ^ raw[0] ^ raw[1] ^ raw[2] ^ raw[3] ^ raw[4]);
-  avr_eeprom_desc_t desc = { .ee = raw, .offset = 0, .size = CALIB_BYTES };
-  (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_SET, &desc);
+static uint8_t calib_check_byte(const uint8_t *raw) {
+  return (uint8_t)(CALIB_SEED ^ raw[0] ^ raw[1] ^ raw[2] ^ raw[3] ^ raw[4] ^ raw[5]);
+}
+
+static void seed_calib(uint8_t board, uint8_t cap, uint8_t trigger, uint8_t frozen, int8_t trim) {
+  uint8_t raw[CALIB_BYTES] = { CALIB_MAGIC, board, cap, trigger, frozen, (uint8_t)trim, 0U };
+  raw[6] = calib_check_byte(raw);
+  sim_seed_eeprom(raw, CALIB_BYTES);
 }
 
 static int calib_valid(const uint8_t *raw) {
-  uint8_t check_byte = (uint8_t)(CALIB_SEED ^ raw[0] ^ raw[1] ^ raw[2] ^ raw[3] ^ raw[4]);
-  return (raw[0] == CALIB_MAGIC) && (raw[5] == check_byte);
+  return (raw[0] == CALIB_MAGIC) && (raw[6] == calib_check_byte(raw));
 }
 
 static void calib_check(const target_t *t, int ok, const char *what) {
@@ -90,9 +92,9 @@ void scenario_calib_cap(const target_t *t, const char *elf, uint32_t freq) {
 // WFCK wire is intermittent. The boot replays code 7 and the learned values
 // restart from the defaults under the new board.
 void scenario_calib_board(const target_t *t, const char *elf, uint32_t freq) {
+  seed_calib(1U, 7U, 14U, 1U, 0);
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  seed_calib(avr, 1U, 7U, 14U, 1U);
   avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
   boot_quiet(avr, t, 0, &ctx);
   run_cycles(avr, ms_cycles(CALIB_REPLAY_MS));
@@ -113,9 +115,9 @@ void scenario_calib_board(const target_t *t, const char *elf, uint32_t freq) {
 #define MISSED_DECAY_FRAMES 40
 
 void scenario_calib_missed(const target_t *t, const char *elf, uint32_t freq) {
+  seed_calib(0U, CALIB_CAP_MAX, CALIB_TRIGGER_MAX, 0U, 0);
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  seed_calib(avr, 0U, CALIB_CAP_MAX, CALIB_TRIGGER_MAX, 0U);
   avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
   boot_quiet(avr, t, 0, &ctx);
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -152,4 +154,62 @@ void scenario_calib_jp(const target_t *t, const char *elf, uint32_t freq) {
               calib_valid(raw) && (raw[2] == (uint8_t)(g_strings + (int)CALIB_CAP_MARGIN)) &&
                   (raw[3] == CALIB_TRIGGER) && (raw[4] == 1U),
               "a Japanese build learns the cap but keeps the default start");
+}
+
+// The oscillator trim. simavr runs the chip at whatever rate the harness names,
+// and the firmware believes 8 MHz, so naming 5 percent more models an RC that
+// runs 5 percent fast: 75 Hz frames then span more Timer1 ticks than nominal.
+// With the lid open the chip sends nothing, so a long lead-in read yields only
+// frame samples; the trim must step OSCCAL the right way, and store it once the
+// window has closed. simavr does not change speed on an OSCCAL write, so this
+// checks direction, the stored value and the boot replay, not the frequency.
+#define TRIM_TOC_FRAMES 200
+// Enough silent frames for the counter, filled by the lead-in read, to drain
+// below the trigger so the window closes and the trim can be stored.
+#define TRIM_DECAY_FRAMES 260
+
+static uint8_t osccal(avr_t *avr) {
+  return avr->data[SIM_OSCCAL_ADDR];
+}
+
+static void trim_case(const target_t *t, const char *elf, uint32_t freq, int percent) {
+  uint32_t actual = (uint32_t)(((uint64_t)freq * (uint64_t)(100 + percent)) / 100U);
+  avr_t *avr = build_avr(t, elf, actual);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  boot_quiet(avr, t, 0, &ctx);
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
+  avr_raise_irq(lid_irq(avr), 1U);
+  g_frame_period_ns = SIM_SECTOR_NS;
+  clock_frames(avr, t, toc, TRIM_TOC_FRAMES);
+  clock_frames(avr, t, silence, TRIM_DECAY_FRAMES);
+  g_frame_period_ns = 0U;
+  uint8_t raw[CALIB_BYTES] = { 0 };
+  read_calib(avr, raw);
+  int8_t stored = (int8_t)raw[5];
+  int8_t moved = (int8_t)((int)osccal(avr) - (int)SIM_OSCCAL_FACTORY);
+
+  char what[96];
+  if (percent > 0) {
+    (void)snprintf(what, sizeof(what), "a fast RC steps OSCCAL down and stores it (%d)", moved);
+    calib_check(t, calib_valid(raw) && (moved < 0) && (stored == moved), what);
+  } else if (percent < 0) {
+    (void)snprintf(what, sizeof(what), "a slow RC steps OSCCAL up and stores it (%d)", moved);
+    calib_check(t, calib_valid(raw) && (moved > 0) && (stored == moved), what);
+  } else {
+    calib_check(t, (moved == 0) && (stored == 0), "a nominal RC leaves OSCCAL alone");
+  }
+}
+
+void scenario_trim(const target_t *t, const char *elf, uint32_t freq) {
+  trim_case(t, elf, freq, 5);
+  trim_case(t, elf, freq, -5);
+  trim_case(t, elf, freq, 0);
+
+  seed_calib(0U, CALIB_CAP_MAX, CALIB_TRIGGER, 0U, -3);
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  boot_quiet(avr, t, 0, &ctx);
+  calib_check(
+      t, osccal(avr) == (uint8_t)(SIM_OSCCAL_FACTORY - 3U), "the stored trim is applied at boot");
 }
