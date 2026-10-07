@@ -174,11 +174,11 @@ static void test_led_supply_fault(void) {
 }
 
 // The supply reading is the 1.1 V bandgap against VCC, raw = 1024 x 1.1 / VCC,
-// so each bound is checked one step either side: 388 is 2903 mV, the last
-// reading at or above 2.9 V, and 188 is 5991 mV, the first under 6 V.
+// so each bound is checked one step either side: 409 is 2754 mV, the last
+// reading at or above 2.75 V, and 188 is 5991 mV, the first under 6 V.
 static void test_supply(void) {
-  g_check(pscu_supply_ok(388U), "supply: 2.90 V is enough");
-  g_check(!pscu_supply_ok(389U), "supply: 2.896 V is too low");
+  g_check(pscu_supply_ok(409U), "supply: 2.754 V is enough");
+  g_check(!pscu_supply_ok(410U), "supply: 2.747 V is too low");
   g_check(pscu_supply_ok(188U), "supply: 5.99 V is plausible");
   g_check(!pscu_supply_ok(187U), "supply: 6.02 V is not a real reading");
   g_check(pscu_supply_ok(225U), "supply: 5 V reads as good");

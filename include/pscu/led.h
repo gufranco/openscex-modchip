@@ -20,7 +20,7 @@
 // codes. Code 5 comes from the reset-cause flag; code 6 from comparing the
 // detected board with the one the calibration record stored, which changes when
 // the chip moves to another console or its WFCK wire is intermittent. Code 7 is
-// a live fault: the supply measures under 2.9 V, or the measurement failed, and
+// a live fault: the supply measures under 2.75 V, or the measurement failed, and
 // no string is sent while it holds.
 #define PSCU_LED_CODE_ACCEPTED ((uint8_t)1U)
 #define PSCU_LED_CODE_REFUSED ((uint8_t)2U)

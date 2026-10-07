@@ -16,15 +16,18 @@
 // The reading is the bandgap measured against VCC, raw = 1024 x 1.1 V / VCC, so
 // a lower supply gives a higher reading. The bandgap is nominally 1.1 V with a
 // device spread of about 0.1 V either way (Concluded: the datasheet's
-// characteristics table, as extracted, gives 1.0 V at its low end), so the limit
-// sits at 2.9 V nominal, which keeps the true cut-off at 2.64 V or above even on
-// a low-bandgap part, and at 3.16 V at most on a high one, below the 3.3 V and
-// 5 V rails a console offers (Unknown until the tap voltages are measured).
+// characteristics table, as extracted, gives 1.0 V at its low end), so the true
+// cut-off moves with the part. The limit sits at 2.75 V nominal, chosen for the
+// high end: on a 1.2 V part the guard cuts at 3.0 V, under a 3.3 V rail that
+// reads 5 percent low, so a guard meant to protect an install never silences a
+// working one. On a 1.0 V part it cuts at 2.5 V, under the 2.7 V rating, and the
+// 2.7 V brown-out fuse covers that gap. The console's tap voltages are Unknown
+// until measured.
 // A reading equal to 6 V or more is impossible for a chip rated to 5.5 V and
 // means the measurement failed, so it also blocks injection: the guard fails
 // closed.
 #define PSCU_SUPPLY_BANDGAP_MV ((uint32_t)1100U)
-#define PSCU_SUPPLY_LOW_MV ((uint32_t)2900U)
+#define PSCU_SUPPLY_LOW_MV ((uint32_t)2750U)
 #define PSCU_SUPPLY_HIGH_MV ((uint32_t)6000U)
 #define PSCU_SUPPLY_SCALE ((uint32_t)1024U)
 #define PSCU_SUPPLY_RAW_LOW_LIMIT \
@@ -32,7 +35,7 @@
 #define PSCU_SUPPLY_RAW_HIGH_LIMIT \
   ((uint16_t)((PSCU_SUPPLY_SCALE * PSCU_SUPPLY_BANDGAP_MV) / PSCU_SUPPLY_HIGH_MV))
 
-// True when the reading shows a supply from 2.9 V up to under 6 V: readings
+// True when the reading shows a supply from 2.75 V up to under 6 V: readings
 // from PSCU_SUPPLY_RAW_HIGH_LIMIT + 1 to PSCU_SUPPLY_RAW_LOW_LIMIT.
 bool pscu_supply_ok(uint16_t raw);
 
