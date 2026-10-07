@@ -79,7 +79,7 @@ body:
     id: voltage
     attributes:
       label: Measured tap voltage (optional)
-      placeholder: "e.g. 3.5 V at WFCK, 3.4 V at the lid point with the lid open"
+      placeholder: "e.g. 3.5 V at WFCK, 3.4 V at SUBQ"
   - type: textarea
     id: notes
     attributes:

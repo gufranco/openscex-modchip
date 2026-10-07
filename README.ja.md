@@ -22,7 +22,7 @@
   <a href="../../issues/new?template=compatibility.yml">あなたの機種を報告</a>
 </p>
 
-フラッシュ **5018** バイト · 基板 **8** 系統、PU-7 から PM-41(2) · リージョン **3** 種 · MISRA 逸脱 **0** · ホストの行と分岐カバレッジ **100%** · ミュータント **138/138** 撃破
+フラッシュ **6070** バイト · 基板 **8** 系統、PU-7 から PM-41(2) · リージョン **3** 種 · MISRA 逸脱 **0** · ホストの行と分岐カバレッジ **100%** · ミュータント **151/151** 撃破
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny84.hex' --pattern SHA256SUMS
@@ -31,13 +31,13 @@ avrdude -c <programmer> -p attiny84 -U flash:w:openscex-modchip-attiny84.hex:i
 ```
 
 > [!IMPORTANT]
-> 現在のファームウェアはシミュレーションのゲートをすべて通過していますが、まだ実機では動かしていません。配線前に蓋の点を測ってください。
+> 現在のファームウェアはシミュレーションのゲートをすべて通過していますが、まだ実機では動かしていません。配線前にタップ位置の電圧を測ってください。
 
-初代ソニー PlayStation（フット機）と PSone 向けのリージョン解除ファームウェアで、内蔵発振器で動き、それをコンソール自身の SUBQ フレームレートに合わせて補正する ATtiny84 に載ります。設定されたリージョン文字列を SUBQ リージョンチェックの窓の間だけ送り、コンソールが受け入れた瞬間に止め、プレイ中はデータ線をハイインピーダンスに保ちます。蓋スイッチへの配線で、ディスク交換を正確に知ります。ブート ROM はパッチしないため、日本のフット機と PAL の PSone は 2 回目のリージョンチェックを残します。それを回避したい場合はパッチ済み BIOS を入れてください。光学ドライブエミュレータではなく、PS2 やサターンには対応せず、LibCrypt も回避しません。
+初代ソニー PlayStation（フット機）と PSone 向けのリージョン解除ファームウェアで、内蔵発振器で動き、それをコンソール自身の SUBQ フレームレートに合わせて補正する ATtiny84 に載ります。設定されたリージョン文字列を SUBQ リージョンチェックの窓の間だけ送り、コンソールが受け入れた瞬間に止め、プレイ中はデータ線をハイインピーダンスに保ちます。蓋線は不要です。ドライブが止まって SUBQ が静かになることで、ディスク交換を知ります。ブート ROM はパッチしないため、日本のフット機と PAL の PSone は 2 回目のリージョンチェックを残します。それを回避したい場合はパッチ済み BIOS を入れてください。光学ドライブエミュレータではなく、PS2 やサターンには対応せず、LibCrypt も回避しません。
 
 | | |
 |:--|:--|
-| **受け入れ後は沈黙**<br>最初のプログラム領域フレームで注入を止め（文字列の途中でも）、蓋が開くまで沈黙します。 | **正確なディスク交換**<br>蓋線は開いてから 4 ms 以内に文字列を止め、閉じると再武装します。マルチディスクのゲームの全ディスクに対応。 |
+| **受け入れ後は沈黙**<br>最初のプログラム領域フレームで注入を止め（文字列の途中でも）、ディスクが取り出されるまで再読み取りの間も沈黙します。 | **蓋線なしのディスク交換**<br>ドライブが 1.5 s 静かになることを交換とみなし、マルチディスクのゲームの全ディスクに向けて再武装します。 |
 | **自己補正のタイミング**<br>チップはコンソールの 75 Hz の SUBQ フレームを計時し、内蔵発振器を約 1% 以内に補正します。クロック線は不要です。 | **1 リージョン、1 つの窓**<br>設定したリージョン文字列だけを、SUBQ リージョンチェックの窓の間だけ、武装ごとに最大 16 回。 |
 | **ステータス LED コード**<br>LED 1 個で起動の各段階、ディスクごとの結果、配線の異常を点滅回数で示し。 | **コードで実証**<br>MISRA C:2012 準拠、ホストカバレッジ 100%、simavr コンソールモデル、ミューテーションテスト、バイト一致の再ビルド。 |
 
@@ -47,7 +47,6 @@ avrdude -c <programmer> -p attiny84 -U flash:w:openscex-modchip-attiny84.hex:i
 graph LR
     subgraph Console
         CD[CD サブシステム]
-        LID[蓋スイッチ]
         WF[WFCK]
         MECH[メカコン]
     end
@@ -63,7 +62,6 @@ graph LR
     CAP --> DET --> ST --> INJ
     ST --> LED
     ST <-->|上限、開始| CAL
-    LID -->|蓋線| ST
     WF -->|ゲートまたはキャリア| INJ
     INJ -->|DATA| MECH
 ```
@@ -73,7 +71,7 @@ graph LR
 | 能力 | openscex | PsNee V9 | Mayumi V4 | MM3 |
 |:-----|:---------|:---------|:----------|:----|
 | ステルスの契機 | SUBQ チェック窓と受け入れラッチ | SUBQ デコード | センス線と蓋線 | Mayumi V4 と同じプログラム |
-| ディスク交換の検出 | 蓋線 | SUBQ カウンタの減衰 | 蓋線 | 蓋線 |
+| ディスク交換の検出 | ドライブ停止中の SUBQ の沈黙 | SUBQ カウンタの減衰 | 蓋線 | 蓋線 |
 | クロック | 内蔵、SUBQ で補正 | 内蔵 | コンソール | 内蔵 RC |
 | ブート ROM の BIOS パッチ | なし、パッチ済み BIOS を使う | あり、ATmega 版 | なし | なし |
 | 基板 | PU-7 から PM-41(2) | PU-7 から PM-41(2) | PU-18 以降 | PU-7 以降 |
@@ -91,7 +89,7 @@ graph LR
 | 方式 | SCEx 注入 |
 | リージョン | ビルドごとに 1 つ、`REGION=jp|us|eu`（既定 us） |
 | クロック | 内蔵 8 MHz RC 発振器。コンソールの SUBQ フレームレートで補正 |
-| 配線 | 信号 5 本（SQCK、SUBQ、DATA、WFCK、蓋）と電源、LED は任意 |
+| 配線 | 信号 4 本（SQCK、SUBQ、DATA、WFCK）と電源、LED は任意 |
 | ツールチェーン | C17、MISRA C:2012 逸脱ゼロ、バージョン固定の Docker イメージ |
 
 ## 実機で検証済み
@@ -103,7 +101,7 @@ graph LR
 | PU-18 | フット機、NTSC-U/C | コンソール | SCEx | Verified 2026-10-05 |
 | PM-41 | PSone | コンソール | SCEx | Verified 2026-10-05 |
 
-これらの結果は現在の設計より前のものです。必須の蓋線、補正付きの内蔵発振器、受け入れラッチ、上限付きの SUBQ 待ち、2026-10-06 以降の全変更を含みません。現在のファームウェアはシミュレーションのゲートをすべて通過していますが、まだ実機では動かしていません。2026-10-05 のコンソールクロック版を載せたチップ、各個体の正確な SCPH、ビルド時の周波数は記録されていません。実機未確認: PU-7、PU-8、PU-20、PU-22、PU-23、PM-41(2)、どの基板でも PAL と NTSC-J。
+これらの結果は現在の設計より前のものです。蓋線なしで SUBQ から見るディスク交換、補正付きの内蔵発振器、受け入れラッチ、上限付きの SUBQ 待ち、2026-10-06 以降の全変更を含みません。現在のファームウェアはシミュレーションのゲートをすべて通過していますが、まだ実機では動かしていません。2026-10-05 のコンソールクロック版を載せたチップ、各個体の正確な SCPH、ビルド時の周波数は記録されていません。実機未確認: PU-7、PU-8、PU-20、PU-22、PU-23、PM-41(2)、どの基板でも PAL と NTSC-J。
 
 機種ごとの検証はコミュニティで進めます。あなたの機種で試しましたか？ [互換性レポート](../../issues/new?template=compatibility.yml)を開いてください。確認された取り付けでこの表が育ちます。
 
@@ -114,13 +112,13 @@ graph LR
 | SCEx 注入 | 44 ビット LSB ファーストのリージョン文字列。PU-7 から PU-20 の静的ゲート方式（PsNee と Mayumi V4 と同じく文字列ごとに WFCK ゲートを Low に保持）と、PU-22 以降の WFCK キャリア方式 |
 | 基板の自動判別 | 起動時の WFCK の振る舞いでゲートかキャリアかを選ぶ。1 つのビルドが全基板に合う |
 | 発振器の補正 | チップは内蔵 8 MHz 発振器で動き、コンソールの 75 Hz の SUBQ フレームを計時して OSCCAL を 1 段ずつ動かし、1% 以内に入るまで補正する。工場値から 16 段を超えては動かさない。補正値は EEPROM に保存し、起動時に適用する |
-| 蓋線 | 蓋スイッチへの必須配線。蓋が開くと 4 ms のビットセル 1 つ以内に文字列を止め、閉じると次のディスクに向けて再武装する。マルチディスクのゲームの交換はすべて推測ではなく検出される |
-| ステルス | SUBQ リージョンチェックの窓の間だけ、武装ごとに上限付きで、PsNee と Mayumi V4 と同じく文字列の間に 5 フレーム、67 ms 空けて注入し、その後 DATA をハイ Z、LED をオフ。コンソールがプログラム領域を読んだ瞬間に止め、蓋が開くまでは以後のリードイン読み取りでも沈黙 |
+| ディスク交換 | 蓋線は不要。止まったドライブが生む 1.5 s の有効な SUBQ フレームの途絶で受け入れラッチを解き、次のディスクに向けて再武装する。回転中のディスクのシークや再読み取りはフレームを出し続けるので、交換とはみなされない |
+| ステルス | SUBQ リージョンチェックの窓の間だけ、武装ごとに上限付きで、PsNee と Mayumi V4 と同じく文字列の間に 5 フレーム、67 ms 空けて注入し、その後 DATA をハイ Z、LED をオフ。コンソールがプログラム領域を読んだ瞬間に止め、ディスクが取り出されるまでは以後のリードイン読み取りでも沈黙 |
 | 単一リージョン | `REGION` だけを送り、3 つ全部は送らない |
 | 適応タイミング | WFCK キャリアの基板では注入ビットを WFCK の周期を数えて計時する。`TIMING=fixed` は補正済み発振器で計時した遅延を使う |
-| 自己回復 | 各 SUBQ 取得はフレーム間の隙間で再同期し、30 ms で諦める。注入中に WFCK キャリアが止まるとウォッチドッグが DATA を解放する。蓋線が外れていると開いたと読むので、チップは盲目的に注入せず沈黙する |
+| 自己回復 | 各 SUBQ 取得はフレーム間の隙間で再同期し、30 ms で諦める。注入中に WFCK キャリアが止まるとウォッチドッグが DATA を解放する。未使用のピンはすべてプルアップを有効にし、浮かないようにする |
 | ステータス LED | 専用ピンの任意の LED が起動の段階、ディスクごとの結果、現在の異常を点滅回数で示す。ファームウェアは LED を待たず、LED が無くても正しく動く |
-| 現場診断 | プログラマ不要。LED のコードが、蓋の配線が無い場合からリージョンチェックが来ない SUBQ まで、失敗した段階を示す。プログラマで読み出すものは無い |
+| 現場診断 | プログラマ不要。LED のコードが、クロックが来ない SUBQ からリージョンチェックが来ない SUBQ まで、失敗した段階を示す。プログラマで読み出すものは無い |
 | コンソールごとのキャリブレーション | このコンソールが必要とする文字列数、どこまで遅く始められるか、自分の発振器の速さを学び、7 バイトの EEPROM レコードに保存する。無いか壊れていれば既定値に戻る |
 | 閉ループ確認 | 注入後、SUBQ でプログラム領域のフレーム（実在のトラック番号）を待つ。メカコンはリージョン文字列を受け入れた後でしかそれを許さないので、リージョンチェックが通ったかを示す |
 | 検証 | ホストテストの行と分岐カバレッジ 100%、速い発振器と遅い発振器も含む simavr コンソールモデル、ミューテーションテスト、再現可能ビルド |
@@ -137,8 +135,7 @@ graph LR
 | 事実 | タグ |
 |:-----|:-----|
 | SCEx のピン順 | Read（PsNee `MCU.h`）、実績ありとオーナー確認済み |
-| 蓋のタップ位置 | Read: PU-18 以降は quade.co の Mayumi V4 の 7 番。PM-41(2) のページは "CD Door: Pin 7" と明記。PU-7 は基板に印字されたドアスイッチ S301。PU-8: Unknown |
-| 蓋の極性、開いている間 high | Read、Mayumi V4 のバイナリはドア入力が high の間待つ |
+| SUBQ の沈黙から見るディスク交換 | Concluded: 蓋を開けるとドライブが止まり、有効なモード 1 フレームが止まる。1.5 s の上限は設計上の選択で、実機まで Unknown |
 | 内蔵発振器の精度 | Read: 工場校正 ±10%、ユーザー校正 ±1%（ATtiny24A/44A/84A データシート、Table 20-2）。コンソール上で補正がそこに達するかは Unknown |
 | SQCK と SUBQ のタップ位置 | Read、対応する全基板の PsNee の写真に表示。その裏のメカコンのピン番号は Unknown のまま |
 | パッドごとの電圧 | PsNee と Mayumi の取り付けから Concluded（フット機は約 5 V、PSone は低めでノイズに敏感）。測って確認 |
@@ -175,13 +172,13 @@ PU-7 と PU-8 は PU-18 と PU-20 と同じ静的ゲート方式で、PsNee V9.0
 
 ## MCU ピン配置
 
-SCEx の信号は PsNee の実証済みの順序を保ちます（PsNee `MCU.h` から Read）。蓋は PORTB にあります。物理ピン番号は標準 PDIP 配置です。SOIC や QFN はデータシートで確認してください。
+SCEx の信号は PsNee の実証済みの順序を保ちます（PsNee `MCU.h` から Read）。PORTB は未使用です。物理ピン番号は標準 PDIP 配置です。SOIC や QFN はデータシートで確認してください。
 
 | DIP ピン | ポート | 信号 | 方向 | 接続先 |
 |:--------:|:-------|:-----|:-----|:-------|
 | 1 | VCC | VCC | - | コンソール電源、先に測る |
 | 2 | PB0 | - | - | 未使用 |
-| 3 | PB1 | LID | 入力、プルアップ | 蓋スイッチ: Mayumi V4 の 7 番、PU-7 ではドアスイッチ S301 |
+| 3 | PB1 | - | - | 未使用 |
 | 4 | PB3 | RESET | - | リセットのまま |
 | 5 | PB2 | - | - | 未使用 |
 | 6 | PA7 | - | - | 未使用 |
@@ -202,25 +199,14 @@ SCEx の信号は PsNee の実証済みの順序を保ちます（PsNee `MCU.h` 
 |:---|:-------|:-----|
 | 文字列の上限 | 受け入れられたディスクが必要とした文字列数に 4 を足した数 | 以降のディスクは 16 本ではなくその本数まで。拒否されたディスクがあると次のディスクから 16 本に戻る |
 | 開始位置 | 受け入れられたディスクごとに開始をリードインのフレーム 2 個分、27 ms 遅らせ、最大 20 フレームまで。`jp` ビルドは既定値のまま。PsNee が日本のコンソールでの遅いトリガーを戒めているため | 文字列がリージョンチェックの近くで始まる。拒否か、開始前にリードインの読み出しが終わると 2 フレーム戻し、探索を止める |
-| 基板 | 起動時に判別した基板 | 基板が違えばコード 7 を 1 回示し、文字列の上限と開始位置をやり直す |
+| 基板 | 起動時に判別した基板 | 基板が違えばコード 6 を 1 回示し、文字列の上限と開始位置をやり直す |
 | 発振器 | コンソールの水晶が 75 Hz に刻むリードインのフレーム間隔 | 64 フレームごとに OSCCAL を 1 段動かし、1% 以内に入れる。補正はチップのものなので、基板が変わっても保つ |
 
 チップは値が変わったバイトだけを、起動時かディスクのチェックが決着した後にだけ書き、文字列を送っている最中には書かないので、落ち着いたコンソールでは何も書きません。セルの書き換え寿命は 100,000 回です（Read: ATtiny24A/44A/84A データシート DS40002269A）。チェックバイトが電源断で途中まで書かれたレコードを検出し、その場合は既定値として読みます。上記のどちらのヒューズ設定も EESAVE を未プログラムのままにするので、書き直すとレコードも消えます（Read: 同データシート、Table 19-4、ハイヒューズのビット 3）。4 本の余裕、2 フレームの刻み、20 フレームの上限は設計上の選択で、まだコンソールで調整していません。
 
 ## コンソールのタップ位置
 
-DATA は SCEx ビット列を運び、WFCK はゲートまたはキャリアです。これらは PsNee と Mayumi のタップ位置です。PU-18 以降では、蓋の線は Mayumi V4 チップが 7 番ピンを付ける場所に付けます。基板ごとの位置は quade.co の図にあります: [PU-18](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/)、[PU-20](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/)、[PU-22](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/)、[PU-23](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-23/)、[PM-41](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41/)、[PM-41(2)](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41-2/)。
-
-これらの図では 7 番が蓋線で、このチップが図から使うのはこの点だけです。1 番と 8 番は電源とグランド、5 番と 6 番はこのチップも使う WFCK と DATA の点、2 番、3 番、4 番は Mayumi のクロック、ステルス、リセットの配線で、このチップは使いません。SQCK と SUBQ はこれらの図にありません。さらに下の PsNee の写真に示されています。
-
-<table>
-<tr><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/"><img src="https://quade.co/wp-content/uploads/2018/02/PU18L.jpg" alt="William Quade による PU-18 の Mayumi V4 取り付け図" width="240"></a><br><sub><b>PU-18</b>。図: William Quade、<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/"><img src="https://quade.co/wp-content/uploads/2018/02/PU20L.jpg" alt="William Quade による PU-20 の Mayumi V4 取り付け図" width="240"></a><br><sub><b>PU-20</b>。図: William Quade、<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/"><img src="https://quade.co/wp-content/uploads/2018/02/PU22L.jpg" alt="William Quade による PU-22 の Mayumi V4 取り付け図" width="240"></a><br><sub><b>PU-22</b>。図: William Quade、<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/">quade.co</a></sub></td></tr>
-<tr><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-23/"><img src="https://quade.co/wp-content/uploads/2018/01/pu23l.jpg" alt="William Quade による PU-23 の Mayumi V4 取り付け図" width="240"></a><br><sub><b>PU-23</b>。図: William Quade、<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-23/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41/"><img src="https://quade.co/wp-content/uploads/2018/11/pm-41-mayumiv4.jpg" alt="William Quade による PM-41 の Mayumi V4 取り付け図" width="240"></a><br><sub><b>PM-41</b>。図: William Quade、<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41-2/"><img src="https://quade.co/wp-content/uploads/2020/05/pm-412-m4.jpg" alt="William Quade による PM-41(2) の Mayumi V4 取り付け図" width="240"></a><br><sub><b>PM-41(2)</b>。図: William Quade、<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41-2/">quade.co</a></sub></td></tr>
-</table>
-
-6 枚の図は William Quade のもので、クレジットを付けて quade.co から表示しています。このリポジトリにも MIT ライセンスにも含まれません。図をクリックすると元のページとコメントが開きます。
-
-残りの点はすべて下の写真に名前付きで示されています。各基板で SQCK、SUBQ、DATA、WFCK、VCC、GND が表示されています。蓋は上の図の 7 番の位置に、それ以外はこれらの写真が示す位置にはんだ付けしてください。PU-18 の写真は基板の裏面です。AX、DX、RESET も表示されていますが PsNee のブート ROM パッチ用で、このチップにはないので接続しないでください。
+すべての点が下の写真に名前付きで示されています。各基板で SQCK、SUBQ、DATA、WFCK、VCC、GND が表示されているので、各線は写真が示す位置にはんだ付けしてください。PU-18 の写真は基板の裏面です。AX、DX、RESET も表示されていますが PsNee のブート ROM パッチ用で、このチップにはないので接続しないでください。
 
 <table>
 <tr><td align="center" width="33%"><a href="assets/psnee/pu-7.jpg"><img src="assets/psnee/pu-7.jpg" alt="PsNee による、SQCK、SUBQ、DATA、WFCK、VCC、GND の点を示した PU-7 基板" width="240"></a><br><sub><b>PU-7</b>。写真: PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pu-8a.jpg"><img src="assets/psnee/pu-8a.jpg" alt="PsNee による、SQCK、SUBQ、DATA、WFCK、VCC、GND の点を示した PU-8 基板の後期版" width="240"></a><br><sub><b>PU-8</b>、1-658-467-22。写真: PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pu-8b.jpg"><img src="assets/psnee/pu-8b.jpg" alt="PsNee による、SQCK、SUBQ、DATA、WFCK、VCC、GND の点を示した PU-8 基板の前期版" width="240"></a><br><sub><b>PU-8</b>、1-658-467-12。写真: PsNee</sub></td></tr>
@@ -228,7 +214,7 @@ DATA は SCEx ビット列を運び、WFCK はゲートまたはキャリアで�
 <tr><td align="center" width="33%"><a href="assets/psnee/pu-23.jpg"><img src="assets/psnee/pu-23.jpg" alt="PsNee による、SQCK、SUBQ、DATA、WFCK、VCC、GND の点を示した PU-23 基板" width="240"></a><br><sub><b>PU-23</b>。写真: PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pm-41.jpg"><img src="assets/psnee/pm-41.jpg" alt="PsNee による、SQCK、SUBQ、DATA、WFCK、VCC、GND の点を示した PM-41 基板" width="240"></a><br><sub><b>PM-41</b>。写真: PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pm-41-2.jpg"><img src="assets/psnee/pm-41-2.jpg" alt="PsNee による、SQCK、SUBQ、DATA、WFCK、VCC、GND の点を示した PM-41(2) 基板" width="240"></a><br><sub><b>PM-41(2)</b>。写真: PsNee</sub></td></tr>
 </table>
 
-この 9 枚の写真は kalymos とコントリビュータによる [PsNee](https://github.com/kalymos/PsNee) V9.0 のもので、[Unlicense](LICENSES/Unlicense.txt) でパブリックドメインに置かれており、縮小してここに複製しています。これと上の図で、PU-7 と PU-8 の蓋を除くチップのすべての配線に取り付け位置の画像があります。PU-7 では蓋スイッチが基板上にあり、PU-7 の写真で IC405 の近くに DOOR S301 と印字されています。蓋の線は、蓋を開けたときにレベルが変わる方のパッドをテスターで確かめて付けてください。PU-8 の蓋の点を示す資料はここにはありません。蓋スイッチの信号をたどり、蓋の開閉で変わることを測ってから配線してください。
+この 9 枚の写真は kalymos とコントリビュータによる [PsNee](https://github.com/kalymos/PsNee) V9.0 のもので、[Unlicense](LICENSES/Unlicense.txt) でパブリックドメインに置かれており、縮小してここに複製しています。これで、チップのすべての配線に取り付け位置の画像があります。
 
 | 基板 | SCPH 世代 | DATA 注入点 | WFCK の役割 | 確度 |
 |:-----|:----------|:------------|:------------|:-----|
@@ -236,7 +222,7 @@ DATA は SCEx ビット列を運び、WFCK はゲートまたはキャリアで�
 | PU-22、PU-23 | 7500-900x | CD プロセッサのトラッキング線、WFCK を偽キャリアに、3 線プラスリンク | ライブクロック、同期必須 | Read |
 | PM-41、PM-41(2) | PSone 100-103 | 同じトラッキング線キャリア方式。PM-41(2) では待機中にチップの I/O を浮かせる | ライブクロック | Read |
 
-クロック線はありません。チップは自分の発振器で動くので、5 本の信号線が届く場所ならどこにでも置けます。線は短く保ってください。quade.co は Mayumi V4 の不具合を長い線が拾うノイズに帰しています。
+クロック線も蓋線もありません。チップは自分の発振器で動き、ディスク交換を SUBQ から知るので、4 本の信号線が届く場所ならどこにでも置けます。線は短く保ってください。quade.co は Mayumi V4 の不具合を長い線が拾うノイズに帰しています。以前のリリース向けの取り付けは、2 番と 3 番ピンのクロック線と蓋線を残しても構いません。ファームウェアはそれらを駆動せずプルアップで保持しますが、外す方がすっきりします。
 
 上の写真は対応する全基板で SQCK と SUBQ を示しているので、それに従ってください。フォーラムの伝聞による PU-22 以降のメカコンのピン番号、SUBQ が 24 番、SQCK が 26 番は、psxdev.net が 2025 年 10 月から停止中のため Unknown のままです。
 
@@ -309,15 +295,14 @@ LED は任意で、チップ唯一の診断手段です。いまどの段階に�
 |:------:|:-----|:-------|
 | 1 | コンソールがリージョン文字列を受け入れた | 何もしない、ディスクは動く |
 | 2 | 文字列を送ったがコンソールがプログラム領域に達しなかった | DATA と WFCK の配線、ビルドのリージョンがディスクと合っているか |
-| 3 | 蓋が開いている、または蓋の配線が無い。続く間は繰り返す | 蓋の配線とその接続点 |
-| 4 | 蓋が閉じたまま 5 s SUBQ フレームが無い。続く間は繰り返す | SQCK、電源と GND |
-| 5 | フレームは来るが 20 s リージョンチェックが無い。続く間は繰り返す | SUBQ。ディスク無しや音楽 CD でも正常に出る |
-| 6 | ウォッチドッグがチップをリセットした。次の起動で 1 回示す | 注入中に止まった WFCK |
-| 7 | 基板がキャリブレーションに保存したものと違う。起動時に 1 回示し、コード 6 が優先 | 不安定な WFCK の配線。チップを別のコンソールに移した場合を除く |
+| 3 | 電源投入後 5 s SUBQ フレームが無い。15 s 示してから鼓動の点滅に戻る | SQCK、SUBQ、電源と GND。ディスクが無いときも出る |
+| 4 | フレームは来るが 20 s リージョンチェックが無い。続く間は繰り返す | SUBQ。音楽 CD でも正常に出る |
+| 5 | ウォッチドッグがチップをリセットした。次の起動で 1 回示す | 注入中に止まった WFCK |
+| 6 | 基板がキャリブレーションに保存したものと違う。起動時に 1 回示し、コード 5 が優先 | 不安定な WFCK の配線。チップを別のコンソールに移した場合を除く |
 
 ## 安全
 
-- 配線前に、蓋の点も含めすべてのタップ位置の論理電圧を測ってください。値は確立した PsNee と Mayumi の取り付けから取っています（フット機は約 5 V、PSone PM-41(2) は低めでノイズに敏感）が、想定は測定ではありません。
+- 配線前に、すべてのタップ位置の論理電圧を測ってください。値は確立した PsNee と Mayumi の取り付けから取っています（フット機は約 5 V、PSone PM-41(2) は低めでノイズに敏感）が、想定は測定ではありません。
 - コンソールを開けて CD サブシステムにはんだ付けすると壊すことがあります。自己責任で作ってください。
 
 ## バージョニング

@@ -22,7 +22,7 @@ English | [日本語](README.ja.md) | [中文](README.zh.md)
   <a href="../../issues/new?template=compatibility.yml">Report your console</a>
 </p>
 
-**5018** bytes of flash · **8** board families, PU-7 to PM-41(2) · **3** regions · **0** MISRA deviations · **100%** host line and branch coverage · **138/138** mutants killed
+**6070** bytes of flash · **8** board families, PU-7 to PM-41(2) · **3** regions · **0** MISRA deviations · **100%** host line and branch coverage · **151/151** mutants killed
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny84.hex' --pattern SHA256SUMS
@@ -31,13 +31,13 @@ avrdude -c <programmer> -p attiny84 -U flash:w:openscex-modchip-attiny84.hex:i
 ```
 
 > [!IMPORTANT]
-> The current firmware passes the full simulation gate and has not yet run on a console. Measure the lid point before wiring.
+> The current firmware passes the full simulation gate and has not yet run on a console. Measure the tap voltages before wiring.
 
-Region-unlock firmware for the original Sony PlayStation (fat) and PSone, on an ATtiny84 running from its internal oscillator, which it trims against the console's own SUBQ frame rate. It emits the configured region string inside the SUBQ region-check window, stops the moment the console accepts it, and leaves the data line high-impedance during play. A wire to the lid switch tells it exactly when a disc is swapped. It does not patch the boot ROM, so Japanese fat consoles and the PAL PSone keep their second region check; install a patched BIOS if you need that bypassed. It is not an optical-drive emulator, does not support PS2 or Saturn, and does not defeat LibCrypt.
+Region-unlock firmware for the original Sony PlayStation (fat) and PSone, on an ATtiny84 running from its internal oscillator, which it trims against the console's own SUBQ frame rate. It emits the configured region string inside the SUBQ region-check window, stops the moment the console accepts it, and leaves the data line high-impedance during play. It needs no lid wire: it knows a disc was swapped when SUBQ goes quiet while the drive is stopped. It does not patch the boot ROM, so Japanese fat consoles and the PAL PSone keep their second region check; install a patched BIOS if you need that bypassed. It is not an optical-drive emulator, does not support PS2 or Saturn, and does not defeat LibCrypt.
 
 | | |
 |:--|:--|
-| **Silent after acceptance**<br>The first program-area frame stops injection, mid-string included, and the chip stays silent until the lid opens. | **Exact disc swaps**<br>A lid wire stops a string within 4 ms of opening and re-arms the chip on close, for every disc of a multi-disc game. |
+| **Silent after acceptance**<br>The first program-area frame stops injection, mid-string included, and the chip stays silent through every reread until the disc leaves. | **Disc swaps without a lid wire**<br>The chip sees a swap as the drive going quiet for 1.5 s and re-arms for every disc of a multi-disc game. |
 | **Self-trimmed timing**<br>The chip times the console's 75 Hz SUBQ frames and trims its internal oscillator to within about 1%, with no clock wire. | **One region, one window**<br>Only the configured region string, only inside the SUBQ region-check window, at most 16 strings per arming. |
 | **Status LED codes**<br>One LED shows each boot stage, every disc's result and any live wiring fault as counted flashes. | **Proven in code**<br>MISRA C:2012 clean, 100% host coverage, a simavr console model, mutation testing, byte-identical rebuilds. |
 
@@ -47,7 +47,6 @@ Region-unlock firmware for the original Sony PlayStation (fat) and PSone, on an 
 graph LR
     subgraph Console
         CD[CD subsystem]
-        LID[Lid switch]
         WF[WFCK]
         MECH[Mechacon]
     end
@@ -63,7 +62,6 @@ graph LR
     CAP --> DET --> ST --> INJ
     ST --> LED
     ST <-->|cap, start| CAL
-    LID -->|lid line| ST
     WF -->|gate or carrier| INJ
     INJ -->|DATA| MECH
 ```
@@ -73,7 +71,7 @@ graph LR
 | Capability | openscex | PsNee V9 | Mayumi V4 | MM3 |
 |:-----------|:---------|:---------|:----------|:----|
 | Stealth trigger | SUBQ check window plus acceptance latch | SUBQ decode | sense line plus lid line | same program as Mayumi V4 |
-| Disc-swap detection | lid line | SUBQ counter decay | lid line | lid line |
+| Disc-swap detection | SUBQ silence while the drive is stopped | SUBQ counter decay | lid line | lid line |
 | Clock | internal, trimmed against SUBQ | internal | console | internal RC |
 | Boot-ROM BIOS patch | no, use a patched BIOS | yes, ATmega builds | no | no |
 | Boards | PU-7 to PM-41(2) | PU-7 to PM-41(2) | PU-18 and later | PU-7 and later |
@@ -91,7 +89,7 @@ graph LR
 | Method | SCEx injection |
 | Region | one per build, `REGION=jp|us|eu` (default us) |
 | Clock | the internal 8 MHz RC oscillator, trimmed against the console's SUBQ frame rate |
-| Wires | 5 signals (SQCK, SUBQ, DATA, WFCK, lid) plus power; optional LED |
+| Wires | 4 signals (SQCK, SUBQ, DATA, WFCK) plus power; optional LED |
 | Toolchain | C17, MISRA C:2012 zero deviations, pinned Docker image |
 
 ## Verified on hardware
@@ -103,7 +101,7 @@ Combinations that booted out of region on a real console (SCEx region unlock), w
 | PU-18 | fat, NTSC-U/C | console | SCEx | Verified 2026-10-05 |
 | PM-41 | PSone | console | SCEx | Verified 2026-10-05 |
 
-These results predate the current design: the mandatory lid line, the internal oscillator with its trim, the acceptance latch, the bounded SUBQ waits, and every change since 2026-10-06. The current firmware passes the full simulation gate and has not yet run on a console. Which chip carried the 2026-10-05 console-clock builds, the exact SCPH of each unit, and the frequency they were built for are not recorded. Not confirmed on hardware: PU-7, PU-8, PU-20, PU-22, PU-23, PM-41(2), and PAL or NTSC-J on any family.
+These results predate the current design: disc swaps seen from SUBQ with no lid wire, the internal oscillator with its trim, the acceptance latch, the bounded SUBQ waits, and every change since 2026-10-06. The current firmware passes the full simulation gate and has not yet run on a console. Which chip carried the 2026-10-05 console-clock builds, the exact SCPH of each unit, and the frequency they were built for are not recorded. Not confirmed on hardware: PU-7, PU-8, PU-20, PU-22, PU-23, PM-41(2), and PAL or NTSC-J on any family.
 
 Per-console validation is community-driven. Tested it on your console? Open a [compatibility report](../../issues/new?template=compatibility.yml) and this table grows from confirmed installs.
 
@@ -114,13 +112,13 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 | SCEx injection | 44-bit LSB-first region string, the PU-7 to PU-20 static-gate method, with the WFCK gate held low for each string as PsNee and Mayumi V4 do, and the PU-22-and-later WFCK-carrier method |
 | Board auto-detect | WFCK behaviour at boot selects gate or carrier mode; one build fits every family |
 | Oscillator trim | the chip runs from its internal 8 MHz oscillator and times the console's 75 Hz SUBQ frames, stepping OSCCAL one notch at a time until it is within 1% and never more than 16 notches from the factory value; the trim is kept in EEPROM and applied at boot |
-| Lid line | a mandatory wire to the lid switch: an open lid stops a string within one 4 ms bit cell, and a close re-arms the chip for the next disc, so every swap in a multi-disc game is seen, never inferred |
-| Stealth | injects only inside the SUBQ region-check window, capped per arming, with 5 frames, 67 ms, between strings as PsNee and Mayumi V4 space them, then DATA high-Z and LED off; stops the moment the console reads the program area and stays silent through every later lead-in read until the lid opens |
+| Disc swaps | no lid wire: 1.5 s with no valid SUBQ frame, which a stopped drive gives, ends the acceptance latch and re-arms the chip for the next disc; a seek or a reread on a spinning disc keeps producing frames, so it never reads as a swap |
+| Stealth | injects only inside the SUBQ region-check window, capped per arming, with 5 frames, 67 ms, between strings as PsNee and Mayumi V4 space them, then DATA high-Z and LED off; stops the moment the console reads the program area and stays silent through every later lead-in read until the disc leaves |
 | Single configured region | emits only `REGION`, never all three |
 | Adaptive timing | on WFCK-carrier boards the injection bit is timed by counting WFCK periods; `TIMING=fixed` uses the trimmed-oscillator delay instead |
-| Self-recovery | each SUBQ capture realigns on the gap between frames and gives up after 30 ms; a WFCK carrier that stalls mid-injection lets the watchdog release DATA; a missing lid wire reads as open, so the chip stays silent instead of injecting blind |
+| Self-recovery | each SUBQ capture realigns on the gap between frames and gives up after 30 ms; a WFCK carrier that stalls mid-injection lets the watchdog release DATA; every unused pin has its pull-up on, so none floats |
 | Status LED | an optional LED on its own pin shows the boot stages, each disc's result and live faults as counted flashes; the firmware never waits on it and is correct with no LED fitted |
-| In-field diagnostics | no programmer needed: the LED codes name the failing stage, from a missing lid wire to a SUBQ line that never shows a region check; nothing is read back with a programmer |
+| In-field diagnostics | no programmer needed: the LED codes name the failing stage, from a SUBQ line that never clocks to one that never shows a region check; nothing is read back with a programmer |
 | Per-console calibration | learns how many strings this console needs, how late it can start and how fast its own oscillator runs, kept in a seven-byte EEPROM record that falls back to the defaults when missing or damaged |
 | Closed-loop confirmation | after injecting, the chip watches SUBQ for a program-area frame (a real track number), which the mechacon only allows once it accepts the region string, and shows whether the region check passed |
 | Verification | host tests 100% line and branch coverage, simavr console model, including a fast and a slow oscillator, mutation testing, reproducible builds |
@@ -137,8 +135,7 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 | Fact | Tag |
 |:-----|:----|
 | SCEx pin order | Read (PsNee `MCU.h`), owner-confirmed as field-proven |
-| Lid tap points | Read: the Mayumi V4 point 7 on quade.co for PU-18 and later, whose PM-41(2) page names it "CD Door: Pin 7"; the door switch S301 printed on the PU-7 board. PU-8: Unknown |
-| Lid polarity, high while open | Read, the Mayumi V4 binary waits on its door input while it reads high |
+| Disc swap seen from SUBQ silence | Concluded: opening the lid stops the drive, so valid mode 1 frames stop; the 1.5 s bound is a design choice, Unknown until hardware |
 | Internal oscillator accuracy | Read: factory calibration +-10%, user calibration +-1% (ATtiny24A/44A/84A datasheet, Table 20-2). That the trim reaches it on a console is Unknown |
 | SQCK and SUBQ tap points | Read, labeled on PsNee's board photo for every supported board; the mechacon pin numbers behind them stay Unknown |
 | Per-pad voltages | Concluded from the PsNee and Mayumi installs (fat around 5 V, PSone lower and noise-sensitive); measure to confirm |
@@ -175,13 +172,13 @@ A non-default region or filter tags the artifact name, for example `openscex-mod
 
 ## MCU pinout
 
-The SCEx signals keep PsNee's tested order, read from PsNee `MCU.h`; the lid sits on PORTB. The physical pin numbers are the standard PDIP pinout; verify against the datasheet for SOIC or QFN.
+The SCEx signals keep PsNee's tested order, read from PsNee `MCU.h`; PORTB is unused. The physical pin numbers are the standard PDIP pinout; verify against the datasheet for SOIC or QFN.
 
 | DIP pin | Port | Signal | Direction | Connect to |
 |:-------:|:-----|:-------|:----------|:-----------|
 | 1 | VCC | VCC | - | console supply, measure first |
 | 2 | PB0 | - | - | unused |
-| 3 | PB1 | LID | in, pull-up | lid switch: Mayumi V4 point 7, door switch S301 on PU-7 |
+| 3 | PB1 | - | - | unused |
 | 4 | PB3 | RESET | - | leave as reset |
 | 5 | PB2 | - | - | unused |
 | 6 | PA7 | - | - | unused |
@@ -202,25 +199,14 @@ The chip learns how the console it is installed in reads the region string and k
 |:------|:-------------|:-------|
 | String cap | the strings an accepted disc needed, plus 4 | later discs get at most that many strings instead of 16; a refused disc restores 16 from the next disc on |
 | Start point | each accepted disc moves the start 2 lead-in frames, 27 ms, later, up to 20 frames; a `jp` build keeps the default, since PsNee warns against a later trigger on Japanese consoles | strings start closer to the region check; a refusal, or a lead-in read that ends before the start, steps back 2 frames and stops the probe |
-| Board | the board detected at boot | a different board shows code 7 once and restarts the string cap and start point |
+| Board | the board detected at boot | a different board shows code 6 once and restarts the string cap and start point |
 | Oscillator | the time between lead-in frames, which the console's crystal spaces at 75 Hz | OSCCAL steps one notch per 64 frames until the chip is within 1%; the trim belongs to the chip, so a board change keeps it |
 
 The chip writes only a byte whose value changed, only at boot or after a disc's check has resolved, never while a string is being sent, so a console that has settled writes nothing. The cell endurance is 100,000 writes (Read: ATtiny24A/44A/84A datasheet DS40002269A). A check byte catches a record cut short by a power-off, which then reads as the defaults. Reflashing erases the record too, because both fuse sets above leave EESAVE unprogrammed (Read: the same datasheet, Table 19-4, high fuse bit 3). The margin of 4 strings, the 2-frame step and the 20-frame bound are design choices, not yet tuned on a console.
 
 ## Console tap points
 
-DATA carries the SCEx bitstream and WFCK is the gate or carrier; these are the PsNee and Mayumi tap points. On PU-18 and later, the lid wire goes where a Mayumi V4 chip puts its pin 7, shown per board on the quade.co diagrams: [PU-18](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/), [PU-20](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/), [PU-22](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/), [PU-23](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-23/), [PM-41](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41/), [PM-41(2)](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41-2/).
-
-On these diagrams, point 7 is the lid line, the only point this chip takes from them. Points 1 and 8 are power and ground, 5 and 6 are the WFCK and DATA points this chip also uses, and points 2, 3 and 4 belong to Mayumi's clock, stealth and reset wiring, which this chip does not use. SQCK and SUBQ are not on these diagrams; the PsNee photos further down mark them.
-
-<table>
-<tr><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/"><img src="https://quade.co/wp-content/uploads/2018/02/PU18L.jpg" alt="PU-18 Mayumi V4 installation diagram by William Quade" width="240"></a><br><sub><b>PU-18</b>. Diagram by William Quade, <a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/"><img src="https://quade.co/wp-content/uploads/2018/02/PU20L.jpg" alt="PU-20 Mayumi V4 installation diagram by William Quade" width="240"></a><br><sub><b>PU-20</b>. Diagram by William Quade, <a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/"><img src="https://quade.co/wp-content/uploads/2018/02/PU22L.jpg" alt="PU-22 Mayumi V4 installation diagram by William Quade" width="240"></a><br><sub><b>PU-22</b>. Diagram by William Quade, <a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/">quade.co</a></sub></td></tr>
-<tr><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-23/"><img src="https://quade.co/wp-content/uploads/2018/01/pu23l.jpg" alt="PU-23 Mayumi V4 installation diagram by William Quade" width="240"></a><br><sub><b>PU-23</b>. Diagram by William Quade, <a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-23/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41/"><img src="https://quade.co/wp-content/uploads/2018/11/pm-41-mayumiv4.jpg" alt="PM-41 Mayumi V4 installation diagram by William Quade" width="240"></a><br><sub><b>PM-41</b>. Diagram by William Quade, <a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41-2/"><img src="https://quade.co/wp-content/uploads/2020/05/pm-412-m4.jpg" alt="PM-41(2) Mayumi V4 installation diagram by William Quade" width="240"></a><br><sub><b>PM-41(2)</b>. Diagram by William Quade, <a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41-2/">quade.co</a></sub></td></tr>
-</table>
-
-The six diagrams are William Quade's and are shown from quade.co with credit; they are not part of this repository or its MIT license. Click a diagram for the full page and its comments.
-
-Every other point has a labeled photo below: SQCK, SUBQ, DATA, WFCK, VCC and GND are marked by name on each board. Solder the lid where the diagrams above put point 7, and everything else where these photos mark it. The PU-18 photo shows the underside of the board. AX, DX and RESET are labeled too but belong to PsNee's boot-ROM patch, which this chip does not have; leave them unconnected.
+Every point has a labeled photo below: SQCK, SUBQ, DATA, WFCK, VCC and GND are marked by name on each board; solder each wire where these photos mark it. The PU-18 photo shows the underside of the board. AX, DX and RESET are labeled too but belong to PsNee's boot-ROM patch, which this chip does not have; leave them unconnected.
 
 <table>
 <tr><td align="center" width="33%"><a href="assets/psnee/pu-7.jpg"><img src="assets/psnee/pu-7.jpg" alt="PU-7 board with the SQCK, SUBQ, DATA, WFCK, VCC and GND points labeled, from PsNee" width="240"></a><br><sub><b>PU-7</b>. Photo from PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pu-8a.jpg"><img src="assets/psnee/pu-8a.jpg" alt="PU-8 board, later revision, with the SQCK, SUBQ, DATA, WFCK, VCC and GND points labeled, from PsNee" width="240"></a><br><sub><b>PU-8</b>, 1-658-467-22. Photo from PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pu-8b.jpg"><img src="assets/psnee/pu-8b.jpg" alt="PU-8 board, earlier revision, with the SQCK, SUBQ, DATA, WFCK, VCC and GND points labeled, from PsNee" width="240"></a><br><sub><b>PU-8</b>, 1-658-467-12. Photo from PsNee</sub></td></tr>
@@ -228,7 +214,7 @@ Every other point has a labeled photo below: SQCK, SUBQ, DATA, WFCK, VCC and GND
 <tr><td align="center" width="33%"><a href="assets/psnee/pu-23.jpg"><img src="assets/psnee/pu-23.jpg" alt="PU-23 board with the SQCK, SUBQ, DATA, WFCK, VCC and GND points labeled, from PsNee" width="240"></a><br><sub><b>PU-23</b>. Photo from PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pm-41.jpg"><img src="assets/psnee/pm-41.jpg" alt="PM-41 board with the SQCK, SUBQ, DATA, WFCK, VCC and GND points labeled, from PsNee" width="240"></a><br><sub><b>PM-41</b>. Photo from PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pm-41-2.jpg"><img src="assets/psnee/pm-41-2.jpg" alt="PM-41(2) board with the SQCK, SUBQ, DATA, WFCK, VCC and GND points labeled, from PsNee" width="240"></a><br><sub><b>PM-41(2)</b>. Photo from PsNee</sub></td></tr>
 </table>
 
-These nine photos come from [PsNee](https://github.com/kalymos/PsNee) V9.0 by kalymos and its contributors, released into the public domain under the [Unlicense](LICENSES/Unlicense.txt), and are copied here resized. With them and the diagrams above, every wire of the chip has a picture of where it goes, except the lid on PU-7 and PU-8. On the PU-7 the lid switch is on the board itself, printed DOOR S301 near IC405 in the PU-7 photo; wire the lid to whichever of its pads changes level when the lid opens, found with a meter. On the PU-8 no source here shows the lid point: trace the lid switch's signal and measure it changing with the lid before wiring.
+These nine photos come from [PsNee](https://github.com/kalymos/PsNee) V9.0 by kalymos and its contributors, released into the public domain under the [Unlicense](LICENSES/Unlicense.txt), and are copied here resized. With them, every wire of the chip has a picture of where it goes.
 
 | Board family | SCPH era | DATA injection point | WFCK role | Confidence |
 |:-------------|:---------|:---------------------|:----------|:-----------|
@@ -236,7 +222,7 @@ These nine photos come from [PsNee](https://github.com/kalymos/PsNee) V9.0 by ka
 | PU-22, PU-23 | 7500-900x | CD-processor tracking line, WFCK as a fake carrier, three-wire-plus-link | live clock, sync required | Read |
 | PM-41, PM-41(2) | PSone 100-103 | same tracking-line carrier method; float the chip I/O when idle on PM-41(2) | live clock | Read |
 
-There is no clock wire: the chip runs from its own oscillator, so it can sit anywhere the five signal wires reach. Keep those wires short; quade.co traced Mayumi V4 failures to a long wire picking up noise.
+There is no clock wire and no lid wire: the chip runs from its own oscillator and sees disc swaps in SUBQ, so it can sit anywhere the four signal wires reach. Keep those wires short; quade.co traced Mayumi V4 failures to a long wire picking up noise. An install made for an earlier release can keep its clock and lid wires on pins 2 and 3: the firmware never drives them and holds them with pull-ups, though removing them is tidier.
 
 The photos above mark SQCK and SUBQ on every supported board, so follow them. The mechacon pin numbers a forum relay gives for PU-22 and later, SUBQ on pin 24 and SQCK on pin 26, stay Unknown, since psxdev.net is offline since October 2025.
 
@@ -309,15 +295,14 @@ Codes are long 700 ms flashes, 300 ms apart, with a 2 s pause before the code re
 |:----:|:--------|:------|
 | 1 | the console accepted the region string | nothing, the disc plays |
 | 2 | strings were sent and the console never reached the program area | DATA and WFCK wiring, and that the build's region matches the disc |
-| 3 | the lid is open, or the lid wire is missing; repeats while it holds | the lid wire and its point |
-| 4 | no SUBQ frame for 5 s with the lid closed; repeats while it holds | SQCK, power and ground |
-| 5 | frames arrive but no region check for 20 s; repeats while it holds | SUBQ; also normal with no disc or an audio CD |
-| 6 | the watchdog reset the chip, shown once at the next boot | WFCK, which stalled mid-injection |
-| 7 | the board differs from the one the calibration stored, shown once at boot; code 6 takes priority | the WFCK wire, which is intermittent, unless the chip moved to another console |
+| 3 | no SUBQ frame for 5 s after power-on; shown for 15 s, then the heartbeat | SQCK, SUBQ, power and ground; also shown with no disc in |
+| 4 | frames arrive but no region check for 20 s; repeats while it holds | SUBQ; also normal with an audio CD |
+| 5 | the watchdog reset the chip, shown once at the next boot | WFCK, which stalled mid-injection |
+| 6 | the board differs from the one the calibration stored, shown once at boot; code 5 takes priority | the WFCK wire, which is intermittent, unless the chip moved to another console |
 
 ## Safety
 
-- Measure the logic voltage at every tap point before wiring, the lid point included. The values are taken from the established PsNee and Mayumi installs (fat boards around 5 V, the PSone PM-41(2) lower and noise-sensitive), but assumption is not measurement.
+- Measure the logic voltage at every tap point before wiring. The values are taken from the established PsNee and Mayumi installs (fat boards around 5 V, the PSone PM-41(2) lower and noise-sensitive), but assumption is not measurement.
 - Opening a console and soldering to the CD subsystem can destroy it. Build at your own risk.
 
 ## Versioning
