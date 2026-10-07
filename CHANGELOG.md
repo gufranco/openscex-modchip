@@ -1,3 +1,11 @@
+# [0.10.0](https://github.com/gufranco/openscex-modchip/compare/v0.9.0...v0.10.0) (2026-10-07)
+
+
+### Features
+
+* confirm gate boards before each string ([3004aef](https://github.com/gufranco/openscex-modchip/commit/3004aefeaf56109139cec6b376c49ac8cbccfe51))
+* hold strings on a low supply ([c61e3e0](https://github.com/gufranco/openscex-modchip/commit/c61e3e01ab6b56da1218a96dd05eb31445f02356))
+
 # [0.9.0](https://github.com/gufranco/openscex-modchip/compare/v0.8.0...v0.9.0) (2026-10-07)
 
 
