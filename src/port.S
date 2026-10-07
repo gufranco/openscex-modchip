@@ -45,8 +45,9 @@
 // AVR timed sequence that clears the clock prescaler, so the core runs at the
 // full console clock regardless of the factory CKDIV8 fuse. LED is the only
 // output at boot. The lid input gets its pull-up, so a missing or broken lid
-// wire reads as open and the chip stays silent rather than injecting blind. The
-// two writes to the watchdog register are its own timed sequence: the first
+// wire reads as open and the chip stays silent rather than injecting blind.
+// Timer1 starts free-running at the clock divided by 1024 as the LED's time
+// base; it drives no pin and raises no interrupt. The two writes to the watchdog register are its own timed sequence: the first
 // arms the change, the second enables the watchdog at a ~0.5 s timeout
 // (WDP2|WDP0), so any hang longer than one loop pass resets the chip instead of
 // wedging it. The watchdog runs from its own 128 kHz oscillator, so its timeout
@@ -64,6 +65,9 @@ pscu_port_init:
 	ldi r24, PSCU_PORT_INIT
 	out _SFR_IO_ADDR(PSCU_PORT), r24
 	sbi _SFR_IO_ADDR(PORTB), PSCU_PIN_LID
+	out _SFR_IO_ADDR(TCCR1A), r1
+	ldi r24, (1 << CS12) | (1 << CS10)
+	out _SFR_IO_ADDR(TCCR1B), r24
 	wdr
 	ldi r24, (1 << WDCE) | (1 << WDE)
 	out _SFR_IO_ADDR(PSCU_WDT_REG), r24
@@ -238,43 +242,32 @@ pscu_port_capture_frame:
 	ret
 	.endfunc
 
-// EEPROM primitives for the diagnostics recorder. The AVR EEPROM is reached
-// through EECR/EEDR/EEAR. Each call first spins until EEPE clears, meaning any earlier
-// write has finished, kicking the watchdog so the wait can never wedge the chip.
-// r1 is the compiler's fixed zero register, so the high address byte is cleared
-// by writing it; our addresses are always below 256. The firmware calls these
-// only after it has gone idle, so the millisecond-scale write latency is spent
-// when nothing is time-critical.
-	.global pscu_port_eeprom_read
-	.func pscu_port_eeprom_read
-pscu_port_eeprom_read:
-13:
-	wdr
-	sbic _SFR_IO_ADDR(EECR), EEPE
-	rjmp 13b
-	out _SFR_IO_ADDR(EEARH), r1
-	out _SFR_IO_ADDR(EEARL), r24
-	sbi _SFR_IO_ADDR(EECR), EERE
-	in r24, _SFR_IO_ADDR(EEDR)
+// A free-running clock for the status LED. Timer1 counts the console clock
+// divided by 1024, one tick every 242 us at 4.2336 MHz, and wraps every 15.8 s,
+// far longer than any pass of the run loop, so the difference of two readings is
+// always the time between them. Reading TCNT1L first latches TCNT1H, which the
+// datasheet requires for a consistent 16-bit read. The LED patterns are drawn
+// from this count, so they never cost a delay.
+	.global pscu_port_ticks
+	.func pscu_port_ticks
+pscu_port_ticks:
+	in r24, _SFR_IO_ADDR(TCNT1L)
+	in r25, _SFR_IO_ADDR(TCNT1H)
 	ret
 	.endfunc
 
-// Write sets the address and data, then performs the AVR timed sequence: set
-// EEMPE, then set EEPE within four cycles. Two back-to-back sbi instructions are
-// two cycles each, so the second lands inside the window. The firmware never
-// enables interrupts, so nothing can break the sequence apart.
-	.global pscu_port_eeprom_write
-	.func pscu_port_eeprom_write
-pscu_port_eeprom_write:
-14:
-	wdr
-	sbic _SFR_IO_ADDR(EECR), EEPE
-	rjmp 14b
-	out _SFR_IO_ADDR(EEARH), r1
-	out _SFR_IO_ADDR(EEARL), r24
-	out _SFR_IO_ADDR(EEDR), r22
-	sbi _SFR_IO_ADDR(EECR), EEMPE
-	sbi _SFR_IO_ADDR(EECR), EEPE
+// Report whether the last reset came from the watchdog, and clear the reset
+// flags so the next reset reports its own cause. A watchdog reset means a pass
+// hung, most likely a WFCK carrier that stopped mid-injection, and the LED shows
+// it once at the next boot. Clearing WDRF also lifts the hardware override that
+// forces WDE on; the watchdog stays enabled because pscu_port_init set WDE
+// itself. r1 is the compiler's zero register.
+	.global pscu_port_reset_was_watchdog
+	.func pscu_port_reset_was_watchdog
+pscu_port_reset_was_watchdog:
+	in r24, _SFR_IO_ADDR(MCUSR)
+	andi r24, (1 << WDRF)
+	out _SFR_IO_ADDR(MCUSR), r1
 	ret
 	.endfunc
 

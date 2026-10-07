@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "avr_eeprom.h"
 #include "avr_ioport.h"
 #include "sim_avr.h"
 #include "sim_cycle_timers.h"
@@ -33,9 +32,11 @@
 // 75 Hz, so bursts are separated by most of ~13.3 ms; the firmware resyncs on a
 // gap of at least 1 ms, and 9.4 ms sits clearly inside the real gap.
 #define FRAME_GAP_CYCLES 40000UL
-// Cycles to let the firmware's boot-time board detection complete: the 300 ms
-// WFCK settle (1.27M cycles) plus the 10000-sample window, with margin (756 ms).
-#define DETECT_CYCLES 3200000UL
+// Cycles to let the firmware's boot complete before the first frame: the 300 ms
+// WFCK settle and the 10000-sample window under the boot light (about 0.4 s),
+// then the board blinks, at most two 300 ms flashes with their gaps (1.2 s).
+// 1.7 s covers both with margin.
+#define DETECT_CYCLES 7200000UL
 // A carrier that starts this long after power-on (283 ms) is still inside the
 // 300 ms settle time, so it must be detected as a carrier board.
 #define LATE_CARRIER_CYCLES 1200000UL
@@ -85,9 +86,17 @@ static const char SCEI_BITS[SCEX_BITS + 1] = "1001101010010011110100101011101001
 static int g_checks = 0;
 static int g_failures = 0;
 static int g_led_seen = 0;
-// The LED rises once per region string, so counting rises counts strings.
-static int g_led_rises = 0;
 static uint64_t g_led_cycle = 0;
+// Every LED pulse the firmware draws, as rise cycle and length. A region string
+// lights the LED for 90 to 181 ms, every status pattern for longer or shorter, so
+// a pulse of 60 to 200 ms that starts after boot counts as one string.
+#define MAX_PULSES 512
+static uint64_t g_pulse_rise[MAX_PULSES];
+static uint64_t g_pulse_len[MAX_PULSES];
+static int g_pulses = 0;
+static uint64_t g_rise = 0;
+static int g_strings = 0;
+static uint32_t g_freq = 4233600U;
 // The SQCK half-period the harness clocks frames with, normally EDGE_CYCLES.
 static uint64_t g_edge_cycles = EDGE_CYCLES;
 
@@ -105,16 +114,65 @@ static void check(int cond, const char *name) {
   }
 }
 
+static uint64_t ms_cycles(uint32_t ms) {
+  return ((uint64_t)g_freq * ms) / 1000U;
+}
+
+// The first LED rise after boot marks the first region string, which the
+// scenarios that decode or interrupt a string start from; nothing else lights
+// the LED that early after boot. Every pulse is also recorded, and one whose
+// length matches a region string is counted as one.
 static void on_led(struct avr_irq_t *irq, uint32_t value, void *param) {
   avr_t *avr = param;
   (void)irq;
-  if ((value != 0U) && (g_led_seen == 0)) {
-    g_led_seen = 1;
-    g_led_cycle = avr->cycle;
-  }
   if (value != 0U) {
-    g_led_rises++;
+    g_rise = avr->cycle;
+    if ((avr->cycle >= DETECT_CYCLES) && (g_led_seen == 0)) {
+      g_led_seen = 1;
+      g_led_cycle = avr->cycle;
+    }
+    return;
   }
+  if (g_rise == 0U) {
+    return;
+  }
+  uint64_t len = avr->cycle - g_rise;
+  if (g_pulses < MAX_PULSES) {
+    g_pulse_rise[g_pulses] = g_rise;
+    g_pulse_len[g_pulses] = len;
+    g_pulses++;
+  }
+  if ((g_rise >= DETECT_CYCLES) && (len >= ms_cycles(60U)) && (len <= ms_cycles(200U))) {
+    g_strings++;
+  }
+  g_rise = 0U;
+}
+
+// Count the first group of pulses at or after `from` whose length lies in
+// [min_ms, max_ms], a group ending where the next such pulse starts more than
+// 1.5 s after the previous one. A code is that many long flashes one second
+// apart, then a 2 s pause, so this reads one repetition of a code.
+static int pulse_group(uint64_t from, uint32_t min_ms, uint32_t max_ms) {
+  int count = 0;
+  uint64_t last = 0U;
+  for (int i = 0; i < g_pulses; i++) {
+    if ((g_pulse_rise[i] < from) || (g_pulse_len[i] < ms_cycles(min_ms)) ||
+        (g_pulse_len[i] > ms_cycles(max_ms))) {
+      continue;
+    }
+    if ((count > 0) && ((g_pulse_rise[i] - last) > ms_cycles(1500U))) {
+      break;
+    }
+    count++;
+    last = g_pulse_rise[i];
+  }
+  return count;
+}
+
+static void clock_frames(avr_t *avr, const target_t *t, const uint8_t *frame, int count);
+
+static int code_after(uint64_t from) {
+  return pulse_group(from, 600U, 800U);
 }
 
 static avr_cycle_count_t wfck_tick(avr_t *avr, avr_cycle_count_t when, void *param) {
@@ -162,6 +220,12 @@ static avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
   avr_init(avr);
   avr_load_firmware(avr, &firmware);
   avr->frequency = freq;
+  g_freq = freq;
+  g_led_seen = 0;
+  g_led_cycle = 0U;
+  g_pulses = 0;
+  g_rise = 0U;
+  g_strings = 0;
   avr_irq_t *lid = lid_irq(avr);
   avr_raise_irq(lid, 0U);
   run_cycles(avr, PORT_INIT_CYCLES);
@@ -304,101 +368,38 @@ static void scenario_inject(const target_t *t,
   }
 }
 
-// Prove the in-field diagnostics recorder and that closed-loop confirmation
-// resolves and records, both ways. Boot a legacy board and drive TOC frames to
-// arm and fire injection. Then either clock silence frames, so no program area
-// appears and the confirmation FSM times out (unconfirmed), or clock real
-// program-area frames, TNO 01, as a console does once it accepts the region
-// string (confirmed). Reading the five EEPROM bytes back the way an installer
-// would with avrdude checks the record: magic, legacy board, one session, a
-// nonzero injection count, and the confirmation byte. Injection blocks for
-// 44 bits at 4 ms, so the frames clocked meanwhile are lost; the firmware then
-// resyncs on the next inter-frame gap and reads the following frames cleanly.
-#define DIAG_TOC_FRAMES 12
-#define DIAG_AFTER_FRAMES 120
-#define DIAG_WRITE_CYCLES 3000000UL
+// The LED reports each disc's result after its check: one long flash repeated
+// for a disc the console accepted, two for one it never accepted, each code
+// three times and then dark. A legacy board is driven with TOC frames to arm
+// injection, then with program-area frames (accepted) or framed silence until
+// the confirmation wait expires (refused).
+#define RESULT_TOC_FRAMES 12
+#define RESULT_AFTER_FRAMES 120
 
-static void read_record(avr_t *avr, uint8_t *raw) {
-  avr_eeprom_desc_t desc = { .ee = raw, .offset = 0, .size = 5 };
-  (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_GET, &desc);
-}
-
-static void scenario_diag(const target_t *t, const char *elf, uint32_t freq, int program) {
+static void result_case(const target_t *t, const char *elf, uint32_t freq, int program) {
   avr_t *avr = build_avr(t, elf, freq);
-  wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
-  g_led_seen = 0;
-  g_led_cycle = 0;
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
   avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
   boot_quiet(avr, t, 0, &ctx);
 
-  uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
-  uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0, 0, 0, 0x02U, 0, 0, 0 };
-  for (int i = 0; i < DIAG_TOC_FRAMES; i++) {
-    clock_frame(avr, t, toc);
-  }
-  for (int i = 0; i < DIAG_AFTER_FRAMES; i++) {
-    clock_frame(avr, t, (program != 0) ? play : silence);
-  }
-  run_cycles(avr, DIAG_WRITE_CYCLES);
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
+  const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
+                                           0,     0,     0x02U, 0,     0,     0 };
+  clock_frames(avr, t, toc, RESULT_TOC_FRAMES);
+  uint64_t mark = avr->cycle;
+  clock_frames(avr, t, (program != 0) ? play : silence, RESULT_AFTER_FRAMES);
+  run_cycles(avr, ms_cycles(4000U));
 
-  uint8_t raw[5] = { 0, 0, 0, 0, 0 };
-  read_record(avr, raw);
-
-  const char *tag = t->mcu;
-  const char *path = (program != 0) ? "confirmed" : "unconfirmed";
+  int expected = (program != 0) ? 1 : 2;
   char label[96];
-  (void)snprintf(label, sizeof(label), "diag %s %s: injection ran before logging", tag, path);
-  check(g_led_seen != 0, label);
-  (void)snprintf(label, sizeof(label), "diag %s %s: recorder magic written", tag, path);
-  check(raw[0] == 0x50U, label);
-  (void)snprintf(label, sizeof(label), "diag %s %s: board recorded as legacy gate", tag, path);
-  check(raw[1] == 0U, label);
-  (void)snprintf(label, sizeof(label), "diag %s %s: one session on a fresh eeprom", tag, path);
-  check(raw[2] == 1U, label);
-  (void)snprintf(label, sizeof(label), "diag %s %s: injection count recorded", tag, path);
-  check(raw[3] >= 1U, label);
-  (void)snprintf(label, sizeof(label), "diag %s %s: confirmation byte", tag, path);
-  check(raw[4] == ((program != 0) ? 1U : 0U), label);
-}
-
-// Each arming is its own session. Within one power cycle, drive a first disc
-// whose check is never confirmed, let the window close, then a second disc whose
-// program area is reached: the recorder must hold two sessions and the second
-// one's outcome, not stop after the first session of the power cycle.
-static void scenario_diag_two_sessions(const target_t *t, const char *elf, uint32_t freq) {
-  avr_t *avr = build_avr(t, elf, freq);
-  wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
-  g_led_seen = 0;
-  g_led_cycle = 0;
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
-  boot_quiet(avr, t, 0, &ctx);
-
-  uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
-  uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0, 0, 0, 0x02U, 0, 0, 0 };
-  for (int i = 0; i < DIAG_TOC_FRAMES; i++) {
-    clock_frame(avr, t, toc);
-  }
-  for (int i = 0; i < DIAG_AFTER_FRAMES; i++) {
-    clock_frame(avr, t, silence);
-  }
-  for (int i = 0; i < DIAG_TOC_FRAMES; i++) {
-    clock_frame(avr, t, toc);
-  }
-  for (int i = 0; i < DIAG_AFTER_FRAMES; i++) {
-    clock_frame(avr, t, play);
-  }
-  run_cycles(avr, DIAG_WRITE_CYCLES);
-
-  uint8_t raw[5] = { 0, 0, 0, 0, 0 };
-  read_record(avr, raw);
-  const char *tag = t->mcu;
-  char label[96];
-  (void)snprintf(label, sizeof(label), "diag %s two discs: two sessions recorded", tag);
-  check(raw[2] == 2U, label);
-  (void)snprintf(label, sizeof(label), "diag %s two discs: second session confirmed", tag);
-  check(raw[4] == 1U, label);
+  (void)snprintf(label,
+                 sizeof(label),
+                 "led %s: %s disc shows code %d",
+                 t->mcu,
+                 (program != 0) ? "accepted" : "refused",
+                 expected);
+  check((g_led_seen != 0) && (code_after(mark) == expected), label);
 }
 
 // A capture that starts inside a burst must not stay misaligned. Present a
@@ -524,6 +525,11 @@ static void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
   run_cycles(avr, STALL_WAIT_CYCLES);
   (void)snprintf(label, sizeof(label), "stall %s: DATA released after the carrier stops", tag);
   check(data_ddr(avr, t) == 0U, label);
+
+  uint64_t rebooted = avr->cycle;
+  run_cycles(avr, ms_cycles(9000U));
+  (void)snprintf(label, sizeof(label), "stall %s: the next boot shows watchdog code 6", tag);
+  check(code_after(rebooted) == 6, label);
 }
 
 // The board-family matrix. The firmware has no per-family code path, only the
@@ -616,9 +622,9 @@ static void clock_frames(avr_t *avr, const target_t *t, const uint8_t *frame, in
 }
 
 static int strings_while(avr_t *avr, const target_t *t, const uint8_t *frame, int count) {
-  int before = g_led_rises;
+  int before = g_strings;
   clock_frames(avr, t, frame, count);
-  return g_led_rises - before;
+  return g_strings - before;
 }
 
 static void md_check(const target_t *t, int ok, const char *what, int strings) {
@@ -638,7 +644,6 @@ static void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq
   wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
   g_led_seen = 0;
   g_led_cycle = 0;
-  g_led_rises = 0;
   avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
   boot_quiet(avr, t, 0, &ctx);
 
@@ -667,43 +672,6 @@ static void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq
   md_check(t, disc3 >= 1, "disc 3 after another swap is injected", disc3);
 }
 
-// A failed disc must still reach the flight recorder when it is swapped out
-// fast. Disc 1 is injected but never reaches the program area, and its lid opens
-// after only a few frames, long before the idle wait that would otherwise
-// resolve its session; the record must already hold it as unconfirmed. Disc 2 is
-// then confirmed and becomes the second session.
-#define SWAP_IDLE_FRAMES 5
-
-static void scenario_fast_swap_record(const target_t *t, const char *elf, uint32_t freq) {
-  avr_t *avr = build_avr(t, elf, freq);
-  wfck_ctx_t ctx = { NULL, 1U, 0U };
-  g_led_seen = 0;
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
-  boot_quiet(avr, t, 0, &ctx);
-
-  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
-  const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
-                                           0,     0,     0x02U, 0,     0,     0 };
-  uint8_t raw[5] = { 0, 0, 0, 0, 0 };
-  char label[96];
-
-  clock_frames(avr, t, toc, DIAG_TOC_FRAMES);
-  clock_frames(avr, t, silence, SWAP_IDLE_FRAMES);
-  swap_disc(avr);
-  run_cycles(avr, DIAG_WRITE_CYCLES);
-  read_record(avr, raw);
-  (void)snprintf(label, sizeof(label), "fast swap %s: failed disc 1 recorded on lid open", t->mcu);
-  check((raw[0] == 0x50U) && (raw[2] == 1U) && (raw[4] == 0U), label);
-
-  clock_frames(avr, t, toc, DIAG_TOC_FRAMES);
-  clock_frames(avr, t, play, DIAG_AFTER_FRAMES);
-  run_cycles(avr, DIAG_WRITE_CYCLES);
-  read_record(avr, raw);
-  (void)snprintf(label, sizeof(label), "fast swap %s: disc 2 confirmed as session 2", t->mcu);
-  check((raw[2] == 2U) && (raw[4] == 1U), label);
-}
-
 // The lid is the chip's hard stop. With the lid open the chip never injects,
 // whatever SUBQ shows; and when the lid opens partway through a string, DATA
 // must be released within about one 4 ms bit cell and stay released for the rest
@@ -724,9 +692,13 @@ static void scenario_lid(const target_t *t, const char *elf, uint32_t freq) {
   avr_irq_register_notify(pin_irq(open_avr, t, t->led), on_led, open_avr);
   boot_quiet(open_avr, t, 0, &open_ctx);
   avr_raise_irq(lid_irq(open_avr), 1U);
+  uint64_t opened = open_avr->cycle;
   clock_frames(open_avr, t, toc, MD_TOC_FRAMES);
+  run_cycles(open_avr, ms_cycles(3000U));
   (void)snprintf(label, sizeof(label), "lid %s: no injection while the lid is open", t->mcu);
-  check(g_led_seen == 0, label);
+  check(g_strings == 0, label);
+  (void)snprintf(label, sizeof(label), "lid %s: an open lid shows code 3", t->mcu);
+  check(code_after(opened) == 3, label);
 
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
@@ -769,6 +741,93 @@ static void scenario_fast_sqck(const target_t *t, const char *elf, uint32_t freq
   g_edge_cycles = EDGE_CYCLES;
 }
 
+// The boot light: at power-on the LED must come on, stay on through the WFCK
+// settle and detect wait, and go off before the first frame is read, so an
+// installer sees power, clock and firmware are alive without a disc. It must
+// also never stay on: after the wait it is dark until a region string is sent.
+static uint64_t g_boot_on = 0;
+static uint64_t g_boot_off = 0;
+
+static void on_boot_led(struct avr_irq_t *irq, uint32_t value, void *param) {
+  avr_t *avr = param;
+  (void)irq;
+  if ((value != 0U) && (g_boot_on == 0U)) {
+    g_boot_on = avr->cycle;
+  }
+  if ((value == 0U) && (g_boot_on != 0U) && (g_boot_off == 0U)) {
+    g_boot_off = avr->cycle;
+  }
+}
+
+static void scenario_boot_light(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  g_boot_on = 0U;
+  g_boot_off = 0U;
+  // build_avr already ran the firmware through its port init, and the boot light
+  // comes on within those first cycles, so read the LED level now as well as
+  // watching for the later edges.
+  avr_ioport_state_t state;
+  (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE((uint32_t)t->port), &state);
+  if (((state.port >> t->led) & 1U) != 0U) {
+    g_boot_on = avr->cycle;
+  }
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_boot_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+
+  uint64_t lit = g_boot_off - g_boot_on;
+  uint64_t settle = (uint64_t)freq * 3U / 10U;
+  char label[96];
+  (void)snprintf(label, sizeof(label), "boot light %s: lights at power-on", t->mcu);
+  check(g_boot_on != 0U, label);
+  (void)snprintf(label, sizeof(label), "boot light %s: stays on through the 300 ms settle", t->mcu);
+  check((g_boot_off != 0U) && (lit >= settle), label);
+  (void)snprintf(label, sizeof(label), "boot light %s: off before detection ends", t->mcu);
+  check((g_boot_off != 0U) && (g_boot_off < DETECT_CYCLES), label);
+}
+
+// After the boot light, short blinks name the board the chip detected: one for a
+// static gate (PU-18, PU-20), two for a WFCK carrier (PU-22 and later).
+static void board_blinks_case(const target_t *t, const char *elf, uint32_t freq, int modern) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, modern, &ctx);
+  int blinks = pulse_group(0U, 250U, 350U);
+  char label[96];
+  (void)snprintf(label,
+                 sizeof(label),
+                 "boot %s: %s board shows %d short blinks",
+                 t->mcu,
+                 (modern != 0) ? "carrier" : "gate",
+                 (modern != 0) ? 2 : 1);
+  check(blinks == ((modern != 0) ? 2 : 1), label);
+}
+
+// The live faults, each judged since the lid closed: no SUBQ frame at all for
+// 5 s is code 4 (clock or SQCK wiring), frames that never show a region check
+// for 20 s are code 5 (SUBQ wiring, or a disc with no data lead-in).
+#define NO_CHECK_FRAMES 2200
+
+static void faults_case(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+  run_cycles(avr, ms_cycles(10000U));
+  char label[96];
+  (void)snprintf(label, sizeof(label), "led %s: no SQCK shows code 4", t->mcu);
+  check(code_after(DETECT_CYCLES) == 4, label);
+
+  avr_t *quiet = build_avr(t, elf, freq);
+  avr_irq_register_notify(pin_irq(quiet, t, t->led), on_led, quiet);
+  boot_quiet(quiet, t, 0, &ctx);
+  const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
+  clock_frames(quiet, t, silence, NO_CHECK_FRAMES);
+  (void)snprintf(label, sizeof(label), "led %s: frames but no region check shows code 5", t->mcu);
+  check(code_after(DETECT_CYCLES) == 5, label);
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 3) {
     (void)fprintf(stderr, "usage: %s elf freq_hz [vcd_elf]\n", argv[0]);
@@ -787,16 +846,18 @@ int main(int argc, char *argv[]) {
     scenario_inject(&t84, elf, freq, FAMILIES[f].modern, 1, FAMILIES[f].wfck_hz, FAMILIES[f].name);
   }
   scenario_inject(&t84, elf, freq, 0, 0, WFCK_HZ, "legacy non-TOC negative");
-  scenario_diag(&t84, elf, freq, 0);
-  scenario_diag(&t84, elf, freq, 1);
-  scenario_diag_two_sessions(&t84, elf, freq);
+  result_case(&t84, elf, freq, 1);
+  result_case(&t84, elf, freq, 0);
   scenario_resync(&t84, elf, freq);
   scenario_late_carrier(&t84, elf, freq);
   scenario_stall(&t84, elf, freq);
   scenario_multidisc(&t84, elf, freq);
   scenario_lid(&t84, elf, freq);
   scenario_fast_sqck(&t84, elf, freq);
-  scenario_fast_swap_record(&t84, elf, freq);
+  scenario_boot_light(&t84, elf, freq);
+  board_blinks_case(&t84, elf, freq, 0);
+  board_blinks_case(&t84, elf, freq, 1);
+  faults_case(&t84, elf, freq);
 
   // The optional third argument is the SCPH-5903 Video-CD image.
   if (argc >= 4) {

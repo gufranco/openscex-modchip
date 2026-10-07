@@ -11,7 +11,6 @@
 #include "pscu/assert.h"
 #include "pscu/board_mode.h"
 #include "pscu/config.h"
-#include "pscu/diag.h"
 #include "pscu/region.h"
 #include "pscu/subq.h"
 
@@ -118,14 +117,20 @@ static void pscu_inject_region(pscu_region_t region, pscu_board_mode_t mode) {
 
 // Run once at boot: let WFCK settle, then watch it across the detect window and
 // classify the board. The result picks the injection method (gate high-Z vs
-// WFCK mirror) for the rest of the session.
+// WFCK mirror) for the rest of the session. The LED is lit for exactly this
+// wait, about 0.4 s, which the chip spends anyway: an installer who sees it at
+// power-on knows the chip has power, a running console clock and its firmware,
+// before any disc is read. Lighting it here adds no delay and sits on no timing
+// path, and with no LED fitted nothing changes.
 pscu_board_mode_t pscu_engine_detect_board(void) {
+  pscu_port_led_on();
   pscu_port_delay_ms(PSCU_DETECT_SETTLE_MS);
   pscu_board_detect_t state = pscu_board_detect_init();
   for (uint16_t i = 0U; i < PSCU_DETECT_WINDOW; i++) {
     state = pscu_board_detect_step(state, pscu_port_read_wfck());
     pscu_port_watchdog_reset();
   }
+  pscu_port_led_off();
   return pscu_board_detect_mode(state, PSCU_DETECT_PULSES);
 }
 
@@ -133,8 +138,9 @@ pscu_board_mode_t pscu_engine_detect_board(void) {
 // clocked in by the port layer in assembly, where the time between edges is
 // short enough to follow a fast SQCK. If the gap never comes or any edge times
 // out, the frame is filled with PSCU_SUBQ_FAILED_BYTE so the logic layer reads it
-// as a miss; a partial frame is never passed on.
-void pscu_engine_capture_frame(uint8_t *frame) {
+// as a miss; a partial frame is never passed on. Returns whether a whole frame
+// arrived, which the LED uses to tell a dead SQCK from a disc with no check.
+bool pscu_engine_capture_frame(uint8_t *frame) {
   PSCU_ASSERT(frame != NULL);
 
   bool ok = pscu_wait_sqck_idle();
@@ -146,6 +152,7 @@ void pscu_engine_capture_frame(uint8_t *frame) {
       frame[byte] = PSCU_SUBQ_FAILED_BYTE;
     }
   }
+  return ok;
 }
 
 // Emit exactly one region word, the one this build was configured for, then
@@ -161,28 +168,4 @@ void pscu_engine_inject(pscu_board_mode_t board) {
   pscu_inject_region(PSCU_CONFIGURED_REGION, board);
   pscu_port_data_release();
   pscu_port_led_off();
-}
-
-// Read the previous flight recorder, advance it, and write back only the bytes
-// that changed. Reading before writing is what lets the session count accumulate
-// across sessions and power cycles; the pure codec in diag.c owns the byte
-// layout, so this function only moves bytes over the EEPROM port primitives.
-// Skipping unchanged bytes spares their erase/write cycles: the magic and board
-// bytes are written once per install, and only the counters wear.
-void pscu_engine_log_session(pscu_board_mode_t board, uint8_t injects, uint8_t confirmed) {
-  PSCU_ASSERT((board == PSCU_BOARD_MODE_GATE) || (board == PSCU_BOARD_MODE_WFCK));
-
-  uint8_t stored[PSCU_DIAG_EEPROM_BYTES];
-  for (uint8_t i = 0U; i < PSCU_DIAG_EEPROM_BYTES; i++) {
-    stored[i] = pscu_port_eeprom_read((uint8_t)(PSCU_DIAG_EEPROM_ADDR + i));
-  }
-  pscu_diag_record_t previous = pscu_diag_decode(stored);
-  pscu_diag_record_t record = pscu_diag_build(board, previous.sessions, injects, confirmed);
-  uint8_t next[PSCU_DIAG_EEPROM_BYTES];
-  pscu_diag_encode(record, next);
-  for (uint8_t i = 0U; i < PSCU_DIAG_EEPROM_BYTES; i++) {
-    if (next[i] != stored[i]) {
-      pscu_port_eeprom_write((uint8_t)(PSCU_DIAG_EEPROM_ADDR + i), next[i]);
-    }
-  }
 }

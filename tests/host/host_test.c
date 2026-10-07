@@ -7,8 +7,8 @@
 #include <string.h>
 
 #include "pscu/board_mode.h"
-#include "pscu/diag.h"
 #include "pscu/inject.h"
+#include "pscu/led.h"
 #include "pscu/region.h"
 #include "pscu/subq.h"
 
@@ -243,42 +243,108 @@ static void test_stealth_lid(void) {
   check(!mid.fire && (mid.state.sent == 0U), "an open lid mid-burst ends the burst");
 }
 
-static void test_diag(void) {
-  uint8_t erased[PSCU_DIAG_EEPROM_BYTES] = { 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU };
-  pscu_diag_record_t fresh = pscu_diag_decode(erased);
-  check((fresh.sessions == 0U) && (fresh.board == PSCU_BOARD_MODE_GATE) && (fresh.confirmed == 0U),
-        "erased eeprom decodes as no prior record");
+static pscu_led_step_t led_after(pscu_led_t state, uint32_t ms) {
+  return pscu_led_step(state, PSCU_LED_EVENT_NONE, 0U, ms);
+}
 
-  uint8_t stored[PSCU_DIAG_EEPROM_BYTES] = { PSCU_DIAG_MAGIC, 1U, 7U, 3U, 1U };
-  pscu_diag_record_t prior = pscu_diag_decode(stored);
-  check((prior.board == PSCU_BOARD_MODE_WFCK) && (prior.sessions == 7U) && (prior.injects == 3U) &&
-            (prior.confirmed == 1U),
-        "valid record decodes all fields");
+static void test_led_boot(void) {
+  pscu_led_t gate = pscu_led_init(1U, 0U);
+  check(led_after(gate, 0U).on, "led: board blink lit at start");
+  check(!led_after(gate, 310U).on, "led: board blink gap is dark");
+  // Boundaries: a flash lasts exactly its on time, and a pass that took no
+  // measurable time must not move the pattern, let alone pin it at the end.
+  check(!led_after(gate, 300U).on, "led: a blink is dark from its 300th ms");
+  pscu_led_step_t still = led_after(gate, 0U);
+  check((still.state.phase_ms == 0U) && (still.state.stage == PSCU_LED_BOARD),
+        "led: a zero step leaves the phase where it was");
+  pscu_led_step_t waiting = led_after(gate, 600U);
+  check((waiting.state.stage == PSCU_LED_WAIT) && !waiting.on,
+        "led: one gate blink then the heartbeat wait");
 
-  uint8_t gate_stored[PSCU_DIAG_EEPROM_BYTES] = { PSCU_DIAG_MAGIC, 0U, 2U, 9U, 0U };
-  check(pscu_diag_decode(gate_stored).board == PSCU_BOARD_MODE_GATE,
-        "zero board byte decodes as gate");
+  pscu_led_t carrier = pscu_led_init(2U, PSCU_LED_CODE_WATCHDOG);
+  check(led_after(carrier, 610U).on, "led: carrier second blink lit");
+  pscu_led_step_t replay = led_after(carrier, 1200U);
+  check((replay.state.stage == PSCU_LED_REPLAY) && replay.on,
+        "led: watchdog code replayed after the board blinks");
+  pscu_led_step_t replay_dark = led_after(replay.state, 750U);
+  check(!replay_dark.on, "led: replay code flash gap is dark");
+  pscu_led_step_t after_replay = led_after(replay.state, 8000U);
+  check(after_replay.state.stage == PSCU_LED_WAIT, "led: replay plays once then waits");
 
-  pscu_diag_record_t built = pscu_diag_build(PSCU_BOARD_MODE_WFCK, 7U, 4U, 1U);
-  check((built.sessions == 8U) && (built.injects == 4U) && (built.confirmed == 1U),
-        "build advances the session count");
+  pscu_led_step_t early = pscu_led_step(gate, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_LID, 10U);
+  check(early.state.stage == PSCU_LED_BOARD, "led: a fault does not cut the board blinks");
+}
 
-  check(pscu_diag_build(PSCU_BOARD_MODE_GATE, 255U, 0U, 0U).sessions == 0U,
-        "session count wraps at the byte boundary");
+static void test_led_heartbeat(void) {
+  pscu_led_t wait = led_after(pscu_led_init(1U, 0U), 600U).state;
+  check(!led_after(wait, 1959U).on, "led: heartbeat dark before the blip");
+  check(led_after(wait, 1960U).on, "led: heartbeat blip at the end of the period");
+  check(led_after(wait, 1999U).on, "led: heartbeat blip lasts 40 ms");
+  check(!led_after(wait, 2000U).on, "led: heartbeat blip ends with the period");
+}
 
-  uint8_t gate_raw[PSCU_DIAG_EEPROM_BYTES];
-  pscu_diag_encode(pscu_diag_build(PSCU_BOARD_MODE_GATE, 0U, 1U, 0U), gate_raw);
-  pscu_diag_record_t gate_back = pscu_diag_decode(gate_raw);
-  check((gate_back.board == PSCU_BOARD_MODE_GATE) && (gate_back.sessions == 1U) &&
-            (gate_back.confirmed == 0U),
-        "encode then decode round-trips a gate record");
+static void test_led_results(void) {
+  pscu_led_t wait = led_after(pscu_led_init(1U, 0U), 600U).state;
+  pscu_led_step_t fired = pscu_led_step(wait, PSCU_LED_EVENT_FIRED, 0U, 0U);
+  check((fired.state.stage == PSCU_LED_INJECT) && !fired.on,
+        "led: injection leaves the LED to the string flashes");
 
-  uint8_t wfck_raw[PSCU_DIAG_EEPROM_BYTES];
-  pscu_diag_encode(pscu_diag_build(PSCU_BOARD_MODE_WFCK, 10U, 16U, 1U), wfck_raw);
-  pscu_diag_record_t wfck_back = pscu_diag_decode(wfck_raw);
-  check((wfck_back.board == PSCU_BOARD_MODE_WFCK) && (wfck_back.injects == 16U) &&
-            (wfck_back.confirmed == 1U),
-        "encode then decode round-trips a wfck record");
+  pscu_led_step_t accepted = pscu_led_step(fired.state, PSCU_LED_EVENT_ACCEPTED, 0U, 0U);
+  check((accepted.state.code == PSCU_LED_CODE_ACCEPTED) && accepted.on,
+        "led: accepted shows code 1");
+  check(!led_after(accepted.state, 1000U).on, "led: code 1 has one flash then a pause");
+  check(led_after(accepted.state, 3000U).on, "led: code 1 repeats after the pause");
+  pscu_led_step_t done = led_after(accepted.state, 9000U);
+  check((done.state.stage == PSCU_LED_DARK) && !done.on, "led: result shown three times then dark");
+  check(led_after(accepted.state, 8999U).state.stage == PSCU_LED_CODE,
+        "led: result still showing just before its third repeat ends");
+
+  pscu_led_step_t refused = pscu_led_step(fired.state, PSCU_LED_EVENT_REFUSED, 0U, 0U);
+  check(refused.state.code == PSCU_LED_CODE_REFUSED, "led: refused shows code 2");
+  check(led_after(refused.state, 1000U).on, "led: code 2 second flash lit");
+  check(!led_after(refused.state, 2000U).on, "led: code 2 has only two flashes");
+}
+
+static void test_led_faults(void) {
+  pscu_led_t wait = led_after(pscu_led_init(1U, 0U), 600U).state;
+  pscu_led_step_t lid = pscu_led_step(wait, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_LID, 0U);
+  check((lid.state.code == PSCU_LED_CODE_LID) && lid.state.live,
+        "led: a fault takes the waiting LED");
+  pscu_led_step_t held = pscu_led_step(lid.state, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_LID, 20000U);
+  check((held.state.stage == PSCU_LED_CODE) && (held.state.phase_ms == 20000U),
+        "led: a live code repeats for as long as the fault holds");
+  pscu_led_step_t cleared = pscu_led_step(held.state, PSCU_LED_EVENT_NONE, 0U, 0U);
+  check(cleared.state.stage == PSCU_LED_WAIT, "led: a cleared fault returns to the heartbeat");
+
+  pscu_led_t result = pscu_led_step(wait, PSCU_LED_EVENT_ACCEPTED, 0U, 0U).state;
+  pscu_led_step_t swap = pscu_led_step(result, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_LID, 0U);
+  check(swap.state.code == PSCU_LED_CODE_LID, "led: opening the lid replaces a result code");
+  check(pscu_led_step(result, PSCU_LED_EVENT_NONE, 0U, 0U).state.code == PSCU_LED_CODE_ACCEPTED,
+        "led: a result code is not cut short without a fault");
+
+  pscu_led_t dark = led_after(result, 9000U).state;
+  check(
+      pscu_led_step(dark, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_LID, 0U).state.stage == PSCU_LED_CODE,
+      "led: a fault wakes the dark LED");
+  pscu_led_t inject = pscu_led_step(wait, PSCU_LED_EVENT_FIRED, 0U, 0U).state;
+  check(pscu_led_step(inject, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_LID, 0U).state.stage ==
+            PSCU_LED_CODE,
+        "led: a fault interrupts waiting for a result");
+
+  pscu_led_t full = wait;
+  full.phase_ms = 0xFFFFFFF0UL;
+  check(led_after(full, 0x100U).state.phase_ms == 0xFFFFFFFFUL, "led: phase saturates");
+}
+
+static void test_led_fault_rules(void) {
+  check(pscu_led_fault(true, 0U, true, true) == PSCU_LED_CODE_LID, "fault: open lid wins");
+  check(pscu_led_fault(false, 4999U, false, false) == 0U, "fault: no frames yet, still waiting");
+  check(pscu_led_fault(false, 5000U, false, false) == PSCU_LED_CODE_NO_SQCK,
+        "fault: no frame for 5 s means no SQCK");
+  check(pscu_led_fault(false, 19999U, true, false) == 0U, "fault: frames, check not due yet");
+  check(pscu_led_fault(false, 20000U, true, false) == PSCU_LED_CODE_NO_CHECK,
+        "fault: frames but no region check for 20 s");
+  check(pscu_led_fault(false, 20000U, true, true) == 0U, "fault: an armed disc is not a fault");
 }
 
 static void test_program_area(void) {
@@ -365,7 +431,11 @@ int main(void) {
   test_inject();
   test_stealth();
   test_stealth_lid();
-  test_diag();
+  test_led_boot();
+  test_led_heartbeat();
+  test_led_results();
+  test_led_faults();
+  test_led_fault_rules();
   test_program_area();
   test_failed_capture();
   test_confirm();

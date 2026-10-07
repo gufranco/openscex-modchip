@@ -48,14 +48,12 @@ void pscu_port_bit_hold_low(void);
 
 void pscu_port_bit_mirror(void);
 
-// EEPROM access for the in-field diagnostics recorder. Both read and write busy-
-// wait for any prior write to finish and kick the watchdog while waiting, so a
-// call is self-contained. The firmware writes only after it has gone idle, never
-// at boot or inside the injection window, so the write latency never perturbs
-// injection timing.
-uint8_t pscu_port_eeprom_read(uint8_t address);
+// Timer1 ticks, one per 1024 console clocks, wrapping at 65536: the LED's time
+// base, read without waiting.
+uint16_t pscu_port_ticks(void);
 
-void pscu_port_eeprom_write(uint8_t address, uint8_t value);
+// Nonzero when the last reset came from the watchdog; clears the reset flags.
+uint8_t pscu_port_reset_was_watchdog(void);
 
 // The lid line: nonzero while the lid is open. A swap is seen here directly, so
 // the run loop re-arms injection for the next disc on the close, and the

@@ -11,21 +11,13 @@
 
 // The platform layer: the operations the run loop drives on real pins. Detect
 // the board era once; capture one SUBQ frame into a 12-byte buffer, starting on
-// a frame boundary and filling the buffer with 0xFF when no frame could be
-// captured; and inject the one configured region word using the method the
+// a frame boundary, filling the buffer with 0xFF and returning false when no
+// frame could be captured; and inject the one configured region word using the method the
 // detected board needs, stopping the moment the lid opens.
 pscu_board_mode_t pscu_engine_detect_board(void);
 
-void pscu_engine_capture_frame(uint8_t *frame);
+bool pscu_engine_capture_frame(uint8_t *frame);
 
 void pscu_engine_inject(pscu_board_mode_t board);
-
-// Write the diagnostics flight recorder to EEPROM once the chip is idle: read
-// the previous record, advance the session count, store the detected board,
-// this session's injection count and its confirmation, writing only the bytes
-// that changed. A session is one arming, from the first region string of a
-// check window until it resolves; the run loop calls this once per session,
-// after injection has finished, so it never competes with injection timing.
-void pscu_engine_log_session(pscu_board_mode_t board, uint8_t injects, uint8_t confirmed);
 
 #endif
