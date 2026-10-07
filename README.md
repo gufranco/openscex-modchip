@@ -18,11 +18,11 @@ English | [日本語](README.ja.md) | [中文](README.zh.md)
 <p align="center">
   <a href="#quick-start">Quick start</a> &nbsp;|&nbsp;
   <a href="#console-tap-points">Wiring</a> &nbsp;|&nbsp;
-  <a href="#diagnostics">Diagnostics</a> &nbsp;|&nbsp;
+  <a href="#status-led">Status LED</a> &nbsp;|&nbsp;
   <a href="../../issues/new?template=compatibility.yml">Report your console</a>
 </p>
 
-**1134** bytes of flash · **6** board families, PU-18 to PM-41(2) · **3** regions · **0** MISRA deviations · **100%** host line and branch coverage · **48/48** mutants killed
+**2652** bytes of flash · **6** board families, PU-18 to PM-41(2) · **3** regions · **0** MISRA deviations · **100%** host line and branch coverage · **88/88** mutants killed
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny84.hex' --pattern SHA256SUMS
@@ -39,7 +39,7 @@ Region-unlock firmware for the original Sony PlayStation (fat) and PSone, on an 
 |:--|:--|
 | **Silent after acceptance**<br>The first program-area frame stops injection, mid-string included, and the chip stays silent until the lid opens. | **Exact disc swaps**<br>A lid wire stops a string within 4 ms of opening and re-arms the chip on close, for every disc of a multi-disc game. |
 | **Console-locked timing**<br>The chip runs from the console's 4.2336 MHz clock, never its own oscillator. | **One region, one window**<br>Only the configured region string, only inside the SUBQ region-check window, at most 16 strings per arming. |
-| **Flight recorder**<br>A five-byte EEPROM record per disc (board, sessions, strings, confirmation), read back with avrdude. | **Proven in code**<br>MISRA C:2012 clean, 100% host coverage, a simavr console model, mutation testing, byte-identical rebuilds. |
+| **Status LED codes**<br>One LED shows each boot stage, every disc's result and any live wiring fault as counted flashes, with nothing stored. | **Proven in code**<br>MISRA C:2012 clean, 100% host coverage, a simavr console model, mutation testing, byte-identical rebuilds. |
 
 ## How it works
 
@@ -57,11 +57,11 @@ graph LR
         DET[Region-check detector]
         ST[Stealth state machine]
         INJ[SCEx injector]
-        REC[EEPROM flight recorder]
+        LED[Status LED]
     end
     CD -->|SQCK, SUBQ| CAP
     CAP --> DET --> ST --> INJ
-    ST --> REC
+    ST --> LED
     LID -->|lid line| ST
     WF -->|gate or carrier| INJ
     CLK -->|CLKI| ATtiny84
@@ -77,7 +77,7 @@ graph LR
 | Clock | console | internal | console | internal RC |
 | Boot-ROM BIOS patch | no, use a patched BIOS | yes, ATmega builds | no | no |
 | Boards | PU-18 to PM-41(2) | PU-7 to PM-41(2) | PU-18 and later | PU-7 and later |
-| Diagnostics | EEPROM recorder | serial debug | none | none |
+| Diagnostics | LED stage and result codes | serial debug | none | none |
 | Tests and static analysis | host, simavr, mutation, MISRA | none | none | none |
 | Field record | 2 boards, earlier firmware | years | decades | decades |
 
@@ -118,9 +118,9 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 | Single configured region | emits only `REGION`, never all three |
 | Adaptive timing | on WFCK-carrier boards the injection bit is timed by counting WFCK periods; `TIMING=fixed` uses the console-clocked delay instead |
 | Self-recovery | each SUBQ capture realigns on the gap between frames and gives up after 30 ms; a WFCK carrier that stalls mid-injection lets the watchdog release DATA; a missing lid wire reads as open, so the chip stays silent instead of injecting blind |
-| Optional LED | status output on its own pin; firmware is correct with no LED fitted |
-| In-field diagnostics | a five-byte flight recorder written to EEPROM once per session, one session per disc the chip answers (detected board, session count, injection count, confirmation), read back with avrdude |
-| Closed-loop confirmation | after injecting, the chip watches SUBQ for a program-area frame (a real track number), which the mechacon only allows once it accepts the region string, and records whether the region check passed |
+| Status LED | an optional LED on its own pin shows the boot stages, each disc's result and live faults as counted flashes; the firmware never waits on it and is correct with no LED fitted |
+| In-field diagnostics | no programmer needed: the LED codes name the failing stage, from a missing lid wire to a SUBQ line that never shows a region check; the firmware never writes EEPROM |
+| Closed-loop confirmation | after injecting, the chip watches SUBQ for a program-area frame (a real track number), which the mechacon only allows once it accepts the region string, and shows whether the region check passed |
 | Verification | host tests 100% line and branch coverage, simavr console model at the console clock, mutation testing, reproducible builds |
 
 ## Confidence tags
@@ -183,7 +183,7 @@ The SCEx signals keep PsNee's tested order, read from PsNee `MCU.h`; the clock a
 | 6 | PA7 | - | - | unused |
 | 7 | PA6 | - | - | unused |
 | 8 | PA5 | - | - | unused |
-| 9 | PA4 | LED | out, optional | status LED through a resistor, or leave off |
+| 9 | PA4 | LED | out, optional | status LED through a 1 kΩ resistor, or leave off |
 | 10 | PA3 | WFCK | in and out | static gate, or PU-22+ live carrier |
 | 11 | PA2 | DATA | out, drive-low or high-Z | SCEx injection into the mechacon |
 | 12 | PA1 | SUBQ | in | SUBQ serial data |
@@ -255,7 +255,7 @@ Any ISP works, including an Arduino as ISP. Write the flash first and the fuses 
 | Console clock | `0xE0` / `0xDF` / `0xFF` |
 | Console clock with brown-out detection at 2.7 V | `0xE0` / `0xDD` / `0xFF` |
 
-Brown-out detection holds the chip in reset while the supply is below 2.7 V, so a power-off during a diagnostics write cannot tear the EEPROM record; it is not yet exercised on a console. The ATtiny84 runs at 4.2336 MHz from 1.8 V upward by its speed grade (Read: the same datasheet, 0 to 4 MHz at 1.8 V, 0 to 10 MHz at 2.7 V), which covers the PSone's lower supply.
+Brown-out detection holds the chip in reset while the supply is below 2.7 V, so the chip never runs on a supply that is collapsing at power-off; it is optional and not yet exercised on a console. The ATtiny84 runs at 4.2336 MHz from 1.8 V upward by its speed grade (Read: the same datasheet, 0 to 4 MHz at 1.8 V, 0 to 10 MHz at 2.7 V), which covers the PSone's lower supply.
 
 Verify:
 
@@ -267,21 +267,34 @@ make mutate      # mutation testing on the logic layer
 
 The same gates run in CI on every push and pull request, defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Contributors can run `make hooks` once to enable the commit-message and formatting checks locally.
 
-## Diagnostics
+## Status LED
 
-The chip writes a five-byte flight recorder to EEPROM after each session, a session being one disc's region check from the first injected string until the check resolves, so an install can be diagnosed rather than guessed. The write never happens at boot or inside the region-check window, so it does not affect injection timing, and only bytes whose value changed are written, so EEPROM endurance is not a concern. Read it back with the programmer, with the console powered so the chip has its clock:
+The LED is optional and is the chip's only diagnostic channel: it shows which stage the chip is in, whether each disc passed its region check, and which wire to look at when something is wrong. It never delays or gates a feature, and nothing is stored, so a code is always about now.
 
-```bash
-avrdude -c <programmer> -p attiny84 -U eeprom:r:diag.bin:r
-```
+| Part | Choice |
+|:-----|:-------|
+| LED | a 3 mm or 5 mm red, orange, yellow or green LED, forward voltage about 2 V; not blue or white, whose 3 V forward voltage leaves almost nothing across the resistor on the PSone's lower supply |
+| Resistor | 1 kΩ, any wattage: about 3 mA at 5 V and 1.5 mA at 3.5 V, bright enough indoors and far below the pin's 40 mA absolute maximum (Read: ATtiny24A/44A/84A datasheet DS40002269A) |
+| Wiring | pin 9 (PA4) to the resistor, the resistor to the LED anode (long leg), the cathode (flat side) to ground |
 
-| Byte | Meaning |
-|:-----|:--------|
-| 0 | magic `0x50`; any other value means no record was written yet |
-| 1 | detected board: `0` static gate, `1` WFCK carrier |
-| 2 | sessions recorded, one per disc the chip answered; wraps at 255 |
-| 3 | region strings emitted in the latest session |
-| 4 | region check confirmed: 1 if the console reached the program area after the latest session's injection, else 0 |
+| Stage | What the LED does |
+|:------|:------------------|
+| Board detection | lit for about 0.4 s after power-on |
+| Board found | one 300 ms blink for a static-gate board (PU-18, PU-20), two for a WFCK-carrier board (PU-22 and later) |
+| Waiting for a disc | a 40 ms blip every 2 s |
+| Injecting | a 90 to 181 ms flash per region string |
+| Result | a code shown three times, then dark for play |
+
+Codes are long 700 ms flashes, 300 ms apart, with a 2 s pause before the code repeats.
+
+| Code | Meaning | Check |
+|:----:|:--------|:------|
+| 1 | the console accepted the region string | nothing, the disc plays |
+| 2 | strings were sent and the console never reached the program area | DATA and WFCK wiring, and that the build's region matches the disc |
+| 3 | the lid is open, or the lid wire is missing; repeats while it holds | the lid wire and its point |
+| 4 | no SUBQ frame for 5 s with the lid closed; repeats while it holds | the clock wire, SQCK, power and ground |
+| 5 | frames arrive but no region check for 20 s; repeats while it holds | SUBQ; also normal with no disc or an audio CD |
+| 6 | the watchdog reset the chip, shown once at the next boot | WFCK, which stalled mid-injection |
 
 ## Safety
 
