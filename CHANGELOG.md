@@ -1,3 +1,11 @@
+## [0.10.1](https://github.com/gufranco/openscex-modchip/compare/v0.10.0...v0.10.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* hold the burst through a low supply reading ([f1e5561](https://github.com/gufranco/openscex-modchip/commit/f1e5561ac83683bb6cb863957754a8bf7b2f242a))
+* set the supply limit for a high bandgap ([47d9161](https://github.com/gufranco/openscex-modchip/commit/47d9161fdc2b7ff9a8bf88b07b41c384ed543574)), closes [hi#reading](https://github.com/hi/issues/reading)
+
 # [0.10.0](https://github.com/gufranco/openscex-modchip/compare/v0.9.0...v0.10.0) (2026-10-07)
 
 
