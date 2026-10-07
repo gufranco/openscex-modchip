@@ -52,7 +52,7 @@
 // before a burst's first edge (a frame every 13.3 ms at single speed), yet a
 // stopped drive fails a capture within about 60 ms, so the run loop keeps
 // timing the silence that tells it the disc is gone.
-// The poll count is 30 ms divided by the 40-cycle idle pass measured above.
+// The poll count is 30 ms divided by the 41-cycle idle pass measured above.
 #define PSCU_WAIT_MS (30UL)
 #define PSCU_SQCK_IDLE_WAIT_POLLS ((F_CPU * PSCU_WAIT_MS) / (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES))
 // A frame that could not be captured is filled with this value. Its TNO and ZERO
@@ -116,13 +116,6 @@ static void pscu_inject_region(pscu_region_t region, pscu_board_mode_t mode) {
   }
 }
 
-// Run once at boot: let WFCK settle, then watch it across the detect window and
-// classify the board. The result picks the injection method (gate high-Z vs
-// WFCK mirror) for the rest of the session. The LED is lit for exactly this
-// wait, about 0.4 s, which the chip spends anyway: an installer who sees it at
-// power-on knows the chip has power, a running clock and its firmware,
-// before any disc is read. Lighting it here adds no delay and sits on no timing
-// path, and with no LED fitted nothing changes.
 // Watch WFCK for window samples and classify what it shows: enough falling
 // edges mean a live carrier, too few a static gate.
 static pscu_board_mode_t pscu_sample_wfck(uint16_t window) {
@@ -134,6 +127,13 @@ static pscu_board_mode_t pscu_sample_wfck(uint16_t window) {
   return pscu_board_detect_mode(state, PSCU_DETECT_PULSES);
 }
 
+// Run once at boot: let WFCK settle, then watch it across the detect window and
+// classify the board. The result picks the injection method (gate high-Z vs
+// WFCK mirror) for the rest of the session. The LED is lit for exactly this
+// wait, about 0.4 s, which the chip spends anyway: an installer who sees it at
+// power-on knows the chip has power, a running clock and its firmware,
+// before any disc is read. Lighting it here adds no delay and sits on no timing
+// path, and with no LED fitted nothing changes.
 pscu_board_mode_t pscu_engine_detect_board(void) {
   pscu_port_led_on();
   pscu_port_delay_ms(PSCU_DETECT_SETTLE_MS);

@@ -78,8 +78,8 @@ static void pscu_run_show(bool on) {
 
 // Boot: read the record, fold in the board just detected, and store the result
 // (nothing is written when it did not change). The boot code is the watchdog's
-// 6 if the last reset came from it, else 7 if the board changed, else none; a
-// boot that has both shows 6, since a hang is the more urgent report.
+// 5 if the last reset came from it, else 6 if the board changed, else none; a
+// boot that has both shows 5, since a hang is the more urgent report.
 static pscu_calib_boot_t pscu_calib_start(pscu_calib_t stored, pscu_board_mode_t board) {
   uint8_t detected = (board == PSCU_BOARD_MODE_WFCK) ? 1U : 0U;
   pscu_calib_boot_t boot = pscu_calib_boot(stored, detected);
