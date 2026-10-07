@@ -99,7 +99,7 @@ typedef struct {
 // How a disc's session ended, as far as calibration cares: accepted after a
 // number of strings, refused after the strings ran out or the window closed, or
 // the window missed entirely because the learned start came too late. A session
-// ended by the lid opening teaches nothing and is never passed in.
+// ended by the disc leaving teaches nothing and is never passed in.
 typedef enum {
   PSCU_CALIB_ACCEPTED = 0,
   PSCU_CALIB_REFUSED = 1,
@@ -133,8 +133,8 @@ pscu_calib_t pscu_calib_learn(pscu_calib_t calib, pscu_calib_outcome_t outcome, 
 
 // Whether the window was missed on this pass: the counter had reached the
 // default trigger and has now fallen back below it, the learned start is later
-// than the default, and since the lid closed no string was sent and no program
-// area was seen. That disc needed a string the late start never sent.
+// than the default, and since this disc arrived no string was sent and no
+// program area was seen. That disc needed a string the late start never sent.
 bool pscu_calib_missed(pscu_calib_t calib, uint8_t previous, uint8_t counter, bool armed);
 
 #endif

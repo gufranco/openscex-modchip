@@ -9,14 +9,14 @@
 #include "scenarios.h"
 #include "sim_cycle_timers.h"
 
-// Disc-handling scenarios: multi-disc swaps, the lid as a hard stop, and every
-// LED stage from the boot light to the live fault codes.
+// Disc-handling scenarios: multi-disc swaps, disc presence without a lid wire,
+// and every LED stage from the boot light to the live fault codes.
 
 // A multi-disc game, end to end. Each phase counts region strings by LED rises.
 // The first program-area frame must stop the burst; a table-of-contents re-read
-// with the lid shut, however long, as an anti-mod check might do, must stay
-// silent; and every lid open and close must re-arm the chip so the next disc is
-// injected, including a swap fast enough that the drive never visibly stops.
+// of the same disc, however long, as an anti-mod check might do, must stay
+// silent; and every swap, seen as SUBQ going silent past the disc-gone bound,
+// must re-arm the chip so the next disc is injected.
 // The harness clocks a frame about every 12 ms, and the firmware may miss frames
 // while an injection blocks, so phase lengths sit well past the trigger.
 #define MD_TOC_FRAMES 40
@@ -53,11 +53,11 @@ void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq) {
 
   int reread = strings_while(avr, t, toc, MD_REREAD_FRAMES);
   reread += strings_while(avr, t, play, MD_PLAY_FRAMES);
-  md_check(t, reread == 0, "a long TOC re-read with the lid shut stays silent", reread);
+  md_check(t, reread == 0, "a long TOC re-read of the same disc stays silent", reread);
 
   swap_disc(avr);
   int disc2 = strings_while(avr, t, toc, MD_TOC_FRAMES);
-  md_check(t, disc2 >= 1, "disc 2 after a lid open and close is injected", disc2);
+  md_check(t, disc2 >= 1, "disc 2 after a swap is injected", disc2);
   clock_frames(avr, t, play, MD_PLAY_FRAMES);
 
   swap_disc(avr);
@@ -65,63 +65,42 @@ void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq) {
   md_check(t, disc3 >= 1, "disc 3 after another swap is injected", disc3);
 }
 
-// The lid is the chip's hard stop. With the lid open the chip never injects,
-// whatever SUBQ shows; and when the lid opens partway through a string, DATA
-// must be released within about one 4 ms bit cell and stay released for the rest
-// of what would have been the string, not keep driving the remaining 40-odd
-// bits. The lid opens 3 bit cells in; from 2 bit cells after that, DATA is
-// sampled every quarter bit cell to the end of the string, so a single sample
-// cannot pass by landing on a high-Z one bit.
-#define LID_OPEN_AT_BITS 3U
-#define LID_GRACE_BITS 2U
+// Without a lid wire, a swap is a stretch with no valid SUBQ frame. A pause
+// shorter than the 1.5 s bound, as a seek or a brief stall on the same disc
+// gives, must keep the acceptance latch: the lead-in reread after it gets no
+// string. A swap past the bound re-arms, which the multi-disc scenario covers.
+#define SHORT_PAUSE_MS 800U
 
-void scenario_lid(const target_t *t, const char *elf, uint32_t freq) {
+void scenario_disc_presence(const target_t *t, const char *elf, uint32_t freq) {
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  char label[96];
-
-  avr_t *open_avr = build_avr(t, elf, freq);
-  wfck_ctx_t open_ctx = { NULL, 1U, 0U };
-  g_led_seen = 0;
-  avr_irq_register_notify(pin_irq(open_avr, t, t->led), on_led, open_avr);
-  boot_quiet(open_avr, t, 0, &open_ctx);
-  avr_raise_irq(lid_irq(open_avr), 1U);
-  uint64_t opened = open_avr->cycle;
-  clock_frames(open_avr, t, toc, MD_TOC_FRAMES);
-  run_cycles(open_avr, ms_cycles(3000U));
-  (void)snprintf(label, sizeof(label), "lid %s: no injection while the lid is open", t->mcu);
-  check(g_strings == 0, label);
-  (void)snprintf(label, sizeof(label), "lid %s: an open lid shows code 3", t->mcu);
-  check(code_after(opened) == 3, label);
-
+  const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
+                                           0,     0,     0x02U, 0,     0,     0 };
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  g_led_seen = 0;
-  g_led_cycle = 0;
   avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
   boot_quiet(avr, t, 0, &ctx);
   clock_until_inject(avr, t, toc);
-  uint64_t deadline = avr->cycle + LED_DEADLINE;
-  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
-    run_cycles(avr, 2000U);
-  }
-  (void)snprintf(label, sizeof(label), "lid %s: injection starts with the lid shut", t->mcu);
-  check(g_led_seen != 0, label);
-
-  uint64_t bit = BIT_CYCLES(freq);
-  run_to(avr, g_led_cycle + (LID_OPEN_AT_BITS * bit));
-  avr_raise_irq(lid_irq(avr), 1U);
-  uint64_t from = avr->cycle + (LID_GRACE_BITS * bit);
-  uint64_t until = g_led_cycle + ((uint64_t)SCEX_BITS * bit);
-  int driven = 0;
-  for (uint64_t c = from; c < until; c += bit / 4U) {
-    run_to(avr, c);
-    if (data_ddr(avr, t) != 0U) {
-      driven = 1;
-    }
-  }
+  clock_frames(avr, t, play, MD_SETTLE_FRAMES + MD_PLAY_FRAMES);
+  run_cycles(avr, ms_cycles(SHORT_PAUSE_MS));
+  int reread = strings_while(avr, t, toc, MD_TOC_FRAMES);
+  char label[96];
   (void)snprintf(
-      label, sizeof(label), "lid %s: DATA stays released once the lid opens mid-string", t->mcu);
-  check(driven == 0, label);
+      label, sizeof(label), "disc %s: a short pause keeps the latch (%d strings)", t->mcu, reread);
+  check((g_led_seen != 0) && (reread == 0), label);
+
+  // A long reread leaves the counter high. After a swap, the next disc's first
+  // frames are not lead-in, as a drive spinning up and seeking gives; with the
+  // counter emptied by the swap they must not open the window.
+  const uint8_t lead_out[SUBQ_FRAME_BYTES] = { 0x41U, 0xAAU, 0x01U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  clock_frames(avr, t, toc, MD_REREAD_FRAMES);
+  swap_disc(avr);
+  int spin_up = strings_while(avr, t, lead_out, MD_TOC_FRAMES);
+  (void)snprintf(label,
+                 sizeof(label),
+                 "disc %s: a new disc's spin-up opens no window (%d strings)",
+                 t->mcu,
+                 spin_up);
+  check(spin_up == 0, label);
 }
 
 // The boot light: at power-on the LED must come on, stay on through the WFCK
@@ -187,9 +166,10 @@ void board_blinks_case(const target_t *t, const char *elf, uint32_t freq, int mo
   check(blinks == ((modern != 0) ? 2 : 1), label);
 }
 
-// The live faults, each judged since the lid closed: no SUBQ frame at all for
-// 5 s is code 4 (clock or SQCK wiring), frames that never show a region check
-// for 20 s are code 5 (SUBQ wiring, or a disc with no data lead-in).
+// The live faults: no valid SUBQ frame at all for 5 s after power-on is code 3
+// (SQCK, SUBQ or power wiring, or no disc); valid frames that never show a
+// region check for 20 s are code 4, here an audio CD, whose lead-in frames are
+// valid but never data, so the counter never rises.
 #define NO_CHECK_FRAMES 2200
 
 void faults_case(const target_t *t, const char *elf, uint32_t freq) {
@@ -199,14 +179,16 @@ void faults_case(const target_t *t, const char *elf, uint32_t freq) {
   boot_quiet(avr, t, 0, &ctx);
   run_cycles(avr, ms_cycles(10000U));
   char label[96];
-  (void)snprintf(label, sizeof(label), "led %s: no SQCK shows code 4", t->mcu);
-  check(code_after(DETECT_CYCLES) == 4, label);
+  (void)snprintf(label, sizeof(label), "led %s: no SUBQ shows code 3", t->mcu);
+  check(code_after(DETECT_CYCLES) == 3, label);
 
   avr_t *quiet = build_avr(t, elf, freq);
   avr_irq_register_notify(pin_irq(quiet, t, t->led), on_led, quiet);
   boot_quiet(quiet, t, 0, &ctx);
-  const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
-  clock_frames(quiet, t, silence, NO_CHECK_FRAMES);
-  (void)snprintf(label, sizeof(label), "led %s: frames but no region check shows code 5", t->mcu);
-  check(code_after(DETECT_CYCLES) == 5, label);
+  const uint8_t audio_lead_in[SUBQ_FRAME_BYTES] = {
+    0x01U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0
+  };
+  clock_frames(quiet, t, audio_lead_in, NO_CHECK_FRAMES);
+  (void)snprintf(label, sizeof(label), "led %s: an audio CD shows code 4", t->mcu);
+  check(code_after(DETECT_CYCLES) == 4, label);
 }

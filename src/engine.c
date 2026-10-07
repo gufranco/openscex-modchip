@@ -48,8 +48,8 @@
 // The idle wait gives up after 30 ms, as do the edge waits inside the assembly
 // frame capture. That still covers the longest real wait, the inter-frame gap
 // before a burst's first edge (a frame every 13.3 ms at single speed), yet a
-// stopped drive fails a capture within about 60 ms, so the run loop reads the
-// lid at least that often and no disc swap can open and close the lid unseen.
+// stopped drive fails a capture within about 60 ms, so the run loop keeps
+// timing the silence that tells it the disc is gone.
 // The poll count is 30 ms divided by the 40-cycle idle pass measured above.
 #define PSCU_WAIT_MS (30UL)
 #define PSCU_SQCK_IDLE_WAIT_POLLS ((F_CPU * PSCU_WAIT_MS) / (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES))
@@ -102,18 +102,15 @@ static void pscu_inject_bit(uint8_t bit_value, pscu_board_mode_t mode) {
   pscu_port_watchdog_reset();
 }
 
-// The lid is read before every bit, so a string stops within one 4 ms bit cell
-// of the lid opening, mid-string included, and the caller then releases DATA. A
-// disc that is leaving the drive never sees the rest of a region string, the
-// same reaction Mayumi V4 gets by polling its door input inside every delay.
+// A string always runs to its end, 176 ms. If the disc leaves meanwhile the
+// rest of the string reaches a mechacon that is no longer reading; on a carrier
+// board a stopped drive also stops WFCK, and the watchdog then releases DATA
+// within about 0.5 s.
 static void pscu_inject_region(pscu_region_t region, pscu_board_mode_t mode) {
   PSCU_ASSERT((uint8_t)region < PSCU_REGION_COUNT);
 
-  bool lid_closed = pscu_port_read_lid() == 0U;
-  for (uint8_t bit = 0U; (bit < PSCU_SCEX_BIT_COUNT) && lid_closed; bit++) {
-    uint8_t bit_value = pscu_region_bit(region, bit);
-    pscu_inject_bit(bit_value, mode);
-    lid_closed = pscu_port_read_lid() == 0U;
+  for (uint8_t bit = 0U; bit < PSCU_SCEX_BIT_COUNT; bit++) {
+    pscu_inject_bit(pscu_region_bit(region, bit), mode);
   }
 }
 

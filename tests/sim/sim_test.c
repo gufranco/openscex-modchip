@@ -11,9 +11,10 @@
 // A software PlayStation, just enough to exercise the firmware end to end in
 // simavr: it drives the console-side pins (SQCK, SUBQ, WFCK) and watches the
 // firmware-side pins (DATA, LED), then decodes the injected bitstream and
-// checks it equals the expected region word. It also drives the lid line, a
-// mandatory wire on the ATtiny84's PORTB. The console side is timed in real
-// time, converted to CPU cycles at the rate the simulated chip runs.
+// checks it equals the expected region word. A disc swap is a stretch with no
+// SUBQ frame, as a drive that stops for the lid produces. The console side is
+// timed in real time, converted to CPU cycles at the rate the simulated chip
+// runs.
 
 int main(int argc, char *argv[]) {
   if (argc < 3) {
@@ -36,7 +37,7 @@ int main(int argc, char *argv[]) {
   scenario_late_carrier(&t84, elf, freq);
   scenario_stall(&t84, elf, freq);
   scenario_multidisc(&t84, elf, freq);
-  scenario_lid(&t84, elf, freq);
+  scenario_disc_presence(&t84, elf, freq);
   scenario_fast_sqck(&t84, elf, freq);
   scenario_boot_light(&t84, elf, freq);
   board_blinks_case(&t84, elf, freq, 0);

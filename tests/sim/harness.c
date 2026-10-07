@@ -12,7 +12,7 @@
 #include "sim_elf.h"
 
 // The console model every scenario drives: the frame clock, the WFCK
-// carrier, the lid line and the LED recorder, plus the DATA decoder.
+// carrier and the LED recorder, plus the DATA decoder.
 
 const char SCEA_BITS[SCEX_BITS + 1] = "10011010100100111101001010111010010111110100";
 const char SCEI_BITS[SCEX_BITS + 1] = "10011010100100111101001010111010010110110100";
@@ -85,7 +85,10 @@ void on_led(struct avr_irq_t *irq, uint32_t value, void *param) {
     g_pulse_len[g_pulses] = len;
     g_pulses++;
   }
-  if ((g_rise >= DETECT_CYCLES) && (len >= ms_cycles(60U)) && (len <= ms_cycles(200U))) {
+  // A string lights the LED for 90 to 181 ms. The 40 ms heartbeat blip can
+  // stretch by one loop pass, about 31 ms when no frame arrives, so it stays
+  // under about 75 ms; 80 ms separates the two.
+  if ((g_rise >= DETECT_CYCLES) && (len >= ms_cycles(80U)) && (len <= ms_cycles(200U))) {
     g_strings++;
   }
   g_rise = 0U;
@@ -141,15 +144,8 @@ avr_irq_t *pin_irq(avr_t *avr, const target_t *t, uint8_t pin) {
   return avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ((uint32_t)t->port), pin);
 }
 
-avr_irq_t *lid_irq(avr_t *avr) {
-  return avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ((uint32_t)LID_PORT), LID_PIN);
-}
-
-// The firmware's port init turns on the lid pull-up, which simavr reflects on the
-// pin until an external level is driven again. So the harness lets init run,
-// then pulses the lid line high and back low: the console's closed-lid level
-// then holds over the weak pull-up, as on the real board, and every scenario
-// starts with a disc in.
+// The firmware's port init runs within its first cycles; letting it run before
+// the scenario starts keeps every scenario's pins in their post-init state.
 #define PORT_INIT_CYCLES 2000U
 
 avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
@@ -173,11 +169,7 @@ avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
   g_pulses = 0;
   g_rise = 0U;
   g_strings = 0;
-  avr_irq_t *lid = lid_irq(avr);
-  avr_raise_irq(lid, 0U);
   run_cycles(avr, PORT_INIT_CYCLES);
-  avr_raise_irq(lid, 1U);
-  avr_raise_irq(lid, 0U);
   return avr;
 }
 
@@ -286,9 +278,7 @@ int strings_while(avr_t *avr, const target_t *t, const uint8_t *frame, int count
 }
 
 void swap_disc(avr_t *avr) {
-  avr_raise_irq(lid_irq(avr), 1U);
-  run_cycles(avr, MD_LID_OPEN_CYCLES);
-  avr_raise_irq(lid_irq(avr), 0U);
+  run_cycles(avr, MD_SWAP_CYCLES);
 }
 
 int sim_report(void) {

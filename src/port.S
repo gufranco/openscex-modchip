@@ -21,7 +21,8 @@
 // A SUBQ edge wait gives up after 30 ms, the same bound as the idle wait in
 // engine.c: long enough for the inter-frame gap before a burst's first edge (a
 // frame every 13.3 ms at single speed), short enough that a stopped drive fails
-// a capture quickly and the run loop keeps reading the lid. One wait pass is 7
+// a capture quickly and the run loop keeps timing the silence that tells it the
+// disc is gone. One wait pass is 7
 // cycles (wdr 1, the skipping sbis or sbic 2, sbiw 2, a taken brne 2).
 #define PSCU_SQCK_WAIT_POLLS ((F_CPU * 30UL) / (1000UL * 7UL))
 #define PSCU_MIRROR_1MS_ITERS (F_CPU / (PSCU_MIRROR_LOOP_CYCLES * 1000UL))
@@ -44,8 +45,7 @@
 // Bring the chip up. Writing 0x80 then 0x00 to CLKPR within four cycles is the
 // AVR timed sequence that clears the clock prescaler, so the core runs at the
 // full 8 MHz regardless of the factory CKDIV8 fuse. LED is the only
-// output at boot. The lid input gets its pull-up, so a missing or broken lid
-// wire reads as open and the chip stays silent rather than injecting blind.
+// output at boot, and every unused pin gets its pull-up so none floats.
 // Timer1 starts free-running at the clock divided by 1024 as the LED's time
 // base; it drives no pin and raises no interrupt. The two writes to the watchdog register are its own timed sequence: the first
 // arms the change, the second enables the watchdog at a ~0.5 s timeout
@@ -64,7 +64,8 @@ pscu_port_init:
 	out _SFR_IO_ADDR(PSCU_DDR), r24
 	ldi r24, PSCU_PORT_INIT
 	out _SFR_IO_ADDR(PSCU_PORT), r24
-	sbi _SFR_IO_ADDR(PORTB), PSCU_PIN_LID
+	ldi r24, PSCU_PORTB_INIT
+	out _SFR_IO_ADDR(PORTB), r24
 	out _SFR_IO_ADDR(TCCR1A), r1
 	ldi r24, (1 << CS12) | (1 << CS10)
 	out _SFR_IO_ADDR(TCCR1B), r24
@@ -476,12 +477,3 @@ pscu_port_bit_mirror:
 #endif
 	.endfunc
 
-// The lid line sits on PORTB, apart from the SCEx signals on PORTA, so it reads
-// PINB directly and returns the masked bit: nonzero while the lid is open.
-	.global pscu_port_read_lid
-	.func pscu_port_read_lid
-pscu_port_read_lid:
-	in r24, _SFR_IO_ADDR(PINB)
-	andi r24, (1 << PSCU_PIN_LID)
-	ret
-	.endfunc

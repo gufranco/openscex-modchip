@@ -220,8 +220,8 @@ void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
 
   uint64_t rebooted = avr->cycle;
   run_cycles(avr, ms_cycles(9000U));
-  (void)snprintf(label, sizeof(label), "stall %s: the next boot shows watchdog code 6", tag);
-  check(code_after(rebooted) == 6, label);
+  (void)snprintf(label, sizeof(label), "stall %s: the next boot shows watchdog code 5", tag);
+  check(code_after(rebooted) == 5, label);
 }
 
 // The board-family matrix. The firmware has no per-family code path, only the
@@ -361,7 +361,7 @@ void scenario_string_gap(const target_t *t, const char *elf, uint32_t freq) {
   int found = 0;
   for (int q = 0; (q < g_pulses) && (found < 2); q++) {
     uint64_t len = g_pulse_len[q];
-    if ((g_pulse_rise[q] >= DETECT_CYCLES) && (len >= ms_cycles(60U)) && (len <= ms_cycles(200U))) {
+    if ((g_pulse_rise[q] >= DETECT_CYCLES) && (len >= ms_cycles(80U)) && (len <= ms_cycles(200U))) {
       starts[found] = g_pulse_rise[q];
       ends[found] = g_pulse_rise[q] + len;
       found++;

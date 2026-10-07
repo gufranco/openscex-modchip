@@ -6,7 +6,7 @@ A result from a real console. The firmware passes its full simulation gate but h
 
 ## Before changing code
 
-Read [`AGENTS.md`](AGENTS.md). Its rules are hard constraints: ATtiny84 only, the trimmed internal oscillator, a mandatory lid wire, registers touched only in assembly, MISRA C:2012 with zero deviations, and every timing constant stating its origin.
+Read [`AGENTS.md`](AGENTS.md). Its rules are hard constraints: ATtiny84 only, the trimmed internal oscillator, four signal wires with no lid wire, registers touched only in assembly, MISRA C:2012 with zero deviations, and every timing constant stating its origin.
 
 ## Working on the code
 

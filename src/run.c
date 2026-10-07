@@ -29,6 +29,10 @@
 #define PSCU_TRIM_FRAME_TICKS (F_CPU / (PSCU_CLOCKS_PER_TICK * PSCU_TRIM_SUBQ_HZ))
 #define PSCU_TRIM_LOW ((PSCU_TRIM_FRAME_TICKS * 4UL) / 5UL)
 #define PSCU_TRIM_HIGH ((PSCU_TRIM_FRAME_TICKS * 6UL) / 5UL)
+// The trim samples only a disc that has been spinning for a second, so the
+// frame rate of a drive still spinning up after a swap never skews a batch. A
+// design choice: the drive locks its speed before it reads the lead-in.
+#define PSCU_TRIM_SETTLE_MS (1000UL)
 #define PSCU_TRIM_EXPECTED \
   (((uint32_t)PSCU_TRIM_FRAMES * F_CPU) / (PSCU_CLOCKS_PER_TICK * PSCU_TRIM_SUBQ_HZ))
 
@@ -41,7 +45,7 @@ typedef struct {
 } pscu_session_t;
 
 // learn marks a session that resolved on its own, by the program area or by the
-// bounded wait, and outcome says which; a session ended by the lid opening
+// bounded wait, and outcome says which; a session ended by the disc leaving
 // teaches the calibration nothing.
 typedef struct {
   pscu_session_t session;
@@ -50,13 +54,14 @@ typedef struct {
   pscu_calib_outcome_t outcome;
 } pscu_session_step_t;
 
-// Time and evidence since the lid last closed (or since boot): the LED's fault
-// codes are judged against them.
+// Time and evidence since this disc arrived (or since boot): how long, whether
+// any valid frame arrived, and whether the chip armed or the console accepted.
+// The LED's region-check fault and the missed-window test are judged on it.
 typedef struct {
   uint32_t ms;
   bool framed;
   bool armed;
-} pscu_since_close_t;
+} pscu_since_disc_t;
 
 // The last Timer1 reading and the clocks not yet counted as a whole millisecond,
 // so rounding never accumulates into drift.
@@ -107,13 +112,13 @@ static pscu_session_t pscu_session_fired(pscu_session_t session, uint8_t sent) {
 // Closed-loop confirmation. After injecting, watch for the program area: the
 // mechacon re-enables reads only once it accepts the region string, so a
 // program-area frame confirms the check passed and the LED shows code 1. The FSM
-// otherwise resolves after a bounded idle wait, and an open lid resolves it at
-// once, both as refused, code 2, so a failed disc is reported before the next
-// disc's first string starts a new session.
+// otherwise resolves after a bounded idle wait, and a disc that leaves resolves
+// it at once, both as refused, code 2, so a failed disc is reported before the
+// next disc's first string starts a new session.
 static pscu_session_step_t pscu_session_watch(pscu_session_t session,
                                               bool fired,
                                               bool program,
-                                              bool lid_open) {
+                                              bool disc_gone) {
   pscu_session_step_t out;
   out.session = session;
   out.event = fired ? PSCU_LED_EVENT_FIRED : PSCU_LED_EVENT_NONE;
@@ -123,10 +128,10 @@ static pscu_session_step_t pscu_session_watch(pscu_session_t session,
     pscu_confirm_step_t outcome =
         pscu_confirm_step(session.confirm, !fired, program, PSCU_CONFIRM_FRAMES);
     out.session.confirm = outcome.state;
-    if (outcome.resolved || lid_open) {
+    if (outcome.resolved || disc_gone) {
       out.session.resolved = true;
       out.event = outcome.confirmed ? PSCU_LED_EVENT_ACCEPTED : PSCU_LED_EVENT_REFUSED;
-      out.learn = outcome.resolved && !lid_open;
+      out.learn = outcome.resolved && !disc_gone;
       out.outcome = outcome.confirmed ? PSCU_CALIB_ACCEPTED : PSCU_CALIB_REFUSED;
     }
   }
@@ -220,15 +225,15 @@ static pscu_clock_step_t pscu_clock_step(pscu_clock_t clock) {
   return out;
 }
 
-// An open lid starts the count over; a closed one accumulates time, whether any
-// whole frame arrived, and whether the chip armed or the console accepted.
-static pscu_since_close_t pscu_since_close_step(
-    pscu_since_close_t since, bool lid_open, uint32_t elapsed_ms, bool captured, bool armed) {
-  pscu_since_close_t next = { 0U, false, false };
-  if (!lid_open) {
+// A gone disc starts the count over; a present one accumulates time, whether any
+// valid frame arrived, and whether the chip armed or the console accepted.
+static pscu_since_disc_t pscu_since_disc_step(
+    pscu_since_disc_t since, bool disc_gone, uint32_t elapsed_ms, bool valid, bool armed) {
+  pscu_since_disc_t next = { 0U, false, false };
+  if (!disc_gone) {
     uint32_t room = 0xFFFFFFFFUL - since.ms;
     next.ms = (elapsed_ms < room) ? (since.ms + elapsed_ms) : 0xFFFFFFFFUL;
-    next.framed = since.framed || captured;
+    next.framed = since.framed || valid;
     next.armed = since.armed || armed;
   }
   return next;
@@ -257,12 +262,15 @@ static pscu_led_t pscu_led_show(
 // it emits up to the cap then goes silent; outside it emits nothing and re-arms,
 // so during play DATA is high-Z. The first program-area frame shows the console
 // accepted the string, and from then on the chip stays silent through any later
-// lead-in read until the lid opens; the close re-arms it for the next disc. The
+// lead-in read until the disc leaves, which re-arms it for the next disc. With
+// no lid wire, the disc leaving is a stretch with no valid SUBQ frame. The
 // LED reports each stage and result from the same facts without ever waiting.
 // The window opens at the learned trigger and each arming sends at most the
 // learned cap; the cap is taken when an arming starts, so a value learned
 // mid-window, such as the full cap after a refusal, applies from the next disc
-// rather than restarting strings on this one. The stored oscillator trim is
+// rather than restarting strings on this one. A gone disc also empties the
+// counter, so the next disc's spin-up cannot find the window already open and
+// spend strings before its lead-in. The stored oscillator trim is
 // applied before anything is timed, and each pass's frame timing refines it.
 // Every call inside the loop is bounded, and the watchdog is kicked each pass so
 // a stuck signal resets the chip rather than wedging it.
@@ -278,7 +286,9 @@ void pscu_run(void) {
   pscu_led_t led = pscu_led_init((board == PSCU_BOARD_MODE_WFCK) ? 2U : 1U, boot_code);
   uint8_t cap = calib.cap;
   pscu_clock_t clock = { pscu_port_ticks(), 0U };
-  pscu_since_close_t since = { 0U, false, false };
+  pscu_since_disc_t since = { 0U, false, false };
+  pscu_presence_t presence = pscu_presence_init();
+  bool was_gone = false;
   uint8_t counter = 0U;
   pscu_stealth_t stealth = pscu_stealth_init();
   pscu_session_t session = pscu_session_init();
@@ -287,31 +297,37 @@ void pscu_run(void) {
     uint8_t frame[PSCU_SUBQ_FRAME_BYTES];
     bool captured = pscu_engine_capture_frame(frame);
     uint16_t stamp = pscu_port_ticks();
+    pscu_clock_step_t tick = pscu_clock_step(clock);
+    clock = tick.clock;
+    bool valid = captured && pscu_subq_is_valid(frame);
+    presence = pscu_presence_step(presence, valid, tick.elapsed_ms);
+    bool disc_gone = pscu_presence_gone(presence);
     uint8_t previous = counter;
-    counter = pscu_subq_update_counter(frame, counter, PSCU_VCD_FILTER_ENABLED);
-    osc = pscu_osc_step(osc, stamp, captured && (counter > previous));
+    counter = disc_gone ? 0U : pscu_subq_update_counter(frame, counter, PSCU_VCD_FILTER_ENABLED);
+    bool settled = since.ms >= PSCU_TRIM_SETTLE_MS;
+    osc = pscu_osc_step(osc, stamp, captured && settled && (counter > previous));
     bool in_window = pscu_should_inject(counter, calib.trigger);
     bool program = pscu_subq_is_program_area(frame);
-    bool lid_open = pscu_port_read_lid() != 0U;
     cap = (stealth.sent == 0U) ? calib.cap : cap;
     pscu_stealth_step_t step =
-        pscu_stealth_step(stealth, in_window, program, lid_open, cap, PSCU_STEALTH_GAP_FRAMES);
+        pscu_stealth_step(stealth, in_window, program, disc_gone, cap, PSCU_STEALTH_GAP_FRAMES);
     stealth = step.state;
     if (step.fire) {
       session = pscu_session_fired(session, step.state.sent);
       pscu_engine_inject(board);
     }
-    pscu_session_step_t watched = pscu_session_watch(session, step.fire, program, lid_open);
+    pscu_session_step_t watched = pscu_session_watch(session, step.fire, program, disc_gone);
     session = watched.session;
-    bool missed = !lid_open && pscu_calib_missed(calib, previous, counter, since.armed);
+    bool missed = !disc_gone && pscu_calib_missed(calib, previous, counter, since.armed);
     calib = pscu_calib_update(calib, watched, missed);
     pscu_osc_store_t kept = pscu_osc_store(osc, calib, !in_window && (stealth.sent == 0U));
     osc = kept.osc;
     calib = kept.calib;
-    pscu_clock_step_t tick = pscu_clock_step(clock);
-    clock = tick.clock;
-    since = pscu_since_close_step(since, lid_open, tick.elapsed_ms, captured, step.fire || program);
-    uint8_t fault = pscu_led_fault(lid_open, since.ms, since.framed, since.armed);
+    since = pscu_since_disc_step(since, disc_gone, tick.elapsed_ms, valid, step.fire || program);
+    uint8_t fault =
+        pscu_led_fault(presence.seen, presence.quiet_ms, since.ms, since.framed, since.armed);
+    led = (was_gone && !disc_gone) ? pscu_led_disc_arrived(led) : led;
+    was_gone = disc_gone;
     led = pscu_led_show(led, watched.event, missed, fault, tick.elapsed_ms);
     pscu_port_watchdog_reset();
   }

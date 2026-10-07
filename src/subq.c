@@ -103,6 +103,16 @@ bool pscu_subq_is_program_area(const uint8_t *frame) {
   return bcd_track && zero_byte && content;
 }
 
+// Mode 1 carries the position data every other test here reads, and fills at
+// least 9 of any 10 consecutive frames on a spinning disc (Concluded: the Red
+// Book rule as widely cited, not re-read for this project), so a gap in mode 1
+// frames means the drive is not reading.
+bool pscu_subq_is_valid(const uint8_t *frame) {
+  PSCU_ASSERT(frame != NULL);
+
+  return ((uint8_t)(frame[0] & 0x0FU) == 0x01U) && (frame[6] == 0x00U);
+}
+
 uint8_t pscu_subq_update_counter(const uint8_t *frame, uint8_t counter, bool vcd_filter) {
   PSCU_ASSERT(frame != NULL);
 

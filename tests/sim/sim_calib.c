@@ -98,7 +98,7 @@ void scenario_calib_board(const target_t *t, const char *elf, uint32_t freq) {
   avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
   boot_quiet(avr, t, 0, &ctx);
   run_cycles(avr, ms_cycles(CALIB_REPLAY_MS));
-  calib_check(t, code_after(0U) == 7, "a board change replays code 7 at boot");
+  calib_check(t, code_after(0U) == 6, "a board change replays code 6 at boot");
   uint8_t raw[CALIB_BYTES] = { 0 };
   read_calib(avr, raw);
   calib_check(t,
@@ -159,10 +159,11 @@ void scenario_calib_jp(const target_t *t, const char *elf, uint32_t freq) {
 // The oscillator trim. simavr runs the chip at whatever rate the harness names,
 // and the firmware believes 8 MHz, so naming 5 percent more models an RC that
 // runs 5 percent fast: 75 Hz frames then span more Timer1 ticks than nominal.
-// With the lid open the chip sends nothing, so a long lead-in read yields only
-// frame samples; the trim must step OSCCAL the right way, and store it once the
-// window has closed. simavr does not change speed on an OSCCAL write, so this
-// checks direction, the stored value and the boot replay, not the frequency.
+// The disc is accepted first, so the long lead-in reread that follows, like an
+// anti-mod check's, gets no string and yields only frame samples; the trim must
+// step OSCCAL the right way, and store it once the window has closed. simavr does not change speed
+// on an OSCCAL write, so this checks direction, the stored value and the boot replay, not the
+// frequency.
 #define TRIM_TOC_FRAMES 200
 // Enough silent frames for the counter, filled by the lead-in read, to drain
 // below the trigger so the window closes and the trim can be stored.
@@ -179,7 +180,10 @@ static void trim_case(const target_t *t, const char *elf, uint32_t freq, int per
   boot_quiet(avr, t, 0, &ctx);
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
-  avr_raise_irq(lid_irq(avr), 1U);
+  const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
+                                           0,     0,     0x02U, 0,     0,     0 };
+  clock_until_inject(avr, t, toc);
+  clock_frames(avr, t, play, CALIB_SETTLE_FRAMES);
   g_frame_period_ns = SIM_SECTOR_NS;
   clock_frames(avr, t, toc, TRIM_TOC_FRAMES);
   clock_frames(avr, t, silence, TRIM_DECAY_FRAMES);

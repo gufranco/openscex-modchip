@@ -25,4 +25,11 @@ uint8_t pscu_subq_update_counter(const uint8_t *frame, uint8_t counter, bool vcd
 // injection as confirmation that the region check passed. Pure and host-tested.
 bool pscu_subq_is_program_area(const uint8_t *frame);
 
+// True for a frame a spinning disc produces: Q mode 1 (ADR 1 in the low nibble
+// of the control byte) with the ZERO byte at 0x00. Lead-in, program area and
+// lead-out all qualify; a failed capture (all 0xFF), an idle bus (all 0x00)
+// and the occasional mode 2 or 3 frame do not. A run of frames without one is
+// how the chip knows the drive has stopped. Pure and host-tested.
+bool pscu_subq_is_valid(const uint8_t *frame);
+
 #endif

@@ -76,9 +76,4 @@ uint8_t pscu_port_eeprom_read(uint8_t address);
 
 void pscu_port_eeprom_write(uint8_t address, uint8_t value);
 
-// The lid line: nonzero while the lid is open. A swap is seen here directly, so
-// the run loop re-arms injection for the next disc on the close, and the
-// injection path stops a string the moment the lid opens.
-uint8_t pscu_port_read_lid(void);
-
 #endif

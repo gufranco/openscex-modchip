@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "calib_test.h"
+#include "disc_test.h"
 #include "pscu/board_mode.h"
 #include "pscu/inject.h"
 #include "pscu/led.h"
@@ -238,30 +239,30 @@ static void test_stealth_gap(void) {
   check(back.fire, "a new window sends at once");
 }
 
-static void test_stealth_lid(void) {
+static void test_stealth_disc_gone(void) {
   pscu_stealth_step_t armed = pscu_stealth_step(pscu_stealth_init(), true, false, false, 16U, 0U);
   pscu_stealth_step_t accept = pscu_stealth_step(armed.state, true, true, false, 16U, 0U);
   check(!accept.fire && accept.state.accepted, "a program-area frame stops the burst at once");
 
   pscu_stealth_step_t reread = pscu_stealth_step(accept.state, true, false, false, 16U, 0U);
   check(!reread.fire && reread.state.accepted,
-        "a later lead-in read with the lid shut stays silent");
+        "a later lead-in read of the same disc stays silent");
 
   pscu_stealth_step_t closed_out = pscu_stealth_step(reread.state, false, false, false, 16U, 0U);
   check(closed_out.state.accepted, "leaving the window does not end the acceptance");
 
   pscu_stealth_step_t opened = pscu_stealth_step(closed_out.state, true, false, true, 16U, 0U);
   check(!opened.fire && !opened.state.accepted && (opened.state.sent == 0U),
-        "an open lid emits nothing and forgets the disc");
+        "a gone disc emits nothing and is forgotten");
 
   pscu_stealth_step_t open_program = pscu_stealth_step(opened.state, true, true, true, 16U, 0U);
-  check(!open_program.state.accepted, "a frame read while the lid is open cannot latch");
+  check(!open_program.state.accepted, "a frame read while the disc counts as gone cannot latch");
 
   pscu_stealth_step_t disc2 = pscu_stealth_step(open_program.state, true, false, false, 16U, 0U);
-  check(disc2.fire && (disc2.state.sent == 1U), "after the lid closes the next disc is injected");
+  check(disc2.fire && (disc2.state.sent == 1U), "the next disc is injected once it arrives");
 
   pscu_stealth_step_t mid = pscu_stealth_step(disc2.state, true, false, true, 16U, 0U);
-  check(!mid.fire && (mid.state.sent == 0U), "an open lid mid-burst ends the burst");
+  check(!mid.fire && (mid.state.sent == 0U), "a disc leaving mid-burst ends the burst");
 }
 
 static pscu_led_step_t led_after(pscu_led_t state, uint32_t ms) {
@@ -289,15 +290,17 @@ static void test_led_boot(void) {
         "led: watchdog code replayed after the board blinks");
   pscu_led_step_t replay_dark = led_after(replay.state, 750U);
   check(!replay_dark.on, "led: replay code flash gap is dark");
-  pscu_led_step_t after_replay = led_after(replay.state, 8000U);
+  pscu_led_step_t after_replay = led_after(replay.state, 7000U);
   check(after_replay.state.stage == PSCU_LED_WAIT, "led: replay plays once then waits");
+  check(led_after(replay.state, 6999U).state.stage == PSCU_LED_REPLAY,
+        "led: replay still showing just before its one cycle ends");
 
   pscu_led_t moved = pscu_led_init(1U, PSCU_LED_CODE_BOARD_CHANGED);
   pscu_led_step_t moved_replay = led_after(moved, 600U);
-  check((moved_replay.state.stage == PSCU_LED_REPLAY) && (moved_replay.state.replay == 7U),
-        "led: a board change is replayed as code 7");
+  check((moved_replay.state.stage == PSCU_LED_REPLAY) && (moved_replay.state.replay == 6U),
+        "led: a board change is replayed as code 6");
 
-  pscu_led_step_t early = pscu_led_step(gate, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_LID, 10U);
+  pscu_led_step_t early = pscu_led_step(gate, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_NO_SQCK, 10U);
   check(early.state.stage == PSCU_LED_BOARD, "led: a fault does not cut the board blinks");
 }
 
@@ -333,44 +336,66 @@ static void test_led_results(void) {
 
 static void test_led_faults(void) {
   pscu_led_t wait = led_after(pscu_led_init(1U, 0U), 600U).state;
-  pscu_led_step_t lid = pscu_led_step(wait, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_LID, 0U);
-  check((lid.state.code == PSCU_LED_CODE_LID) && lid.state.live,
+  pscu_led_step_t live = pscu_led_step(wait, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_NO_SQCK, 0U);
+  check((live.state.code == PSCU_LED_CODE_NO_SQCK) && live.state.live,
         "led: a fault takes the waiting LED");
-  pscu_led_step_t held = pscu_led_step(lid.state, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_LID, 20000U);
+  pscu_led_step_t held =
+      pscu_led_step(live.state, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_NO_SQCK, 20000U);
   check((held.state.stage == PSCU_LED_CODE) && (held.state.phase_ms == 20000U),
         "led: a live code repeats for as long as the fault holds");
   pscu_led_step_t cleared = pscu_led_step(held.state, PSCU_LED_EVENT_NONE, 0U, 0U);
   check(cleared.state.stage == PSCU_LED_WAIT, "led: a cleared fault returns to the heartbeat");
 
   pscu_led_t result = pscu_led_step(wait, PSCU_LED_EVENT_ACCEPTED, 0U, 0U).state;
-  pscu_led_step_t swap = pscu_led_step(result, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_LID, 0U);
-  check(swap.state.code == PSCU_LED_CODE_LID, "led: opening the lid replaces a result code");
+  pscu_led_step_t swap = pscu_led_step(result, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_NO_SQCK, 0U);
+  check(swap.state.code == PSCU_LED_CODE_NO_SQCK, "led: a fault replaces a result code");
   check(pscu_led_step(result, PSCU_LED_EVENT_NONE, 0U, 0U).state.code == PSCU_LED_CODE_ACCEPTED,
         "led: a result code is not cut short without a fault");
 
   pscu_led_t dark = led_after(result, 9000U).state;
-  check(
-      pscu_led_step(dark, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_LID, 0U).state.stage == PSCU_LED_CODE,
-      "led: a fault wakes the dark LED");
+  check(pscu_led_step(dark, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_NO_SQCK, 0U).state.stage ==
+            PSCU_LED_CODE,
+        "led: a fault wakes the dark LED");
   pscu_led_t inject = pscu_led_step(wait, PSCU_LED_EVENT_FIRED, 0U, 0U).state;
-  check(pscu_led_step(inject, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_LID, 0U).state.stage ==
+  check(pscu_led_step(inject, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_NO_SQCK, 0U).state.stage ==
             PSCU_LED_CODE,
         "led: a fault interrupts waiting for a result");
+
+  pscu_led_t shown = pscu_led_step(wait, PSCU_LED_EVENT_ACCEPTED, 0U, 0U).state;
+  check(pscu_led_disc_arrived(shown).stage == PSCU_LED_WAIT,
+        "led: a new disc ends the last result");
+  check(pscu_led_disc_arrived(inject).stage == PSCU_LED_WAIT,
+        "led: a new disc ends the string wait");
+  check(pscu_led_disc_arrived(dark).stage == PSCU_LED_WAIT, "led: a new disc wakes the heartbeat");
+  pscu_led_t beating = led_after(wait, 1500U).state;
+  check(pscu_led_disc_arrived(beating).phase_ms == 1500U, "led: the heartbeat keeps its phase");
+  check(pscu_led_disc_arrived(live.state).live, "led: a live fault survives a new disc");
+  pscu_led_t booting = pscu_led_init(2U, 0U);
+  check(pscu_led_disc_arrived(booting).stage == PSCU_LED_BOARD, "led: the boot blinks are not cut");
 
   pscu_led_t full = wait;
   full.phase_ms = 0xFFFFFFF0UL;
   check(led_after(full, 0x100U).state.phase_ms == 0xFFFFFFFFUL, "led: phase saturates");
 }
 
+// pscu_led_fault(seen, quiet_ms, since_ms, framed, armed).
 static void test_led_fault_rules(void) {
-  check(pscu_led_fault(true, 0U, true, true) == PSCU_LED_CODE_LID, "fault: open lid wins");
-  check(pscu_led_fault(false, 4999U, false, false) == 0U, "fault: no frames yet, still waiting");
-  check(pscu_led_fault(false, 5000U, false, false) == PSCU_LED_CODE_NO_SQCK,
-        "fault: no frame for 5 s means no SQCK");
-  check(pscu_led_fault(false, 19999U, true, false) == 0U, "fault: frames, check not due yet");
-  check(pscu_led_fault(false, 20000U, true, false) == PSCU_LED_CODE_NO_CHECK,
+  check(pscu_led_fault(false, 4999U, 0U, false, false) == 0U,
+        "fault: no frames yet, still waiting");
+  check(pscu_led_fault(false, 5000U, 0U, false, false) == PSCU_LED_CODE_NO_SQCK,
+        "fault: no frame for 5 s after power-on means no SUBQ");
+  check(pscu_led_fault(false, 19999U, 0U, false, false) == PSCU_LED_CODE_NO_SQCK,
+        "fault: the install check still shows just before it ends");
+  check(pscu_led_fault(false, 20000U, 0U, false, false) == 0U,
+        "fault: a console left on with no disc stops showing the install check");
+  check(pscu_led_fault(true, 60000U, 0U, false, false) == 0U,
+        "fault: silence after frames were seen is just no disc");
+  check(pscu_led_fault(true, 0U, 19999U, true, false) == 0U, "fault: frames, check not due yet");
+  check(pscu_led_fault(true, 0U, 20000U, true, false) == PSCU_LED_CODE_NO_CHECK,
         "fault: frames but no region check for 20 s");
-  check(pscu_led_fault(false, 20000U, true, true) == 0U, "fault: an armed disc is not a fault");
+  check(pscu_led_fault(true, 0U, 20000U, true, true) == 0U, "fault: an armed disc is not a fault");
+  check(pscu_led_fault(true, 0U, 20000U, false, false) == 0U,
+        "fault: no frames since this disc is not a region-check fault");
 }
 
 static void test_program_area(void) {
@@ -438,6 +463,9 @@ static void test_confirm(void) {
 
   pscu_confirm_step_t busy = pscu_confirm_step(start, false, false, 3U);
   check(!busy.resolved && (busy.state.waited == 0U), "a non-idle frame does not advance the wait");
+  pscu_confirm_t midway = { 2U, false };
+  check(pscu_confirm_step(midway, false, false, 3U).state.waited == 0U,
+        "a string restarts the wait, so it runs only after the last string");
 
   pscu_confirm_t near = { 2U, false };
   pscu_confirm_step_t timed = pscu_confirm_step(near, true, false, 3U);
@@ -457,7 +485,7 @@ int main(void) {
   test_inject();
   test_stealth();
   test_stealth_gap();
-  test_stealth_lid();
+  test_stealth_disc_gone();
   test_led_boot();
   test_led_heartbeat();
   test_led_results();
@@ -468,6 +496,7 @@ int main(void) {
   test_confirm();
   calib_tests(check);
   trim_tests(check);
+  disc_tests(check);
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
   return (g_failures == 0) ? 0 : 1;

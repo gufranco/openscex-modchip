@@ -15,18 +15,17 @@
 // keeps reading SUBQ, so the LED can never delay or gate a feature (AGENTS.md
 // rule 7), and with no LED fitted nothing else changes.
 
-// Result and fault codes, each shown as that many long flashes; 7 is the
+// Result and fault codes, each shown as that many long flashes; 6 is the
 // highest. The LED keeps no history: a code is about now, except the two boot
-// codes. Code 6 comes from the reset-cause flag; code 7 from comparing the
+// codes. Code 5 comes from the reset-cause flag; code 6 from comparing the
 // detected board with the one the calibration record stored, which changes when
 // the chip moves to another console or its WFCK wire is intermittent.
 #define PSCU_LED_CODE_ACCEPTED ((uint8_t)1U)
 #define PSCU_LED_CODE_REFUSED ((uint8_t)2U)
-#define PSCU_LED_CODE_LID ((uint8_t)3U)
-#define PSCU_LED_CODE_NO_SQCK ((uint8_t)4U)
-#define PSCU_LED_CODE_NO_CHECK ((uint8_t)5U)
-#define PSCU_LED_CODE_WATCHDOG ((uint8_t)6U)
-#define PSCU_LED_CODE_BOARD_CHANGED ((uint8_t)7U)
+#define PSCU_LED_CODE_NO_SQCK ((uint8_t)3U)
+#define PSCU_LED_CODE_NO_CHECK ((uint8_t)4U)
+#define PSCU_LED_CODE_WATCHDOG ((uint8_t)5U)
+#define PSCU_LED_CODE_BOARD_CHANGED ((uint8_t)6U)
 
 // Flash timings in milliseconds. Every pattern length is kept apart from the
 // length of a region string, 90 to 181 ms depending on the board and WFCK rate,
@@ -42,12 +41,18 @@
 #define PSCU_LED_BEAT_PERIOD_MS ((uint32_t)2000U)
 #define PSCU_LED_RESULT_REPEATS ((uint32_t)3U)
 
-// Fault thresholds, measured from boot or from the last lid close. A drive that
-// clocks no SUBQ frame at all for 5 s with the lid shut points at the clock or
-// SQCK wiring; frames that never show a region check for 20 s point at the SUBQ
-// wiring, or at a disc with no data lead-in such as an audio CD. Both are
-// Concluded: a console reads the lead-in within a few seconds of spin-up.
+// Fault thresholds. No valid SUBQ frame at all for 5 s after power-on points at
+// the SQCK, SUBQ or power wiring, or at a console with no disc in; once any
+// frame has arrived, silence just means no disc and is not a fault. Valid
+// frames that never show a region check for 20 s since this disc arrived point
+// at the SUBQ wiring, or at a disc with no data lead-in such as an audio CD.
+// Both are Concluded: a console reads the lead-in within a few seconds of
+// spin-up.
 #define PSCU_LED_NO_SQCK_MS ((uint32_t)5000U)
+// Code 3 is an install check: it shows for three of its cycles, 15 s, and then
+// gives way to the heartbeat, so a console left on with no disc does not flash
+// a fault for ever.
+#define PSCU_LED_NO_SQCK_UNTIL_MS ((uint32_t)20000U)
 #define PSCU_LED_NO_CHECK_MS ((uint32_t)20000U)
 
 typedef enum {
@@ -92,6 +97,13 @@ typedef struct {
 // heartbeat.
 pscu_led_t pscu_led_init(uint8_t board_blinks, uint8_t replay_code);
 
+// A new disc has arrived: a result still showing belonged to the last one, so
+// the display drops back to the heartbeat, as it does from a string or the dark
+// stage. The result stays up until then, so a refused disc's code 2 remains
+// readable while the console idles after it. Boot blinks, the boot replay, a
+// live fault and the heartbeat itself are left alone.
+pscu_led_t pscu_led_disc_arrived(pscu_led_t state);
+
 // Advance by elapsed_ms, apply this pass's event and the live fault (0 for
 // none), and say whether the LED is lit.
 pscu_led_step_t pscu_led_step(pscu_led_t state,
@@ -99,11 +111,10 @@ pscu_led_step_t pscu_led_step(pscu_led_t state,
                               uint8_t fault,
                               uint32_t elapsed_ms);
 
-// The live fault, if any: the lid is open or its wire is missing; no SUBQ frame
-// at all since the lid closed; or frames but no region check since the lid
-// closed. ms_since_close counts from boot or the last lid close, framed says a
-// whole frame has been captured since then, and armed that a string was sent or
-// the console accepted since then.
-uint8_t pscu_led_fault(bool lid_open, uint32_t ms_since_close, bool framed, bool armed);
+// The live fault, if any: no valid frame since power-on, from PSCU_LED_NO_SQCK_MS
+// to PSCU_LED_NO_SQCK_UNTIL_MS (seen false, quiet_ms the time since power-on); or valid frames but
+// no region check since this disc arrived (framed true, armed false, since_ms the time since the
+// disc arrived, or since power-on).
+uint8_t pscu_led_fault(bool seen, uint32_t quiet_ms, uint32_t since_ms, bool framed, bool armed);
 
 #endif

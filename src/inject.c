@@ -25,21 +25,21 @@ pscu_stealth_t pscu_stealth_init(void) {
 pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state,
                                       bool in_window,
                                       bool program,
-                                      bool lid_open,
+                                      bool disc_gone,
                                       uint8_t max_strings,
                                       uint8_t gap) {
   pscu_stealth_step_t out;
   out.state = state;
   out.fire = false;
 
-  // An open lid means the disc is leaving: emit nothing and drop both the count
-  // and the acceptance, so the close re-arms the chip for the next disc. With
-  // the lid closed, a program-area frame proves the console accepted the
+  // A gone disc: emit nothing and drop both the count and the acceptance, so the
+  // next disc finds the chip re-armed. With a disc present, a program-area frame
+  // proves the console accepted the
   // string. Out of the window the count resets; inside it the chip emits until
   // the safety cap, and not at all once accepted, so it never drives the bus
   // without bound and never after the console has what it needs. Between two
   // strings it lets gap frames pass, as PsNee and Mayumi V4 do.
-  if (lid_open) {
+  if (disc_gone) {
     out.state = pscu_stealth_init();
   } else {
     if (program) {
@@ -88,8 +88,15 @@ pscu_confirm_step_t pscu_confirm_step(pscu_confirm_t state,
   if (program) {
     out.state.program_seen = true;
   }
-  if (idle && (out.state.waited < 0xFFU)) {
+  // A string restarts the wait, so the bounded wait runs only after the last
+  // string of a burst: with strings spaced by the stealth gap, counting the gap
+  // frames would resolve a session as refused while strings were still going
+  // out, and a late acceptance would then be lost.
+  if (!idle) {
+    out.state.waited = 0U;
+  } else if (out.state.waited < 0xFFU) {
     out.state.waited = (uint8_t)(out.state.waited + 1U);
+  } else {
   }
   if (out.state.program_seen) {
     out.resolved = true;
@@ -100,4 +107,21 @@ pscu_confirm_step_t pscu_confirm_step(pscu_confirm_t state,
   }
 
   return out;
+}
+
+pscu_presence_t pscu_presence_init(void) {
+  pscu_presence_t state = { 0U, false };
+  return state;
+}
+
+pscu_presence_t pscu_presence_step(pscu_presence_t state, bool valid, uint32_t elapsed_ms) {
+  pscu_presence_t next = state;
+  uint32_t sum = state.quiet_ms + elapsed_ms;
+  next.quiet_ms = valid ? 0U : ((sum < state.quiet_ms) ? 0xFFFFFFFFUL : sum);
+  next.seen = state.seen || valid;
+  return next;
+}
+
+bool pscu_presence_gone(pscu_presence_t state) {
+  return state.quiet_ms >= PSCU_DISC_GONE_MS;
 }

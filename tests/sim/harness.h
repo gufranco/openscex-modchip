@@ -12,9 +12,9 @@
 // A software PlayStation, just enough to exercise the firmware end to end in
 // simavr: it drives the console-side pins (SQCK, SUBQ, WFCK) and watches the
 // firmware-side pins (DATA, LED), then decodes the injected bitstream and
-// checks it equals the expected region word. It also drives the lid line, a
-// mandatory wire on the ATtiny84's PORTB. The console side is timed in real
-// time, converted to CPU cycles at the rate the simulated chip runs, so the same
+// checks it equals the expected region word. A disc swap is a stretch with no
+// SUBQ frame, as a drive that stops for the lid produces. The console side is
+// timed in real time, converted to CPU cycles at the rate the simulated chip runs, so the same
 // console drives a nominal 8 MHz chip or one whose RC runs fast or slow.
 
 #define SUBQ_FRAME_BYTES 12
@@ -70,11 +70,6 @@ typedef struct {
   uint8_t wfck;
 } target_t;
 
-// The lid line: PB1, read high while the lid is open. The harness drives it on
-// every boot, closed, so each scenario starts as a console with a disc in.
-#define LID_PORT 'B'
-#define LID_PIN 1
-
 // The America (SCEA) word as the 44 DATA levels the firmware should emit,
 // LSB-first. This is the default build's single configured region, so it is
 // the only word the firmware emits; the decoder reconstructs it and compares. A
@@ -87,7 +82,7 @@ extern const char SCEI_BITS[SCEX_BITS + 1];
 
 // Every LED pulse the firmware draws, as rise cycle and length. A region string
 // lights the LED for 90 to 181 ms, every status pattern for longer or shorter, so
-// a pulse of 60 to 200 ms that starts after boot counts as one string.
+// a pulse of 80 to 200 ms that starts after boot counts as one string.
 #define MAX_PULSES 512
 
 // OSCCAL, the oscillator calibration register, at data address 0x51 (Read:
@@ -99,9 +94,10 @@ extern const char SCEI_BITS[SCEX_BITS + 1];
 // The 75 Hz single-speed sector rate a console reads the lead-in at.
 #define SIM_SECTOR_NS 13333333ULL
 
-// How long the lid stays open on a swap: 236 ms, far shorter than a person
-// takes, so the re-arm cannot depend on the drive stopping.
-#define MD_LID_OPEN_CYCLES ns_cycles(236000000ULL)
+// How long a swap leaves SUBQ silent: 2 s, the drive stopped while the lid is
+// open, beyond the firmware's 1.5 s disc-gone bound and shorter than a person
+// takes to change a disc.
+#define MD_SWAP_CYCLES ns_cycles(2000000000ULL)
 
 typedef struct {
   avr_irq_t *irq;
@@ -135,7 +131,6 @@ avr_cycle_count_t wfck_tick(avr_t *avr, avr_cycle_count_t when, void *param);
 void run_to(avr_t *avr, uint64_t target);
 void run_cycles(avr_t *avr, uint64_t n);
 avr_irq_t *pin_irq(avr_t *avr, const target_t *t, uint8_t pin);
-avr_irq_t *lid_irq(avr_t *avr);
 avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq);
 uint8_t data_ddr(avr_t *avr, const target_t *t);
 uint8_t data_pin(avr_t *avr, const target_t *t);

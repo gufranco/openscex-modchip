@@ -110,6 +110,12 @@ static bool pscu_led_lit(pscu_led_t state) {
   return lit;
 }
 
+pscu_led_t pscu_led_disc_arrived(pscu_led_t state) {
+  bool result = (state.stage == PSCU_LED_CODE) && !state.live;
+  bool leftover = (state.stage == PSCU_LED_INJECT) || (state.stage == PSCU_LED_DARK);
+  return (result || leftover) ? pscu_led_enter(state, PSCU_LED_WAIT, 0U, false) : state;
+}
+
 pscu_led_step_t pscu_led_step(pscu_led_t state,
                               pscu_led_event_t event,
                               uint8_t fault,
@@ -129,13 +135,12 @@ pscu_led_step_t pscu_led_step(pscu_led_t state,
   return out;
 }
 
-uint8_t pscu_led_fault(bool lid_open, uint32_t ms_since_close, bool framed, bool armed) {
+uint8_t pscu_led_fault(bool seen, uint32_t quiet_ms, uint32_t since_ms, bool framed, bool armed) {
   uint8_t fault = 0U;
-  if (lid_open) {
-    fault = PSCU_LED_CODE_LID;
-  } else if (!framed && (ms_since_close >= PSCU_LED_NO_SQCK_MS)) {
+  bool install_check = (quiet_ms >= PSCU_LED_NO_SQCK_MS) && (quiet_ms < PSCU_LED_NO_SQCK_UNTIL_MS);
+  if (!seen && install_check) {
     fault = PSCU_LED_CODE_NO_SQCK;
-  } else if (framed && !armed && (ms_since_close >= PSCU_LED_NO_CHECK_MS)) {
+  } else if (framed && !armed && (since_ms >= PSCU_LED_NO_CHECK_MS)) {
     fault = PSCU_LED_CODE_NO_CHECK;
   } else {
   }

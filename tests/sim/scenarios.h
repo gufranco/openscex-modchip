@@ -17,7 +17,7 @@ void scenario_late_carrier(const target_t *t, const char *elf, uint32_t freq);
 void scenario_stall(const target_t *t, const char *elf, uint32_t freq);
 void scenario_vcd(const char *elf, uint32_t freq);
 void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq);
-void scenario_lid(const target_t *t, const char *elf, uint32_t freq);
+void scenario_disc_presence(const target_t *t, const char *elf, uint32_t freq);
 void scenario_fast_sqck(const target_t *t, const char *elf, uint32_t freq);
 void scenario_boot_light(const target_t *t, const char *elf, uint32_t freq);
 void board_blinks_case(const target_t *t, const char *elf, uint32_t freq, int modern);
