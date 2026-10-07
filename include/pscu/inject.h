@@ -29,6 +29,14 @@ typedef struct {
   uint8_t wait;
 } pscu_stealth_t;
 
+// Where the region-check window stands on this frame. HELD is inside the
+// window while the chip may not send, as when the supply guard holds strings
+// back. A held burst keeps its count and its gap, so a brief low supply reading
+// neither restarts the cap, which would let one disc receive the cap twice, nor
+// starts a new session that would teach the calibration from half a burst; the
+// next frame back in the open window continues the same burst.
+typedef enum { PSCU_WINDOW_CLOSED = 0, PSCU_WINDOW_OPEN = 1, PSCU_WINDOW_HELD = 2 } pscu_window_t;
+
 // One step of the stealth state machine plus whether to inject right now.
 typedef struct {
   pscu_stealth_t state;
@@ -43,10 +51,11 @@ pscu_stealth_t pscu_stealth_init(void);
 // accepted the string and latches the chip silent at once, mid-burst included,
 // through every later lead-in read until the disc leaves. Before that,
 // inside the window the chip emits up to max_strings and then falls silent, and
-// outside the window it emits nothing and resets the count. After each string
-// the next waits gap window frames; each call is one frame.
+// outside the window it emits nothing and resets the count. A held window
+// emits nothing and changes nothing. After each string the next waits gap open
+// window frames; each call is one frame.
 pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state,
-                                      bool in_window,
+                                      pscu_window_t window,
                                       bool program,
                                       bool disc_gone,
                                       uint8_t max_strings,

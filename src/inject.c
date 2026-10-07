@@ -23,11 +23,14 @@ pscu_stealth_t pscu_stealth_init(void) {
 }
 
 pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state,
-                                      bool in_window,
+                                      pscu_window_t window,
                                       bool program,
                                       bool disc_gone,
                                       uint8_t max_strings,
                                       uint8_t gap) {
+  PSCU_ASSERT((window == PSCU_WINDOW_CLOSED) || (window == PSCU_WINDOW_OPEN) ||
+              (window == PSCU_WINDOW_HELD));
+
   pscu_stealth_step_t out;
   out.state = state;
   out.fire = false;
@@ -38,17 +41,18 @@ pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state,
   // string. Out of the window the count resets; inside it the chip emits until
   // the safety cap, and not at all once accepted, so it never drives the bus
   // without bound and never after the console has what it needs. Between two
-  // strings it lets gap frames pass, as PsNee and Mayumi V4 do.
+  // strings it lets gap frames pass, as PsNee and Mayumi V4 do. A held window
+  // freezes the burst where it stands, gap included.
   if (disc_gone) {
     out.state = pscu_stealth_init();
   } else {
     if (program) {
       out.state.accepted = true;
     }
-    if (!in_window) {
+    if (window == PSCU_WINDOW_CLOSED) {
       out.state.sent = 0U;
       out.state.wait = 0U;
-    } else if (out.state.accepted) {
+    } else if (out.state.accepted || (window == PSCU_WINDOW_HELD)) {
     } else if (state.wait > 0U) {
       out.state.wait = (uint8_t)(state.wait - 1U);
     } else if (state.sent < max_strings) {

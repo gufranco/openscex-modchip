@@ -204,19 +204,23 @@ static void test_stealth(void) {
   pscu_stealth_t start = pscu_stealth_init();
   check((start.sent == 0U) && !start.accepted, "stealth starts disarmed and unlatched");
 
-  pscu_stealth_step_t first = pscu_stealth_step(start, true, false, false, 2U, 0U);
+  pscu_stealth_step_t first = pscu_stealth_step(start, PSCU_WINDOW_OPEN, false, false, 2U, 0U);
   check(first.fire && (first.state.sent == 1U), "emits the first string in window");
 
-  pscu_stealth_step_t second = pscu_stealth_step(first.state, true, false, false, 2U, 0U);
+  pscu_stealth_step_t second =
+      pscu_stealth_step(first.state, PSCU_WINDOW_OPEN, false, false, 2U, 0U);
   check(second.fire && (second.state.sent == 2U), "emits the second string");
 
-  pscu_stealth_step_t capped = pscu_stealth_step(second.state, true, false, false, 2U, 0U);
+  pscu_stealth_step_t capped =
+      pscu_stealth_step(second.state, PSCU_WINDOW_OPEN, false, false, 2U, 0U);
   check(!capped.fire && (capped.state.sent == 2U), "falls silent at the cap");
 
-  pscu_stealth_step_t rearmed = pscu_stealth_step(capped.state, false, false, false, 2U, 0U);
+  pscu_stealth_step_t rearmed =
+      pscu_stealth_step(capped.state, PSCU_WINDOW_CLOSED, false, false, 2U, 0U);
   check(!rearmed.fire && (rearmed.state.sent == 0U), "silent and re-armed out of window");
 
-  pscu_stealth_step_t again = pscu_stealth_step(rearmed.state, true, false, false, 2U, 0U);
+  pscu_stealth_step_t again =
+      pscu_stealth_step(rearmed.state, PSCU_WINDOW_OPEN, false, false, 2U, 0U);
   check(again.fire, "re-fires on the next window while the console has not accepted");
 }
 
@@ -224,44 +228,84 @@ static void test_stealth(void) {
 // and the next frame sends again. Leaving the window clears the wait, so the next
 // disc's first string is never held back by the last disc's gap.
 static void test_stealth_gap(void) {
-  pscu_stealth_step_t first = pscu_stealth_step(pscu_stealth_init(), true, false, false, 16U, 2U);
+  pscu_stealth_step_t first =
+      pscu_stealth_step(pscu_stealth_init(), PSCU_WINDOW_OPEN, false, false, 16U, 2U);
   check(first.fire && (first.state.wait == 2U), "a string starts the gap");
-  pscu_stealth_step_t held1 = pscu_stealth_step(first.state, true, false, false, 16U, 2U);
+  pscu_stealth_step_t held1 =
+      pscu_stealth_step(first.state, PSCU_WINDOW_OPEN, false, false, 16U, 2U);
   check(!held1.fire && (held1.state.wait == 1U), "the first gap frame sends nothing");
-  pscu_stealth_step_t held2 = pscu_stealth_step(held1.state, true, false, false, 16U, 2U);
+  pscu_stealth_step_t held2 =
+      pscu_stealth_step(held1.state, PSCU_WINDOW_OPEN, false, false, 16U, 2U);
   check(!held2.fire && (held2.state.wait == 0U), "the last gap frame sends nothing");
-  pscu_stealth_step_t next = pscu_stealth_step(held2.state, true, false, false, 16U, 2U);
+  pscu_stealth_step_t next =
+      pscu_stealth_step(held2.state, PSCU_WINDOW_OPEN, false, false, 16U, 2U);
   check(next.fire && (next.state.sent == 2U), "the frame after the gap sends the next string");
 
-  pscu_stealth_step_t left = pscu_stealth_step(first.state, false, false, false, 16U, 2U);
+  pscu_stealth_step_t left =
+      pscu_stealth_step(first.state, PSCU_WINDOW_CLOSED, false, false, 16U, 2U);
   check((left.state.wait == 0U) && (left.state.sent == 0U), "leaving the window clears the gap");
-  pscu_stealth_step_t back = pscu_stealth_step(left.state, true, false, false, 16U, 2U);
+  pscu_stealth_step_t back = pscu_stealth_step(left.state, PSCU_WINDOW_OPEN, false, false, 16U, 2U);
   check(back.fire, "a new window sends at once");
 }
 
+// A held window is the supply guard keeping strings back inside the window: the
+// burst must keep its count and its gap, so the cap is never restarted on the
+// same disc, and must carry on from where it stood once the window opens again.
+static void test_stealth_held(void) {
+  pscu_stealth_step_t first =
+      pscu_stealth_step(pscu_stealth_init(), PSCU_WINDOW_OPEN, false, false, 2U, 1U);
+  pscu_stealth_step_t held = pscu_stealth_step(first.state, PSCU_WINDOW_HELD, false, false, 2U, 1U);
+  check(!held.fire && (held.state.sent == 1U) && (held.state.wait == 1U),
+        "a held window keeps the count and the gap");
+  pscu_stealth_step_t gap = pscu_stealth_step(held.state, PSCU_WINDOW_OPEN, false, false, 2U, 1U);
+  check(!gap.fire && (gap.state.wait == 0U), "the gap resumes once the window opens");
+  pscu_stealth_step_t second = pscu_stealth_step(gap.state, PSCU_WINDOW_OPEN, false, false, 2U, 1U);
+  check(second.fire && (second.state.sent == 2U), "the burst continues where it stood");
+  pscu_stealth_step_t at_cap =
+      pscu_stealth_step(second.state, PSCU_WINDOW_HELD, false, false, 2U, 0U);
+  pscu_stealth_step_t after =
+      pscu_stealth_step(at_cap.state, PSCU_WINDOW_OPEN, false, false, 2U, 0U);
+  check(!after.fire && (after.state.sent == 2U), "a hold never restarts the cap");
+  pscu_stealth_step_t idle =
+      pscu_stealth_step(pscu_stealth_init(), PSCU_WINDOW_HELD, false, false, 2U, 0U);
+  check(!idle.fire && (idle.state.sent == 0U), "a held window sends no first string");
+  pscu_stealth_step_t accepted =
+      pscu_stealth_step(first.state, PSCU_WINDOW_HELD, true, false, 2U, 0U);
+  check(accepted.state.accepted, "a program-area frame latches during a hold");
+  pscu_stealth_step_t gone = pscu_stealth_step(first.state, PSCU_WINDOW_HELD, false, true, 2U, 0U);
+  check(gone.state.sent == 0U, "a disc leaving during a hold ends the burst");
+}
+
 static void test_stealth_disc_gone(void) {
-  pscu_stealth_step_t armed = pscu_stealth_step(pscu_stealth_init(), true, false, false, 16U, 0U);
-  pscu_stealth_step_t accept = pscu_stealth_step(armed.state, true, true, false, 16U, 0U);
+  pscu_stealth_step_t armed =
+      pscu_stealth_step(pscu_stealth_init(), PSCU_WINDOW_OPEN, false, false, 16U, 0U);
+  pscu_stealth_step_t accept =
+      pscu_stealth_step(armed.state, PSCU_WINDOW_OPEN, true, false, 16U, 0U);
   check(!accept.fire && accept.state.accepted, "a program-area frame stops the burst at once");
 
-  pscu_stealth_step_t reread = pscu_stealth_step(accept.state, true, false, false, 16U, 0U);
+  pscu_stealth_step_t reread =
+      pscu_stealth_step(accept.state, PSCU_WINDOW_OPEN, false, false, 16U, 0U);
   check(!reread.fire && reread.state.accepted,
         "a later lead-in read of the same disc stays silent");
 
-  pscu_stealth_step_t closed_out = pscu_stealth_step(reread.state, false, false, false, 16U, 0U);
+  pscu_stealth_step_t closed_out =
+      pscu_stealth_step(reread.state, PSCU_WINDOW_CLOSED, false, false, 16U, 0U);
   check(closed_out.state.accepted, "leaving the window does not end the acceptance");
 
-  pscu_stealth_step_t opened = pscu_stealth_step(closed_out.state, true, false, true, 16U, 0U);
+  pscu_stealth_step_t opened =
+      pscu_stealth_step(closed_out.state, PSCU_WINDOW_OPEN, false, true, 16U, 0U);
   check(!opened.fire && !opened.state.accepted && (opened.state.sent == 0U),
         "a gone disc emits nothing and is forgotten");
 
-  pscu_stealth_step_t open_program = pscu_stealth_step(opened.state, true, true, true, 16U, 0U);
+  pscu_stealth_step_t open_program =
+      pscu_stealth_step(opened.state, PSCU_WINDOW_OPEN, true, true, 16U, 0U);
   check(!open_program.state.accepted, "a frame read while the disc counts as gone cannot latch");
 
-  pscu_stealth_step_t disc2 = pscu_stealth_step(open_program.state, true, false, false, 16U, 0U);
+  pscu_stealth_step_t disc2 =
+      pscu_stealth_step(open_program.state, PSCU_WINDOW_OPEN, false, false, 16U, 0U);
   check(disc2.fire && (disc2.state.sent == 1U), "the next disc is injected once it arrives");
 
-  pscu_stealth_step_t mid = pscu_stealth_step(disc2.state, true, false, true, 16U, 0U);
+  pscu_stealth_step_t mid = pscu_stealth_step(disc2.state, PSCU_WINDOW_OPEN, false, true, 16U, 0U);
   check(!mid.fire && (mid.state.sent == 0U), "a disc leaving mid-burst ends the burst");
 }
 
@@ -353,6 +397,7 @@ int main(void) {
   test_stealth();
   test_stealth_gap();
   test_stealth_disc_gone();
+  test_stealth_held();
   test_program_area();
   test_failed_capture();
   test_confirm();

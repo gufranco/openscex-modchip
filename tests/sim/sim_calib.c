@@ -220,14 +220,14 @@ void scenario_trim(const target_t *t, const char *elf, uint32_t freq) {
 
 // The supply guard. simavr models the bandgap channel against the supply it is
 // given (Verified: a probe read 225 at 5 V, 341 at 3.3 V and 401 at 2.8 V). A
-// chip run at 2.8 V, under the 2.9 V limit, must send no string through a whole
+// chip run at 2.6 V, under the limit, must send no string through a whole
 // lead-in that reaches its start point, show code 7, and leave the stored
 // record as it was: the console did run its check, so the empty window is not a
 // miss that should move the start back. Raised to 3.3 V on the same run, the
 // next lead-in must be injected, since the guard holds no state of its own.
 // One code-7 cycle lasts 9 s and the watch can start anywhere in one, so 20 s
 // always holds a whole one.
-#define LOW_SUPPLY_MV 2800U
+#define LOW_SUPPLY_MV 2600U
 #define GOOD_SUPPLY_MV 3300U
 #define SUPPLY_TRIGGER 12U
 #define SUPPLY_CAP 8U
@@ -269,7 +269,7 @@ void scenario_supply(const target_t *t, const char *elf, uint32_t freq) {
   int good = strings_while(avr, t, toc, SUPPLY_TOC_FRAMES);
 
   char what[64];
-  (void)snprintf(what, sizeof(what), "no string at 2.8 V (%d strings)", low);
+  (void)snprintf(what, sizeof(what), "no string at 2.6 V (%d strings)", low);
   calib_check(t, low == 0, what);
   (void)snprintf(what, sizeof(what), "a low supply shows code 7 (%d)", code);
   calib_check(t, code == 7, what);
@@ -278,4 +278,37 @@ void scenario_supply(const target_t *t, const char *elf, uint32_t freq) {
       calib_valid(raw) && (raw[2] == SUPPLY_CAP) && (raw[3] == SUPPLY_TRIGGER) && (raw[4] == 0U),
       "a window the supply kept shut teaches nothing");
   calib_check(t, good >= 1, "injects once the supply is back at 3.3 V");
+}
+
+// A single dip of the supply inside a burst must hold the burst, not end it: the
+// count and the session carry on, so the disc gets the learned cap and no more.
+// The cap is seeded small and frozen so the burst is short and the start point
+// stays put. Five frames at 2.6 V land between two strings, then the supply is
+// back at 3.3 V for a lead-in far longer than the rest of the burst.
+#define DIP_CAP 6U
+#define DIP_BEFORE_FRAMES 40
+#define DIP_FRAMES 5
+#define DIP_AFTER_FRAMES 300
+
+void scenario_supply_dip(const target_t *t, const char *elf, uint32_t freq) {
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  seed_calib(0U, DIP_CAP, CALIB_TRIGGER, 1U, 0);
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+  clock_until_inject(avr, t, toc);
+  clock_frames(avr, t, toc, DIP_BEFORE_FRAMES);
+  int before = g_strings;
+  set_supply(avr, LOW_SUPPLY_MV);
+  clock_frames(avr, t, toc, DIP_FRAMES);
+  set_supply(avr, GOOD_SUPPLY_MV);
+  clock_frames(avr, t, toc, DIP_AFTER_FRAMES);
+
+  char what[80];
+  (void)snprintf(what, sizeof(what), "the dip came mid-burst (%d strings before it)", before);
+  calib_check(t, (before >= 1) && (before < (int)DIP_CAP), what);
+  (void)snprintf(
+      what, sizeof(what), "a supply dip mid-burst keeps the cap (%d strings)", g_strings);
+  calib_check(t, g_strings == (int)DIP_CAP, what);
 }

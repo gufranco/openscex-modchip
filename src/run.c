@@ -317,11 +317,12 @@ void pscu_run(void) {
     osc = pscu_osc_step(osc, stamp, captured && settled && (counter > previous));
     bool supply_ok = pscu_supply_ok(pscu_port_supply_raw());
     bool reached = pscu_should_inject(counter, calib.trigger);
-    bool in_window = supply_ok && reached;
+    pscu_window_t window =
+        !reached ? PSCU_WINDOW_CLOSED : (supply_ok ? PSCU_WINDOW_OPEN : PSCU_WINDOW_HELD);
     bool program = pscu_subq_is_program_area(frame);
     cap = (stealth.sent == 0U) ? calib.cap : cap;
     pscu_stealth_step_t step =
-        pscu_stealth_step(stealth, in_window, program, disc_gone, cap, PSCU_STEALTH_GAP_FRAMES);
+        pscu_stealth_step(stealth, window, program, disc_gone, cap, PSCU_STEALTH_GAP_FRAMES);
     stealth = step.state;
     if (step.fire) {
       session = pscu_session_fired(session, step.state.sent);
@@ -332,7 +333,7 @@ void pscu_run(void) {
     session = watched.session;
     bool missed = !disc_gone && pscu_calib_missed(calib, previous, counter, since.armed);
     calib = pscu_calib_update(calib, watched, missed);
-    pscu_osc_store_t kept = pscu_osc_store(osc, calib, !in_window && (stealth.sent == 0U));
+    pscu_osc_store_t kept = pscu_osc_store(osc, calib, !reached && (stealth.sent == 0U));
     osc = kept.osc;
     calib = kept.calib;
     since = pscu_since_disc_step(since, disc_gone, tick.elapsed_ms, valid, reached || program);
