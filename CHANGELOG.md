@@ -1,3 +1,10 @@
+# [0.7.0](https://github.com/gufranco/openscex-modchip/compare/v0.6.0...v0.7.0) (2026-10-07)
+
+
+### Features
+
+* internal oscillator trim, pu-7 and pu-8 ([27d3df4](https://github.com/gufranco/openscex-modchip/commit/27d3df437f2c872ac86cc6ba09d7a6434a096572))
+
 # [0.6.0](https://github.com/gufranco/openscex-modchip/compare/v0.5.0...v0.6.0) (2026-10-07)
 
 
