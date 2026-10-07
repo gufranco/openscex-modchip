@@ -115,8 +115,9 @@ ALL_SRC_C := $(FIRMWARE_C)
 FIRMWARE_S := src/port.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
 HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_test.c
-SIM_TEST_C := tests/sim/sim_test.c
-C_FILES := $(ALL_SRC_C) $(FIRMWARE_H) $(HOST_TEST_C) $(SIM_TEST_C)
+SIM_TEST_C := tests/sim/sim_test.c tests/sim/harness.c tests/sim/sim_inject.c tests/sim/sim_disc.c tests/sim/sim_calib.c
+SIM_TEST_H := tests/sim/harness.h tests/sim/scenarios.h
+C_FILES := $(ALL_SRC_C) $(FIRMWARE_H) $(HOST_TEST_C) $(SIM_TEST_C) $(SIM_TEST_H)
 HOST_TEST := $(BUILD)/host/host_test
 SIM_TEST := $(BUILD)/sim/sim_test
 SIM_CFLAGS := $(C_STD) -O2 -Wall -Wextra -Werror \
@@ -180,7 +181,7 @@ $(HOST_TEST): $(HOST_LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H)
 SIM_ELF := $(BUILD)/attiny84/release/$(NAME)-attiny84.elf
 SIM_ELF_VCD := $(BUILD)/attiny84-jp-vcd/release/$(NAME)-attiny84-jp-vcd.elf
 
-$(SIM_TEST): $(SIM_TEST_C) all
+$(SIM_TEST): $(SIM_TEST_C) $(SIM_TEST_H) all
 	@mkdir -p $(@D)
 	$(HOST_CC) $(SIM_CFLAGS) -o $@ $(SIM_TEST_C) $(SIM_LIBS)
 
