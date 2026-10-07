@@ -16,7 +16,7 @@ docs/
 .DS_Store
 **/.DS_Store
 
-!specs/
+specs/
 !.vscode/
 .vscode/*
 !.vscode/c_cpp_properties.json
