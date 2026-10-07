@@ -22,7 +22,7 @@ English | [日本語](README.ja.md) | [中文](README.zh.md)
   <a href="../../issues/new?template=compatibility.yml">Report your console</a>
 </p>
 
-**3480** bytes of flash · **6** board families, PU-18 to PM-41(2) · **3** regions · **0** MISRA deviations · **100%** host line and branch coverage · **121/121** mutants killed
+**3514** bytes of flash · **6** board families, PU-18 to PM-41(2) · **3** regions · **0** MISRA deviations · **100%** host line and branch coverage · **122/122** mutants killed
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny84.hex' --pattern SHA256SUMS
@@ -113,11 +113,11 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 
 | Feature | Detail |
 |:--------|:-------|
-| SCEx injection | 44-bit LSB-first region string, the PU-18 and PU-20 static-gate method and the PU-22-and-later WFCK-carrier method |
+| SCEx injection | 44-bit LSB-first region string, the PU-18 and PU-20 static-gate method, with the WFCK gate held low for each string as PsNee and Mayumi V4 do, and the PU-22-and-later WFCK-carrier method |
 | Board auto-detect | WFCK behaviour at boot selects gate or carrier mode; one build fits every family |
 | Console clock | the chip runs from the console's own 4.2336 MHz clock, so every delay is locked to the console crystal, as on Mayumi V4 |
 | Lid line | a mandatory wire to the lid switch: an open lid stops a string within one 4 ms bit cell, and a close re-arms the chip for the next disc, so every swap in a multi-disc game is seen, never inferred |
-| Stealth | injects only inside the SUBQ region-check window, capped per arming, then DATA high-Z and LED off; stops the moment the console reads the program area and stays silent through every later lead-in read until the lid opens |
+| Stealth | injects only inside the SUBQ region-check window, capped per arming, with 5 frames, 67 ms, between strings as PsNee and Mayumi V4 space them, then DATA high-Z and LED off; stops the moment the console reads the program area and stays silent through every later lead-in read until the lid opens |
 | Single configured region | emits only `REGION`, never all three |
 | Adaptive timing | on WFCK-carrier boards the injection bit is timed by counting WFCK periods; `TIMING=fixed` uses the console-clocked delay instead |
 | Self-recovery | each SUBQ capture realigns on the gap between frames and gives up after 30 ms; a WFCK carrier that stalls mid-injection lets the watchdog release DATA; a missing lid wire reads as open, so the chip stays silent instead of injecting blind |
@@ -201,7 +201,7 @@ The chip learns how the console it is installed in reads the region string and k
 | Value | Learned from | Effect |
 |:------|:-------------|:-------|
 | String cap | the strings an accepted disc needed, plus 4 | later discs get at most that many strings instead of 16; a refused disc restores 16 from the next disc on |
-| Start point | each accepted disc moves the start 2 lead-in frames, 27 ms, later, up to 20 frames | strings start closer to the region check; a refusal, or a lead-in read that ends before the start, steps back 2 frames and stops the probe |
+| Start point | each accepted disc moves the start 2 lead-in frames, 27 ms, later, up to 20 frames; a `jp` build keeps the default, since PsNee warns against a later trigger on Japanese consoles | strings start closer to the region check; a refusal, or a lead-in read that ends before the start, steps back 2 frames and stops the probe |
 | Board | the board detected at boot | a different board shows code 7 once and restarts the other two values |
 
 The chip writes only a byte whose value changed, only at boot or after a disc's check has resolved, never while a string is being sent, so a console that has settled writes nothing. The cell endurance is 100,000 writes (Read: ATtiny24A/44A/84A datasheet DS40002269A). A check byte catches a record cut short by a power-off, which then reads as the defaults. Reflashing erases the record too, because both fuse sets above leave EESAVE unprogrammed (Read: the same datasheet, Table 19-4, high fuse bit 3). The margin of 4 strings, the 2-frame step and the 20-frame bound are design choices, not yet tuned on a console.
