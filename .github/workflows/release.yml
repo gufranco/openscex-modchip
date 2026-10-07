@@ -38,6 +38,9 @@ jobs:
     name: Version and publish
     if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     runs-on: ubuntu-26.04
+    # The slowest of the last 10 green runs took 243 s, building and attesting
+    # the images included; 20 minutes is the backstop for a hung step.
+    timeout-minutes: 20
     steps:
       - name: Checkout main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
