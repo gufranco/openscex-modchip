@@ -1,3 +1,10 @@
+# [0.8.0](https://github.com/gufranco/openscex-modchip/compare/v0.7.0...v0.8.0) (2026-10-07)
+
+
+### Features
+
+* drop the lid wire, see swaps in subq ([b7f7756](https://github.com/gufranco/openscex-modchip/commit/b7f775625a850925cc32c5b9948f81e2594aa020))
+
 # [0.7.0](https://github.com/gufranco/openscex-modchip/compare/v0.6.0...v0.7.0) (2026-10-07)
 
 
