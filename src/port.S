@@ -18,6 +18,12 @@
 // fixed loop length.
 #define PSCU_MIRROR_LOOP_CYCLES (10UL + (PSCU_PIN_WFCK - PSCU_PIN_DATA))
 #define PSCU_DELAY_1MS_ITERS (F_CPU / 4000UL)
+// A SUBQ edge wait gives up after 30 ms, the same bound as the idle wait in
+// engine.c: long enough for the inter-frame gap before a burst's first edge (a
+// frame every 13.3 ms at single speed), short enough that a stopped drive fails
+// a capture quickly and the run loop keeps reading the lid. One wait pass is 7
+// cycles (wdr 1, the skipping sbis or sbic 2, sbiw 2, a taken brne 2).
+#define PSCU_SQCK_WAIT_POLLS ((F_CPU * 30UL) / (1000UL * 7UL))
 #define PSCU_MIRROR_1MS_ITERS (F_CPU / (PSCU_MIRROR_LOOP_CYCLES * 1000UL))
 
 // Shift a PINREG snapshot already in <reg> right by <count> bit positions, then
@@ -81,14 +87,6 @@ pscu_port_watchdog_reset:
 pscu_port_read_sqck:
 	in r24, _SFR_IO_ADDR(PSCU_PINREG)
 	andi r24, (1 << PSCU_PIN_SQCK)
-	ret
-	.endfunc
-
-	.global pscu_port_read_subq
-	.func pscu_port_read_subq
-pscu_port_read_subq:
-	in r24, _SFR_IO_ADDR(PSCU_PINREG)
-	andi r24, (1 << PSCU_PIN_SUBQ)
 	ret
 	.endfunc
 
@@ -184,6 +182,59 @@ pscu_port_data_mirror_wfck_ms:
 	sbiw r24, 1
 	brne 4b
 6:
+	ret
+	.endfunc
+
+// Clock in r22 bytes of SUBQ into the buffer at r25:r24, least significant bit
+// first, sampling SUBQ right after each SQCK rising edge, as PsNee does. The caller
+// has already waited for the idle gap, so the first falling edge starts the frame.
+// Returns 1 in r24 for a whole frame, 0 the moment any edge wait times out, and
+// the caller then discards the partial frame. The whole frame lives in assembly
+// because the gap the firmware can leave between two edges sets the fastest SQCK
+// it can follow: each wait reacts within one 7-cycle pass and the work between
+// the rising edge and the next falling-edge wait is about a dozen cycles, where
+// the earlier C capture spent over 50. The watchdog is kicked on every pass, so a
+// frame that keeps trickling in can never trip it, and every wait is bounded.
+	.global pscu_port_capture_frame
+	.func pscu_port_capture_frame
+pscu_port_capture_frame:
+	movw r26, r24
+30:
+	ldi r21, 8
+	clr r18
+31:
+	ldi r30, lo8(PSCU_SQCK_WAIT_POLLS)
+	ldi r31, hi8(PSCU_SQCK_WAIT_POLLS)
+32:
+	wdr
+	sbis _SFR_IO_ADDR(PSCU_PINREG), PSCU_PIN_SQCK
+	rjmp 33f
+	sbiw r30, 1
+	brne 32b
+	rjmp 36f
+33:
+	ldi r30, lo8(PSCU_SQCK_WAIT_POLLS)
+	ldi r31, hi8(PSCU_SQCK_WAIT_POLLS)
+34:
+	wdr
+	sbic _SFR_IO_ADDR(PSCU_PINREG), PSCU_PIN_SQCK
+	rjmp 35f
+	sbiw r30, 1
+	brne 34b
+	rjmp 36f
+35:
+	lsr r18
+	sbic _SFR_IO_ADDR(PSCU_PINREG), PSCU_PIN_SUBQ
+	ori r18, 0x80
+	dec r21
+	brne 31b
+	st X+, r18
+	dec r22
+	brne 30b
+	ldi r24, 1
+	ret
+36:
+	ldi r24, 0
 	ret
 	.endfunc
 

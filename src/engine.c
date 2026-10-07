@@ -28,8 +28,6 @@
 #define PSCU_DETECT_SETTLE_MS ((uint16_t)300U)
 // One SCEx bit cell is 4 ms (about 250 baud), the rate the mechacon expects.
 #define PSCU_BIT_MS ((uint16_t)4U)
-#define PSCU_SUBQ_BITS ((uint8_t)8U)
-#define PSCU_SUBQ_MSB ((uint8_t)0x80U)
 // SQCK idles high between frames and clocks one 96-bit burst per sector (75 per
 // second, so a frame every ~13.3 ms). Before each capture the chip waits until
 // SQCK has stayed high for one millisecond, which only happens in the gap between
@@ -46,47 +44,18 @@
 // The count stays unsigned long so no cast narrows it.
 #define PSCU_SQCK_IDLE_POLL_CYCLES (40UL)
 #define PSCU_SQCK_IDLE_POLLS (F_CPU / (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES))
-// Every SQCK wait gives up after 30 ms. That still covers the longest real wait,
-// the inter-frame gap before a burst's first edge (a frame every 13.3 ms at
-// single speed), yet a stopped drive fails a capture within about 60 ms, so the
-// run loop reads the lid at least that often and no disc swap can open and
-// close the lid unseen. The poll counts are 30 ms divided by the measured cost
-// of one pass: 32 cycles for either edge wait, 40 for the idle wait, from the
-// same listing as above.
+// The idle wait gives up after 30 ms, as do the edge waits inside the assembly
+// frame capture. That still covers the longest real wait, the inter-frame gap
+// before a burst's first edge (a frame every 13.3 ms at single speed), yet a
+// stopped drive fails a capture within about 60 ms, so the run loop reads the
+// lid at least that often and no disc swap can open and close the lid unseen.
+// The poll count is 30 ms divided by the 40-cycle idle pass measured above.
 #define PSCU_WAIT_MS (30UL)
-#define PSCU_SQCK_EDGE_POLL_CYCLES (32UL)
-#define PSCU_SQCK_EDGE_WAIT_POLLS ((F_CPU * PSCU_WAIT_MS) / (1000UL * PSCU_SQCK_EDGE_POLL_CYCLES))
 #define PSCU_SQCK_IDLE_WAIT_POLLS ((F_CPU * PSCU_WAIT_MS) / (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES))
 // A frame that could not be captured is filled with this value. Its TNO and ZERO
 // bytes are nonzero, so the pure SUBQ logic treats it as a miss and never as the
 // program area.
 #define PSCU_SUBQ_FAILED_BYTE ((uint8_t)0xFFU)
-
-// SUBQ is clocked by SQCK; each bit is valid across one low-then-high cycle.
-// These two helpers block until the next edge, bounded by 30 ms of polls.
-static bool pscu_wait_sqck_low(void) {
-  bool found = false;
-  for (uint32_t i = 0U; (i < PSCU_SQCK_EDGE_WAIT_POLLS) && !found; i++) {
-    if (pscu_port_read_sqck() == 0U) {
-      found = true;
-    } else {
-      pscu_port_watchdog_reset();
-    }
-  }
-  return found;
-}
-
-static bool pscu_wait_sqck_high(void) {
-  bool found = false;
-  for (uint32_t i = 0U; (i < PSCU_SQCK_EDGE_WAIT_POLLS) && !found; i++) {
-    if (pscu_port_read_sqck() != 0U) {
-      found = true;
-    } else {
-      pscu_port_watchdog_reset();
-    }
-  }
-  return found;
-}
 
 // Block until SQCK has read high for PSCU_SQCK_IDLE_POLLS consecutive polls,
 // meaning the clock is in the gap between frames. Any low restarts the count. The
@@ -103,28 +72,6 @@ static bool pscu_wait_sqck_idle(void) {
     pscu_port_watchdog_reset();
   }
   return quiet >= PSCU_SQCK_IDLE_POLLS;
-}
-
-// SUBQ arrives least-significant-bit first, so each new bit is shifted in at the
-// top (MSB) and the byte shifts right, leaving the first bit in bit 0 after 8.
-// Both edge waits are always made and the sample is taken right after the rising
-// edge, exactly as in the hardware-tested capture, so the time from edge to
-// sample is unchanged; a timed-out wait only marks the byte failed, and the loop
-// stops at the next bit boundary rather than clocking garbage.
-static bool pscu_capture_byte(uint8_t *value) {
-  uint8_t byte = 0U;
-  bool ok = true;
-  for (uint8_t bit = 0U; (bit < PSCU_SUBQ_BITS) && ok; bit++) {
-    bool low = pscu_wait_sqck_low();
-    bool high = pscu_wait_sqck_high();
-    byte = (uint8_t)(byte >> 1U);
-    if (pscu_port_read_subq() != 0U) {
-      byte = (uint8_t)(byte | PSCU_SUBQ_MSB);
-    }
-    ok = low && high;
-  }
-  *value = byte;
-  return ok;
 }
 
 // Drive one SCEx bit onto DATA. A zero is always a hard low. A one is high-Z on
@@ -182,15 +129,17 @@ pscu_board_mode_t pscu_engine_detect_board(void) {
   return pscu_board_detect_mode(state, PSCU_DETECT_PULSES);
 }
 
-// Wait for the inter-frame gap, then clock in one whole frame. If the gap never
-// comes or any edge times out, the frame is filled with PSCU_SUBQ_FAILED_BYTE so
-// the logic layer reads it as a miss; a partial frame is never passed on.
+// Wait for the inter-frame gap, then clock in one whole frame. The bits are
+// clocked in by the port layer in assembly, where the time between edges is
+// short enough to follow a fast SQCK. If the gap never comes or any edge times
+// out, the frame is filled with PSCU_SUBQ_FAILED_BYTE so the logic layer reads it
+// as a miss; a partial frame is never passed on.
 void pscu_engine_capture_frame(uint8_t *frame) {
   PSCU_ASSERT(frame != NULL);
 
   bool ok = pscu_wait_sqck_idle();
-  for (uint8_t byte = 0U; (byte < PSCU_SUBQ_FRAME_BYTES) && ok; byte++) {
-    ok = pscu_capture_byte(&frame[byte]);
+  if (ok) {
+    ok = pscu_port_capture_frame(frame, PSCU_SUBQ_FRAME_BYTES) != 0U;
   }
   if (!ok) {
     for (uint8_t byte = 0U; byte < PSCU_SUBQ_FRAME_BYTES; byte++) {

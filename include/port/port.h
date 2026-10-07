@@ -17,7 +17,11 @@ void pscu_port_watchdog_reset(void);
 
 uint8_t pscu_port_read_sqck(void);
 
-uint8_t pscu_port_read_subq(void);
+// Clock in `count` SUBQ bytes, least significant bit first, sampling on each
+// SQCK rising edge. Returns nonzero for a whole frame and zero as soon as any
+// edge wait times out after 30 ms. The caller waits for the inter-frame gap
+// first, so the first falling edge starts the frame.
+uint8_t pscu_port_capture_frame(uint8_t *frame, uint8_t count);
 
 uint8_t pscu_port_read_wfck(void);
 

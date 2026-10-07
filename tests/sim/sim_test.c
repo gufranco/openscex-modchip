@@ -25,6 +25,10 @@
 #define SUBQ_BITS 8
 // Half-period of the SQCK clock we fake while shifting a SUBQ frame.
 #define EDGE_CYCLES 60
+// A fast SQCK the firmware must still follow: 20 cycles, about 4.7 us per half
+// period at 4.2336 MHz. The assembly capture follows down to about 2.8 us; the
+// earlier C capture failed below about 13 us, so this frame rate pins the margin.
+#define FAST_EDGE_CYCLES 20
 // Idle-high SQCK gap after each frame. A console clocks one frame per sector at
 // 75 Hz, so bursts are separated by most of ~13.3 ms; the firmware resyncs on a
 // gap of at least 1 ms, and 9.4 ms sits clearly inside the real gap.
@@ -84,6 +88,8 @@ static int g_led_seen = 0;
 // The LED rises once per region string, so counting rises counts strings.
 static int g_led_rises = 0;
 static uint64_t g_led_cycle = 0;
+// The SQCK half-period the harness clocks frames with, normally EDGE_CYCLES.
+static uint64_t g_edge_cycles = EDGE_CYCLES;
 
 typedef struct {
   avr_irq_t *irq;
@@ -183,9 +189,9 @@ static void clock_frame(avr_t *avr, const target_t *t, const uint8_t *frame) {
     for (int bit = 0; bit < SUBQ_BITS; bit++) {
       avr_raise_irq(subq, (uint8_t)((frame[byte] >> bit) & 1U));
       avr_raise_irq(sqck, 0U);
-      run_cycles(avr, EDGE_CYCLES);
+      run_cycles(avr, g_edge_cycles);
       avr_raise_irq(sqck, 1U);
-      run_cycles(avr, EDGE_CYCLES);
+      run_cycles(avr, g_edge_cycles);
     }
   }
   // Idle the clock for the inter-frame gap, but stop early the moment the LED
@@ -410,9 +416,9 @@ static void clock_partial(avr_t *avr, const target_t *t, int bits) {
   for (int bit = 0; bit < bits; bit++) {
     avr_raise_irq(subq, (uint8_t)(bit & 1));
     avr_raise_irq(sqck, 0U);
-    run_cycles(avr, EDGE_CYCLES);
+    run_cycles(avr, g_edge_cycles);
     avr_raise_irq(sqck, 1U);
-    run_cycles(avr, EDGE_CYCLES);
+    run_cycles(avr, g_edge_cycles);
   }
 }
 
@@ -716,6 +722,16 @@ static void scenario_lid(const target_t *t, const char *elf, uint32_t freq) {
   check(driven == 0, label);
 }
 
+// The console's real SQCK rate is not documented anywhere this project cites,
+// so the capture has to keep a wide margin. Drive a whole injection on a legacy
+// board with frames clocked at FAST_EDGE_CYCLES and require the region word to
+// decode, then restore the normal rate for the scenarios that follow.
+static void scenario_fast_sqck(const target_t *t, const char *elf, uint32_t freq) {
+  g_edge_cycles = FAST_EDGE_CYCLES;
+  scenario_inject(t, elf, freq, 0, 1, WFCK_HZ, "fast SQCK, 4.7 us half period");
+  g_edge_cycles = EDGE_CYCLES;
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 3) {
     (void)fprintf(stderr, "usage: %s elf freq_hz [vcd_elf]\n", argv[0]);
@@ -742,6 +758,7 @@ int main(int argc, char *argv[]) {
   scenario_stall(&t84, elf, freq);
   scenario_multidisc(&t84, elf, freq);
   scenario_lid(&t84, elf, freq);
+  scenario_fast_sqck(&t84, elf, freq);
 
   // The optional third argument is the SCPH-5903 Video-CD image.
   if (argc >= 4) {
