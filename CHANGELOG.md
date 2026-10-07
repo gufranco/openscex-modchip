@@ -3,99 +3,99 @@
 
 ### Bug Fixes
 
-* hold the burst through a low supply reading ([f1e5561](https://github.com/gufranco/openscex-modchip/commit/f1e5561ac83683bb6cb863957754a8bf7b2f242a))
-* set the supply limit for a high bandgap ([47d9161](https://github.com/gufranco/openscex-modchip/commit/47d9161fdc2b7ff9a8bf88b07b41c384ed543574)), closes [hi#reading](https://github.com/hi/issues/reading)
+* hold the burst through a low supply reading ([e781eae](https://github.com/gufranco/openscex-modchip/commit/e781eae5c288f58118fd619aafe9875c41daf57b))
+* set the supply limit for a high bandgap ([c269a02](https://github.com/gufranco/openscex-modchip/commit/c269a028931c85d363377f5907d7eb6311d513e4))
 
 # [0.10.0](https://github.com/gufranco/openscex-modchip/compare/v0.9.0...v0.10.0) (2026-10-07)
 
 
 ### Features
 
-* confirm gate boards before each string ([3004aef](https://github.com/gufranco/openscex-modchip/commit/3004aefeaf56109139cec6b376c49ac8cbccfe51))
-* hold strings on a low supply ([c61e3e0](https://github.com/gufranco/openscex-modchip/commit/c61e3e01ab6b56da1218a96dd05eb31445f02356))
+* confirm gate boards before each string ([a3578ce](https://github.com/gufranco/openscex-modchip/commit/a3578ce4c20fa643c860bd2270ca996fcb5cb141))
+* hold strings on a low supply ([ede183b](https://github.com/gufranco/openscex-modchip/commit/ede183bbd1c7d0d0dca11b7770e8493f311a7b95))
 
 # [0.9.0](https://github.com/gufranco/openscex-modchip/compare/v0.8.0...v0.9.0) (2026-10-07)
 
 
 ### Features
 
-* target the attiny85 only ([c9a1665](https://github.com/gufranco/openscex-modchip/commit/c9a16655de710d2fcff159a8dca31cc3aaeabb9c))
+* target the attiny85 only ([ed81a23](https://github.com/gufranco/openscex-modchip/commit/ed81a2361d43dc49d244552417332b95188ae3ff))
 
 # [0.8.0](https://github.com/gufranco/openscex-modchip/compare/v0.7.0...v0.8.0) (2026-10-07)
 
 
 ### Features
 
-* drop the lid wire, see swaps in subq ([b7f7756](https://github.com/gufranco/openscex-modchip/commit/b7f775625a850925cc32c5b9948f81e2594aa020))
+* drop the lid wire, see swaps in subq ([a63d158](https://github.com/gufranco/openscex-modchip/commit/a63d15835507f5b9157b971638592dc99b4dc4a3))
 
 # [0.7.0](https://github.com/gufranco/openscex-modchip/compare/v0.6.0...v0.7.0) (2026-10-07)
 
 
 ### Features
 
-* internal oscillator trim, pu-7 and pu-8 ([27d3df4](https://github.com/gufranco/openscex-modchip/commit/27d3df437f2c872ac86cc6ba09d7a6434a096572))
+* internal oscillator trim, pu-7 and pu-8 ([9f10e6e](https://github.com/gufranco/openscex-modchip/commit/9f10e6e91b709472c086f1db5ac88cb12af160a4))
 
 # [0.6.0](https://github.com/gufranco/openscex-modchip/compare/v0.5.0...v0.6.0) (2026-10-07)
 
 
 ### Features
 
-* string gap, gate drive and jp start ([f7b6be7](https://github.com/gufranco/openscex-modchip/commit/f7b6be765bbdca61cf950d1ad2a8068c39f3ec6f))
+* string gap, gate drive and jp start ([611c140](https://github.com/gufranco/openscex-modchip/commit/611c1409eedf9d9b5d68ead510b9d9fb945a30bb))
 
 # [0.5.0](https://github.com/gufranco/openscex-modchip/compare/v0.4.0...v0.5.0) (2026-10-07)
 
 
 ### Features
 
-* learn per-console string cap and start ([198cadf](https://github.com/gufranco/openscex-modchip/commit/198cadffe12bb00786c57ad66ab2d45796dd81dd))
+* learn per-console string cap and start ([9d5e043](https://github.com/gufranco/openscex-modchip/commit/9d5e04319491bb19d3264384547c1e57d8d65f89))
 
 # [0.4.0](https://github.com/gufranco/openscex-modchip/compare/v0.3.1...v0.4.0) (2026-10-07)
 
 
 ### Features
 
-* led stage and result codes ([e93dd01](https://github.com/gufranco/openscex-modchip/commit/e93dd011aca7498d87c135065bb79310d061326a))
+* led stage and result codes ([ed605bd](https://github.com/gufranco/openscex-modchip/commit/ed605bd966f0f591591f7b78448f521c3fb19467))
 
 ## [0.3.1](https://github.com/gufranco/openscex-modchip/compare/v0.3.0...v0.3.1) (2026-10-07)
 
 
 ### Bug Fixes
 
-* **capture:** follow a fast sqck in assembly ([b2284d8](https://github.com/gufranco/openscex-modchip/commit/b2284d8a3fd572ec632860ac8cc220fe6470eb76))
-* **diag:** record a failed disc when the lid opens ([558432d](https://github.com/gufranco/openscex-modchip/commit/558432d6239aa8ee34233591d6c8b4bcdd5bfffc))
+* **capture:** follow a fast sqck in assembly ([2570f18](https://github.com/gufranco/openscex-modchip/commit/2570f18dd8dcf6a9135143eef3bc260608d55ae4))
+* **diag:** record a failed disc when the lid opens ([c26e6b5](https://github.com/gufranco/openscex-modchip/commit/c26e6b52e5dcf7c5351a90c3075796bb52899a74))
 
 # [0.3.0](https://github.com/gufranco/openscex-modchip/compare/v0.2.0...v0.3.0) (2026-10-06)
 
 
 ### Features
 
-* attiny84 on the console clock, lid wire ([3f432d1](https://github.com/gufranco/openscex-modchip/commit/3f432d1fe77262fa06ee23d13248958e3958ff0d))
+* attiny84 on the console clock, lid wire ([af33cd7](https://github.com/gufranco/openscex-modchip/commit/af33cd70fa35eda57ad075d4c79abb0be7b16d63))
 
 # [0.2.0](https://github.com/gufranco/openscex-modchip/compare/v0.1.0...v0.2.0) (2026-10-06)
 
 
 ### Features
 
-* **stealth:** stop once the console accepts ([33eece2](https://github.com/gufranco/openscex-modchip/commit/33eece2bdd3e9667af307dda24ff39346d878566))
+* **stealth:** stop once the console accepts ([c3723ac](https://github.com/gufranco/openscex-modchip/commit/c3723ac778b52889f7c0d2e4d249291fa5921bb2))
 
 # [0.1.0](https://github.com/gufranco/openscex-modchip/compare/v0.0.1...v0.1.0) (2026-10-06)
 
 
 ### Features
 
-* **subq:** add the SCPH-5903 video CD filter ([8e057d4](https://github.com/gufranco/openscex-modchip/commit/8e057d49a07d359a17d742aeaf69e393688f332e))
+* **subq:** add the SCPH-5903 video CD filter ([601b0fc](https://github.com/gufranco/openscex-modchip/commit/601b0fce14fdde4ffc43dde766e82ea32e2f2621))
 
 ## [0.0.1](https://github.com/gufranco/openscex-modchip/compare/v0.0.0...v0.0.1) (2026-10-06)
 
 
 ### Bug Fixes
 
-* **bios:** bound patch waits, fall back to SCEx ([03913f5](https://github.com/gufranco/openscex-modchip/commit/03913f595445c88f0c395245eb6d225f54fb83ec))
-* **bios:** use each model's own patch constants ([bedbec7](https://github.com/gufranco/openscex-modchip/commit/bedbec724b9ae6dd897bcea5cfb21892ed16148a))
-* **diag:** log each session, skip unchanged bytes ([3c0826d](https://github.com/gufranco/openscex-modchip/commit/3c0826ddf940f9427975af6f31f2a8dab732aaea))
-* **engine:** let WFCK settle before board detect ([45f23eb](https://github.com/gufranco/openscex-modchip/commit/45f23eb77955a362bc63c9e18a49c12a77f05e26)), closes [hi#Z](https://github.com/hi/issues/Z)
-* **engine:** resync SUBQ capture on the frame gap ([23d91d6](https://github.com/gufranco/openscex-modchip/commit/23d91d6adf5f64820a52998ef13630eff9d87dff))
-* keep the new wait loops MISRA-clean ([a07f119](https://github.com/gufranco/openscex-modchip/commit/a07f119421f504de1da7672ba6dd77420cae0332)), closes [#if](https://github.com/gufranco/openscex-modchip/issues/if)
-* **port:** reset the chip when WFCK stalls ([88ef016](https://github.com/gufranco/openscex-modchip/commit/88ef016efac83377b8ac9738d7b62c2e66bb4b99)), closes [hi#Z](https://github.com/hi/issues/Z)
-* **subq:** admit lead-in minutes 98 and 99 ([7d9c0bc](https://github.com/gufranco/openscex-modchip/commit/7d9c0bcdf06ebdbf52c4917685b17dea3be86cf2))
-* **subq:** detect the program area by track number ([cfc329e](https://github.com/gufranco/openscex-modchip/commit/cfc329e7923000683a7991bf98c12e754b45d901))
+* **bios:** bound patch waits, fall back to SCEx ([b95f5f9](https://github.com/gufranco/openscex-modchip/commit/b95f5f9011b69208a7e810e7e97a1822e8289967))
+* **bios:** use each model's own patch constants ([2c14737](https://github.com/gufranco/openscex-modchip/commit/2c14737e90e1e716a670c5156275d599473c07f2))
+* **diag:** log each session, skip unchanged bytes ([b44e584](https://github.com/gufranco/openscex-modchip/commit/b44e584d243ea303b3e2d21641d0f55294978462))
+* **engine:** let WFCK settle before board detect ([ff298fe](https://github.com/gufranco/openscex-modchip/commit/ff298fe7946bb3971820e67f686a263266c5633a))
+* **engine:** resync SUBQ capture on the frame gap ([b4fe8b4](https://github.com/gufranco/openscex-modchip/commit/b4fe8b452b1141d6fd28912a088a25536f5b52b4))
+* keep the new wait loops MISRA-clean ([f4c3c19](https://github.com/gufranco/openscex-modchip/commit/f4c3c19a1a716a312b373d14978a6a4c79e8858b)), closes [#if](https://github.com/gufranco/openscex-modchip/issues/if)
+* **port:** reset the chip when WFCK stalls ([c2b89fa](https://github.com/gufranco/openscex-modchip/commit/c2b89fa0c5aa809e499319745d05ae2370d543fe))
+* **subq:** admit lead-in minutes 98 and 99 ([4270f07](https://github.com/gufranco/openscex-modchip/commit/4270f07d6a262a1c07d46b4535e408e315b3b6c4))
+* **subq:** detect the program area by track number ([b8e61eb](https://github.com/gufranco/openscex-modchip/commit/b8e61eb34880b551e85f110a051e9d1c1bb42214))
