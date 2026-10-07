@@ -22,7 +22,7 @@ English | [日本語](README.ja.md) | [中文](README.zh.md)
   <a href="../../issues/new?template=compatibility.yml">Report your console</a>
 </p>
 
-**2652** bytes of flash · **6** board families, PU-18 to PM-41(2) · **3** regions · **0** MISRA deviations · **100%** host line and branch coverage · **88/88** mutants killed
+**3480** bytes of flash · **6** board families, PU-18 to PM-41(2) · **3** regions · **0** MISRA deviations · **100%** host line and branch coverage · **121/121** mutants killed
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny84.hex' --pattern SHA256SUMS
@@ -39,7 +39,7 @@ Region-unlock firmware for the original Sony PlayStation (fat) and PSone, on an 
 |:--|:--|
 | **Silent after acceptance**<br>The first program-area frame stops injection, mid-string included, and the chip stays silent until the lid opens. | **Exact disc swaps**<br>A lid wire stops a string within 4 ms of opening and re-arms the chip on close, for every disc of a multi-disc game. |
 | **Console-locked timing**<br>The chip runs from the console's 4.2336 MHz clock, never its own oscillator. | **One region, one window**<br>Only the configured region string, only inside the SUBQ region-check window, at most 16 strings per arming. |
-| **Status LED codes**<br>One LED shows each boot stage, every disc's result and any live wiring fault as counted flashes, with nothing stored. | **Proven in code**<br>MISRA C:2012 clean, 100% host coverage, a simavr console model, mutation testing, byte-identical rebuilds. |
+| **Status LED codes**<br>One LED shows each boot stage, every disc's result and any live wiring fault as counted flashes. | **Proven in code**<br>MISRA C:2012 clean, 100% host coverage, a simavr console model, mutation testing, byte-identical rebuilds. |
 
 ## How it works
 
@@ -58,10 +58,12 @@ graph LR
         ST[Stealth state machine]
         INJ[SCEx injector]
         LED[Status LED]
+        CAL[Per-console calibration]
     end
     CD -->|SQCK, SUBQ| CAP
     CAP --> DET --> ST --> INJ
     ST --> LED
+    ST <-->|cap, start| CAL
     LID -->|lid line| ST
     WF -->|gate or carrier| INJ
     CLK -->|CLKI| ATtiny84
@@ -78,6 +80,7 @@ graph LR
 | Boot-ROM BIOS patch | no, use a patched BIOS | yes, ATmega builds | no | no |
 | Boards | PU-18 to PM-41(2) | PU-7 to PM-41(2) | PU-18 and later | PU-7 and later |
 | Diagnostics | LED stage and result codes | serial debug | none | none |
+| Per-console learning | string cap and start point | none | none | none |
 | Tests and static analysis | host, simavr, mutation, MISRA | none | none | none |
 | Field record | 2 boards, earlier firmware | years | decades | decades |
 
@@ -119,7 +122,8 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 | Adaptive timing | on WFCK-carrier boards the injection bit is timed by counting WFCK periods; `TIMING=fixed` uses the console-clocked delay instead |
 | Self-recovery | each SUBQ capture realigns on the gap between frames and gives up after 30 ms; a WFCK carrier that stalls mid-injection lets the watchdog release DATA; a missing lid wire reads as open, so the chip stays silent instead of injecting blind |
 | Status LED | an optional LED on its own pin shows the boot stages, each disc's result and live faults as counted flashes; the firmware never waits on it and is correct with no LED fitted |
-| In-field diagnostics | no programmer needed: the LED codes name the failing stage, from a missing lid wire to a SUBQ line that never shows a region check; the firmware never writes EEPROM |
+| In-field diagnostics | no programmer needed: the LED codes name the failing stage, from a missing lid wire to a SUBQ line that never shows a region check; nothing is read back with a programmer |
+| Per-console calibration | learns how many strings this console needs and how late it can start, kept in a six-byte EEPROM record that falls back to the defaults when missing or damaged |
 | Closed-loop confirmation | after injecting, the chip watches SUBQ for a program-area frame (a real track number), which the mechacon only allows once it accepts the region string, and shows whether the region check passed |
 | Verification | host tests 100% line and branch coverage, simavr console model at the console clock, mutation testing, reproducible builds |
 
@@ -189,6 +193,18 @@ The SCEx signals keep PsNee's tested order, read from PsNee `MCU.h`; the clock a
 | 12 | PA1 | SUBQ | in | SUBQ serial data |
 | 13 | PA0 | SQCK | in | SUBQ serial clock |
 | 14 | GND | GND | - | console ground |
+
+## Per-console calibration
+
+The chip learns how the console it is installed in reads the region string and keeps the result in a six-byte EEPROM record, so later discs spend less time with the data line driven. Every learned value only ever falls back toward the fixed defaults, so a lost, damaged or foreign record costs stealth, never a disc.
+
+| Value | Learned from | Effect |
+|:------|:-------------|:-------|
+| String cap | the strings an accepted disc needed, plus 4 | later discs get at most that many strings instead of 16; a refused disc restores 16 from the next disc on |
+| Start point | each accepted disc moves the start 2 lead-in frames, 27 ms, later, up to 20 frames | strings start closer to the region check; a refusal, or a lead-in read that ends before the start, steps back 2 frames and stops the probe |
+| Board | the board detected at boot | a different board shows code 7 once and restarts the other two values |
+
+The chip writes only a byte whose value changed, only at boot or after a disc's check has resolved, never while a string is being sent, so a console that has settled writes nothing. The cell endurance is 100,000 writes (Read: ATtiny24A/44A/84A datasheet DS40002269A). A check byte catches a record cut short by a power-off, which then reads as the defaults. Reflashing erases the record too, because both fuse sets above leave EESAVE unprogrammed (Read: the same datasheet, Table 19-4, high fuse bit 3). The margin of 4 strings, the 2-frame step and the 20-frame bound are design choices, not yet tuned on a console.
 
 ## Console tap points
 
@@ -269,7 +285,7 @@ The same gates run in CI on every push and pull request, defined in [`.github/wo
 
 ## Status LED
 
-The LED is optional and is the chip's only diagnostic channel: it shows which stage the chip is in, whether each disc passed its region check, and which wire to look at when something is wrong. It never delays or gates a feature, and nothing is stored, so a code is always about now.
+The LED is optional and is the chip's only diagnostic channel: it shows which stage the chip is in, whether each disc passed its region check, and which wire to look at when something is wrong. It never delays or gates a feature and keeps no history, so a code is about now, except the two boot codes.
 
 | Part | Choice |
 |:-----|:-------|
@@ -295,6 +311,7 @@ Codes are long 700 ms flashes, 300 ms apart, with a 2 s pause before the code re
 | 4 | no SUBQ frame for 5 s with the lid closed; repeats while it holds | the clock wire, SQCK, power and ground |
 | 5 | frames arrive but no region check for 20 s; repeats while it holds | SUBQ; also normal with no disc or an audio CD |
 | 6 | the watchdog reset the chip, shown once at the next boot | WFCK, which stalled mid-injection |
+| 7 | the board differs from the one the calibration stored, shown once at boot; code 6 takes priority | the WFCK wire, which is intermittent, unless the chip moved to another console |
 
 ## Safety
 
