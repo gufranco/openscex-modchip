@@ -4,7 +4,7 @@
 # clangd configuration for editor IntelliSense (clangd extension, ccls, Neovim).
 # The firmware is built by avr-gcc inside the pinned Docker toolchain, which the
 # host clangd cannot invoke, so there is no compile_commands.json. The logic and
-# platform C never include an avr/ header (registers live only in src/port.S),
+# platform C never include an avr/ header (registers live only in src/port.S and src/port_chip.S),
 # so host clangd parses every C translation unit correctly once it is given the
 # include path, the C standard, and the default build variant's defines. These
 # mirror the Makefile default: ATtiny85 on the internal 8 MHz oscillator, region
