@@ -281,6 +281,8 @@ Releases follow [Semantic Versioning](https://semver.org/) on the `0.x` line, wh
 |:-----|:------|
 | Bug report | [bug template](../../issues/new?template=bug.yml) |
 | Result on your console | [compatibility report](../../issues/new?template=compatibility.yml) |
+| Security report | [security policy](SECURITY.md), reported privately |
+| Contributing | [contribution guide](CONTRIBUTING.md) |
 
 ## License
 

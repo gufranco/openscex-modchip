@@ -281,6 +281,8 @@ avrdude -c <programmer> -p attiny84 -U eeprom:r:diag.bin:r
 |:-----|:-----|
 | バグ報告 | [バグ用テンプレート](../../issues/new?template=bug.yml) |
 | あなたの機種での結果 | [互換性レポート](../../issues/new?template=compatibility.yml) |
+| セキュリティ報告 | [セキュリティポリシー](SECURITY.md)、非公開で報告 |
+| 貢献 | [コントリビューションガイド](CONTRIBUTING.md) |
 
 ## ライセンス
 
