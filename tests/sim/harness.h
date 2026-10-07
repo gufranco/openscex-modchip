@@ -86,10 +86,18 @@ extern const char SCEI_BITS[SCEX_BITS + 1];
 #define MAX_PULSES 512
 
 // OSCCAL, the oscillator calibration register, at data address 0x51 (Read:
-// ATtiny24A/44A/84A datasheet, register summary, 0x31 (0x51)). simavr does not
+// ATtiny25/45/85 datasheet 2586Q, register summary, 0x31 (0x51)). simavr does not
 // load a factory value, so the harness presets a mid-range one the firmware
 // reads as factory at boot; writes to it do not change simavr's speed.
 #define SIM_OSCCAL_ADDR 0x51U
+// Timer1 on the ATtiny85: TCCR1 at 0x50 and TCNT1 at 0x4F (Read: ATtiny25/45/85
+// datasheet 2586Q, register summary). simavr's ATtiny85 model does not run this
+// timer at any prescaler (measured: TCNT1 held one value through 100000 cycles
+// for every CS setting), so the harness answers TCNT1 reads itself, from the
+// cycle count and the prescaler TCCR1 selects, as the datasheet describes for
+// the synchronous clocking mode: CK divided by 2^(CS - 1).
+#define SIM_TCCR1_ADDR 0x50U
+#define SIM_TCNT1_ADDR 0x4FU
 #define SIM_OSCCAL_FACTORY 0x50U
 // The 75 Hz single-speed sector rate a console reads the lead-in at.
 #define SIM_SECTOR_NS 13333333ULL

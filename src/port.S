@@ -45,9 +45,11 @@
 // Bring the chip up. Writing 0x80 then 0x00 to CLKPR within four cycles is the
 // AVR timed sequence that clears the clock prescaler, so the core runs at the
 // full 8 MHz regardless of the factory CKDIV8 fuse. LED is the only
-// output at boot, and every unused pin gets its pull-up so none floats.
-// Timer1 starts free-running at the clock divided by 1024 as the LED's time
-// base; it drives no pin and raises no interrupt. The two writes to the watchdog register are its own timed sequence: the first
+// output at boot. Timer1 starts free-running at the clock divided by 16384, its
+// slowest synchronous setting (Read: ATtiny25/45/85 datasheet 2586Q, Table 12-5,
+// CS13:0 = 1111), as the time base for the LED and the oscillator trim; it
+// drives no pin and raises no interrupt. The two writes to the watchdog register
+// are its own timed sequence: the first
 // arms the change, the second enables the watchdog at a ~0.5 s timeout
 // (WDP2|WDP0), so any hang longer than one loop pass resets the chip instead of
 // wedging it. The watchdog runs from its own 128 kHz oscillator, so its timeout
@@ -64,11 +66,8 @@ pscu_port_init:
 	out _SFR_IO_ADDR(PSCU_DDR), r24
 	ldi r24, PSCU_PORT_INIT
 	out _SFR_IO_ADDR(PSCU_PORT), r24
-	ldi r24, PSCU_PORTB_INIT
-	out _SFR_IO_ADDR(PORTB), r24
-	out _SFR_IO_ADDR(TCCR1A), r1
-	ldi r24, (1 << CS12) | (1 << CS10)
-	out _SFR_IO_ADDR(TCCR1B), r24
+	ldi r24, (1 << CS13) | (1 << CS12) | (1 << CS11) | (1 << CS10)
+	out _SFR_IO_ADDR(TCCR1), r24
 	wdr
 	ldi r24, (1 << WDCE) | (1 << WDE)
 	out _SFR_IO_ADDR(PSCU_WDT_REG), r24
@@ -266,17 +265,17 @@ pscu_port_capture_frame:
 	ret
 	.endfunc
 
-// A free-running clock for the status LED and the oscillator trim. Timer1
-// counts the clock divided by 1024, one tick every 128 us at 8 MHz, and wraps
-// every 8.4 s, far longer than any pass of the run loop, so the difference of
-// two readings is always the time between them. Reading TCNT1L first latches TCNT1H, which the
-// datasheet requires for a consistent 16-bit read. The LED patterns are drawn
-// from this count, so they never cost a delay.
+// A free-running clock for the status LED and the oscillator trim. The
+// ATtiny85's Timer1 is 8-bit: at the clock divided by 16384 it ticks every
+// 2.048 ms at 8 MHz and wraps every 524 ms, longer than any pass of the run loop
+// (a region string is 176 ms, a failed capture about 60 ms, the EEPROM store
+// about 24 ms), so the difference of two readings is always the time between
+// them. The LED patterns are drawn from this count, so they never cost a
+// delay.
 	.global pscu_port_ticks
 	.func pscu_port_ticks
 pscu_port_ticks:
-	in r24, _SFR_IO_ADDR(TCNT1L)
-	in r25, _SFR_IO_ADDR(TCNT1H)
+	in r24, _SFR_IO_ADDR(TCNT1)
 	ret
 	.endfunc
 
@@ -289,7 +288,7 @@ pscu_port_ticks:
 // The oscillator calibration register. Hardware loads the factory value into it
 // at every reset, so reading it at boot gives the factory value; writing it
 // retunes the internal 8 MHz oscillator at once. The caller moves it one step at
-// a time, as the datasheet asks (DS40002269A, OSCCAL: change in small steps, a
+// a time, as the datasheet asks (ATtiny25/45/85 datasheet 2586Q, OSCCAL: change in small steps, a
 // cycle-to-cycle variation over 2 percent is unpredictable).
 	.global pscu_port_osccal_read
 	.func pscu_port_osccal_read
@@ -317,7 +316,7 @@ pscu_port_reset_was_watchdog:
 // EEPROM primitives for the calibration record. The EEPROM is reached through
 // EECR, EEDR and EEAR. Before touching it, each call waits for EEPE to clear,
 // meaning any earlier write has finished. An erase-and-write takes 3.4 ms (Read:
-// ATtiny24A/44A/84A datasheet DS40002269A, Table 5-1, EEPM 00, the mode reset
+// ATtiny25/45/85 datasheet 2586Q, Table 5-1, EEPM 00, the mode reset
 // leaves selected), so the wait gives up after 10 ms rather than trusting the
 // flag forever; one pass is 6 cycles (wdr 1, the non-skipping sbis 1, sbiw 2, a
 // taken brne 2). The watchdog is kicked inside the wait, which the bound keeps

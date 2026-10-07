@@ -38,12 +38,13 @@
 // Polling for continuous idle rather than sleeping a fixed time also realigns
 // when the previous capture ended inside a burst, as it can at boot or after the
 // blocking injection. The poll count is the millisecond divided by the cost of
-// one idle pass of pscu_wait_sqck_idle with SQCK high: 40 cycles, counted from
-// the avr-gcc 14.2 -Os listing of the ATtiny84 image (the read and watchdog
-// calls are rcall plus ret, 3 and 4 cycles on the ATtiny core; the 32-bit quiet
-// count and the bound compare add the rest). Recount it if the loop changes.
-// The count stays unsigned long so no cast narrows it.
-#define PSCU_SQCK_IDLE_POLL_CYCLES (40UL)
+// one idle pass of pscu_wait_sqck_idle with SQCK high: 41 cycles, counted from
+// the avr-gcc 14.2 -Os listing of the ATtiny85 image (the SQCK read call 9, the
+// 32-bit quiet increment 5, its high-branch compare 3, the watchdog call 8, the
+// wait bound 9, and the quiet compare and taken branch back 7; rcall is 3 cycles
+// and ret 4 on this core). Recount it if the loop changes. The count stays
+// unsigned long so no cast narrows it.
+#define PSCU_SQCK_IDLE_POLL_CYCLES (41UL)
 #define PSCU_SQCK_IDLE_POLLS (F_CPU / (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES))
 // The idle wait gives up after 30 ms, as do the edge waits inside the assembly
 // frame capture. That still covers the longest real wait, the inter-frame gap

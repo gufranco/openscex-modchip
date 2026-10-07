@@ -248,14 +248,14 @@ static const board_family_t FAMILIES[] = {
 // it. Each call is a fresh power-on, so one frame kind is judged on its own.
 static void vcd_case(
     const char *elf, uint32_t freq, const uint8_t *frame, const char *expect, const char *what) {
-  target_t t84 = { "attiny84", 'A', 0U, 1U, 2U, 4U, 3U };
-  avr_t *avr = build_avr(&t84, elf, freq);
+  target_t t85 = { "attiny85", 'B', 0U, 1U, 2U, 3U, 4U };
+  avr_t *avr = build_avr(&t85, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
   g_led_seen = 0;
   g_led_cycle = 0;
-  avr_irq_register_notify(pin_irq(avr, &t84, t84.led), on_led, avr);
-  boot_quiet(avr, &t84, 0, &ctx);
-  clock_until_inject(avr, &t84, frame);
+  avr_irq_register_notify(pin_irq(avr, &t85, t85.led), on_led, avr);
+  boot_quiet(avr, &t85, 0, &ctx);
+  clock_until_inject(avr, &t85, frame);
   uint64_t deadline = avr->cycle + LED_DEADLINE;
   while ((g_led_seen == 0) && (avr->cycle < deadline)) {
     run_cycles(avr, 2000U);
@@ -270,7 +270,7 @@ static void vcd_case(
   check(g_led_seen != 0, label);
   if (g_led_seen != 0) {
     char decoded[SCEX_BITS + 1];
-    decode_region(avr, &t84, 0, BIT_CYCLES(freq), decoded);
+    decode_region(avr, &t85, 0, BIT_CYCLES(freq), decoded);
     (void)snprintf(label, sizeof(label), "vcd build: decodes SCEI at %u Hz", freq);
     check(strcmp(decoded, expect) == 0, label);
   }

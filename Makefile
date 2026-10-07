@@ -5,19 +5,20 @@ PYTHON ?= python3
 BUILD := build
 NAME := openscex-modchip
 
-# The ATtiny84 is the only target: its spare pins carry the mandatory lid line
-# without displacing the LED, which the 8-pin ATtiny85 cannot do.
-MCU := attiny84
+# The ATtiny85 is the only target: with no clock and no lid wire, its five free
+# pins carry the four SCEx signals and the LED, and PB5 stays RESET.
+MCU := attiny85
 FLASH_BYTES := 8192
 
 # The chip runs from its internal 8 MHz RC oscillator (CKSEL 0010, low fuse
 # 0xE2), so it needs no clock wire and can be reprogrammed off the console. The
 # factory calibration is guaranteed to +-10 percent and user calibration reaches
-# +-1 percent (Read: ATtiny24A/44A/84A datasheet DS40002269A, Table 20-2); the
+# +-1 percent (Read: ATtiny25/45/85 datasheet 2586Q, Table 21-2); the
 # firmware trims OSCCAL against the SUBQ frame rate, which the console's crystal
-# sets. PsNee ships on the same factory-calibrated internal oscillator. 8 MHz
-# needs about 2.4 V by the speed grade (0-4 MHz from 1.8 V, 0-10 MHz from 2.7
-# V), so the documented fuses enable brown-out detection at 2.7 V.
+# sets. PsNee ships on the same factory-calibrated internal oscillator. The
+# standard ATtiny85 runs 0-10 MHz from 2.7 V (Read: the same datasheet, speed
+# grade; only the V part reaches down to 1.8 V), so the documented fuses enable
+# brown-out detection at 2.7 V, which holds the chip in reset below its rating.
 F_CPU := 8000000UL
 
 # Injection bit timing. adaptive (default) locks the WFCK-carrier injection bit
@@ -109,7 +110,7 @@ LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c src/led.c src/c
 HOST_LOGIC_C := $(LOGIC_C)
 
 FIRMWARE_C := $(LOGIC_C) src/engine.c src/run.c src/main.c
-CPPCHECK_MCU_DEF := -D__AVR_ATtiny84__
+CPPCHECK_MCU_DEF := -D__AVR_ATtiny85__
 
 ALL_SRC_C := $(FIRMWARE_C)
 FIRMWARE_S := src/port.S
@@ -178,8 +179,8 @@ $(HOST_TEST): $(HOST_LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -O0 -DPSCU_DEBUG --coverage -o $@ $(HOST_LOGIC_C) $(HOST_TEST_C)
 
-SIM_ELF := $(BUILD)/attiny84/release/$(NAME)-attiny84.elf
-SIM_ELF_VCD := $(BUILD)/attiny84-jp-vcd/release/$(NAME)-attiny84-jp-vcd.elf
+SIM_ELF := $(BUILD)/attiny85/release/$(NAME)-attiny85.elf
+SIM_ELF_VCD := $(BUILD)/attiny85-jp-vcd/release/$(NAME)-attiny85-jp-vcd.elf
 
 $(SIM_TEST): $(SIM_TEST_C) $(SIM_TEST_H) all
 	@mkdir -p $(@D)

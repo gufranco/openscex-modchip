@@ -9,7 +9,7 @@
 
 // Oscillator trim. The chip runs from its internal RC oscillator, factory
 // calibrated to +-10 percent and user-calibratable to +-1 percent (Read:
-// ATtiny24A/44A/84A datasheet DS40002269A, Table 20-2). A legacy-board bit cell
+// ATtiny25/45/85 datasheet 2586Q, Table 21-2). A legacy-board bit cell
 // is an RC-timed 4 ms delay, so the chip calibrates itself against the one
 // crystal-locked rate it already sees: SUBQ frames, 75 per second at single
 // speed (Read: Red Book, 75 sectors per second). The lead-in is read at single
@@ -20,7 +20,8 @@
 // runs fast or slow.
 
 // Samples per decision: 64 frame periods, about 0.85 s of lead-in. Timer1 at
-// clk/1024 counts about 6667 ticks over them, so one tick is 0.015 percent.
+// clk/16384 counts about 417 ticks over them, so one tick is 0.24 percent, well
+// inside the dead band.
 #define PSCU_TRIM_FRAMES ((uint16_t)64U)
 
 // Dead band: a batch within 1 percent of nominal changes nothing, the accuracy

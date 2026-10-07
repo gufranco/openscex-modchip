@@ -6,7 +6,7 @@ Only the latest release receives fixes. The project is on the `0.x` line and has
 
 ## What counts as a security issue here
 
-The firmware runs on an ATtiny84 inside a console, with no network, no user data, and no secrets. A report is in scope when it shows that the firmware or a published image can:
+The firmware runs on an ATtiny85 inside a console, with no network, no user data, and no secrets. A report is in scope when it shows that the firmware or a published image can:
 
 - drive a console line outside the documented behaviour in a way that can damage hardware, such as holding DATA driven while the lid is open;
 - be replaced or altered between the release and the user, for example a release image whose SHA-256 or build-provenance attestation does not verify;

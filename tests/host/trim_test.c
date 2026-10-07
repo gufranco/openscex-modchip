@@ -8,9 +8,10 @@
 
 #include "pscu/trim.h"
 
-// Host tests for the oscillator trim. The reference matches an 8 MHz clock and
-// Timer1 at clk/1024: 104 ticks per 75 Hz frame, a window of 83 to 124, and
-// 6666 ticks over a batch, so the 1 percent dead band is 66 ticks either side.
+// Host tests for the oscillator trim. The logic is independent of the tick
+// rate, so these tests use a fine reference, 104 ticks per frame, a window of 83
+// to 124 and 6666 ticks over a batch, which gives a 66-tick dead band and room to
+// test each boundary on both sides; the firmware passes its own coarser one.
 // Every boundary is tested on both sides, since a trim that steps the wrong way
 // or one step too far skews every legacy-board bit after it.
 

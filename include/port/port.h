@@ -54,9 +54,9 @@ void pscu_port_bit_hold_low(void);
 
 void pscu_port_bit_mirror(void);
 
-// Timer1 ticks, one per 1024 clocks, wrapping at 65536: the LED's time
-// base, read without waiting.
-uint16_t pscu_port_ticks(void);
+// Timer1 ticks, one per 16384 clocks, wrapping at 256: the time base for the
+// LED and the oscillator trim, read without waiting.
+uint8_t pscu_port_ticks(void);
 
 // Nonzero when the last reset came from the watchdog; clears the reset flags.
 uint8_t pscu_port_reset_was_watchdog(void);

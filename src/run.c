@@ -16,25 +16,28 @@
 #include "pscu/subq.h"
 #include "pscu/trim.h"
 
-// Clocks per millisecond, the divisor that turns Timer1 ticks (1024 clocks
+// Clocks per millisecond, the divisor that turns Timer1 ticks (16384 clocks
 // each) into milliseconds for the LED; 8000 at 8 MHz, an exact division.
 #define PSCU_CLOCKS_PER_MS (F_CPU / 1000UL)
-#define PSCU_CLOCKS_PER_TICK (1024UL)
+#define PSCU_CLOCKS_PER_TICK (16384UL)
 
-// The trim's reference at the nominal clock: Timer1 ticks per SUBQ frame at 75
-// per second (104 at 8 MHz), a window of 80 to 120 percent of it that rejects a
-// skipped frame or a double-speed read, and the ticks a nominal clock counts
-// over a batch of PSCU_TRIM_FRAMES periods (6666 at 8 MHz).
+// The trim's reference at the nominal clock. A 75 Hz SUBQ frame spans 6.51
+// Timer1 ticks at 8 MHz, so one frame period reads as 6 or 7 ticks, and as 5 to
+// 8 with the RC 10 percent slow or fast. The window, 80 to 140 percent of a
+// period floored (5 to 9 ticks), keeps all of those, so quantization never
+// biases a batch, while rejecting a double-speed read (3 or 4 ticks) and a
+// skipped frame (13 or more). A batch of PSCU_TRIM_FRAMES periods counts 417
+// ticks on a nominal clock, rounded, so one tick is 0.24 percent.
 #define PSCU_TRIM_SUBQ_HZ (75UL)
-#define PSCU_TRIM_FRAME_TICKS (F_CPU / (PSCU_CLOCKS_PER_TICK * PSCU_TRIM_SUBQ_HZ))
-#define PSCU_TRIM_LOW ((PSCU_TRIM_FRAME_TICKS * 4UL) / 5UL)
-#define PSCU_TRIM_HIGH ((PSCU_TRIM_FRAME_TICKS * 6UL) / 5UL)
+#define PSCU_TRIM_TICK_HZ (PSCU_CLOCKS_PER_TICK * PSCU_TRIM_SUBQ_HZ)
+#define PSCU_TRIM_LOW ((F_CPU * 4UL) / (PSCU_TRIM_TICK_HZ * 5UL))
+#define PSCU_TRIM_HIGH ((F_CPU * 7UL) / (PSCU_TRIM_TICK_HZ * 5UL))
 // The trim samples only a disc that has been spinning for a second, so the
 // frame rate of a drive still spinning up after a swap never skews a batch. A
 // design choice: the drive locks its speed before it reads the lead-in.
 #define PSCU_TRIM_SETTLE_MS (1000UL)
 #define PSCU_TRIM_EXPECTED \
-  (((uint32_t)PSCU_TRIM_FRAMES * F_CPU) / (PSCU_CLOCKS_PER_TICK * PSCU_TRIM_SUBQ_HZ))
+  ((((uint32_t)PSCU_TRIM_FRAMES * F_CPU) + (PSCU_TRIM_TICK_HZ / 2UL)) / PSCU_TRIM_TICK_HZ)
 
 // One disc's session: how many strings were emitted for it, whether its result
 // has been shown, and the confirmation state that decides which result it is.
@@ -66,7 +69,7 @@ typedef struct {
 // The last Timer1 reading and the clocks not yet counted as a whole millisecond,
 // so rounding never accumulates into drift.
 typedef struct {
-  uint16_t last;
+  uint8_t last;
   uint32_t carry;
 } pscu_clock_t;
 
@@ -83,7 +86,7 @@ typedef struct {
   uint8_t factory;
   uint8_t osccal;
   pscu_trim_t batch;
-  uint16_t stamp;
+  uint8_t stamp;
   bool hit;
   bool dirty;
 } pscu_osc_t;
@@ -182,10 +185,11 @@ static pscu_osc_t pscu_osc_init(uint8_t factory) {
 // Time this pass's frame against the last one. Only two lead-in frames in a row
 // make a sample; the batch decides a step, which moves OSCCAL at once, between
 // strings, and marks the trim for storing.
-static pscu_osc_t pscu_osc_step(pscu_osc_t osc, uint16_t stamp, bool hit) {
+static pscu_osc_t pscu_osc_step(pscu_osc_t osc, uint8_t stamp, bool hit) {
   pscu_trim_ref_t ref = { PSCU_TRIM_LOW, PSCU_TRIM_HIGH, PSCU_TRIM_EXPECTED };
   bool sample = osc.hit && hit;
-  pscu_trim_step_t step = pscu_trim_step(osc.batch, sample, (uint16_t)(stamp - osc.stamp), ref);
+  uint16_t delta = (uint8_t)(stamp - osc.stamp);
+  pscu_trim_step_t step = pscu_trim_step(osc.batch, sample, delta, ref);
   pscu_osc_t next = osc;
   next.batch = step.state;
   next.stamp = stamp;
@@ -213,10 +217,10 @@ static pscu_osc_store_t pscu_osc_store(pscu_osc_t osc, pscu_calib_t calib, bool 
 }
 
 // Milliseconds since the last pass, from the free-running Timer1. Unsigned
-// subtraction handles the 16-bit wrap, since no pass comes near its 8.4 s.
+// subtraction handles the 8-bit wrap, since no pass comes near its 524 ms.
 static pscu_clock_step_t pscu_clock_step(pscu_clock_t clock) {
-  uint16_t now = pscu_port_ticks();
-  uint32_t ticks = (uint32_t)(uint16_t)(now - clock.last);
+  uint8_t now = pscu_port_ticks();
+  uint32_t ticks = (uint8_t)(now - clock.last);
   uint32_t clocks = (ticks * PSCU_CLOCKS_PER_TICK) + clock.carry;
   pscu_clock_step_t out;
   out.clock.last = now;
@@ -296,7 +300,7 @@ void pscu_run(void) {
   for (;;) {
     uint8_t frame[PSCU_SUBQ_FRAME_BYTES];
     bool captured = pscu_engine_capture_frame(frame);
-    uint16_t stamp = pscu_port_ticks();
+    uint8_t stamp = pscu_port_ticks();
     pscu_clock_step_t tick = pscu_clock_step(clock);
     clock = tick.clock;
     bool valid = captured && pscu_subq_is_valid(frame);

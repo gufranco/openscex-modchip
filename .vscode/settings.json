@@ -7,7 +7,7 @@
   "C_Cpp.default.compilerPath": "",
   "C_Cpp.default.includePath": ["${workspaceFolder}/include"],
   "C_Cpp.default.defines": [
-    "__AVR_ATtiny84__",
+    "__AVR_ATtiny85__",
     "F_CPU=8000000UL",
     "PSCU_TIMING_ADAPTIVE=1",
     "PSCU_WFCK_PERIODS_PER_BIT=30",
