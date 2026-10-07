@@ -318,6 +318,7 @@ void pscu_run(void) {
     stealth = step.state;
     if (step.fire) {
       session = pscu_session_fired(session, step.state.sent);
+      board = pscu_engine_confirm_board(board);
       pscu_engine_inject(board);
     }
     pscu_session_step_t watched = pscu_session_watch(session, step.fire, program, disc_gone);

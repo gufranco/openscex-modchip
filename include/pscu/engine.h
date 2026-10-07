@@ -17,6 +17,10 @@
 // detected board needs.
 pscu_board_mode_t pscu_engine_detect_board(void);
 
+// Re-check a board taken for a static gate just before a string: if WFCK is a
+// live carrier after all, return the carrier mode so WFCK is never driven.
+pscu_board_mode_t pscu_engine_confirm_board(pscu_board_mode_t board);
+
 bool pscu_engine_capture_frame(uint8_t *frame);
 
 void pscu_engine_inject(pscu_board_mode_t board);

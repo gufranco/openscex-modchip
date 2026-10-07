@@ -181,6 +181,54 @@ void scenario_late_carrier(const target_t *t, const char *elf, uint32_t freq) {
   }
 }
 
+// A carrier that starts only after boot detection has finished, as on a console
+// whose WFCK comes up late, is detected as a gate. Holding the gate low would
+// then fight the console's clock, so before the string the firmware watches
+// WFCK again, finds the carrier and injects by mirroring. The direction of the
+// WFCK pin is watched for the whole run: it must never become an output.
+static int g_wfck_driven = 0;
+static uint8_t g_wfck_bit = 0U;
+
+static void on_direction(struct avr_irq_t *irq, uint32_t value, void *param) {
+  (void)irq;
+  (void)param;
+  if (((value >> g_wfck_bit) & 1U) != 0U) {
+    g_wfck_driven = 1;
+  }
+}
+
+void scenario_carrier_after_boot(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
+  g_wfck_driven = 0;
+  g_wfck_bit = t->wfck;
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, IOPORT_IRQ_DIRECTION_ALL), on_direction, NULL);
+  boot_quiet(avr, t, 0, &ctx);
+  int blinks = pulse_group(0U, 250U, 350U);
+  ctx.irq = pin_irq(avr, t, t->wfck);
+  avr_cycle_timer_register(avr, ctx.half, wfck_tick, &ctx);
+
+  uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  clock_until_inject(avr, t, toc);
+  uint64_t deadline = avr->cycle + LED_DEADLINE;
+  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+    run_cycles(avr, 2000U);
+  }
+  char decoded[SCEX_BITS + 1] = { 0 };
+  if (g_led_seen != 0) {
+    decode_region(avr, t, 1, (uint64_t)WFCK_PERIODS_PER_BIT * freq / WFCK_HZ, decoded);
+  }
+
+  char label[96];
+  (void)snprintf(label, sizeof(label), "carrier after boot %s: boot shows a gate board", t->mcu);
+  check(blinks == 1, label);
+  (void)snprintf(label, sizeof(label), "carrier after boot %s: injects by mirroring", t->mcu);
+  check(strcmp(decoded, SCEA_BITS) == 0, label);
+  (void)snprintf(label, sizeof(label), "carrier after boot %s: WFCK is never driven", t->mcu);
+  check(g_wfck_driven == 0, label);
+}
+
 // A carrier that stops mid-injection must not leave DATA driven. The adaptive
 // bit cell counts WFCK rising edges and kicks the watchdog only on a counted
 // edge, so when the carrier stalls the watchdog expires and resets the chip,

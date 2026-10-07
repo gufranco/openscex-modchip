@@ -35,6 +35,7 @@ int main(int argc, char *argv[]) {
   result_case(&t85, elf, freq, 0);
   scenario_resync(&t85, elf, freq);
   scenario_late_carrier(&t85, elf, freq);
+  scenario_carrier_after_boot(&t85, elf, freq);
   scenario_stall(&t85, elf, freq);
   scenario_multidisc(&t85, elf, freq);
   scenario_disc_presence(&t85, elf, freq);

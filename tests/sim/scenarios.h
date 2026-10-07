@@ -14,6 +14,7 @@ void scenario_families(const target_t *t, const char *elf, uint32_t freq);
 void result_case(const target_t *t, const char *elf, uint32_t freq, int program);
 void scenario_resync(const target_t *t, const char *elf, uint32_t freq);
 void scenario_late_carrier(const target_t *t, const char *elf, uint32_t freq);
+void scenario_carrier_after_boot(const target_t *t, const char *elf, uint32_t freq);
 void scenario_stall(const target_t *t, const char *elf, uint32_t freq);
 void scenario_vcd(const char *elf, uint32_t freq);
 void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq);

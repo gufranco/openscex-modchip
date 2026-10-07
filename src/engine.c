@@ -20,6 +20,7 @@
 // live ~7.3 kHz clock produces far more than PSCU_DETECT_PULSES edges.
 #define PSCU_DETECT_WINDOW ((uint16_t)10000U)
 #define PSCU_DETECT_PULSES ((uint8_t)25U)
+#define PSCU_GUARD_WINDOW ((uint16_t)2500U)
 // Settle time before the detect window. The chip powers up with the console, and
 // on a carrier board the WFCK oscillation may not have started yet; sampling too
 // early would misread a modern board as a static legacy gate and pick the wrong
@@ -122,16 +123,42 @@ static void pscu_inject_region(pscu_region_t region, pscu_board_mode_t mode) {
 // power-on knows the chip has power, a running clock and its firmware,
 // before any disc is read. Lighting it here adds no delay and sits on no timing
 // path, and with no LED fitted nothing changes.
-pscu_board_mode_t pscu_engine_detect_board(void) {
-  pscu_port_led_on();
-  pscu_port_delay_ms(PSCU_DETECT_SETTLE_MS);
+// Watch WFCK for window samples and classify what it shows: enough falling
+// edges mean a live carrier, too few a static gate.
+static pscu_board_mode_t pscu_sample_wfck(uint16_t window) {
   pscu_board_detect_t state = pscu_board_detect_init();
-  for (uint16_t i = 0U; i < PSCU_DETECT_WINDOW; i++) {
+  for (uint16_t i = 0U; i < window; i++) {
     state = pscu_board_detect_step(state, pscu_port_read_wfck());
     pscu_port_watchdog_reset();
   }
-  pscu_port_led_off();
   return pscu_board_detect_mode(state, PSCU_DETECT_PULSES);
+}
+
+pscu_board_mode_t pscu_engine_detect_board(void) {
+  pscu_port_led_on();
+  pscu_port_delay_ms(PSCU_DETECT_SETTLE_MS);
+  pscu_board_mode_t mode = pscu_sample_wfck(PSCU_DETECT_WINDOW);
+  pscu_port_led_off();
+  return mode;
+}
+
+// The gate method holds WFCK low for a string, which on a carrier board would
+// fight the console's own clock. Boot detection decides from WFCK as it is in
+// the first 0.4 s, so a carrier that starts later reads as a gate. Before every
+// string on a board taken for a gate, WFCK is watched again with the same edge
+// threshold; a live carrier means the detection was wrong, and the board is a
+// carrier board from then on, injected by mirroring, with WFCK never driven.
+// The window is a quarter of the boot one, 2500 samples of 30 cycles each
+// (Concluded: the sampling loop in the ATtiny85 listing), 9.4 ms at 8 MHz. A
+// 7.3 kHz carrier gives about 69 edges in that time against the 25 needed, and
+// the delay before the string stays under one 13.3 ms frame. On a carrier board
+// it is never run.
+pscu_board_mode_t pscu_engine_confirm_board(pscu_board_mode_t board) {
+  pscu_board_mode_t confirmed = board;
+  if (board == PSCU_BOARD_MODE_GATE) {
+    confirmed = pscu_sample_wfck(PSCU_GUARD_WINDOW);
+  }
+  return confirmed;
 }
 
 // Wait for the inter-frame gap, then clock in one whole frame. The bits are

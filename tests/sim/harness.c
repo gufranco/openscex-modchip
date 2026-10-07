@@ -206,8 +206,16 @@ void clock_frame(avr_t *avr, const target_t *t, const uint8_t *frame) {
   avr_irq_t *sqck = pin_irq(avr, t, t->sqck);
   avr_irq_t *subq = pin_irq(avr, t, t->subq);
   uint64_t frame_start = avr->cycle;
-  for (int byte = 0; byte < SUBQ_FRAME_BYTES; byte++) {
-    for (int bit = 0; bit < SUBQ_BITS; bit++) {
+  // An injection can start while a frame is being clocked: before each string on
+  // a gate board the firmware watches WFCK again for a few milliseconds, so the
+  // string may begin after the next frame has started. The console keeps
+  // clocking SUBQ then, and the chip ignores it, but the decoder samples DATA
+  // forward from the LED edge, so the rest of the frame is dropped the moment the
+  // LED marks a string; clocking it to the end would run past the first cells.
+  int led_before = g_led_seen;
+  for (int byte = 0; (byte < SUBQ_FRAME_BYTES) && !((g_led_seen != 0) && (led_before == 0));
+       byte++) {
+    for (int bit = 0; (bit < SUBQ_BITS) && !((g_led_seen != 0) && (led_before == 0)); bit++) {
       avr_raise_irq(subq, (uint8_t)((frame[byte] >> bit) & 1U));
       avr_raise_irq(sqck, 0U);
       run_cycles(avr, ns_cycles(g_edge_ns));
@@ -216,9 +224,7 @@ void clock_frame(avr_t *avr, const target_t *t, const uint8_t *frame) {
     }
   }
   // Idle the clock for the inter-frame gap, but stop early the moment the LED
-  // marks the start of an injection inside it: the decoder samples DATA forward
-  // from that edge and cannot sample cycles the gap has already run past.
-  int led_before = g_led_seen;
+  // marks the start of an injection inside it, for the same reason.
   uint64_t paced = frame_start + ns_cycles(g_frame_period_ns);
   uint64_t gap_end = (g_frame_period_ns != 0U) ? paced : (avr->cycle + FRAME_GAP_CYCLES);
   while ((avr->cycle < gap_end) && !((g_led_seen != 0) && (led_before == 0))) {
