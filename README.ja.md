@@ -22,7 +22,7 @@
   <a href="../../issues/new?template=compatibility.yml">あなたの機種を報告</a>
 </p>
 
-フラッシュ **1220** バイト · 基板 **6** 系統、PU-18 から PM-41(2) · リージョン **3** 種 · MISRA 逸脱 **0** · ホストの行と分岐カバレッジ **100%** · ミュータント **48/48** 撃破
+フラッシュ **1134** バイト · 基板 **6** 系統、PU-18 から PM-41(2) · リージョン **3** 種 · MISRA 逸脱 **0** · ホストの行と分岐カバレッジ **100%** · ミュータント **48/48** 撃破
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny84.hex' --pattern SHA256SUMS

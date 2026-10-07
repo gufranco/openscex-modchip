@@ -22,7 +22,7 @@
   <a href="../../issues/new?template=compatibility.yml">报告你的主机</a>
 </p>
 
-闪存 **1220** 字节 · **6** 个主板系列，PU-18 至 PM-41(2) · **3** 个区域 · MISRA 偏离 **0** · 主机测试行与分支覆盖率 **100%** · 变异体 **48/48** 被杀死
+闪存 **1134** 字节 · **6** 个主板系列，PU-18 至 PM-41(2) · **3** 个区域 · MISRA 偏离 **0** · 主机测试行与分支覆盖率 **100%** · 变异体 **48/48** 被杀死
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny84.hex' --pattern SHA256SUMS
