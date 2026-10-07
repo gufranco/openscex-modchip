@@ -1,3 +1,10 @@
+# [0.4.0](https://github.com/gufranco/openscex-modchip/compare/v0.3.1...v0.4.0) (2026-10-07)
+
+
+### Features
+
+* led stage and result codes ([e93dd01](https://github.com/gufranco/openscex-modchip/commit/e93dd011aca7498d87c135065bb79310d061326a))
+
 ## [0.3.1](https://github.com/gufranco/openscex-modchip/compare/v0.3.0...v0.3.1) (2026-10-07)
 
 
