@@ -138,7 +138,7 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 | Clock and lid tap points | Read, the Mayumi V4 points 2 and 7 on quade.co, whose PM-41(2) page names them "Clock: Pin 2" and "CD Door: Pin 7" |
 | Lid polarity, high while open | Read, the Mayumi V4 binary waits on its door input while it reads high |
 | Console clock 4.2336 MHz | Concluded, 16.9344 MHz divided by four, consistent with the Mayumi V4 delay loops (182 passes where MM3 on a 4 MHz RC uses 170) |
-| Mechacon pin numbers | Unknown, forum relay, re-confirm against a board diagram |
+| SQCK and SUBQ tap points | Read, labeled on PsNee's board photo for every supported board; the mechacon pin numbers behind them stay Unknown |
 | Per-pad voltages | Concluded from the PsNee and Mayumi installs (fat around 5 V, PSone lower and noise-sensitive); measure to confirm |
 | SCEx unlock on PU-18 and PSone | Verified 2026-10-05 with the earlier firmware (see table above) |
 
@@ -194,7 +194,7 @@ The SCEx signals keep PsNee's tested order, read from PsNee `MCU.h`; the clock a
 
 DATA carries the SCEx bitstream and WFCK is the gate or carrier; these are the PsNee and Mayumi tap points. The clock and lid wires go where a Mayumi V4 chip puts its pins 2 and 7, shown per board on the quade.co diagrams: [PU-18](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/), [PU-20](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/), [PU-22](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/), [PU-23](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-23/), [PM-41](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41/), [PM-41(2)](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41-2/).
 
-On these diagrams, point 2 is the console clock and point 7 is the lid line; those are the only two points this chip takes from them. Points 1 and 8 are power and ground, 5 and 6 are the WFCK and DATA points this chip also uses, and points 3 and 4 belong to Mayumi's own stealth and reset wiring, which this chip does not use. SQCK and SUBQ are not on these diagrams; see the mechacon pins below.
+On these diagrams, point 2 is the console clock and point 7 is the lid line; those are the only two points this chip takes from them. Points 1 and 8 are power and ground, 5 and 6 are the WFCK and DATA points this chip also uses, and points 3 and 4 belong to Mayumi's own stealth and reset wiring, which this chip does not use. SQCK and SUBQ are not on these diagrams; the PsNee photos further down mark them.
 
 <table>
 <tr><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/"><img src="https://quade.co/wp-content/uploads/2018/02/PU18L.jpg" alt="PU-18 Mayumi V4 installation diagram by William Quade" width="240"></a><br><sub><b>PU-18</b>. Diagram by William Quade, <a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/"><img src="https://quade.co/wp-content/uploads/2018/02/PU20L.jpg" alt="PU-20 Mayumi V4 installation diagram by William Quade" width="240"></a><br><sub><b>PU-20</b>. Diagram by William Quade, <a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/"><img src="https://quade.co/wp-content/uploads/2018/02/PU22L.jpg" alt="PU-22 Mayumi V4 installation diagram by William Quade" width="240"></a><br><sub><b>PU-22</b>. Diagram by William Quade, <a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/">quade.co</a></sub></td></tr>
@@ -202,6 +202,15 @@ On these diagrams, point 2 is the console clock and point 7 is the lid line; tho
 </table>
 
 The six diagrams are William Quade's and are shown from quade.co with credit; they are not part of this repository or its MIT license. Click a diagram for the full page and its comments.
+
+Every other point has a labeled photo below: SQCK, SUBQ, DATA, WFCK, VCC and GND are marked by name on each board. Solder the clock and lid where the diagrams above put points 2 and 7, and everything else where these photos mark it. The PU-18 photo shows the underside of the board. AX, DX and RESET are labeled too but belong to PsNee's boot-ROM patch, which this chip does not have; leave them unconnected.
+
+<table>
+<tr><td align="center" width="33%"><a href="assets/psnee/pu-18.jpg"><img src="assets/psnee/pu-18.jpg" alt="PU-18 board with the SQCK, SUBQ, DATA, WFCK, VCC and GND points labeled, from PsNee" width="240"></a><br><sub><b>PU-18</b>. Photo from PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pu-20.jpg"><img src="assets/psnee/pu-20.jpg" alt="PU-20 board with the SQCK, SUBQ, DATA, WFCK, VCC and GND points labeled, from PsNee" width="240"></a><br><sub><b>PU-20</b>. Photo from PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pu-22.jpg"><img src="assets/psnee/pu-22.jpg" alt="PU-22 board with the SQCK, SUBQ, DATA, WFCK, VCC and GND points labeled, from PsNee" width="240"></a><br><sub><b>PU-22</b>. Photo from PsNee</sub></td></tr>
+<tr><td align="center" width="33%"><a href="assets/psnee/pu-23.jpg"><img src="assets/psnee/pu-23.jpg" alt="PU-23 board with the SQCK, SUBQ, DATA, WFCK, VCC and GND points labeled, from PsNee" width="240"></a><br><sub><b>PU-23</b>. Photo from PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pm-41.jpg"><img src="assets/psnee/pm-41.jpg" alt="PM-41 board with the SQCK, SUBQ, DATA, WFCK, VCC and GND points labeled, from PsNee" width="240"></a><br><sub><b>PM-41</b>. Photo from PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pm-41-2.jpg"><img src="assets/psnee/pm-41-2.jpg" alt="PM-41(2) board with the SQCK, SUBQ, DATA, WFCK, VCC and GND points labeled, from PsNee" width="240"></a><br><sub><b>PM-41(2)</b>. Photo from PsNee</sub></td></tr>
+</table>
+
+These six photos come from [PsNee](https://github.com/kalymos/PsNee) V9.0 by kalymos and its contributors, released into the public domain under the [Unlicense](LICENSES/Unlicense.txt), and are copied here resized. With them and the diagrams above, every wire of the chip has a picture of where it goes.
 
 | Board family | SCPH era | DATA injection point | WFCK role | Confidence |
 |:-------------|:---------|:---------------------|:----------|:-----------|
@@ -211,7 +220,7 @@ The six diagrams are William Quade's and are shown from quade.co with credit; th
 
 The clock wire carries the console's 4.2336 MHz clock into the chip, so its length matters: quade.co traced Mayumi V4 failures to that wire picking up noise, and recommends making it the shortest of all. Mount the chip close to the clock point. The datasheet warns that a clock varying more than 2% from one cycle to the next can make the chip behave unpredictably.
 
-Mechacon SUBQ and SQCK pins, forum relay, tagged Unknown because psxdev.net is offline since October 2025: PU-22 and later, SUBQ on pin 24 and SQCK on pin 26. Confirm against a consolemods board diagram before cutting.
+The photos above mark SQCK and SUBQ on every supported board, so follow them. The mechacon pin numbers a forum relay gives for PU-22 and later, SUBQ on pin 24 and SQCK on pin 26, stay Unknown, since psxdev.net is offline since October 2025.
 
 ## Quick start
 

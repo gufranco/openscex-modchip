@@ -138,7 +138,7 @@ graph LR
 | 时钟与光驱盖的接点 | Read，quade.co 上 Mayumi V4 的 2 号与 7 号点，其 PM-41(2) 页面写明 "Clock: Pin 2" 与 "CD Door: Pin 7" |
 | 光驱盖极性，打开时为高 | Read，Mayumi V4 二进制在其门输入为高时等待 |
 | 主机时钟 4.2336 MHz | Concluded，16.9344 MHz 的四分之一，与 Mayumi V4 的延时循环一致（MM3 在 4 MHz RC 上用 170 次，此处 182 次） |
-| 机芯控制器引脚号 | Unknown，论坛转述，请对照主板图再确认 |
+| SQCK 与 SUBQ 接点 | Read，在每块受支持主板的 PsNee 照片上标出；其背后的机芯控制器引脚号仍为 Unknown |
 | 各焊点电压 | 由 PsNee 与 Mayumi 的安装 Concluded（厚机约 5 V，PSone 较低且对噪声敏感）；测量以确认 |
 | PU-18 与 PSone 上的 SCEx 解锁 | 以旧固件 Verified 2026-10-05（见上表） |
 
@@ -194,7 +194,7 @@ SCEx 信号保持 PsNee 经验证的顺序（Read 自 PsNee `MCU.h`）；时钟�
 
 DATA 承载 SCEx 位流，WFCK 是门控或载波；这些是 PsNee 与 Mayumi 的接点。时钟线与光驱盖线接到 Mayumi V4 芯片的 2 号与 7 号脚所接的位置，各主板的位置见 quade.co 的图：[PU-18](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/)、[PU-20](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/)、[PU-22](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/)、[PU-23](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-23/)、[PM-41](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41/)、[PM-41(2)](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41-2/)。
 
-在这些图中，2 号点是主机时钟，7 号点是光驱盖线，本芯片只从图中取用这两个点。1 号与 8 号是电源与地，5 号与 6 号是本芯片也使用的 WFCK 与 DATA 点，3 号与 4 号属于 Mayumi 自己的隐身与复位接线，本芯片不使用。SQCK 与 SUBQ 不在这些图中，见下方的机芯控制器引脚。
+在这些图中，2 号点是主机时钟，7 号点是光驱盖线，本芯片只从图中取用这两个点。1 号与 8 号是电源与地，5 号与 6 号是本芯片也使用的 WFCK 与 DATA 点，3 号与 4 号属于 Mayumi 自己的隐身与复位接线，本芯片不使用。SQCK 与 SUBQ 不在这些图中，下方的 PsNee 照片标出了它们。
 
 <table>
 <tr><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/"><img src="https://quade.co/wp-content/uploads/2018/02/PU18L.jpg" alt="William Quade 绘制的 PU-18 Mayumi V4 安装图" width="240"></a><br><sub><b>PU-18</b>。图：William Quade，<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/"><img src="https://quade.co/wp-content/uploads/2018/02/PU20L.jpg" alt="William Quade 绘制的 PU-20 Mayumi V4 安装图" width="240"></a><br><sub><b>PU-20</b>。图：William Quade，<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/"><img src="https://quade.co/wp-content/uploads/2018/02/PU22L.jpg" alt="William Quade 绘制的 PU-22 Mayumi V4 安装图" width="240"></a><br><sub><b>PU-22</b>。图：William Quade，<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/">quade.co</a></sub></td></tr>
@@ -202,6 +202,15 @@ DATA 承载 SCEx 位流，WFCK 是门控或载波；这些是 PsNee 与 Mayumi �
 </table>
 
 这六张图归 William Quade 所有，注明出处后从 quade.co 显示，不属于本仓库，也不受其 MIT 许可证约束。点击图片可打开原页面及其评论。
+
+其余各点都在下方照片中标出名称：每块主板上都标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND。时钟与光驱盖焊在上图 2 号与 7 号点的位置，其余各线焊在这些照片标出的位置。PU-18 的照片是主板背面。图中也标有 AX、DX 与 RESET，但它们属于 PsNee 的引导 ROM 补丁，本芯片没有该功能，请不要连接。
+
+<table>
+<tr><td align="center" width="33%"><a href="assets/psnee/pu-18.jpg"><img src="assets/psnee/pu-18.jpg" alt="来自 PsNee 的 PU-18 主板，标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND 接点" width="240"></a><br><sub><b>PU-18</b>。照片来自 PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pu-20.jpg"><img src="assets/psnee/pu-20.jpg" alt="来自 PsNee 的 PU-20 主板，标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND 接点" width="240"></a><br><sub><b>PU-20</b>。照片来自 PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pu-22.jpg"><img src="assets/psnee/pu-22.jpg" alt="来自 PsNee 的 PU-22 主板，标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND 接点" width="240"></a><br><sub><b>PU-22</b>。照片来自 PsNee</sub></td></tr>
+<tr><td align="center" width="33%"><a href="assets/psnee/pu-23.jpg"><img src="assets/psnee/pu-23.jpg" alt="来自 PsNee 的 PU-23 主板，标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND 接点" width="240"></a><br><sub><b>PU-23</b>。照片来自 PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pm-41.jpg"><img src="assets/psnee/pm-41.jpg" alt="来自 PsNee 的 PM-41 主板，标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND 接点" width="240"></a><br><sub><b>PM-41</b>。照片来自 PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pm-41-2.jpg"><img src="assets/psnee/pm-41-2.jpg" alt="来自 PsNee 的 PM-41(2) 主板，标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND 接点" width="240"></a><br><sub><b>PM-41(2)</b>。照片来自 PsNee</sub></td></tr>
+</table>
+
+这六张照片来自 kalymos 及其贡献者的 [PsNee](https://github.com/kalymos/PsNee) V9.0，以 [Unlicense](LICENSES/Unlicense.txt) 发布至公有领域，此处为缩小后的副本。结合上方的图，芯片的每一根线都有焊接位置的图片。
 
 | 主板系列 | SCPH 年代 | DATA 注入点 | WFCK 作用 | 可信度 |
 |:---------|:----------|:------------|:----------|:-------|
@@ -211,7 +220,7 @@ DATA 承载 SCEx 位流，WFCK 是门控或载波；这些是 PsNee 与 Mayumi �
 
 时钟线把主机的 4.2336 MHz 时钟送进芯片，因此长度很重要：quade.co 将 Mayumi V4 的故障归因于这根线拾取的噪声，并建议让它成为最短的一根。请把芯片装在靠近时钟点的位置。数据手册警告，相邻周期之间变化超过 2% 的时钟会使芯片行为不可预测。
 
-机芯控制器的 SUBQ 与 SQCK 引脚，论坛转述，因 psxdev.net 自 2025 年 10 月起离线而标为 Unknown：PU-22 及以后，SUBQ 在 24 脚，SQCK 在 26 脚。动刀前请对照 consolemods 的主板图确认。
+上方照片在每块受支持主板上标出了 SQCK 与 SUBQ，请以照片为准。论坛转述的 PU-22 及以后的机芯控制器引脚号，SUBQ 在 24 脚、SQCK 在 26 脚，因 psxdev.net 自 2025 年 10 月起离线仍为 Unknown。
 
 ## 快速开始
 

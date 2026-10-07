@@ -138,7 +138,7 @@ graph LR
 | クロックと蓋のタップ位置 | Read、quade.co の Mayumi V4 の 2 番と 7 番。PM-41(2) のページは "Clock: Pin 2" と "CD Door: Pin 7" と明記 |
 | 蓋の極性、開いている間 high | Read、Mayumi V4 のバイナリはドア入力が high の間待つ |
 | コンソールクロック 4.2336 MHz | Concluded、16.9344 MHz の 4 分の 1。Mayumi V4 の遅延ループと整合（MM3 が 4 MHz RC で 170 回のところ 182 回） |
-| メカコンのピン番号 | Unknown、フォーラムの伝聞。基板図で再確認 |
+| SQCK と SUBQ のタップ位置 | Read、対応する全基板の PsNee の写真に表示。その裏のメカコンのピン番号は Unknown のまま |
 | パッドごとの電圧 | PsNee と Mayumi の取り付けから Concluded（フット機は約 5 V、PSone は低めでノイズに敏感）。測って確認 |
 | PU-18 と PSone での SCEx 解除 | 以前のファームウェアで Verified 2026-10-05（上の表を参照） |
 
@@ -194,7 +194,7 @@ SCEx の信号は PsNee の実証済みの順序を保ちます（PsNee `MCU.h` 
 
 DATA は SCEx ビット列を運び、WFCK はゲートまたはキャリアです。これらは PsNee と Mayumi のタップ位置です。クロックと蓋の線は、Mayumi V4 チップが 2 番と 7 番のピンを付ける場所に付けます。基板ごとの位置は quade.co の図にあります: [PU-18](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/)、[PU-20](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/)、[PU-22](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/)、[PU-23](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-23/)、[PM-41](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41/)、[PM-41(2)](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41-2/)。
 
-これらの図では 2 番がコンソールクロック、7 番が蓋線で、このチップが図から使うのはこの 2 点だけです。1 番と 8 番は電源とグランド、5 番と 6 番はこのチップも使う WFCK と DATA の点、3 番と 4 番は Mayumi 独自のステルスとリセットの配線で、このチップは使いません。SQCK と SUBQ はこれらの図にありません。下のメカコンのピンを参照してください。
+これらの図では 2 番がコンソールクロック、7 番が蓋線で、このチップが図から使うのはこの 2 点だけです。1 番と 8 番は電源とグランド、5 番と 6 番はこのチップも使う WFCK と DATA の点、3 番と 4 番は Mayumi 独自のステルスとリセットの配線で、このチップは使いません。SQCK と SUBQ はこれらの図にありません。さらに下の PsNee の写真に示されています。
 
 <table>
 <tr><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/"><img src="https://quade.co/wp-content/uploads/2018/02/PU18L.jpg" alt="William Quade による PU-18 の Mayumi V4 取り付け図" width="240"></a><br><sub><b>PU-18</b>。図: William Quade、<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/"><img src="https://quade.co/wp-content/uploads/2018/02/PU20L.jpg" alt="William Quade による PU-20 の Mayumi V4 取り付け図" width="240"></a><br><sub><b>PU-20</b>。図: William Quade、<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/"><img src="https://quade.co/wp-content/uploads/2018/02/PU22L.jpg" alt="William Quade による PU-22 の Mayumi V4 取り付け図" width="240"></a><br><sub><b>PU-22</b>。図: William Quade、<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/">quade.co</a></sub></td></tr>
@@ -202,6 +202,15 @@ DATA は SCEx ビット列を運び、WFCK はゲートまたはキャリアで�
 </table>
 
 6 枚の図は William Quade のもので、クレジットを付けて quade.co から表示しています。このリポジトリにも MIT ライセンスにも含まれません。図をクリックすると元のページとコメントが開きます。
+
+残りの点はすべて下の写真に名前付きで示されています。各基板で SQCK、SUBQ、DATA、WFCK、VCC、GND が表示されています。クロックと蓋は上の図の 2 番と 7 番の位置に、それ以外はこれらの写真が示す位置にはんだ付けしてください。PU-18 の写真は基板の裏面です。AX、DX、RESET も表示されていますが PsNee のブート ROM パッチ用で、このチップにはないので接続しないでください。
+
+<table>
+<tr><td align="center" width="33%"><a href="assets/psnee/pu-18.jpg"><img src="assets/psnee/pu-18.jpg" alt="PsNee による、SQCK、SUBQ、DATA、WFCK、VCC、GND の点を示した PU-18 基板" width="240"></a><br><sub><b>PU-18</b>。写真: PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pu-20.jpg"><img src="assets/psnee/pu-20.jpg" alt="PsNee による、SQCK、SUBQ、DATA、WFCK、VCC、GND の点を示した PU-20 基板" width="240"></a><br><sub><b>PU-20</b>。写真: PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pu-22.jpg"><img src="assets/psnee/pu-22.jpg" alt="PsNee による、SQCK、SUBQ、DATA、WFCK、VCC、GND の点を示した PU-22 基板" width="240"></a><br><sub><b>PU-22</b>。写真: PsNee</sub></td></tr>
+<tr><td align="center" width="33%"><a href="assets/psnee/pu-23.jpg"><img src="assets/psnee/pu-23.jpg" alt="PsNee による、SQCK、SUBQ、DATA、WFCK、VCC、GND の点を示した PU-23 基板" width="240"></a><br><sub><b>PU-23</b>。写真: PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pm-41.jpg"><img src="assets/psnee/pm-41.jpg" alt="PsNee による、SQCK、SUBQ、DATA、WFCK、VCC、GND の点を示した PM-41 基板" width="240"></a><br><sub><b>PM-41</b>。写真: PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pm-41-2.jpg"><img src="assets/psnee/pm-41-2.jpg" alt="PsNee による、SQCK、SUBQ、DATA、WFCK、VCC、GND の点を示した PM-41(2) 基板" width="240"></a><br><sub><b>PM-41(2)</b>。写真: PsNee</sub></td></tr>
+</table>
+
+この 6 枚の写真は kalymos とコントリビュータによる [PsNee](https://github.com/kalymos/PsNee) V9.0 のもので、[Unlicense](LICENSES/Unlicense.txt) でパブリックドメインに置かれており、縮小してここに複製しています。これと上の図で、チップのすべての配線に取り付け位置の画像があります。
 
 | 基板 | SCPH 世代 | DATA 注入点 | WFCK の役割 | 確度 |
 |:-----|:----------|:------------|:------------|:-----|
@@ -211,7 +220,7 @@ DATA は SCEx ビット列を運び、WFCK はゲートまたはキャリアで�
 
 クロック線はコンソールの 4.2336 MHz クロックをチップに運ぶので、長さが重要です。quade.co は Mayumi V4 の不具合をこの線が拾うノイズに帰しており、最も短くするよう勧めています。チップはクロック点の近くに置いてください。データシートは、1 サイクルごとに 2% を超えて変動するクロックはチップの予測不能な動作を招くと警告しています。
 
-メカコンの SUBQ と SQCK のピン、フォーラムの伝聞で、psxdev.net が 2025 年 10 月から停止中のため Unknown: PU-22 以降は SUBQ が 24 番、SQCK が 26 番。切る前に consolemods の基板図で確認してください。
+上の写真は対応する全基板で SQCK と SUBQ を示しているので、それに従ってください。フォーラムの伝聞による PU-22 以降のメカコンのピン番号、SUBQ が 24 番、SQCK が 26 番は、psxdev.net が 2025 年 10 月から停止中のため Unknown のままです。
 
 ## クイックスタート
 

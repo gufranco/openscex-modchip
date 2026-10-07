@@ -4,3 +4,11 @@ version = 1
 path = ["specs/**", "README.md", "README.ja.md", "README.zh.md", "AGENTS.md", "SECURITY.md", "CONTRIBUTING.md", "CHANGELOG.md", ".gitignore", ".dockerignore", ".editorconfig", ".clang-format", ".releaserc.json", "REUSE.toml", ".tool-versions", ".vscode/**", ".github/ISSUE_TEMPLATE/**"]
 SPDX-FileCopyrightText = "2026 Gustavo Franco <gufranco@users.noreply.github.com>"
 SPDX-License-Identifier = "MIT"
+
+# Board photos from PsNee V9.0 (https://github.com/kalymos/PsNee, commit
+# df52aec, images/motherboard), released into the public domain under the
+# Unlicense; resized to 1600 px wide JPEG for this repository.
+[[annotations]]
+path = ["assets/psnee/**"]
+SPDX-FileCopyrightText = "2026 kalymos and the PsNee contributors <https://github.com/kalymos/PsNee>"
+SPDX-License-Identifier = "Unlicense"
