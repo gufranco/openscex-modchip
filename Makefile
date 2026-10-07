@@ -9,6 +9,13 @@ NAME := openscex-modchip
 # pins carry the four SCEx signals and the LED, and PB5 stays RESET.
 MCU := attiny85
 FLASH_BYTES := 8192
+# The image must leave this much flash free, so the build fails while there is
+# still room to fix a release, rather than at the linker once nothing fits. 256
+# bytes is a design choice: about one small feature or several bug fixes, and
+# 3 percent of the part. Flash use is text plus the data initializers, which the
+# startup code copies from flash.
+FLASH_RESERVE := 256
+FLASH_BUDGET := $(shell expr $(FLASH_BYTES) - $(FLASH_RESERVE))
 
 # The chip runs from its internal 8 MHz RC oscillator (CKSEL 0010, low fuse
 # 0xE2), so it needs no clock wire and can be reprogrammed off the console. The
@@ -168,6 +175,12 @@ size: image_size
 
 image_size: $(RELEASE_ELF)
 	$(AVR_SIZE) $(RELEASE_ELF)
+	@used=$$($(AVR_SIZE) $(RELEASE_ELF) | awk 'NR == 2 { print $$1 + $$2 }'); \
+	if [ -z "$$used" ] || [ "$$used" -gt $(FLASH_BUDGET) ]; then \
+	  echo "flash: $$used bytes, over the $(FLASH_BUDGET)-byte budget ($(FLASH_BYTES) less $(FLASH_RESERVE) reserved)" >&2; \
+	  exit 1; \
+	fi; \
+	echo "flash: $$used of $(FLASH_BUDGET) budgeted bytes"
 
 hosttest: $(HOST_TEST)
 	rm -f $(BUILD)/host/*.gcda
