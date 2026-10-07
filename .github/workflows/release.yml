@@ -16,11 +16,24 @@ name: Release
 # with generated notes. The per-console SCEx images are then built in the pinned
 # toolchain, hashed into SHA256SUMS, given a build-provenance attestation, and
 # attached with the LICENSE.
+#
+# Recovery: semantic-release pushes the CHANGELOG commit and the tag before it
+# creates the GitHub release, so a GitHub-side failure in between strands a tag
+# with no release and no images, and the [skip ci] CHANGELOG commit never starts
+# another run. Running this workflow by hand with that tag builds the images from
+# the tag, creates the release from the tag's CHANGELOG section if it is missing,
+# and attests and attaches the images exactly as a normal release does.
 on:
   workflow_run:
     workflows: [CI]
     types: [completed]
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: An existing release tag to publish, such as v0.8.0
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -36,20 +49,50 @@ concurrency:
 jobs:
   release:
     name: Version and publish
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-26.04
     # The slowest of the last 10 green runs took 243 s, building and attesting
     # the images included; 20 minutes is the backstop for a hung step.
     timeout-minutes: 20
     steps:
-      - name: Checkout main
+      - name: Checkout main, or the tag being recovered
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: main
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || 'main' }}
           fetch-depth: 0
+
+      - name: Recover a stranded tag
+        id: recover
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s\n' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "not a release tag: $TAG" >&2
+            exit 1
+          fi
+          git rev-parse --verify --quiet "refs/tags/$TAG" > /dev/null
+          version="${TAG#v}"
+          awk -v v="$version" '
+            /^# \[/ { if (on) exit; if (index($0, "# [" v "]") == 1) on = 1 }
+            on { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "no CHANGELOG section for $version" >&2
+            exit 1
+          fi
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file release-notes.md
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Confirm main is still the commit CI passed
         id: fresh
+        if: github.event_name == 'workflow_run'
         env:
           PASSED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
@@ -73,7 +116,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build the per-console SCEx images in the pinned toolchain
-        if: steps.semrel.outputs.new_release_published == 'true'
+        if: steps.semrel.outputs.new_release_published == 'true' || steps.recover.outputs.tag != ''
         run: |
           set -euo pipefail
           make REGION=us image
@@ -87,16 +130,16 @@ jobs:
           ls -1 release-artifacts
 
       - name: Attest build provenance
-        if: steps.semrel.outputs.new_release_published == 'true'
+        if: steps.semrel.outputs.new_release_published == 'true' || steps.recover.outputs.tag != ''
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: release-artifacts/*.hex
 
       - name: Attach the images to the release
-        if: steps.semrel.outputs.new_release_published == 'true'
+        if: steps.semrel.outputs.new_release_published == 'true' || steps.recover.outputs.tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.semrel.outputs.new_release_git_tag }}
+          RELEASE_TAG: ${{ steps.semrel.outputs.new_release_git_tag || steps.recover.outputs.tag }}
         run: |
           set -euo pipefail
           gh release upload "$RELEASE_TAG" release-artifacts/*.hex \
