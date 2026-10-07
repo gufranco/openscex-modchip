@@ -26,6 +26,7 @@ LOGIC_FILES = (
     "src/led.c",
     "src/calib.c",
     "src/trim.c",
+    "src/supply.c",
 )
 TEST_FILES = (
     "tests/host/host_assert.c",

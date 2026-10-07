@@ -39,7 +39,7 @@ static pscu_led_t pscu_led_enter(pscu_led_t state,
 
 pscu_led_t pscu_led_init(uint8_t board_blinks, uint8_t replay_code) {
   PSCU_ASSERT((board_blinks == 1U) || (board_blinks == 2U));
-  PSCU_ASSERT(replay_code <= PSCU_LED_CODE_BOARD_CHANGED);
+  PSCU_ASSERT(replay_code <= PSCU_LED_CODE_SUPPLY);
 
   pscu_led_t state = { PSCU_LED_BOARD, 0U, false, board_blinks, replay_code, 0U };
   return state;
@@ -120,7 +120,7 @@ pscu_led_step_t pscu_led_step(pscu_led_t state,
                               pscu_led_event_t event,
                               uint8_t fault,
                               uint32_t elapsed_ms) {
-  PSCU_ASSERT(fault <= PSCU_LED_CODE_BOARD_CHANGED);
+  PSCU_ASSERT(fault <= PSCU_LED_CODE_SUPPLY);
 
   // Saturating add: unsigned addition wraps, so a sum below the old phase means
   // it overflowed and the phase pins at the maximum instead of restarting the
@@ -135,10 +135,13 @@ pscu_led_step_t pscu_led_step(pscu_led_t state,
   return out;
 }
 
-uint8_t pscu_led_fault(bool seen, uint32_t quiet_ms, uint32_t since_ms, bool framed, bool armed) {
+uint8_t pscu_led_fault(
+    bool supply_low, bool seen, uint32_t quiet_ms, uint32_t since_ms, bool framed, bool armed) {
   uint8_t fault = 0U;
   bool install_check = (quiet_ms >= PSCU_LED_NO_SQCK_MS) && (quiet_ms < PSCU_LED_NO_SQCK_UNTIL_MS);
-  if (!seen && install_check) {
+  if (supply_low) {
+    fault = PSCU_LED_CODE_SUPPLY;
+  } else if (!seen && install_check) {
     fault = PSCU_LED_CODE_NO_SQCK;
   } else if (framed && !armed && (since_ms >= PSCU_LED_NO_CHECK_MS)) {
     fault = PSCU_LED_CODE_NO_CHECK;

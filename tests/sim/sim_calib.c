@@ -217,3 +217,65 @@ void scenario_trim(const target_t *t, const char *elf, uint32_t freq) {
   calib_check(
       t, osccal(avr) == (uint8_t)(SIM_OSCCAL_FACTORY - 3U), "the stored trim is applied at boot");
 }
+
+// The supply guard. simavr models the bandgap channel against the supply it is
+// given (Verified: a probe read 225 at 5 V, 341 at 3.3 V and 401 at 2.8 V). A
+// chip run at 2.8 V, under the 2.9 V limit, must send no string through a whole
+// lead-in that reaches its start point, show code 7, and leave the stored
+// record as it was: the console did run its check, so the empty window is not a
+// miss that should move the start back. Raised to 3.3 V on the same run, the
+// next lead-in must be injected, since the guard holds no state of its own.
+// One code-7 cycle lasts 9 s and the watch can start anywhere in one, so 20 s
+// always holds a whole one.
+#define LOW_SUPPLY_MV 2800U
+#define GOOD_SUPPLY_MV 3300U
+#define SUPPLY_TRIGGER 12U
+#define SUPPLY_CAP 8U
+#define SUPPLY_TOC_FRAMES 60
+#define SUPPLY_WATCH_MS 20000U
+
+static int longest_code_after(uint64_t from) {
+  int longest = 0;
+  for (int i = 0; i < g_pulses; i++) {
+    int group = (g_pulse_rise[i] >= from) ? pulse_group(g_pulse_rise[i], 600U, 800U) : 0;
+    longest = (group > longest) ? group : longest;
+  }
+  return longest;
+}
+
+static void set_supply(avr_t *avr, uint32_t mv) {
+  avr->vcc = mv;
+  avr->avcc = mv;
+}
+
+void scenario_supply(const target_t *t, const char *elf, uint32_t freq) {
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
+  seed_calib(0U, SUPPLY_CAP, SUPPLY_TRIGGER, 0U, 0);
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  set_supply(avr, LOW_SUPPLY_MV);
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+  uint64_t mark = avr->cycle;
+  clock_frames(avr, t, toc, SUPPLY_TOC_FRAMES);
+  clock_frames(avr, t, silence, MISSED_DECAY_FRAMES);
+  run_cycles(avr, ms_cycles(SUPPLY_WATCH_MS));
+  int low = g_strings;
+  int code = longest_code_after(mark);
+  uint8_t raw[CALIB_BYTES] = { 0 };
+  read_calib(avr, raw);
+  set_supply(avr, GOOD_SUPPLY_MV);
+  int good = strings_while(avr, t, toc, SUPPLY_TOC_FRAMES);
+
+  char what[64];
+  (void)snprintf(what, sizeof(what), "no string at 2.8 V (%d strings)", low);
+  calib_check(t, low == 0, what);
+  (void)snprintf(what, sizeof(what), "a low supply shows code 7 (%d)", code);
+  calib_check(t, code == 7, what);
+  calib_check(
+      t,
+      calib_valid(raw) && (raw[2] == SUPPLY_CAP) && (raw[3] == SUPPLY_TRIGGER) && (raw[4] == 0U),
+      "a window the supply kept shut teaches nothing");
+  calib_check(t, good >= 1, "injects once the supply is back at 3.3 V");
+}

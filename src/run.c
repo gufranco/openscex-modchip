@@ -14,6 +14,7 @@
 #include "pscu/inject.h"
 #include "pscu/led.h"
 #include "pscu/subq.h"
+#include "pscu/supply.h"
 #include "pscu/trim.h"
 
 // Clocks per millisecond, the divisor that turns Timer1 ticks (16384 clocks
@@ -58,8 +59,12 @@ typedef struct {
 } pscu_session_step_t;
 
 // Time and evidence since this disc arrived (or since boot): how long, whether
-// any valid frame arrived, and whether the chip armed or the console accepted.
-// The LED's region-check fault and the missed-window test are judged on it.
+// any valid frame arrived, and whether the region-check window was reached or
+// the console accepted. A window the supply guard kept shut still counts as
+// reached: the console did run its check, and the chip held back for its own
+// supply, so the disc is neither a missed window that should move the trigger
+// nor a disc with no check. The LED's region-check fault and the missed-window
+// test are judged on it.
 typedef struct {
   uint32_t ms;
   bool framed;
@@ -230,7 +235,7 @@ static pscu_clock_step_t pscu_clock_step(pscu_clock_t clock) {
 }
 
 // A gone disc starts the count over; a present one accumulates time, whether any
-// valid frame arrived, and whether the chip armed or the console accepted.
+// valid frame arrived, and whether the window was reached or the console accepted.
 static pscu_since_disc_t pscu_since_disc_step(
     pscu_since_disc_t since, bool disc_gone, uint32_t elapsed_ms, bool valid, bool armed) {
   pscu_since_disc_t next = { 0U, false, false };
@@ -310,7 +315,9 @@ void pscu_run(void) {
     counter = disc_gone ? 0U : pscu_subq_update_counter(frame, counter, PSCU_VCD_FILTER_ENABLED);
     bool settled = since.ms >= PSCU_TRIM_SETTLE_MS;
     osc = pscu_osc_step(osc, stamp, captured && settled && (counter > previous));
-    bool in_window = pscu_should_inject(counter, calib.trigger);
+    bool supply_ok = pscu_supply_ok(pscu_port_supply_raw());
+    bool reached = pscu_should_inject(counter, calib.trigger);
+    bool in_window = supply_ok && reached;
     bool program = pscu_subq_is_program_area(frame);
     cap = (stealth.sent == 0U) ? calib.cap : cap;
     pscu_stealth_step_t step =
@@ -328,9 +335,9 @@ void pscu_run(void) {
     pscu_osc_store_t kept = pscu_osc_store(osc, calib, !in_window && (stealth.sent == 0U));
     osc = kept.osc;
     calib = kept.calib;
-    since = pscu_since_disc_step(since, disc_gone, tick.elapsed_ms, valid, step.fire || program);
-    uint8_t fault =
-        pscu_led_fault(presence.seen, presence.quiet_ms, since.ms, since.framed, since.armed);
+    since = pscu_since_disc_step(since, disc_gone, tick.elapsed_ms, valid, reached || program);
+    uint8_t fault = pscu_led_fault(
+        !supply_ok, presence.seen, presence.quiet_ms, since.ms, since.framed, since.armed);
     led = (was_gone && !disc_gone) ? pscu_led_disc_arrived(led) : led;
     was_gone = disc_gone;
     led = pscu_led_show(led, watched.event, missed, fault, tick.elapsed_ms);

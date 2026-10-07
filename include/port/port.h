@@ -61,6 +61,10 @@ uint8_t pscu_port_ticks(void);
 // Nonzero when the last reset came from the watchdog; clears the reset flags.
 uint8_t pscu_port_reset_was_watchdog(void);
 
+// The 10-bit ADC reading of the 1.1 V bandgap against VCC, 1024 x 1.1 V / VCC,
+// or 0 if the conversion did not finish in time.
+uint16_t pscu_port_supply_raw(void);
+
 // The oscillator calibration register: the factory value at boot, written one
 // step at a time to trim the internal 8 MHz oscillator.
 uint8_t pscu_port_osccal_read(void);

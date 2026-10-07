@@ -44,16 +44,22 @@
 
 // Bring the chip up. Writing 0x80 then 0x00 to CLKPR within four cycles is the
 // AVR timed sequence that clears the clock prescaler, so the core runs at the
-// full 8 MHz regardless of the factory CKDIV8 fuse. LED is the only
-// output at boot. Timer1 starts free-running at the clock divided by 16384, its
-// slowest synchronous setting (Read: ATtiny25/45/85 datasheet 2586Q, Table 12-5,
-// CS13:0 = 1111), as the time base for the LED and the oscillator trim; it
-// drives no pin and raises no interrupt. The two writes to the watchdog register
-// are its own timed sequence: the first
-// arms the change, the second enables the watchdog at a ~0.5 s timeout
-// (WDP2|WDP0), so any hang longer than one loop pass resets the chip instead of
-// wedging it. The watchdog runs from its own 128 kHz oscillator, so its timeout
-// does not depend on the main clock or its trim.
+// full 8 MHz regardless of the factory CKDIV8 fuse. LED is the only output at
+// boot. The ADC is switched on to read the 1.1 V bandgap against VCC, which is
+// how the chip measures its own supply: REFS 000 makes VCC the reference and
+// MUX 1100 selects the bandgap (Read: ATtiny25/45/85 datasheet 2586Q, ADC input
+// channel and voltage reference selections), and CK/64 gives the 125 kHz the
+// datasheet asks for (50 to 200 kHz for full resolution). Switching it on here
+// leaves the bandgap well over its start-up time before the first reading,
+// which comes after board detection. Timer1 starts free-running at the clock
+// divided by 16384, its slowest synchronous setting (Read: ATtiny25/45/85
+// datasheet 2586Q, Table 12-5, CS13:0 = 1111), as the time base for the LED and
+// the oscillator trim; it drives no pin and raises no interrupt. The two writes
+// to the watchdog register are its own timed sequence: the first arms the
+// change, the second enables the watchdog at a ~0.5 s timeout (WDP2|WDP0), so
+// any hang longer than one loop pass resets the chip instead of wedging it. The
+// watchdog runs from its own 128 kHz oscillator, so its timeout does not depend
+// on the main clock or its trim.
 
 	.global pscu_port_init
 	.func pscu_port_init
@@ -68,6 +74,10 @@ pscu_port_init:
 	out _SFR_IO_ADDR(PSCU_PORT), r24
 	ldi r24, (1 << CS13) | (1 << CS12) | (1 << CS11) | (1 << CS10)
 	out _SFR_IO_ADDR(TCCR1), r24
+	ldi r24, (1 << MUX3) | (1 << MUX2)
+	out _SFR_IO_ADDR(ADMUX), r24
+	ldi r24, (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1)
+	out _SFR_IO_ADDR(ADCSRA), r24
 	wdr
 	ldi r24, (1 << WDCE) | (1 << WDE)
 	out _SFR_IO_ADDR(PSCU_WDT_REG), r24
@@ -301,6 +311,34 @@ pscu_port_osccal_read:
 	.func pscu_port_osccal_write
 pscu_port_osccal_write:
 	out _SFR_IO_ADDR(OSCCAL), r24
+	ret
+	.endfunc
+
+// One supply reading: start a conversion of the bandgap against VCC and wait
+// for it, bounded. A conversion takes 13 ADC clocks, 25 for the first after the
+// ADC is enabled, at most 1600 CPU cycles at CK/64 (Read: the same datasheet);
+// the wait gives up after 1024 passes of 7 cycles, about 900 us, and then
+// returns 0, a reading the caller treats as implausible. ADCL is read first,
+// which locks ADCH until it is read, as the datasheet requires for a 10-bit
+// result. r26 and r27 are call-clobbered under the avr-gcc ABI.
+	.global pscu_port_supply_raw
+	.func pscu_port_supply_raw
+pscu_port_supply_raw:
+	sbi _SFR_IO_ADDR(ADCSRA), ADSC
+	ldi r26, lo8(1024)
+	ldi r27, hi8(1024)
+16:
+	wdr
+	sbis _SFR_IO_ADDR(ADCSRA), ADSC
+	rjmp 17f
+	sbiw r26, 1
+	brne 16b
+	ldi r24, 0
+	ldi r25, 0
+	ret
+17:
+	in r24, _SFR_IO_ADDR(ADCL)
+	in r25, _SFR_IO_ADDR(ADCH)
 	ret
 	.endfunc
 

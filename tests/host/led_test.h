@@ -6,7 +6,7 @@
 
 #include "calib_test.h"
 
-// The status LED, reporting through the main suite's check.
+// The status LED and the supply guard, reporting through the main suite's check.
 void led_tests(pscu_check_fn check);
 
 #endif

@@ -44,6 +44,7 @@ int main(int argc, char *argv[]) {
   board_blinks_case(&t85, elf, freq, 0);
   board_blinks_case(&t85, elf, freq, 1);
   faults_case(&t85, elf, freq);
+  scenario_supply(&t85, elf, freq);
   scenario_calib_cap(&t85, elf, freq);
   scenario_calib_board(&t85, elf, freq);
   scenario_calib_missed(&t85, elf, freq);

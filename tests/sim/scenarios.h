@@ -23,6 +23,7 @@ void scenario_fast_sqck(const target_t *t, const char *elf, uint32_t freq);
 void scenario_boot_light(const target_t *t, const char *elf, uint32_t freq);
 void board_blinks_case(const target_t *t, const char *elf, uint32_t freq, int modern);
 void faults_case(const target_t *t, const char *elf, uint32_t freq);
+void scenario_supply(const target_t *t, const char *elf, uint32_t freq);
 void scenario_calib_cap(const target_t *t, const char *elf, uint32_t freq);
 void scenario_calib_board(const target_t *t, const char *elf, uint32_t freq);
 void scenario_calib_missed(const target_t *t, const char *elf, uint32_t freq);
