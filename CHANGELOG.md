@@ -1,3 +1,10 @@
+# [0.6.0](https://github.com/gufranco/openscex-modchip/compare/v0.5.0...v0.6.0) (2026-10-07)
+
+
+### Features
+
+* string gap, gate drive and jp start ([f7b6be7](https://github.com/gufranco/openscex-modchip/commit/f7b6be765bbdca61cf950d1ad2a8068c39f3ec6f))
+
 # [0.5.0](https://github.com/gufranco/openscex-modchip/compare/v0.4.0...v0.5.0) (2026-10-07)
 
 
