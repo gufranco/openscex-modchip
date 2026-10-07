@@ -106,7 +106,7 @@ WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -Wsh
 	-Wswitch-default -Wdouble-promotion -Wnull-dereference -Wvla -Wredundant-decls -Wformat=2
 HOST_CFLAGS := $(C_STD) -Iinclude $(WARNINGS)
 
-LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c src/led.c src/calib.c src/trim.c src/supply.c
+LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c src/led.c src/calib.c src/trim.c src/supply.c src/loop.c
 HOST_LOGIC_C := $(LOGIC_C)
 
 FIRMWARE_C := $(LOGIC_C) src/engine.c src/run.c src/main.c
@@ -115,7 +115,7 @@ CPPCHECK_MCU_DEF := -D__AVR_ATtiny85__
 ALL_SRC_C := $(FIRMWARE_C)
 FIRMWARE_S := src/port.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
-HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_test.c tests/host/trim_test.c tests/host/disc_test.c tests/host/led_test.c
+HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_test.c tests/host/trim_test.c tests/host/disc_test.c tests/host/led_test.c tests/host/loop_test.c
 SIM_TEST_C := tests/sim/sim_test.c tests/sim/harness.c tests/sim/sim_inject.c tests/sim/sim_disc.c tests/sim/sim_calib.c
 SIM_TEST_H := tests/sim/harness.h tests/sim/scenarios.h
 C_FILES := $(ALL_SRC_C) $(FIRMWARE_H) $(HOST_TEST_C) $(SIM_TEST_C) $(SIM_TEST_H)

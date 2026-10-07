@@ -27,6 +27,7 @@ LOGIC_FILES = (
     "src/calib.c",
     "src/trim.c",
     "src/supply.c",
+    "src/loop.c",
 )
 TEST_FILES = (
     "tests/host/host_assert.c",
@@ -35,6 +36,7 @@ TEST_FILES = (
     "tests/host/trim_test.c",
     "tests/host/disc_test.c",
     "tests/host/led_test.c",
+    "tests/host/loop_test.c",
 )
 CC = "gcc"
 CFLAGS = ("-std=c17", "-pedantic-errors", "-Iinclude", "-O0", "-DPSCU_DEBUG")

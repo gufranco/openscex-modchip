@@ -9,6 +9,7 @@
 #include "calib_test.h"
 #include "disc_test.h"
 #include "led_test.h"
+#include "loop_test.h"
 #include "pscu/board_mode.h"
 #include "pscu/inject.h"
 #include "pscu/region.h"
@@ -405,6 +406,7 @@ int main(void) {
   trim_tests(check);
   disc_tests(check);
   led_tests(check);
+  loop_tests(check);
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
   return (g_failures == 0) ? 0 : 1;
