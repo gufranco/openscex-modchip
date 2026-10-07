@@ -4,7 +4,7 @@
 
 <h1>openscex-modchip</h1>
 
-<strong>面向 PlayStation 与 PSone 的隐身 SCEx 区域解锁，运行在由主机自身时钟驱动的 ATtiny84 上。</strong>
+<strong>面向 PlayStation 与 PSone 的隐身 SCEx 区域解锁，运行在按主机校正自身时钟的 ATtiny84 上。</strong>
 
 <br><br>
 
@@ -22,7 +22,7 @@
   <a href="../../issues/new?template=compatibility.yml">报告你的主机</a>
 </p>
 
-闪存 **3514** 字节 · **6** 个主板系列，PU-18 至 PM-41(2) · **3** 个区域 · MISRA 偏离 **0** · 主机测试行与分支覆盖率 **100%** · 变异体 **122/122** 被杀死
+闪存 **5018** 字节 · **8** 个主板系列，PU-7 至 PM-41(2) · **3** 个区域 · MISRA 偏离 **0** · 主机测试行与分支覆盖率 **100%** · 变异体 **138/138** 被杀死
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny84.hex' --pattern SHA256SUMS
@@ -31,14 +31,14 @@ avrdude -c <programmer> -p attiny84 -U flash:w:openscex-modchip-attiny84.hex:i
 ```
 
 > [!IMPORTANT]
-> ATtiny84 重新设计（v0.3.0）通过了全部仿真关卡，尚未在实机上运行。接线前请测量时钟与光驱盖接点。
+> 当前固件通过了全部仿真关卡，尚未在实机上运行。接线前请测量光驱盖接点。
 
-面向初代索尼 PlayStation（厚机）与 PSone 的区域解锁固件，运行在由主机自身时钟驱动的 ATtiny84 上。它只在 SUBQ 区域检查窗口内送出配置好的区域字符串，主机一接受就立即停止，游戏运行时让数据线保持高阻。一根接到光驱盖开关的线让它准确知道何时换盘。它不修补引导 ROM，因此日本厚机与 PAL 的 PSone 仍保留第二道区域检查；如需绕过，请安装已修补的 BIOS。它不是光驱模拟器，不支持 PS2 或土星，也不破解 LibCrypt。
+面向初代索尼 PlayStation（厚机）与 PSone 的区域解锁固件，运行在使用内部振荡器的 ATtiny84 上，并按主机自身的 SUBQ 帧率校正该振荡器。它只在 SUBQ 区域检查窗口内送出配置好的区域字符串，主机一接受就立即停止，游戏运行时让数据线保持高阻。一根接到光驱盖开关的线让它准确知道何时换盘。它不修补引导 ROM，因此日本厚机与 PAL 的 PSone 仍保留第二道区域检查；如需绕过，请安装已修补的 BIOS。它不是光驱模拟器，不支持 PS2 或土星，也不破解 LibCrypt。
 
 | | |
 |:--|:--|
 | **接受后保持静默**<br>第一个程序区帧即停止注入（字符串中途也一样），并保持静默直到光驱盖打开。 | **准确的换盘**<br>光驱盖线在打开后 4 ms 内停止字符串，关闭时重新武装，适用于多光盘游戏的每张光盘。 |
-| **锁定主机的时序**<br>芯片由主机的 4.2336 MHz 时钟驱动，从不使用自身振荡器。 | **一个区域，一个窗口**<br>只送出配置的区域字符串，只在 SUBQ 区域检查窗口内，每次武装最多 16 次。 |
+| **自校正的时序**<br>芯片对主机 75 Hz 的 SUBQ 帧计时，把内部振荡器校正到约 1% 以内，无需时钟线。 | **一个区域，一个窗口**<br>只送出配置的区域字符串，只在 SUBQ 区域检查窗口内，每次武装最多 16 次。 |
 | **状态 LED 代码**<br>一个 LED 用闪烁次数显示每个启动阶段、每张光盘的结果和当前的接线故障。 | **代码实证**<br>MISRA C:2012 合规，主机覆盖率 100%，simavr 主机模型，变异测试，逐字节一致的重新构建。 |
 
 ## 工作原理
@@ -47,7 +47,6 @@ avrdude -c <programmer> -p attiny84 -U flash:w:openscex-modchip-attiny84.hex:i
 graph LR
     subgraph Console
         CD[CD 子系统]
-        CLK[4.2336 MHz 时钟]
         LID[光驱盖开关]
         WF[WFCK]
         MECH[机芯控制器]
@@ -66,7 +65,6 @@ graph LR
     ST <-->|上限、起始| CAL
     LID -->|光驱盖线| ST
     WF -->|门控或载波| INJ
-    CLK -->|CLKI| ATtiny84
     INJ -->|DATA| MECH
 ```
 
@@ -76,9 +74,9 @@ graph LR
 |:-----|:---------|:---------|:----------|:----|
 | 隐身触发 | SUBQ 检查窗口加接受锁存 | SUBQ 解码 | 感应线加光驱盖线 | 与 Mayumi V4 相同的程序 |
 | 换盘检测 | 光驱盖线 | SUBQ 计数器衰减 | 光驱盖线 | 光驱盖线 |
-| 时钟 | 主机 | 内部 | 主机 | 内部 RC |
+| 时钟 | 内部，按 SUBQ 校正 | 内部 | 主机 | 内部 RC |
 | 引导 ROM BIOS 补丁 | 无，使用已修补的 BIOS | 有，ATmega 版本 | 无 | 无 |
-| 主板 | PU-18 至 PM-41(2) | PU-7 至 PM-41(2) | PU-18 及以后 | PU-7 及以后 |
+| 主板 | PU-7 至 PM-41(2) | PU-7 至 PM-41(2) | PU-18 及以后 | PU-7 及以后 |
 | 诊断 | LED 阶段与结果代码 | 串口调试 | 无 | 无 |
 | 按主机学习 | 字符串上限与起始位置 | 无 | 无 | 无 |
 | 测试与静态分析 | 主机、simavr、变异、MISRA | 无 | 无 | 无 |
@@ -88,12 +86,12 @@ graph LR
 
 | 项目 | 值 |
 |:-----|:---|
-| 目标机型 | PlayStation 厚机 PU-18 至 PU-23，PSone PM-41 与 PM-41(2) |
+| 目标机型 | PlayStation 厚机 PU-7 至 PU-23，PSone PM-41 与 PM-41(2) |
 | MCU | ATtiny84（14 脚 DIP） |
 | 方式 | SCEx 注入 |
 | 区域 | 每次构建一个，`REGION=jp|us|eu`（默认 us） |
-| 时钟 | 主机的 4.2336 MHz 时钟接入 CLKI，从不使用内部振荡器 |
-| 连线 | 6 根信号线（SQCK、SUBQ、DATA、WFCK、时钟、光驱盖）加电源；LED 可选 |
+| 时钟 | 内部 8 MHz RC 振荡器，按主机的 SUBQ 帧率校正 |
+| 连线 | 5 根信号线（SQCK、SUBQ、DATA、WFCK、光驱盖）加电源；LED 可选 |
 | 工具链 | C17，MISRA C:2012 零偏离，版本固定的 Docker 镜像 |
 
 ## 已在实机验证
@@ -105,7 +103,7 @@ graph LR
 | PU-18 | 厚机，NTSC-U/C | 主机 | SCEx | Verified 2026-10-05 |
 | PM-41 | PSone | 主机 | SCEx | Verified 2026-10-05 |
 
-这些结果早于改为仅支持 ATtiny84 的重新设计：必接的光驱盖线、仅使用主机时钟、接受锁存、有上限的 SUBQ 等待，以及 2026-10-06 的全部改动。重新设计通过了全部仿真关卡，尚未在实机上运行。2026-10-05 主机时钟构建所用的芯片、各台机器的确切 SCPH 以及构建时的频率均未记录。尚未在实机确认：PU-20、PU-22、PU-23、PM-41(2)，以及任何主板上的 PAL 与 NTSC-J。
+这些结果早于当前设计：必接的光驱盖线、带校正的内部振荡器、接受锁存、有上限的 SUBQ 等待，以及 2026-10-06 以来的全部改动。当前固件通过了全部仿真关卡，尚未在实机上运行。2026-10-05 主机时钟构建所用的芯片、各台机器的确切 SCPH 以及构建时的频率均未记录。尚未在实机确认：PU-7、PU-8、PU-20、PU-22、PU-23、PM-41(2)，以及任何主板上的 PAL 与 NTSC-J。
 
 逐机型验证由社区推动。在你的主机上试过了吗？请提交[兼容性报告](../../issues/new?template=compatibility.yml)，此表将随确认的安装而增长。
 
@@ -113,19 +111,19 @@ graph LR
 
 | 功能 | 说明 |
 |:-----|:-----|
-| SCEx 注入 | 44 位 LSB 优先的区域字符串，PU-18 与 PU-20 的静态门控方式（与 PsNee 和 Mayumi V4 一样，每个字符串期间把 WFCK 门控拉低），以及 PU-22 及以后的 WFCK 载波方式 |
+| SCEx 注入 | 44 位 LSB 优先的区域字符串，PU-7 至 PU-20 的静态门控方式（与 PsNee 和 Mayumi V4 一样，每个字符串期间把 WFCK 门控拉低），以及 PU-22 及以后的 WFCK 载波方式 |
 | 主板自动识别 | 启动时 WFCK 的行为决定门控或载波模式；一个构建适用所有主板 |
-| 主机时钟 | 芯片由主机自身的 4.2336 MHz 时钟驱动，所有延时都锁定在主机的晶振上，与 Mayumi V4 相同 |
+| 振荡器校正 | 芯片使用内部 8 MHz 振荡器，对主机 75 Hz 的 SUBQ 帧计时，每次把 OSCCAL 调一级，直到误差在 1% 以内，且离出厂值不超过 16 级；校正值保存在 EEPROM 中，启动时应用 |
 | 光驱盖线 | 接到光驱盖开关的必接线：盖子打开时在一个 4 ms 位单元内停止字符串，关闭时为下一张光盘重新武装，因此多光盘游戏的每次换盘都被检测到，而非推测 |
 | 隐身 | 只在 SUBQ 区域检查窗口内、每次武装有上限地注入，与 PsNee 和 Mayumi V4 一样在字符串之间间隔 5 帧即 67 ms，之后 DATA 高阻、LED 关闭；主机一读到程序区即停止，并在盖子打开前对之后的所有导入区读取保持静默 |
 | 单一区域 | 只送出 `REGION`，从不送出全部三个 |
-| 自适应时序 | 在 WFCK 载波主板上通过计数 WFCK 周期为注入位计时；`TIMING=fixed` 改用由主机时钟计时的延时 |
+| 自适应时序 | 在 WFCK 载波主板上通过计数 WFCK 周期为注入位计时；`TIMING=fixed` 改用由校正后振荡器计时的延时 |
 | 自我恢复 | 每次 SUBQ 采集都在帧间空隙重新对齐，并在 30 ms 后放弃；注入中 WFCK 载波停止时看门狗会释放 DATA；光驱盖线缺失时读作打开，芯片保持静默而不会盲目注入 |
 | 状态 LED | 独立引脚上的可选 LED 用闪烁次数显示启动阶段、每张光盘的结果和当前故障；固件从不等待它，不装 LED 也正确运行 |
 | 现场诊断 | 无需编程器：LED 代码指出失败的阶段，从缺失的盖子线到始终没有区域检查的 SUBQ；无需用编程器读回任何内容 |
-| 按主机校准 | 学习本主机需要多少字符串以及最晚可在何时开始，保存在 6 字节的 EEPROM 记录中，缺失或损坏时回退到默认值 |
+| 按主机校准 | 学习本主机需要多少字符串、最晚可在何时开始以及自身振荡器的快慢，保存在 7 字节的 EEPROM 记录中，缺失或损坏时回退到默认值 |
 | 闭环确认 | 注入后，芯片在 SUBQ 中等待程序区帧（真实的音轨号），机芯控制器只有在接受区域字符串后才允许读取它，因此显示区域检查是否通过 |
-| 验证 | 主机测试行与分支覆盖率 100%，在主机时钟下的 simavr 主机模型，变异测试，可复现构建 |
+| 验证 | 主机测试行与分支覆盖率 100%，包含偏快与偏慢振荡器的 simavr 主机模型，变异测试，可复现构建 |
 
 ## 可信度标签
 
@@ -139,9 +137,9 @@ graph LR
 | 事实 | 标签 |
 |:-----|:-----|
 | SCEx 引脚顺序 | Read（PsNee `MCU.h`），所有者确认已经实战验证 |
-| 时钟与光驱盖的接点 | Read，quade.co 上 Mayumi V4 的 2 号与 7 号点，其 PM-41(2) 页面写明 "Clock: Pin 2" 与 "CD Door: Pin 7" |
+| 光驱盖接点 | Read：PU-18 及以后为 quade.co 上 Mayumi V4 的 7 号点，其 PM-41(2) 页面写明 "CD Door: Pin 7"；PU-7 为主板上印有的盖开关 S301。PU-8：Unknown |
 | 光驱盖极性，打开时为高 | Read，Mayumi V4 二进制在其门输入为高时等待 |
-| 主机时钟 4.2336 MHz | Concluded，16.9344 MHz 的四分之一，与 Mayumi V4 的延时循环一致（MM3 在 4 MHz RC 上用 170 次，此处 182 次） |
+| 内部振荡器精度 | Read：出厂校准 ±10%，用户校准 ±1%（ATtiny24A/44A/84A 数据手册，Table 20-2）。校正能否在主机上达到该精度为 Unknown |
 | SQCK 与 SUBQ 接点 | Read，在每块受支持主板的 PsNee 照片上标出；其背后的机芯控制器引脚号仍为 Unknown |
 | 各焊点电压 | 由 PsNee 与 Mayumi 的安装 Concluded（厚机约 5 V，PSone 较低且对噪声敏感）；测量以确认 |
 | PU-18 与 PSone 上的 SCEx 解锁 | 以旧固件 Verified 2026-10-05（见上表） |
@@ -150,16 +148,18 @@ graph LR
 
 | 主机 | 主板 | `REGION` | 第二道区域检查 |
 |:-----|:-----|:---------|:---------------|
+| 厚机 US/加拿大，SCPH-1001 | PU-8 | `us` | 无 |
 | 厚机 US/加拿大，SCPH-550x1/700x1/900x1 | PU-18 至 PU-23 | `us` | 无 |
+| 厚机 PAL，SCPH-1002 | PU-8 | `eu` | 无 |
 | 厚机 PAL，SCPH-550x2/900x2 | PU-18 至 PU-22 | `eu` | 无 |
 | PSone US/加拿大，SCPH-101 | PM-41 / PM-41(2) | `us` | 无 |
 | PSone PAL，SCPH-102 | PM-41 / PM-41(2) | `eu` | 在引导 ROM 中；需要已修补的 BIOS |
 | PSone 日本，SCPH-100 | PM-41 | `jp` | 在引导 ROM 中；需要已修补的 BIOS |
-| 厚机日本，SCPH-5000/5500/7000/7500/9000 | PU-18 至 PU-23 | `jp` | 在引导 ROM 中；需要已修补的 BIOS |
+| 厚机日本，SCPH-1000/3000/3500/5000/5500/7000/7500/9000 | PU-7 至 PU-23 | `jp` | 在引导 ROM 中；需要已修补的 BIOS |
 | 亚洲，SCPH-xxx3 | 未记录 | `jp` | 无 |
 | 亚洲 Video CD，SCPH-5903 | 未记录 | `jp` + `VCD_FILTER=on` | 无 |
 
-不支持早于 PU-18 的主板（PU-7 与 PU-8，SCPH-1000 至 SCPH-500x）。引导 ROM 中的检查不由本芯片处理：在上表标出的机型上，安装已修补的 BIOS 之前外区游戏仍可能被拒绝。亚洲型号无需修补：PsNee V9.0 仅用 NTSC-J 字符串支持 SCPH-xxx3 与 SCPH-5903。SCPH-5903 还能播放 Video CD，因此其构建加上 `VCD_FILTER=on`，使注入只在游戏的导入区触发，不会在 Video CD 上触发。这两行亚洲机型尚未在本项目的实机上确认。开发机（DTL-H120x、PU-9）原生即可读刻录盘，无需芯片。
+PU-7 与 PU-8 使用与 PU-18、PU-20 相同的静态门控方式，PsNee V9.0 在这些主板上也是如此；PsNee 还把 SCPH-1000 与 SCPH-3000 列为第二道检查需要 BIOS 补丁的机型（Read：PSNee.ino:33-38）。引导 ROM 中的检查不由本芯片处理：在上表标出的机型上，安装已修补的 BIOS 之前外区游戏仍可能被拒绝。亚洲型号无需修补：PsNee V9.0 仅用 NTSC-J 字符串支持 SCPH-xxx3 与 SCPH-5903。SCPH-5903 还能播放 Video CD，因此其构建加上 `VCD_FILTER=on`，使注入只在游戏的导入区触发，不会在 Video CD 上触发。这两行亚洲机型尚未在本项目的实机上确认。开发机（DTL-H120x、PU-9）原生即可读刻录盘，无需芯片。
 
 ## 配置
 
@@ -168,20 +168,20 @@ graph LR
 | 参数 | 取值 | 默认 | 选择 |
 |:-----|:-----|:-----|:-----|
 | `REGION` | `jp`、`us`、`eu` | `us` | 芯片送出的唯一区域字符串 |
-| `TIMING` | `adaptive`、`fixed` | `adaptive` | adaptive 通过计数 WFCK 周期为 WFCK 载波注入位计时；fixed 使用编译期延时，同样锁定在主机时钟上 |
+| `TIMING` | `adaptive`、`fixed` | `adaptive` | adaptive 通过计数 WFCK 周期为 WFCK 载波注入位计时；fixed 使用编译期延时，由校正后的内部振荡器计时 |
 | `VCD_FILTER` | `off`、`on` | `off` | 仅 SCPH-5903 设为 on：注入只在游戏的导入区 TOC 触发，不在 Video CD 上触发，遵循 PsNee V9.0 的 SCPH-5903 过滤器 |
 
 非默认区域或过滤器会在产物名上加标签，例如 `openscex-modchip-attiny84-jp.hex` 或 `openscex-modchip-attiny84-jp-vcd.hex`。
 
 ## MCU 引脚
 
-SCEx 信号保持 PsNee 经验证的顺序（Read 自 PsNee `MCU.h`）；时钟与光驱盖位于 PORTB。物理引脚号为标准 PDIP 配置，SOIC 或 QFN 请查数据手册。
+SCEx 信号保持 PsNee 经验证的顺序（Read 自 PsNee `MCU.h`）；光驱盖位于 PORTB。物理引脚号为标准 PDIP 配置，SOIC 或 QFN 请查数据手册。
 
 | DIP 脚 | 端口 | 信号 | 方向 | 连接到 |
 |:------:|:-----|:-----|:-----|:-------|
 | 1 | VCC | VCC | - | 主机电源，先测量 |
-| 2 | PB0 | CLKI | 输入 | 主机时钟，Mayumi V4 的 2 号点；这根线要最短 |
-| 3 | PB1 | LID | 输入，上拉 | 光驱盖开关，Mayumi V4 的 7 号点 |
+| 2 | PB0 | - | - | 未使用 |
+| 3 | PB1 | LID | 输入，上拉 | 光驱盖开关：Mayumi V4 的 7 号点，PU-7 上为盖开关 S301 |
 | 4 | PB3 | RESET | - | 保持为复位 |
 | 5 | PB2 | - | - | 未使用 |
 | 6 | PA7 | - | - | 未使用 |
@@ -196,21 +196,22 @@ SCEx 信号保持 PsNee 经验证的顺序（Read 自 PsNee `MCU.h`）；时钟�
 
 ## 按主机校准
 
-芯片会学习所装主机如何读取区域字符串，并把结果保存在 6 字节的 EEPROM 记录中，因此之后的光盘驱动数据线的时间更短。每个学到的值只会朝固定默认值回退，所以记录丢失、损坏或来自别处时，损失的只是隐蔽性，而不是光盘。
+芯片会学习所装主机如何读取区域字符串，并把结果保存在 7 字节的 EEPROM 记录中，因此之后的光盘驱动数据线的时间更短。每个学到的值只会朝固定默认值回退，所以记录丢失、损坏或来自别处时，损失的只是隐蔽性，而不是光盘。
 
 | 值 | 学习来源 | 效果 |
 |:---|:---------|:-----|
 | 字符串上限 | 被接受的光盘所需的字符串数加 4 | 之后的光盘最多发送这么多字符串而不是 16 个；一张被拒绝的光盘会让下一张起恢复为 16 |
 | 起始位置 | 每张被接受的光盘把起始推迟 2 个导入区帧，即 27 ms，最多 20 帧；`jp` 构建保持默认值，因为 PsNee 告诫在日本主机上不要用更晚的触发 | 字符串更接近区域检查开始；被拒绝，或导入区读取在起始之前结束，则回退 2 帧并停止探索 |
-| 主板 | 启动时识别的主板 | 主板不同则显示一次代码 7，并重新学习另外两个值 |
+| 主板 | 启动时识别的主板 | 主板不同则显示一次代码 7，并重新学习字符串上限与起始位置 |
+| 振荡器 | 主机晶振以 75 Hz 排列的导入区帧间隔 | 每 64 帧把 OSCCAL 调一级，直到误差在 1% 以内；校正属于芯片本身，因此更换主板时保留 |
 
 芯片只写入值有变化的字节，只在启动时或光盘检查有结果之后写入，从不在发送字符串时写入，因此稳定下来的主机不再写入任何内容。单元擦写寿命为 100,000 次（Read：ATtiny24A/44A/84A 数据手册 DS40002269A）。校验字节能发现因断电只写了一半的记录，此时按默认值读取。重新烧录也会擦除记录，因为上面两组熔丝都让 EESAVE 保持未编程（Read：同一数据手册，Table 19-4，高熔丝位 3）。4 个字符串的余量、2 帧的步长和 20 帧的上限是设计选择，尚未在主机上调校。
 
 ## 主机接点
 
-DATA 承载 SCEx 位流，WFCK 是门控或载波；这些是 PsNee 与 Mayumi 的接点。时钟线与光驱盖线接到 Mayumi V4 芯片的 2 号与 7 号脚所接的位置，各主板的位置见 quade.co 的图：[PU-18](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/)、[PU-20](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/)、[PU-22](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/)、[PU-23](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-23/)、[PM-41](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41/)、[PM-41(2)](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41-2/)。
+DATA 承载 SCEx 位流，WFCK 是门控或载波；这些是 PsNee 与 Mayumi 的接点。在 PU-18 及以后，光驱盖线接到 Mayumi V4 芯片的 7 号脚所接的位置，各主板的位置见 quade.co 的图：[PU-18](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/)、[PU-20](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/)、[PU-22](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/)、[PU-23](https://quade.co/ps1-modchip-guide/mayumi-v4/pu-23/)、[PM-41](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41/)、[PM-41(2)](https://quade.co/ps1-modchip-guide/mayumi-v4/pm-41-2/)。
 
-在这些图中，2 号点是主机时钟，7 号点是光驱盖线，本芯片只从图中取用这两个点。1 号与 8 号是电源与地，5 号与 6 号是本芯片也使用的 WFCK 与 DATA 点，3 号与 4 号属于 Mayumi 自己的隐身与复位接线，本芯片不使用。SQCK 与 SUBQ 不在这些图中，下方的 PsNee 照片标出了它们。
+在这些图中，7 号点是光驱盖线，本芯片只从图中取用这一点。1 号与 8 号是电源与地，5 号与 6 号是本芯片也使用的 WFCK 与 DATA 点，2、3、4 号属于 Mayumi 的时钟、隐身与复位接线，本芯片不使用。SQCK 与 SUBQ 不在这些图中，下方的 PsNee 照片标出了它们。
 
 <table>
 <tr><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/"><img src="https://quade.co/wp-content/uploads/2018/02/PU18L.jpg" alt="William Quade 绘制的 PU-18 Mayumi V4 安装图" width="240"></a><br><sub><b>PU-18</b>。图：William Quade，<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-18/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/"><img src="https://quade.co/wp-content/uploads/2018/02/PU20L.jpg" alt="William Quade 绘制的 PU-20 Mayumi V4 安装图" width="240"></a><br><sub><b>PU-20</b>。图：William Quade，<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-20/">quade.co</a></sub></td><td align="center" width="33%"><a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/"><img src="https://quade.co/wp-content/uploads/2018/02/PU22L.jpg" alt="William Quade 绘制的 PU-22 Mayumi V4 安装图" width="240"></a><br><sub><b>PU-22</b>。图：William Quade，<a href="https://quade.co/ps1-modchip-guide/mayumi-v4/pu-22/">quade.co</a></sub></td></tr>
@@ -219,22 +220,23 @@ DATA 承载 SCEx 位流，WFCK 是门控或载波；这些是 PsNee 与 Mayumi �
 
 这六张图归 William Quade 所有，注明出处后从 quade.co 显示，不属于本仓库，也不受其 MIT 许可证约束。点击图片可打开原页面及其评论。
 
-其余各点都在下方照片中标出名称：每块主板上都标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND。时钟与光驱盖焊在上图 2 号与 7 号点的位置，其余各线焊在这些照片标出的位置。PU-18 的照片是主板背面。图中也标有 AX、DX 与 RESET，但它们属于 PsNee 的引导 ROM 补丁，本芯片没有该功能，请不要连接。
+其余各点都在下方照片中标出名称：每块主板上都标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND。光驱盖焊在上图 7 号点的位置，其余各线焊在这些照片标出的位置。PU-18 的照片是主板背面。图中也标有 AX、DX 与 RESET，但它们属于 PsNee 的引导 ROM 补丁，本芯片没有该功能，请不要连接。
 
 <table>
+<tr><td align="center" width="33%"><a href="assets/psnee/pu-7.jpg"><img src="assets/psnee/pu-7.jpg" alt="来自 PsNee 的 PU-7 主板，标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND 接点" width="240"></a><br><sub><b>PU-7</b>。照片来自 PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pu-8a.jpg"><img src="assets/psnee/pu-8a.jpg" alt="来自 PsNee 的 PU-8 主板后期版本，标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND 接点" width="240"></a><br><sub><b>PU-8</b>，1-658-467-22。照片来自 PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pu-8b.jpg"><img src="assets/psnee/pu-8b.jpg" alt="来自 PsNee 的 PU-8 主板早期版本，标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND 接点" width="240"></a><br><sub><b>PU-8</b>，1-658-467-12。照片来自 PsNee</sub></td></tr>
 <tr><td align="center" width="33%"><a href="assets/psnee/pu-18.jpg"><img src="assets/psnee/pu-18.jpg" alt="来自 PsNee 的 PU-18 主板，标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND 接点" width="240"></a><br><sub><b>PU-18</b>。照片来自 PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pu-20.jpg"><img src="assets/psnee/pu-20.jpg" alt="来自 PsNee 的 PU-20 主板，标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND 接点" width="240"></a><br><sub><b>PU-20</b>。照片来自 PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pu-22.jpg"><img src="assets/psnee/pu-22.jpg" alt="来自 PsNee 的 PU-22 主板，标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND 接点" width="240"></a><br><sub><b>PU-22</b>。照片来自 PsNee</sub></td></tr>
 <tr><td align="center" width="33%"><a href="assets/psnee/pu-23.jpg"><img src="assets/psnee/pu-23.jpg" alt="来自 PsNee 的 PU-23 主板，标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND 接点" width="240"></a><br><sub><b>PU-23</b>。照片来自 PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pm-41.jpg"><img src="assets/psnee/pm-41.jpg" alt="来自 PsNee 的 PM-41 主板，标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND 接点" width="240"></a><br><sub><b>PM-41</b>。照片来自 PsNee</sub></td><td align="center" width="33%"><a href="assets/psnee/pm-41-2.jpg"><img src="assets/psnee/pm-41-2.jpg" alt="来自 PsNee 的 PM-41(2) 主板，标有 SQCK、SUBQ、DATA、WFCK、VCC 与 GND 接点" width="240"></a><br><sub><b>PM-41(2)</b>。照片来自 PsNee</sub></td></tr>
 </table>
 
-这六张照片来自 kalymos 及其贡献者的 [PsNee](https://github.com/kalymos/PsNee) V9.0，以 [Unlicense](LICENSES/Unlicense.txt) 发布至公有领域，此处为缩小后的副本。结合上方的图，芯片的每一根线都有焊接位置的图片。
+这九张照片来自 kalymos 及其贡献者的 [PsNee](https://github.com/kalymos/PsNee) V9.0，以 [Unlicense](LICENSES/Unlicense.txt) 发布至公有领域，此处为缩小后的副本。结合上方的图，除 PU-7 与 PU-8 的光驱盖外，芯片的每一根线都有焊接位置的图片。PU-7 的光驱盖开关就在主板上，在 PU-7 照片中 IC405 附近印有 DOOR S301；请用万用表找出开盖时电平变化的那个焊盘，把光驱盖线接在那里。本项目没有资料标出 PU-8 的光驱盖接点：请追踪盖开关的信号，确认它随开合变化后再接线。
 
 | 主板系列 | SCPH 年代 | DATA 注入点 | WFCK 作用 | 可信度 |
 |:---------|:----------|:------------|:----------|:-------|
-| PU-18、PU-20 | 550x-750x | 摆动 ASIC 送入机芯控制器的数字 NRZ 输出 | 静态门控 | Read |
+| PU-7、PU-8、PU-18、PU-20 | 1000-750x | 摆动 ASIC 送入机芯控制器的数字 NRZ 输出 | 静态门控 | Read |
 | PU-22、PU-23 | 7500-900x | CD 处理器的循迹线，WFCK 作伪载波，三线加跳线 | 实时时钟，需同步 | Read |
 | PM-41、PM-41(2) | PSone 100-103 | 同样的循迹线载波方式；PM-41(2) 空闲时让芯片 I/O 浮空 | 实时时钟 | Read |
 
-时钟线把主机的 4.2336 MHz 时钟送进芯片，因此长度很重要：quade.co 将 Mayumi V4 的故障归因于这根线拾取的噪声，并建议让它成为最短的一根。请把芯片装在靠近时钟点的位置。数据手册警告，相邻周期之间变化超过 2% 的时钟会使芯片行为不可预测。
+没有时钟线：芯片使用自身的振荡器，因此可以放在 5 根信号线够得着的任何位置。请让这些线尽量短；quade.co 将 Mayumi V4 的故障归因于长线拾取的噪声。
 
 上方照片在每块受支持主板上标出了 SQCK 与 SUBQ，请以照片为准。论坛转述的 PU-22 及以后的机芯控制器引脚号，SUBQ 在 24 脚、SQCK 在 26 脚，因 psxdev.net 自 2025 年 10 月起离线仍为 Unknown。
 
@@ -261,17 +263,17 @@ cd openscex-modchip
 make REGION=us                                        # 美洲
 make REGION=jp VCD_FILTER=on                          # SCPH-5903
 avrdude -c <programmer> -p attiny84 -U flash:w:openscex-modchip-attiny84.hex:i
-avrdude -c <programmer> -p attiny84 -U lfuse:w:0xE0:m -U hfuse:w:0xDF:m -U efuse:w:0xFF:m
+avrdude -c <programmer> -p attiny84 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
 ```
 
-任何 ISP 都可以，包括 Arduino as ISP。先写闪存，最后写熔丝。low 熔丝 `0xE0` 选择 CLKI 上的外部时钟、适合缓慢上电的启动延时，且不分频（Read：ATtiny24A/44A/84A 数据手册 DS40002269A，Table 19-5 与 Table 6-3，CKSEL 0000，SUT 10）。此后芯片没有自己的时钟：要读取或重新烧录，请在主机通电时在板上烧录，或由编程器向 2 号脚提供时钟。固件在启动时也会清除时钟预分频器，因此 CKDIV8 熔丝不会让它变慢。
+任何 ISP 都可以，包括 Arduino as ISP。先写闪存，最后写熔丝。low 熔丝 `0xE2` 选择内部 8 MHz 振荡器、适合缓慢上电的启动延时，且不分频（Read：ATtiny24A/44A/84A 数据手册 DS40002269A，Table 6-4 与 Table 6-5，CKSEL 0010，SUT 10），因此只用编程器就能在桌面上读取或重新烧录芯片。固件在启动时也会清除时钟预分频器，因此 CKDIV8 熔丝不会让它变慢。重新烧录会擦除校准记录及其振荡器校正，芯片会重新学习。
 
 | 构建 | 熔丝（low / high / extended） |
 |:-----|:------------------------------|
-| 主机时钟 | `0xE0` / `0xDF` / `0xFF` |
-| 主机时钟，带 2.7 V 欠压检测 | `0xE0` / `0xDD` / `0xFF` |
+| 内部 8 MHz，带 2.7 V 欠压检测，推荐 | `0xE2` / `0xDD` / `0xFF` |
+| 内部 8 MHz，不带欠压检测 | `0xE2` / `0xDF` / `0xFF` |
 
-欠压检测在电源低于 2.7 V 时使芯片保持复位，因此芯片不会在断电时正在跌落的电源上运行；此项可选，尚未在主机上实测。按速度等级，ATtiny84 在 1.8 V 以上即可以 4.2336 MHz 运行（Read：同一数据手册，1.8 V 时 0 至 4 MHz，2.7 V 时 0 至 10 MHz），涵盖 PSone 较低的电源。
+欠压检测在电源低于 2.7 V 时使芯片保持复位，因此芯片不会在断电时正在跌落的电源上运行；尚未在主机上实测。请保持开启：按速度等级，ATtiny84 运行 8 MHz 约需 2.4 V（Read：同一数据手册，1.8 V 以上 0 至 4 MHz，2.7 V 以上 0 至 10 MHz），低于此电压芯片即超出额定范围。
 
 验证：
 
@@ -308,15 +310,14 @@ LED 是可选的，也是芯片唯一的诊断手段：它显示芯片处于哪�
 | 1 | 主机接受了区域字符串 | 无需处理，光盘正常运行 |
 | 2 | 已送出字符串但主机未到达程序区 | DATA 与 WFCK 接线，以及构建的区域是否与光盘一致 |
 | 3 | 盖子打开或盖子线缺失；持续期间重复 | 盖子线及其焊点 |
-| 4 | 盖子关闭 5 s 内没有 SUBQ 帧；持续期间重复 | 时钟线、SQCK、电源与地 |
+| 4 | 盖子关闭 5 s 内没有 SUBQ 帧；持续期间重复 | SQCK、电源与地 |
 | 5 | 有帧但 20 s 内没有区域检查；持续期间重复 | SUBQ；无光盘或音乐 CD 时也属正常 |
 | 6 | 看门狗复位了芯片，下次启动时显示一次 | 注入中停止的 WFCK |
 | 7 | 主板与校准记录中的不同，启动时显示一次；代码 6 优先 | 接触不良的 WFCK 线，除非芯片换到了另一台主机 |
 
 ## 安全
 
-- 接线前测量每个接点的逻辑电压，包括时钟与光驱盖接点。数值取自成熟的 PsNee 与 Mayumi 安装（厚机约 5 V，PSone PM-41(2) 较低且对噪声敏感），但假设不等于测量。
-- 在测量电压与频率之前，绝不要把主机信号送入时钟脚。
+- 接线前测量每个接点的逻辑电压，包括光驱盖接点。数值取自成熟的 PsNee 与 Mayumi 安装（厚机约 5 V，PSone PM-41(2) 较低且对噪声敏感），但假设不等于测量。
 - 打开主机并焊接 CD 子系统可能损坏主机。风险自负。
 
 ## 版本

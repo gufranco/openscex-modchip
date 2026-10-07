@@ -19,6 +19,8 @@ body:
     attributes:
       label: Board family
       options:
+        - PU-7
+        - PU-8
         - PU-18
         - PU-20
         - PU-22
@@ -77,7 +79,7 @@ body:
     id: voltage
     attributes:
       label: Measured tap voltage (optional)
-      placeholder: "e.g. 3.5 V at WFCK, 4.2336 MHz at the clock tap"
+      placeholder: "e.g. 3.5 V at WFCK, 3.4 V at the lid point with the lid open"
   - type: textarea
     id: notes
     attributes:
