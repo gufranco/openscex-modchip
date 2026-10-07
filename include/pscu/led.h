@@ -15,15 +15,18 @@
 // keeps reading SUBQ, so the LED can never delay or gate a feature (AGENTS.md
 // rule 7), and with no LED fitted nothing else changes.
 
-// Result and fault codes, each shown as that many long flashes. Nothing is
-// stored: the LED is the whole report, so a code is only ever about now, except
-// code 6, which the chip learns at boot from the reset-cause flag.
+// Result and fault codes, each shown as that many long flashes; 7 is the
+// highest. The LED keeps no history: a code is about now, except the two boot
+// codes. Code 6 comes from the reset-cause flag; code 7 from comparing the
+// detected board with the one the calibration record stored, which changes when
+// the chip moves to another console or its WFCK wire is intermittent.
 #define PSCU_LED_CODE_ACCEPTED ((uint8_t)1U)
 #define PSCU_LED_CODE_REFUSED ((uint8_t)2U)
 #define PSCU_LED_CODE_LID ((uint8_t)3U)
 #define PSCU_LED_CODE_NO_SQCK ((uint8_t)4U)
 #define PSCU_LED_CODE_NO_CHECK ((uint8_t)5U)
 #define PSCU_LED_CODE_WATCHDOG ((uint8_t)6U)
+#define PSCU_LED_CODE_BOARD_CHANGED ((uint8_t)7U)
 
 // Flash timings in milliseconds. Every pattern length is kept apart from the
 // length of a region string, 90 to 181 ms depending on the board and WFCK rate,
@@ -68,8 +71,8 @@ typedef enum {
 // stage is where the display is; code the number of long flashes it shows in a
 // code stage; live marks a fault code that repeats for as long as the fault
 // holds; board the 1 or 2 short boot blinks; replay a code shown once at boot,
-// 6 after a watchdog reset and 0 otherwise; phase_ms the time spent in the
-// current stage.
+// 6 after a watchdog reset, 7 after a board change, 0 otherwise; phase_ms the
+// time spent in the current stage.
 typedef struct {
   pscu_led_stage_t stage;
   uint8_t code;

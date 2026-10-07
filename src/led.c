@@ -39,7 +39,7 @@ static pscu_led_t pscu_led_enter(pscu_led_t state,
 
 pscu_led_t pscu_led_init(uint8_t board_blinks, uint8_t replay_code) {
   PSCU_ASSERT((board_blinks == 1U) || (board_blinks == 2U));
-  PSCU_ASSERT(replay_code <= PSCU_LED_CODE_WATCHDOG);
+  PSCU_ASSERT(replay_code <= PSCU_LED_CODE_BOARD_CHANGED);
 
   pscu_led_t state = { PSCU_LED_BOARD, 0U, false, board_blinks, replay_code, 0U };
   return state;
@@ -114,7 +114,7 @@ pscu_led_step_t pscu_led_step(pscu_led_t state,
                               pscu_led_event_t event,
                               uint8_t fault,
                               uint32_t elapsed_ms) {
-  PSCU_ASSERT(fault <= PSCU_LED_CODE_WATCHDOG);
+  PSCU_ASSERT(fault <= PSCU_LED_CODE_BOARD_CHANGED);
 
   // Saturating add: unsigned addition wraps, so a sum below the old phase means
   // it overflowed and the phase pins at the maximum instead of restarting the

@@ -55,6 +55,15 @@ uint16_t pscu_port_ticks(void);
 // Nonzero when the last reset came from the watchdog; clears the reset flags.
 uint8_t pscu_port_reset_was_watchdog(void);
 
+// One EEPROM byte, for the calibration record. Each call first waits, bounded at
+// 10 ms, for any earlier write to finish. A write starts the hardware's 3.4 ms
+// erase-and-write and returns; the firmware writes only at boot after board
+// detection or after a disc's session has resolved, never inside the injection
+// window, so the latency never lands on a timing path.
+uint8_t pscu_port_eeprom_read(uint8_t address);
+
+void pscu_port_eeprom_write(uint8_t address, uint8_t value);
+
 // The lid line: nonzero while the lid is open. A swap is seen here directly, so
 // the run loop re-arms injection for the next disc on the close, and the
 // injection path stops a string the moment the lid opens.

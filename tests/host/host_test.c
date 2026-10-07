@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "calib_test.h"
 #include "pscu/board_mode.h"
 #include "pscu/inject.h"
 #include "pscu/led.h"
@@ -271,6 +272,11 @@ static void test_led_boot(void) {
   pscu_led_step_t after_replay = led_after(replay.state, 8000U);
   check(after_replay.state.stage == PSCU_LED_WAIT, "led: replay plays once then waits");
 
+  pscu_led_t moved = pscu_led_init(1U, PSCU_LED_CODE_BOARD_CHANGED);
+  pscu_led_step_t moved_replay = led_after(moved, 600U);
+  check((moved_replay.state.stage == PSCU_LED_REPLAY) && (moved_replay.state.replay == 7U),
+        "led: a board change is replayed as code 7");
+
   pscu_led_step_t early = pscu_led_step(gate, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_LID, 10U);
   check(early.state.stage == PSCU_LED_BOARD, "led: a fault does not cut the board blinks");
 }
@@ -439,6 +445,7 @@ int main(void) {
   test_program_area();
   test_failed_capture();
   test_confirm();
+  calib_tests(check);
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
   return (g_failures == 0) ? 0 : 1;

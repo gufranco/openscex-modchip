@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "avr_eeprom.h"
 #include "avr_ioport.h"
 #include "sim_avr.h"
 #include "sim_cycle_timers.h"
@@ -42,6 +43,11 @@
 #define LATE_CARRIER_CYCLES 1200000UL
 #define INJECT_CYCLES 7000000UL
 #define TRIGGER_FRAMES 10
+// The chip syncs to SUBQ by waiting for the idle gap before a frame, so a frame
+// that starts while it is still qualifying the gap is skipped, as on a console,
+// which streams frames without end. The harness sends a fixed number, so it
+// allows a few spare lead-in frames and stops the moment injection starts.
+#define TRIGGER_SPARE_FRAMES 3
 #define SCEX_BITS 44
 // One SCEx bit cell is 4 ms, so a quarter of a thousandth of the clock rate in
 // cycles. The decoder samples at this spacing from the LED edge that marks
@@ -268,6 +274,16 @@ static void clock_frame(avr_t *avr, const target_t *t, const uint8_t *frame) {
   }
 }
 
+// Clock lead-in frames until the first string starts, with the spare frames
+// TRIGGER_SPARE_FRAMES allows, and stop there so no frame overlaps the string.
+// A frame that would not arm injection is clocked the full count, which only
+// makes a negative case stricter.
+static void clock_until_inject(avr_t *avr, const target_t *t, const uint8_t *frame) {
+  for (int i = 0; (i < (TRIGGER_FRAMES + TRIGGER_SPARE_FRAMES)) && (g_led_seen == 0); i++) {
+    clock_frame(avr, t, frame);
+  }
+}
+
 static void boot_quiet(avr_t *avr, const target_t *t, int modern, wfck_ctx_t *ctx) {
   avr_raise_irq(pin_irq(avr, t, t->sqck), 1U);
   avr_raise_irq(pin_irq(avr, t, t->subq), 0U);
@@ -334,9 +350,7 @@ static void scenario_inject(const target_t *t,
   // 0x01, track 0x02). frame[1] and frame[6] are zero so both parse as framed.
   uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   uint8_t audio[SUBQ_FRAME_BYTES] = { 0x01U, 0x00U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  for (int i = 0; i < TRIGGER_FRAMES; i++) {
-    clock_frame(avr, t, (trigger != 0) ? toc : audio);
-  }
+  clock_until_inject(avr, t, (trigger != 0) ? toc : audio);
 
   uint64_t deadline = avr->cycle + LED_DEADLINE;
   while ((g_led_seen == 0) && (avr->cycle < deadline)) {
@@ -467,9 +481,7 @@ static void scenario_late_carrier(const target_t *t, const char *elf, uint32_t f
   run_to(avr, DETECT_CYCLES);
 
   uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  for (int i = 0; i < TRIGGER_FRAMES; i++) {
-    clock_frame(avr, t, toc);
-  }
+  clock_until_inject(avr, t, toc);
   uint64_t deadline = avr->cycle + LED_DEADLINE;
   while ((g_led_seen == 0) && (avr->cycle < deadline)) {
     run_cycles(avr, 2000U);
@@ -505,9 +517,7 @@ static void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
   boot_quiet(avr, t, 1, &ctx);
 
   uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  for (int i = 0; i < TRIGGER_FRAMES; i++) {
-    clock_frame(avr, t, toc);
-  }
+  clock_until_inject(avr, t, toc);
   uint64_t deadline = avr->cycle + LED_DEADLINE;
   while ((g_led_seen == 0) && (avr->cycle < deadline)) {
     run_cycles(avr, 2000U);
@@ -550,10 +560,10 @@ static const board_family_t FAMILIES[] = {
 };
 #define FAMILY_COUNT ((int)(sizeof(FAMILIES) / sizeof(FAMILIES[0])))
 
-// Boot one legacy-board image, clock TRIGGER_FRAMES copies of one lead-in
-// frame, and report whether the LED marked an injection; when it did and an
-// expected word is given, decode DATA and compare it. Each call is a fresh
-// power-on, so one frame kind is judged on its own.
+// Boot one legacy-board image, clock copies of one lead-in frame until a string
+// starts or the spare frames run out, and report whether the LED marked an
+// injection; when it did and an expected word is given, decode DATA and compare
+// it. Each call is a fresh power-on, so one frame kind is judged on its own.
 static void vcd_case(
     const char *elf, uint32_t freq, const uint8_t *frame, const char *expect, const char *what) {
   target_t t84 = { "attiny84", 'A', 0U, 1U, 2U, 4U, 3U };
@@ -563,9 +573,7 @@ static void vcd_case(
   g_led_cycle = 0;
   avr_irq_register_notify(pin_irq(avr, &t84, t84.led), on_led, avr);
   boot_quiet(avr, &t84, 0, &ctx);
-  for (int i = 0; i < TRIGGER_FRAMES; i++) {
-    clock_frame(avr, &t84, frame);
-  }
+  clock_until_inject(avr, &t84, frame);
   uint64_t deadline = avr->cycle + LED_DEADLINE;
   while ((g_led_seen == 0) && (avr->cycle < deadline)) {
     run_cycles(avr, 2000U);
@@ -706,7 +714,7 @@ static void scenario_lid(const target_t *t, const char *elf, uint32_t freq) {
   g_led_cycle = 0;
   avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
   boot_quiet(avr, t, 0, &ctx);
-  clock_frames(avr, t, toc, TRIGGER_FRAMES);
+  clock_until_inject(avr, t, toc);
   uint64_t deadline = avr->cycle + LED_DEADLINE;
   while ((g_led_seen == 0) && (avr->cycle < deadline)) {
     run_cycles(avr, 2000U);
@@ -828,6 +836,128 @@ static void faults_case(const target_t *t, const char *elf, uint32_t freq) {
   check(code_after(DETECT_CYCLES) == 5, label);
 }
 
+// Per-console calibration, read and seeded through simavr's EEPROM. The record
+// layout mirrors include/pscu/calib.h: magic, board, cap, trigger, frozen, check,
+// where check folds the five bytes into a fixed seed. Seeding happens right
+// after build_avr, long before the firmware reads the record after detection.
+#define CALIB_BYTES 6
+#define CALIB_MAGIC 0xC5U
+#define CALIB_SEED 0x5AU
+#define CALIB_TRIGGER 10U
+#define CALIB_TRIGGER_STEP 2U
+#define CALIB_TRIGGER_MAX 30U
+#define CALIB_CAP_MAX 16U
+#define CALIB_CAP_MARGIN 4U
+#define CALIB_SETTLE_FRAMES 120
+#define CALIB_LONG_TOC_FRAMES 700
+#define CALIB_REPLAY_MS 10000U
+
+static void read_calib(avr_t *avr, uint8_t *raw) {
+  avr_eeprom_desc_t desc = { .ee = raw, .offset = 0, .size = CALIB_BYTES };
+  (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_GET, &desc);
+}
+
+static void seed_calib(avr_t *avr, uint8_t board, uint8_t cap, uint8_t trigger, uint8_t frozen) {
+  uint8_t raw[CALIB_BYTES] = { CALIB_MAGIC, board, cap, trigger, frozen, 0U };
+  raw[5] = (uint8_t)(CALIB_SEED ^ raw[0] ^ raw[1] ^ raw[2] ^ raw[3] ^ raw[4]);
+  avr_eeprom_desc_t desc = { .ee = raw, .offset = 0, .size = CALIB_BYTES };
+  (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_SET, &desc);
+}
+
+static int calib_valid(const uint8_t *raw) {
+  uint8_t check_byte = (uint8_t)(CALIB_SEED ^ raw[0] ^ raw[1] ^ raw[2] ^ raw[3] ^ raw[4]);
+  return (raw[0] == CALIB_MAGIC) && (raw[5] == check_byte);
+}
+
+static void calib_check(const target_t *t, int ok, const char *what) {
+  char label[112];
+  (void)snprintf(label, sizeof(label), "calib %s: %s", t->mcu, what);
+  check(ok, label);
+}
+
+// Disc 1 is accepted after a few strings, so the chip stores the cap as that
+// count plus the margin and probes one step later. Disc 2 never reaches the
+// program area: the chip sends exactly the learned cap, not the fixed 16, and
+// the refusal stores the full cap again and steps the start back, frozen.
+static void scenario_calib_cap(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
+                                           0,     0,     0x02U, 0,     0,     0 };
+
+  clock_until_inject(avr, t, toc);
+  clock_frames(avr, t, play, CALIB_SETTLE_FRAMES);
+  int disc1 = g_strings;
+  uint8_t raw[CALIB_BYTES] = { 0 };
+  read_calib(avr, raw);
+  calib_check(
+      t, calib_valid(raw) && (raw[1] == 0U), "a fresh chip stores a valid record and its board");
+  calib_check(t,
+              (disc1 >= 1) && (raw[2] == (uint8_t)(disc1 + (int)CALIB_CAP_MARGIN)),
+              "an accepted disc stores its string count plus the margin as the cap");
+  calib_check(t,
+              (raw[3] == (CALIB_TRIGGER + CALIB_TRIGGER_STEP)) && (raw[4] == 0U),
+              "an accepted disc probes one step later");
+
+  swap_disc(avr);
+  int disc2 = strings_while(avr, t, toc, CALIB_LONG_TOC_FRAMES);
+  calib_check(t, disc2 == (int)raw[2], "the next disc gets at most the learned cap");
+  read_calib(avr, raw);
+  calib_check(t,
+              (raw[2] == CALIB_CAP_MAX) && (raw[3] == CALIB_TRIGGER) && (raw[4] == 1U),
+              "a refusal restores the full cap and steps the start back, frozen");
+}
+
+// A record stored on a carrier board meets a gate board: the chip moved or its
+// WFCK wire is intermittent. The boot replays code 7 and the learned values
+// restart from the defaults under the new board.
+static void scenario_calib_board(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  seed_calib(avr, 1U, 7U, 14U, 1U);
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+  run_cycles(avr, ms_cycles(CALIB_REPLAY_MS));
+  calib_check(t, code_after(0U) == 7, "a board change replays code 7 at boot");
+  uint8_t raw[CALIB_BYTES] = { 0 };
+  read_calib(avr, raw);
+  calib_check(t,
+              calib_valid(raw) && (raw[1] == 0U) && (raw[2] == CALIB_CAP_MAX) &&
+                  (raw[3] == CALIB_TRIGGER) && (raw[4] == 0U),
+              "a board change restarts the learned values");
+}
+
+// A learned start at the bound meets a disc whose lead-in read ends before the
+// counter gets there: no string is ever sent. The chip reads it as a missed
+// window, shows code 2 and steps the start back, frozen, so the next disc gets
+// its string.
+#define MISSED_TOC_FRAMES 20
+#define MISSED_DECAY_FRAMES 40
+
+static void scenario_calib_missed(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  seed_calib(avr, 0U, CALIB_CAP_MAX, CALIB_TRIGGER_MAX, 0U);
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
+  uint64_t mark = avr->cycle;
+  clock_frames(avr, t, toc, MISSED_TOC_FRAMES);
+  clock_frames(avr, t, silence, MISSED_DECAY_FRAMES);
+  run_cycles(avr, ms_cycles(4000U));
+  calib_check(t, g_strings == 0, "a start later than the lead-in read sends nothing");
+  calib_check(t, code_after(mark) == 2, "a missed window shows code 2");
+  uint8_t raw[CALIB_BYTES] = { 0 };
+  read_calib(avr, raw);
+  calib_check(t,
+              (raw[3] == (CALIB_TRIGGER_MAX - CALIB_TRIGGER_STEP)) && (raw[4] == 1U),
+              "a missed window steps the start back, frozen");
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 3) {
     (void)fprintf(stderr, "usage: %s elf freq_hz [vcd_elf]\n", argv[0]);
@@ -858,6 +988,9 @@ int main(int argc, char *argv[]) {
   board_blinks_case(&t84, elf, freq, 0);
   board_blinks_case(&t84, elf, freq, 1);
   faults_case(&t84, elf, freq);
+  scenario_calib_cap(&t84, elf, freq);
+  scenario_calib_board(&t84, elf, freq);
+  scenario_calib_missed(&t84, elf, freq);
 
   // The optional third argument is the SCPH-5903 Video-CD image.
   if (argc >= 4) {

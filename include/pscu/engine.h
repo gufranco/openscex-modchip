@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "pscu/board_mode.h"
+#include "pscu/calib.h"
 
 // The platform layer: the operations the run loop drives on real pins. Detect
 // the board era once; capture one SUBQ frame into a 12-byte buffer, starting on
@@ -19,5 +20,13 @@ pscu_board_mode_t pscu_engine_detect_board(void);
 bool pscu_engine_capture_frame(uint8_t *frame);
 
 void pscu_engine_inject(pscu_board_mode_t board);
+
+// Read the calibration record from EEPROM; a missing or damaged one reads as the
+// defaults.
+pscu_calib_t pscu_engine_load_calib(void);
+
+// Store a calibration, writing only the bytes that differ from what is already
+// in EEPROM, so an unchanged value costs no write and no wear.
+void pscu_engine_store_calib(pscu_calib_t calib);
 
 #endif

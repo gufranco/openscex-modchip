@@ -271,6 +271,60 @@ pscu_port_reset_was_watchdog:
 	ret
 	.endfunc
 
+// EEPROM primitives for the calibration record. The EEPROM is reached through
+// EECR, EEDR and EEAR. Before touching it, each call waits for EEPE to clear,
+// meaning any earlier write has finished. An erase-and-write takes 3.4 ms (Read:
+// ATtiny24A/44A/84A datasheet DS40002269A, Table 5-1, EEPM 00, the mode reset
+// leaves selected), so the wait gives up after 10 ms rather than trusting the
+// flag forever; one pass is 6 cycles (wdr 1, the non-skipping sbis 1, sbiw 2, a
+// taken brne 2). The watchdog is kicked inside the wait, which the bound keeps
+// from ever hiding a hang. r26 and r27 are call-clobbered under the avr-gcc ABI.
+// r1 is the compiler's zero register, so the high address byte is cleared by
+// writing it; the record sits below address 256.
+#define PSCU_EEPROM_WAIT_POLLS ((F_CPU * 10UL) / (1000UL * 6UL))
+
+	.func pscu_port_eeprom_wait
+pscu_port_eeprom_wait:
+	ldi r26, lo8(PSCU_EEPROM_WAIT_POLLS)
+	ldi r27, hi8(PSCU_EEPROM_WAIT_POLLS)
+15:
+	wdr
+	sbis _SFR_IO_ADDR(EECR), EEPE
+	ret
+	sbiw r26, 1
+	brne 15b
+	ret
+	.endfunc
+
+	.global pscu_port_eeprom_read
+	.func pscu_port_eeprom_read
+pscu_port_eeprom_read:
+	rcall pscu_port_eeprom_wait
+	out _SFR_IO_ADDR(EEARH), r1
+	out _SFR_IO_ADDR(EEARL), r24
+	sbi _SFR_IO_ADDR(EECR), EERE
+	in r24, _SFR_IO_ADDR(EEDR)
+	ret
+	.endfunc
+
+// Write sets the address and data, then performs the AVR timed sequence: set
+// EEMPE, then set EEPE within four cycles. Two back-to-back sbi instructions are
+// two cycles each, so the second lands inside the window. The firmware never
+// enables interrupts, so nothing can break the sequence apart. The call returns
+// as soon as the write has started; the hardware finishes it in the background,
+// and the next EEPROM call waits for it.
+	.global pscu_port_eeprom_write
+	.func pscu_port_eeprom_write
+pscu_port_eeprom_write:
+	rcall pscu_port_eeprom_wait
+	out _SFR_IO_ADDR(EEARH), r1
+	out _SFR_IO_ADDR(EEARL), r24
+	out _SFR_IO_ADDR(EEDR), r22
+	sbi _SFR_IO_ADDR(EECR), EEMPE
+	sbi _SFR_IO_ADDR(EECR), EEPE
+	ret
+	.endfunc
+
 #if PSCU_TIMING_ADAPTIVE
 
 // Adaptive injection timing. On a modern board the WFCK line is a live carrier,

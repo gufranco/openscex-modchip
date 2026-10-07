@@ -24,10 +24,12 @@ LOGIC_FILES = (
     "src/board_mode.c",
     "src/inject.c",
     "src/led.c",
+    "src/calib.c",
 )
 TEST_FILES = (
     "tests/host/host_assert.c",
     "tests/host/host_test.c",
+    "tests/host/calib_test.c",
 )
 CC = "gcc"
 CFLAGS = ("-std=c17", "-pedantic-errors", "-Iinclude", "-O0", "-DPSCU_DEBUG")

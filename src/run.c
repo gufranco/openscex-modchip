@@ -8,6 +8,7 @@
 
 #include "port/port.h"
 #include "pscu/board_mode.h"
+#include "pscu/calib.h"
 #include "pscu/config.h"
 #include "pscu/engine.h"
 #include "pscu/inject.h"
@@ -28,9 +29,14 @@ typedef struct {
   pscu_confirm_t confirm;
 } pscu_session_t;
 
+// learn marks a session that resolved on its own, by the program area or by the
+// bounded wait, and outcome says which; a session ended by the lid opening
+// teaches the calibration nothing.
 typedef struct {
   pscu_session_t session;
   pscu_led_event_t event;
+  bool learn;
+  pscu_calib_outcome_t outcome;
 } pscu_session_step_t;
 
 // Time and evidence since the lid last closed (or since boot): the LED's fault
@@ -82,6 +88,8 @@ static pscu_session_step_t pscu_session_watch(pscu_session_t session,
   pscu_session_step_t out;
   out.session = session;
   out.event = fired ? PSCU_LED_EVENT_FIRED : PSCU_LED_EVENT_NONE;
+  out.learn = false;
+  out.outcome = PSCU_CALIB_REFUSED;
   if ((session.injects > 0U) && !session.resolved) {
     pscu_confirm_step_t outcome =
         pscu_confirm_step(session.confirm, !fired, program, PSCU_CONFIRM_FRAMES);
@@ -89,9 +97,41 @@ static pscu_session_step_t pscu_session_watch(pscu_session_t session,
     if (outcome.resolved || lid_open) {
       out.session.resolved = true;
       out.event = outcome.confirmed ? PSCU_LED_EVENT_ACCEPTED : PSCU_LED_EVENT_REFUSED;
+      out.learn = outcome.resolved && !lid_open;
+      out.outcome = outcome.confirmed ? PSCU_CALIB_ACCEPTED : PSCU_CALIB_REFUSED;
     }
   }
   return out;
+}
+
+// Fold this pass's evidence into the calibration. A session that resolved on
+// its own teaches the cap and the start; a missed window teaches the start. The
+// store writes only bytes that changed, and both cases come after the strings
+// have stopped, so the EEPROM write never lands inside the injection window.
+static pscu_calib_t pscu_calib_update(pscu_calib_t calib,
+                                      pscu_session_step_t watched,
+                                      bool missed) {
+  pscu_calib_t next = calib;
+  if (watched.learn) {
+    next = pscu_calib_learn(calib, watched.outcome, watched.session.injects);
+    pscu_engine_store_calib(next);
+  } else if (missed) {
+    next = pscu_calib_learn(calib, PSCU_CALIB_MISSED, 0U);
+    pscu_engine_store_calib(next);
+  } else {
+  }
+  return next;
+}
+
+// Boot: read the record, fold in the board just detected, and store the result
+// (nothing is written when it did not change). The boot code is the watchdog's
+// 6 if the last reset came from it, else 7 if the board changed, else none; a
+// boot that has both shows 6, since a hang is the more urgent report.
+static pscu_calib_boot_t pscu_calib_start(pscu_board_mode_t board) {
+  uint8_t detected = (board == PSCU_BOARD_MODE_WFCK) ? 1U : 0U;
+  pscu_calib_boot_t boot = pscu_calib_boot(pscu_engine_load_calib(), detected);
+  pscu_engine_store_calib(boot.calib);
+  return boot;
 }
 
 // Milliseconds since the last pass, from the free-running Timer1. Unsigned
@@ -122,12 +162,13 @@ static pscu_since_close_t pscu_since_close_step(
 }
 
 // Draw this pass's LED state. Injection drives the LED itself for each string;
-// between strings and the rest of the time the pattern player decides.
-static pscu_led_t pscu_led_show(pscu_led_t led,
-                                pscu_led_event_t event,
-                                uint8_t fault,
-                                uint32_t elapsed_ms) {
-  pscu_led_step_t shown = pscu_led_step(led, event, fault, elapsed_ms);
+// between strings and the rest of the time the pattern player decides. A missed
+// window reads as a refusal: the disc got no string, and the next one will.
+static pscu_led_t pscu_led_show(
+    pscu_led_t led, pscu_led_event_t event, bool missed, uint8_t fault, uint32_t elapsed_ms) {
+  bool none = event == PSCU_LED_EVENT_NONE;
+  pscu_led_event_t shown_event = (none && missed) ? PSCU_LED_EVENT_REFUSED : event;
+  pscu_led_step_t shown = pscu_led_step(led, shown_event, fault, elapsed_ms);
   if (shown.on) {
     pscu_port_led_on();
   } else {
@@ -145,12 +186,21 @@ static pscu_led_t pscu_led_show(pscu_led_t led,
 // accepted the string, and from then on the chip stays silent through any later
 // lead-in read until the lid opens; the close re-arms it for the next disc. The
 // LED reports each stage and result from the same facts without ever waiting.
-// Every call inside the loop is bounded, and the watchdog is kicked each pass so
-// a stuck signal resets the chip rather than wedging it.
+// The window opens at the learned trigger and each arming sends at most the
+// learned cap; the cap is taken when an arming starts, so a value learned
+// mid-window, such as the full cap after a refusal, applies from the next disc
+// rather than restarting strings on this one. Every call inside the loop is
+// bounded, and the watchdog is kicked each pass so a stuck signal resets the
+// chip rather than wedging it.
 void pscu_run(void) {
   pscu_board_mode_t board = pscu_engine_detect_board();
-  uint8_t boot_code = (pscu_port_reset_was_watchdog() != 0U) ? PSCU_LED_CODE_WATCHDOG : 0U;
+  bool watchdog = pscu_port_reset_was_watchdog() != 0U;
+  pscu_calib_boot_t boot = pscu_calib_start(board);
+  pscu_calib_t calib = boot.calib;
+  uint8_t changed_code = boot.board_changed ? PSCU_LED_CODE_BOARD_CHANGED : 0U;
+  uint8_t boot_code = watchdog ? PSCU_LED_CODE_WATCHDOG : changed_code;
   pscu_led_t led = pscu_led_init((board == PSCU_BOARD_MODE_WFCK) ? 2U : 1U, boot_code);
+  uint8_t cap = calib.cap;
   pscu_clock_t clock = { pscu_port_ticks(), 0U };
   pscu_since_close_t since = { 0U, false, false };
   uint8_t counter = 0U;
@@ -160,12 +210,13 @@ void pscu_run(void) {
   for (;;) {
     uint8_t frame[PSCU_SUBQ_FRAME_BYTES];
     bool captured = pscu_engine_capture_frame(frame);
+    uint8_t previous = counter;
     counter = pscu_subq_update_counter(frame, counter, PSCU_VCD_FILTER_ENABLED);
-    bool in_window = pscu_should_inject(counter, PSCU_INJECT_TRIGGER);
+    bool in_window = pscu_should_inject(counter, calib.trigger);
     bool program = pscu_subq_is_program_area(frame);
     bool lid_open = pscu_port_read_lid() != 0U;
-    pscu_stealth_step_t step =
-        pscu_stealth_step(stealth, in_window, program, lid_open, PSCU_STEALTH_STRINGS);
+    cap = (stealth.sent == 0U) ? calib.cap : cap;
+    pscu_stealth_step_t step = pscu_stealth_step(stealth, in_window, program, lid_open, cap);
     stealth = step.state;
     if (step.fire) {
       session = pscu_session_fired(session, step.state.sent);
@@ -173,11 +224,13 @@ void pscu_run(void) {
     }
     pscu_session_step_t watched = pscu_session_watch(session, step.fire, program, lid_open);
     session = watched.session;
+    bool missed = !lid_open && pscu_calib_missed(calib, previous, counter, since.armed);
+    calib = pscu_calib_update(calib, watched, missed);
     pscu_clock_step_t tick = pscu_clock_step(clock);
     clock = tick.clock;
     since = pscu_since_close_step(since, lid_open, tick.elapsed_ms, captured, step.fire || program);
     uint8_t fault = pscu_led_fault(lid_open, since.ms, since.framed, since.armed);
-    led = pscu_led_show(led, watched.event, fault, tick.elapsed_ms);
+    led = pscu_led_show(led, watched.event, missed, fault, tick.elapsed_ms);
     pscu_port_watchdog_reset();
   }
 }

@@ -10,6 +10,7 @@
 #include "port/port.h"
 #include "pscu/assert.h"
 #include "pscu/board_mode.h"
+#include "pscu/calib.h"
 #include "pscu/config.h"
 #include "pscu/region.h"
 #include "pscu/subq.h"
@@ -168,4 +169,26 @@ void pscu_engine_inject(pscu_board_mode_t board) {
   pscu_inject_region(PSCU_CONFIGURED_REGION, board);
   pscu_port_data_release();
   pscu_port_led_off();
+}
+
+pscu_calib_t pscu_engine_load_calib(void) {
+  pscu_calib_record_t record;
+  for (uint8_t at = 0U; at < PSCU_CALIB_BYTES; at++) {
+    record.bytes[at] = pscu_port_eeprom_read(at);
+  }
+  return pscu_calib_decode(record);
+}
+
+// Each byte is compared before it is written, so a record that did not change
+// writes nothing, and one learned value costs two writes, the value and the
+// check byte. The check byte goes last: power lost before it lands leaves a
+// record whose check fails, which reads as the defaults rather than as a mix.
+void pscu_engine_store_calib(pscu_calib_t calib) {
+  pscu_calib_record_t record;
+  record = pscu_calib_encode(calib);
+  for (uint8_t at = 0U; at < PSCU_CALIB_BYTES; at++) {
+    if (pscu_port_eeprom_read(at) != record.bytes[at]) {
+      pscu_port_eeprom_write(at, record.bytes[at]);
+    }
+  }
 }

@@ -105,7 +105,7 @@ WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -Wsh
 	-Wswitch-default -Wdouble-promotion -Wnull-dereference -Wvla -Wredundant-decls -Wformat=2
 HOST_CFLAGS := $(C_STD) -Iinclude $(WARNINGS)
 
-LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c src/led.c
+LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c src/led.c src/calib.c
 HOST_LOGIC_C := $(LOGIC_C)
 
 FIRMWARE_C := $(LOGIC_C) src/engine.c src/run.c src/main.c
@@ -114,7 +114,7 @@ CPPCHECK_MCU_DEF := -D__AVR_ATtiny84__
 ALL_SRC_C := $(FIRMWARE_C)
 FIRMWARE_S := src/port.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
-HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c
+HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_test.c
 SIM_TEST_C := tests/sim/sim_test.c
 C_FILES := $(ALL_SRC_C) $(FIRMWARE_H) $(HOST_TEST_C) $(SIM_TEST_C)
 HOST_TEST := $(BUILD)/host/host_test
