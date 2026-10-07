@@ -1,3 +1,11 @@
+## [0.3.1](https://github.com/gufranco/openscex-modchip/compare/v0.3.0...v0.3.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* **capture:** follow a fast sqck in assembly ([b2284d8](https://github.com/gufranco/openscex-modchip/commit/b2284d8a3fd572ec632860ac8cc220fe6470eb76))
+* **diag:** record a failed disc when the lid opens ([558432d](https://github.com/gufranco/openscex-modchip/commit/558432d6239aa8ee34233591d6c8b4bcdd5bfffc))
+
 # [0.3.0](https://github.com/gufranco/openscex-modchip/compare/v0.2.0...v0.3.0) (2026-10-06)
 
 
