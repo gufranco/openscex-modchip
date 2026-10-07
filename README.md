@@ -22,7 +22,7 @@ English | [日本語](README.ja.md) | [中文](README.zh.md)
   <a href="../../issues/new?template=compatibility.yml">Report your console</a>
 </p>
 
-**6022** bytes of flash · **8** board families, PU-7 to PM-41(2) · **3** regions · **0** MISRA deviations · **100%** host line and branch coverage · **151/151** mutants killed
+**6164** bytes of flash · **8** board families, PU-7 to PM-41(2) · **3** regions · **0** MISRA deviations · **100%** host line and branch coverage · **154/154** mutants killed
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -110,7 +110,8 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 | Feature | Detail |
 |:--------|:-------|
 | SCEx injection | 44-bit LSB-first region string, the PU-7 to PU-20 static-gate method, with the WFCK gate held low for each string as PsNee and Mayumi V4 do, and the PU-22-and-later WFCK-carrier method |
-| Board auto-detect | WFCK behaviour at boot selects gate or carrier mode; one build fits every family |
+| Board auto-detect | WFCK behaviour at boot selects gate or carrier mode; one build fits every family. Before each string on a board taken for a gate, WFCK is watched again for 9.4 ms, so a carrier that starts after boot is never held low |
+| Supply guard | before every string the chip measures its own supply against its 1.1 V bandgap; below about 2.9 V, or on a reading no real supply gives, it sends nothing and shows code 7, and a window it kept shut teaches the calibration nothing |
 | Oscillator trim | the chip runs from its internal 8 MHz oscillator and times the console's 75 Hz SUBQ frames, stepping OSCCAL one notch at a time until it is within 1% and never more than 16 notches from the factory value; the trim is kept in EEPROM and applied at boot |
 | Disc swaps | no lid wire: 1.5 s with no valid SUBQ frame, which a stopped drive gives, ends the acceptance latch and re-arms the chip for the next disc; a seek or a reread on a spinning disc keeps producing frames, so it never reads as a swap |
 | Stealth | injects only inside the SUBQ region-check window, capped per arming, with 5 frames, 67 ms, between strings as PsNee and Mayumi V4 space them, then DATA high-Z and LED off; stops the moment the console reads the program area and stays silent through every later lead-in read until the disc leaves |
@@ -253,7 +254,7 @@ Any ISP works, including an Arduino as ISP. Write the flash first and the fuses 
 | Internal 8 MHz with brown-out detection at 2.7 V, recommended | `0xE2` / `0xDD` / `0xFF` |
 | Internal 8 MHz without brown-out detection | `0xE2` / `0xDF` / `0xFF` |
 
-Brown-out detection holds the chip in reset while the supply is below 2.7 V, so it never runs on a supply that is collapsing at power-off; it is not yet exercised on a console. Keep it on: by its speed grade the ATtiny85 runs 0 to 10 MHz from 2.7 V (Read: the same datasheet; only the ATtiny85V reaches down to 1.8 V), so below 2.7 V the chip is out of its rating.
+Brown-out detection holds the chip in reset while the supply is below 2.7 V, so it never runs on a supply that is collapsing at power-off; it is not yet exercised on a console. Keep it on: by its speed grade the ATtiny85 runs 0 to 10 MHz from 2.7 V (Read: the same datasheet; only the ATtiny85V reaches down to 1.8 V), so below 2.7 V the chip is out of its rating. A fuse is easy to forget, so the firmware also measures its supply before every string and holds back below about 2.9 V, shown as code 7.
 
 Verify:
 
@@ -293,6 +294,7 @@ Codes are long 700 ms flashes, 300 ms apart, with a 2 s pause before the code re
 | 4 | frames arrive but no region check for 20 s; repeats while it holds | SUBQ; also normal with an audio CD |
 | 5 | the watchdog reset the chip, shown once at the next boot | WFCK, which stalled mid-injection |
 | 6 | the board differs from the one the calibration stored, shown once at boot; code 5 takes priority | the WFCK wire, which is intermittent, unless the chip moved to another console |
+| 7 | the supply measured under about 2.9 V, or the reading failed; no string is sent while it holds, and it outranks codes 3 and 4 | VCC and ground at the tap points, which must measure 3.3 V or more |
 
 ## Safety
 
