@@ -4,7 +4,7 @@
 
 <h1>openscex-modchip</h1>
 
-<strong>面向 PlayStation 与 PSone 的隐身 SCEx 区域解锁，运行在按主机校正自身时钟的 ATtiny84 上。</strong>
+<strong>面向 PlayStation 与 PSone 的隐身 SCEx 区域解锁，运行在按主机校正自身时钟的 ATtiny85 上。</strong>
 
 <br><br>
 
@@ -22,18 +22,18 @@
   <a href="../../issues/new?template=compatibility.yml">报告你的主机</a>
 </p>
 
-闪存 **6070** 字节 · **8** 个主板系列，PU-7 至 PM-41(2) · **3** 个区域 · MISRA 偏离 **0** · 主机测试行与分支覆盖率 **100%** · 变异体 **151/151** 被杀死
+闪存 **6022** 字节 · **8** 个主板系列，PU-7 至 PM-41(2) · **3** 个区域 · MISRA 偏离 **0** · 主机测试行与分支覆盖率 **100%** · 变异体 **151/151** 被杀死
 
 ```bash
-gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny84.hex' --pattern SHA256SUMS
+gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
-avrdude -c <programmer> -p attiny84 -U flash:w:openscex-modchip-attiny84.hex:i
+avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 ```
 
 > [!IMPORTANT]
 > 当前固件通过了全部仿真关卡，尚未在实机上运行。接线前请测量各接点电压。
 
-面向初代索尼 PlayStation（厚机）与 PSone 的区域解锁固件，运行在使用内部振荡器的 ATtiny84 上，并按主机自身的 SUBQ 帧率校正该振荡器。它只在 SUBQ 区域检查窗口内送出配置好的区域字符串，主机一接受就立即停止，游戏运行时让数据线保持高阻。它不需要光驱盖线：光驱停转时 SUBQ 变得安静，它由此知道已经换盘。它不修补引导 ROM，因此日本厚机与 PAL 的 PSone 仍保留第二道区域检查；如需绕过，请安装已修补的 BIOS。它不是光驱模拟器，不支持 PS2 或土星，也不破解 LibCrypt。
+面向初代索尼 PlayStation（厚机）与 PSone 的区域解锁固件，运行在使用内部振荡器的 ATtiny85 上，并按主机自身的 SUBQ 帧率校正该振荡器。它只在 SUBQ 区域检查窗口内送出配置好的区域字符串，主机一接受就立即停止，游戏运行时让数据线保持高阻。它不需要光驱盖线：光驱停转时 SUBQ 变得安静，它由此知道已经换盘。它不修补引导 ROM，因此日本厚机与 PAL 的 PSone 仍保留第二道区域检查；如需绕过，请安装已修补的 BIOS。它不是光驱模拟器，不支持 PS2 或土星，也不破解 LibCrypt。
 
 | | |
 |:--|:--|
@@ -50,7 +50,7 @@ graph LR
         WF[WFCK]
         MECH[机芯控制器]
     end
-    subgraph ATtiny84
+    subgraph ATtiny85
         CAP[SUBQ 采集]
         DET[区域检查检测]
         ST[隐身状态机]
@@ -85,7 +85,7 @@ graph LR
 | 项目 | 值 |
 |:-----|:---|
 | 目标机型 | PlayStation 厚机 PU-7 至 PU-23，PSone PM-41 与 PM-41(2) |
-| MCU | ATtiny84（14 脚 DIP） |
+| MCU | ATtiny85（8 脚 DIP） |
 | 方式 | SCEx 注入 |
 | 区域 | 每次构建一个，`REGION=jp|us|eu`（默认 us） |
 | 时钟 | 内部 8 MHz RC 振荡器，按主机的 SUBQ 帧率校正 |
@@ -127,7 +127,7 @@ graph LR
 
 | 标签 | 含义 |
 |:-----|:-----|
-| Read | 取自一手资料（PsNee 源码、Mayumi V4 二进制、quade.co、consolemods、psdevwiki、ATtiny24A/44A/84A 数据手册） |
+| Read | 取自一手资料（PsNee 源码、Mayumi V4 二进制、quade.co、consolemods、psdevwiki、ATtiny25/45/85 数据手册） |
 | Concluded | 由资料推断，并非任何一份资料直接陈述 |
 | Verified | 本项目在实机或 simavr 模型中确认 |
 | Unknown | 没有资料给出，请在主机上测量 |
@@ -136,7 +136,7 @@ graph LR
 |:-----|:-----|
 | SCEx 引脚顺序 | Read（PsNee `MCU.h`），所有者确认已经实战验证 |
 | 由 SUBQ 静默判断换盘 | Concluded：打开光驱盖会使光驱停转，有效的模式 1 帧随之停止；1.5 s 的界限是设计选择，在实机验证前为 Unknown |
-| 内部振荡器精度 | Read：出厂校准 ±10%，用户校准 ±1%（ATtiny24A/44A/84A 数据手册，Table 20-2）。校正能否在主机上达到该精度为 Unknown |
+| 内部振荡器精度 | Read：出厂校准 ±10%，用户校准 ±1%（ATtiny25/45/85 数据手册，Table 21-2）。校正能否在主机上达到该精度为 Unknown |
 | SQCK 与 SUBQ 接点 | Read，在每块受支持主板的 PsNee 照片上标出；其背后的机芯控制器引脚号仍为 Unknown |
 | 各焊点电压 | 由 PsNee 与 Mayumi 的安装 Concluded（厚机约 5 V，PSone 较低且对噪声敏感）；测量以确认 |
 | PU-18 与 PSone 上的 SCEx 解锁 | 以旧固件 Verified 2026-10-05（见上表） |
@@ -168,28 +168,22 @@ PU-7 与 PU-8 使用与 PU-18、PU-20 相同的静态门控方式，PsNee V9.0 �
 | `TIMING` | `adaptive`、`fixed` | `adaptive` | adaptive 通过计数 WFCK 周期为 WFCK 载波注入位计时；fixed 使用编译期延时，由校正后的内部振荡器计时 |
 | `VCD_FILTER` | `off`、`on` | `off` | 仅 SCPH-5903 设为 on：注入只在游戏的导入区 TOC 触发，不在 Video CD 上触发，遵循 PsNee V9.0 的 SCPH-5903 过滤器 |
 
-非默认区域或过滤器会在产物名上加标签，例如 `openscex-modchip-attiny84-jp.hex` 或 `openscex-modchip-attiny84-jp-vcd.hex`。
+非默认区域或过滤器会在产物名上加标签，例如 `openscex-modchip-attiny85-jp.hex` 或 `openscex-modchip-attiny85-jp-vcd.hex`。
 
 ## MCU 引脚
 
-SCEx 信号保持 PsNee 经验证的顺序（Read 自 PsNee `MCU.h`）；PORTB 未使用。物理引脚号为标准 PDIP 配置，SOIC 或 QFN 请查数据手册。
+4 路 SCEx 信号与 LED 保持 PsNee 经验证的 ATtiny85 分配（Read 自 PsNee `MCU.h`），因此与 PsNee 的接线指南逐脚一致；PB5 保持为复位，芯片仍可用 ISP 烧录。物理引脚号为标准 8 脚 PDIP 配置，SOIC 请查数据手册。
 
 | DIP 脚 | 端口 | 信号 | 方向 | 连接到 |
 |:------:|:-----|:-----|:-----|:-------|
-| 1 | VCC | VCC | - | 主机电源，先测量 |
-| 2 | PB0 | - | - | 未使用 |
-| 3 | PB1 | - | - | 未使用 |
-| 4 | PB3 | RESET | - | 保持为复位 |
-| 5 | PB2 | - | - | 未使用 |
-| 6 | PA7 | - | - | 未使用 |
-| 7 | PA6 | - | - | 未使用 |
-| 8 | PA5 | - | - | 未使用 |
-| 9 | PA4 | LED | 输出，可选 | 经 1 kΩ 电阻的状态 LED，或不接 |
-| 10 | PA3 | WFCK | 输入输出 | 静态门控，或 PU-22 及以后的实时载波 |
-| 11 | PA2 | DATA | 输出，拉低或高阻 | 向机芯控制器注入 SCEx |
-| 12 | PA1 | SUBQ | 输入 | SUBQ 串行数据 |
-| 13 | PA0 | SQCK | 输入 | SUBQ 串行时钟 |
-| 14 | GND | GND | - | 主机地 |
+| 1 | PB5 | RESET | - | 保持为复位 |
+| 2 | PB3 | LED | 输出，可选 | 经 1 kΩ 电阻的状态 LED，或不接 |
+| 3 | PB4 | WFCK | 输入输出 | 静态门控，或 PU-22 及以后的实时载波 |
+| 4 | GND | GND | - | 主机地 |
+| 5 | PB0 | SQCK | 输入 | SUBQ 串行时钟 |
+| 6 | PB1 | SUBQ | 输入 | SUBQ 串行数据 |
+| 7 | PB2 | DATA | 输出，拉低或高阻 | 向机芯控制器注入 SCEx |
+| 8 | VCC | VCC | - | 主机电源，先测量 |
 
 ## 按主机校准
 
@@ -202,7 +196,7 @@ SCEx 信号保持 PsNee 经验证的顺序（Read 自 PsNee `MCU.h`）；PORTB �
 | 主板 | 启动时识别的主板 | 主板不同则显示一次代码 6，并重新学习字符串上限与起始位置 |
 | 振荡器 | 主机晶振以 75 Hz 排列的导入区帧间隔 | 每 64 帧把 OSCCAL 调一级，直到误差在 1% 以内；校正属于芯片本身，因此更换主板时保留 |
 
-芯片只写入值有变化的字节，只在启动时或光盘检查有结果之后写入，从不在发送字符串时写入，因此稳定下来的主机不再写入任何内容。单元擦写寿命为 100,000 次（Read：ATtiny24A/44A/84A 数据手册 DS40002269A）。校验字节能发现因断电只写了一半的记录，此时按默认值读取。重新烧录也会擦除记录，因为上面两组熔丝都让 EESAVE 保持未编程（Read：同一数据手册，Table 19-4，高熔丝位 3）。4 个字符串的余量、2 帧的步长和 20 帧的上限是设计选择，尚未在主机上调校。
+芯片只写入值有变化的字节，只在启动时或光盘检查有结果之后写入，从不在发送字符串时写入，因此稳定下来的主机不再写入任何内容。单元擦写寿命为 100,000 次（Read：ATtiny25/45/85 数据手册 2586Q）。校验字节能发现因断电只写了一半的记录，此时按默认值读取。重新烧录也会擦除记录，因为上面两组熔丝都让 EESAVE 保持未编程（Read：同一数据手册，Table 20-4，高熔丝位 3）。4 个字符串的余量、2 帧的步长和 20 帧的上限是设计选择，尚未在主机上调校。
 
 ## 主机接点
 
@@ -228,11 +222,11 @@ SCEx 信号保持 PsNee 经验证的顺序（Read 自 PsNee `MCU.h`）；PORTB �
 
 ## 快速开始
 
-各[发布](../../releases)都附有按机型预构建的 `.hex`，可跳过工具链，直接用下面的 `avrdude` 步骤烧录。每个发布附带三份 ATtiny84 镜像（`us`、`eu`、`jp`）、SCPH-5903 镜像（`jp-vcd`）、`SHA256SUMS` 文件、许可证与构建来源证明。v0.2.0 及之前的发布附带的是旧四线设计的 ATtiny85 镜像。烧录前请先校验下载文件：
+各[发布](../../releases)都附有按机型预构建的 `.hex`，可跳过工具链，直接用下面的 `avrdude` 步骤烧录。每个发布附带三份 ATtiny85 镜像（`us`、`eu`、`jp`）、SCPH-5903 镜像（`jp-vcd`）、`SHA256SUMS` 文件、许可证与构建来源证明。v0.3.0 至 v0.8.0 的发布附带 ATtiny84 镜像，v0.2.0 及之前的发布附带旧四线设计的 ATtiny85 镜像。烧录前请先校验下载文件：
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing
-gh attestation verify openscex-modchip-attiny84.hex --repo gufranco/openscex-modchip
+gh attestation verify openscex-modchip-attiny85.hex --repo gufranco/openscex-modchip
 ```
 
 发布版本由提交历史自动生成，且只来自 CI 通过的提交；`0.x` 系列表示固件尚未经实机验证。若要从源码构建：所有构建、检查与测试都通过 `make` 在版本固定的 Docker 工具链中运行，主机上只运行 `avrdude`。
@@ -248,18 +242,18 @@ git clone https://github.com/gufranco/openscex-modchip.git
 cd openscex-modchip
 make REGION=us                                        # 美洲
 make REGION=jp VCD_FILTER=on                          # SCPH-5903
-avrdude -c <programmer> -p attiny84 -U flash:w:openscex-modchip-attiny84.hex:i
-avrdude -c <programmer> -p attiny84 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
+avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
+avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
 ```
 
-任何 ISP 都可以，包括 Arduino as ISP。先写闪存，最后写熔丝。low 熔丝 `0xE2` 选择内部 8 MHz 振荡器、适合缓慢上电的启动延时，且不分频（Read：ATtiny24A/44A/84A 数据手册 DS40002269A，Table 6-4 与 Table 6-5，CKSEL 0010，SUT 10），因此只用编程器就能在桌面上读取或重新烧录芯片。固件在启动时也会清除时钟预分频器，因此 CKDIV8 熔丝不会让它变慢。重新烧录会擦除校准记录及其振荡器校正，芯片会重新学习。
+任何 ISP 都可以，包括 Arduino as ISP。先写闪存，最后写熔丝。low 熔丝 `0xE2` 选择内部 8 MHz 振荡器、适合缓慢上电的启动延时，且不分频（Read：ATtiny25/45/85 数据手册 2586Q，Table 6-6 与 Table 6-7，CKSEL 0010，SUT 10），因此只用编程器就能在桌面上读取或重新烧录芯片。固件在启动时也会清除时钟预分频器，因此 CKDIV8 熔丝不会让它变慢。重新烧录会擦除校准记录及其振荡器校正，芯片会重新学习。
 
 | 构建 | 熔丝（low / high / extended） |
 |:-----|:------------------------------|
 | 内部 8 MHz，带 2.7 V 欠压检测，推荐 | `0xE2` / `0xDD` / `0xFF` |
 | 内部 8 MHz，不带欠压检测 | `0xE2` / `0xDF` / `0xFF` |
 
-欠压检测在电源低于 2.7 V 时使芯片保持复位，因此芯片不会在断电时正在跌落的电源上运行；尚未在主机上实测。请保持开启：按速度等级，ATtiny84 运行 8 MHz 约需 2.4 V（Read：同一数据手册，1.8 V 以上 0 至 4 MHz，2.7 V 以上 0 至 10 MHz），低于此电压芯片即超出额定范围。
+欠压检测在电源低于 2.7 V 时使芯片保持复位，因此芯片不会在断电时正在跌落的电源上运行；尚未在主机上实测。请保持开启：按速度等级，ATtiny85 在 2.7 V 以上运行 0 至 10 MHz（Read：同一数据手册；只有 ATtiny85V 可低至 1.8 V），低于 2.7 V 芯片即超出额定范围。
 
 验证：
 
@@ -278,8 +272,8 @@ LED 是可选的，也是芯片唯一的诊断手段：它显示芯片处于哪�
 | 部件 | 选择 |
 |:-----|:-----|
 | LED | 3 mm 或 5 mm 的红、橙、黄、绿 LED，正向电压约 2 V；不要用蓝色或白色，其 3 V 正向电压在 PSone 较低的电源下几乎不给电阻留电压 |
-| 电阻 | 1 kΩ，功率不限：5 V 时约 3 mA，3.5 V 时约 1.5 mA，室内足够亮，远低于引脚 40 mA 的绝对最大值（Read：ATtiny24A/44A/84A 数据手册 DS40002269A） |
-| 接线 | 9 号引脚（PA4）接电阻，电阻接 LED 阳极（长脚），阴极（平边）接地 |
+| 电阻 | 1 kΩ，功率不限：5 V 时约 3 mA，3.5 V 时约 1.5 mA，室内足够亮，远低于引脚 40 mA 的绝对最大值（Read：ATtiny25/45/85 数据手册 2586Q） |
+| 接线 | 2 号引脚（PB3）接电阻，电阻接 LED 阳极（长脚），阴极（平边）接地 |
 
 | 阶段 | LED 表现 |
 |:-----|:---------|
@@ -307,7 +301,7 @@ LED 是可选的，也是芯片唯一的诊断手段：它显示芯片处于哪�
 
 ## 版本
 
-发布遵循 `0.x` 系列的[语义化版本](https://semver.org/)，这意味着次版本也可能破坏兼容性：v0.3.0 用 ATtiny84 取代了 ATtiny85 四线设计。每个发布都打了标签，并从 CI 通过的提交构建；说明见[发布](../../releases)。
+发布遵循 `0.x` 系列的[语义化版本](https://semver.org/)，这意味着次版本也可能破坏兼容性：v0.3.0 用 ATtiny84 取代了 ATtiny85 四线设计，v0.8.0 之后的发布在设计不再需要时钟线与光驱盖线后回到 ATtiny85。每个发布都打了标签，并从 CI 通过的提交构建；说明见[发布](../../releases)。
 
 ## 支持
 

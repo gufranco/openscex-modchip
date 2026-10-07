@@ -4,7 +4,7 @@ English | [日本語](README.ja.md) | [中文](README.zh.md)
 
 <h1>openscex-modchip</h1>
 
-<strong>Stealth SCEx region unlock for the PlayStation and PSone, on an ATtiny84 that trims its own clock against the console.</strong>
+<strong>Stealth SCEx region unlock for the PlayStation and PSone, on an ATtiny85 that trims its own clock against the console.</strong>
 
 <br><br>
 
@@ -22,18 +22,18 @@ English | [日本語](README.ja.md) | [中文](README.zh.md)
   <a href="../../issues/new?template=compatibility.yml">Report your console</a>
 </p>
 
-**6070** bytes of flash · **8** board families, PU-7 to PM-41(2) · **3** regions · **0** MISRA deviations · **100%** host line and branch coverage · **151/151** mutants killed
+**6022** bytes of flash · **8** board families, PU-7 to PM-41(2) · **3** regions · **0** MISRA deviations · **100%** host line and branch coverage · **151/151** mutants killed
 
 ```bash
-gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny84.hex' --pattern SHA256SUMS
+gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
-avrdude -c <programmer> -p attiny84 -U flash:w:openscex-modchip-attiny84.hex:i
+avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 ```
 
 > [!IMPORTANT]
 > The current firmware passes the full simulation gate and has not yet run on a console. Measure the tap voltages before wiring.
 
-Region-unlock firmware for the original Sony PlayStation (fat) and PSone, on an ATtiny84 running from its internal oscillator, which it trims against the console's own SUBQ frame rate. It emits the configured region string inside the SUBQ region-check window, stops the moment the console accepts it, and leaves the data line high-impedance during play. It needs no lid wire: it knows a disc was swapped when SUBQ goes quiet while the drive is stopped. It does not patch the boot ROM, so Japanese fat consoles and the PAL PSone keep their second region check; install a patched BIOS if you need that bypassed. It is not an optical-drive emulator, does not support PS2 or Saturn, and does not defeat LibCrypt.
+Region-unlock firmware for the original Sony PlayStation (fat) and PSone, on an ATtiny85 running from its internal oscillator, which it trims against the console's own SUBQ frame rate. It emits the configured region string inside the SUBQ region-check window, stops the moment the console accepts it, and leaves the data line high-impedance during play. It needs no lid wire: it knows a disc was swapped when SUBQ goes quiet while the drive is stopped. It does not patch the boot ROM, so Japanese fat consoles and the PAL PSone keep their second region check; install a patched BIOS if you need that bypassed. It is not an optical-drive emulator, does not support PS2 or Saturn, and does not defeat LibCrypt.
 
 | | |
 |:--|:--|
@@ -50,7 +50,7 @@ graph LR
         WF[WFCK]
         MECH[Mechacon]
     end
-    subgraph ATtiny84
+    subgraph ATtiny85
         CAP[SUBQ capture]
         DET[Region-check detector]
         ST[Stealth state machine]
@@ -85,7 +85,7 @@ graph LR
 | Property | Value |
 |:---------|:------|
 | Console targets | PlayStation fat PU-7 through PU-23, PSone PM-41 and PM-41(2) |
-| MCU | ATtiny84 (14-pin DIP) |
+| MCU | ATtiny85 (8-pin DIP) |
 | Method | SCEx injection |
 | Region | one per build, `REGION=jp|us|eu` (default us) |
 | Clock | the internal 8 MHz RC oscillator, trimmed against the console's SUBQ frame rate |
@@ -127,7 +127,7 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 
 | Tag | Meaning |
 |:----|:--------|
-| Read | taken from a primary source (PsNee source, the Mayumi V4 binary, quade.co, consolemods, psdevwiki, the ATtiny24A/44A/84A datasheet) |
+| Read | taken from a primary source (PsNee source, the Mayumi V4 binary, quade.co, consolemods, psdevwiki, the ATtiny25/45/85 datasheet) |
 | Concluded | inferred from sources, not stated by any one of them |
 | Verified | confirmed on hardware or in the simavr model by this project |
 | Unknown | no source gives it; measure on the console |
@@ -136,7 +136,7 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 |:-----|:----|
 | SCEx pin order | Read (PsNee `MCU.h`), owner-confirmed as field-proven |
 | Disc swap seen from SUBQ silence | Concluded: opening the lid stops the drive, so valid mode 1 frames stop; the 1.5 s bound is a design choice, Unknown until hardware |
-| Internal oscillator accuracy | Read: factory calibration +-10%, user calibration +-1% (ATtiny24A/44A/84A datasheet, Table 20-2). That the trim reaches it on a console is Unknown |
+| Internal oscillator accuracy | Read: factory calibration +-10%, user calibration +-1% (ATtiny25/45/85 datasheet, Table 21-2). That the trim reaches it on a console is Unknown |
 | SQCK and SUBQ tap points | Read, labeled on PsNee's board photo for every supported board; the mechacon pin numbers behind them stay Unknown |
 | Per-pad voltages | Concluded from the PsNee and Mayumi installs (fat around 5 V, PSone lower and noise-sensitive); measure to confirm |
 | SCEx unlock on PU-18 and PSone | Verified 2026-10-05 with the earlier firmware (see table above) |
@@ -168,28 +168,22 @@ One source builds every variant; the knobs are passed to `make`.
 | `TIMING` | `adaptive`, `fixed` | `adaptive` | adaptive times the WFCK-carrier injection bit by counting WFCK periods; fixed uses the compile-time delay, which the trimmed internal oscillator times |
 | `VCD_FILTER` | `off`, `on` | `off` | on for the SCPH-5903 only: injection arms on a game's lead-in TOC and never on a Video CD's, following PsNee V9.0's SCPH-5903 filter |
 
-A non-default region or filter tags the artifact name, for example `openscex-modchip-attiny84-jp.hex` or `openscex-modchip-attiny84-jp-vcd.hex`.
+A non-default region or filter tags the artifact name, for example `openscex-modchip-attiny85-jp.hex` or `openscex-modchip-attiny85-jp-vcd.hex`.
 
 ## MCU pinout
 
-The SCEx signals keep PsNee's tested order, read from PsNee `MCU.h`; PORTB is unused. The physical pin numbers are the standard PDIP pinout; verify against the datasheet for SOIC or QFN.
+The four SCEx signals and the LED keep PsNee's tested ATtiny85 assignment, read from PsNee `MCU.h`, so PsNee wiring guides match pin for pin; PB5 stays RESET, so the chip remains ISP-programmable. The physical pin numbers are the standard 8-pin PDIP pinout; verify against the datasheet for SOIC.
 
 | DIP pin | Port | Signal | Direction | Connect to |
 |:-------:|:-----|:-------|:----------|:-----------|
-| 1 | VCC | VCC | - | console supply, measure first |
-| 2 | PB0 | - | - | unused |
-| 3 | PB1 | - | - | unused |
-| 4 | PB3 | RESET | - | leave as reset |
-| 5 | PB2 | - | - | unused |
-| 6 | PA7 | - | - | unused |
-| 7 | PA6 | - | - | unused |
-| 8 | PA5 | - | - | unused |
-| 9 | PA4 | LED | out, optional | status LED through a 1 kΩ resistor, or leave off |
-| 10 | PA3 | WFCK | in and out | static gate, or PU-22+ live carrier |
-| 11 | PA2 | DATA | out, drive-low or high-Z | SCEx injection into the mechacon |
-| 12 | PA1 | SUBQ | in | SUBQ serial data |
-| 13 | PA0 | SQCK | in | SUBQ serial clock |
-| 14 | GND | GND | - | console ground |
+| 1 | PB5 | RESET | - | leave as reset |
+| 2 | PB3 | LED | out, optional | status LED through a 1 kΩ resistor, or leave off |
+| 3 | PB4 | WFCK | in and out | static gate, or PU-22+ live carrier |
+| 4 | GND | GND | - | console ground |
+| 5 | PB0 | SQCK | in | SUBQ serial clock |
+| 6 | PB1 | SUBQ | in | SUBQ serial data |
+| 7 | PB2 | DATA | out, drive-low or high-Z | SCEx injection into the mechacon |
+| 8 | VCC | VCC | - | console supply, measure first |
 
 ## Per-console calibration
 
@@ -202,7 +196,7 @@ The chip learns how the console it is installed in reads the region string and k
 | Board | the board detected at boot | a different board shows code 6 once and restarts the string cap and start point |
 | Oscillator | the time between lead-in frames, which the console's crystal spaces at 75 Hz | OSCCAL steps one notch per 64 frames until the chip is within 1%; the trim belongs to the chip, so a board change keeps it |
 
-The chip writes only a byte whose value changed, only at boot or after a disc's check has resolved, never while a string is being sent, so a console that has settled writes nothing. The cell endurance is 100,000 writes (Read: ATtiny24A/44A/84A datasheet DS40002269A). A check byte catches a record cut short by a power-off, which then reads as the defaults. Reflashing erases the record too, because both fuse sets above leave EESAVE unprogrammed (Read: the same datasheet, Table 19-4, high fuse bit 3). The margin of 4 strings, the 2-frame step and the 20-frame bound are design choices, not yet tuned on a console.
+The chip writes only a byte whose value changed, only at boot or after a disc's check has resolved, never while a string is being sent, so a console that has settled writes nothing. The cell endurance is 100,000 writes (Read: ATtiny25/45/85 datasheet 2586Q). A check byte catches a record cut short by a power-off, which then reads as the defaults. Reflashing erases the record too, because both fuse sets above leave EESAVE unprogrammed (Read: the same datasheet, Table 20-4, high fuse bit 3). The margin of 4 strings, the 2-frame step and the 20-frame bound are design choices, not yet tuned on a console.
 
 ## Console tap points
 
@@ -228,11 +222,11 @@ The photos above mark SQCK and SUBQ on every supported board, so follow them. Th
 
 ## Quick start
 
-Prebuilt per-console `.hex` images are attached to each [release](../../releases), so you can skip the toolchain and go straight to flashing with the `avrdude` steps below. Each release carries the three ATtiny84 images (`us`, `eu`, `jp`), the SCPH-5903 image (`jp-vcd`), a `SHA256SUMS` file, the license, and a build-provenance attestation. Releases up to v0.2.0 carried ATtiny85 images for the earlier four-wire design. Check a download before flashing it:
+Prebuilt per-console `.hex` images are attached to each [release](../../releases), so you can skip the toolchain and go straight to flashing with the `avrdude` steps below. Each release carries the three ATtiny85 images (`us`, `eu`, `jp`), the SCPH-5903 image (`jp-vcd`), a `SHA256SUMS` file, the license, and a build-provenance attestation. Releases v0.3.0 to v0.8.0 carried ATtiny84 images, and releases up to v0.2.0 ATtiny85 images of the earlier four-wire design. Check a download before flashing it:
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing
-gh attestation verify openscex-modchip-attiny84.hex --repo gufranco/openscex-modchip
+gh attestation verify openscex-modchip-attiny85.hex --repo gufranco/openscex-modchip
 ```
 
 Releases are versioned automatically from the commit history, and only from a commit whose CI run passed; the `0.x` line marks the firmware as pre-hardware-validation. To build from source instead: every build, check and test runs in the pinned Docker toolchain through `make`, and only `avrdude` runs on the host.
@@ -248,18 +242,18 @@ git clone https://github.com/gufranco/openscex-modchip.git
 cd openscex-modchip
 make REGION=us                                        # America
 make REGION=jp VCD_FILTER=on                          # SCPH-5903
-avrdude -c <programmer> -p attiny84 -U flash:w:openscex-modchip-attiny84.hex:i
-avrdude -c <programmer> -p attiny84 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
+avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
+avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
 ```
 
-Any ISP works, including an Arduino as ISP. Write the flash first and the fuses last. The low fuse `0xE2` selects the internal 8 MHz oscillator with the slow-rising-power start-up delay and no clock divider (Read: ATtiny24A/44A/84A datasheet DS40002269A, Table 6-4 and Table 6-5, CKSEL 0010, SUT 10), so the chip can be read and reprogrammed on the bench with nothing but the programmer. The firmware also clears the clock prescaler at boot, so the CKDIV8 fuse cannot slow it. Reflashing erases the calibration record and its oscillator trim; the chip learns them again.
+Any ISP works, including an Arduino as ISP. Write the flash first and the fuses last. The low fuse `0xE2` selects the internal 8 MHz oscillator with the slow-rising-power start-up delay and no clock divider (Read: ATtiny25/45/85 datasheet 2586Q, Table 6-6 and Table 6-7, CKSEL 0010, SUT 10), so the chip can be read and reprogrammed on the bench with nothing but the programmer. The firmware also clears the clock prescaler at boot, so the CKDIV8 fuse cannot slow it. Reflashing erases the calibration record and its oscillator trim; the chip learns them again.
 
 | Build | Fuses (low / high / extended) |
 |:------|:------------------------------|
 | Internal 8 MHz with brown-out detection at 2.7 V, recommended | `0xE2` / `0xDD` / `0xFF` |
 | Internal 8 MHz without brown-out detection | `0xE2` / `0xDF` / `0xFF` |
 
-Brown-out detection holds the chip in reset while the supply is below 2.7 V, so it never runs on a supply that is collapsing at power-off; it is not yet exercised on a console. Keep it on: by its speed grade the ATtiny84 needs about 2.4 V for 8 MHz (Read: the same datasheet, 0 to 4 MHz from 1.8 V, 0 to 10 MHz from 2.7 V), so below that the chip is out of its rating.
+Brown-out detection holds the chip in reset while the supply is below 2.7 V, so it never runs on a supply that is collapsing at power-off; it is not yet exercised on a console. Keep it on: by its speed grade the ATtiny85 runs 0 to 10 MHz from 2.7 V (Read: the same datasheet; only the ATtiny85V reaches down to 1.8 V), so below 2.7 V the chip is out of its rating.
 
 Verify:
 
@@ -278,8 +272,8 @@ The LED is optional and is the chip's only diagnostic channel: it shows which st
 | Part | Choice |
 |:-----|:-------|
 | LED | a 3 mm or 5 mm red, orange, yellow or green LED, forward voltage about 2 V; not blue or white, whose 3 V forward voltage leaves almost nothing across the resistor on the PSone's lower supply |
-| Resistor | 1 kΩ, any wattage: about 3 mA at 5 V and 1.5 mA at 3.5 V, bright enough indoors and far below the pin's 40 mA absolute maximum (Read: ATtiny24A/44A/84A datasheet DS40002269A) |
-| Wiring | pin 9 (PA4) to the resistor, the resistor to the LED anode (long leg), the cathode (flat side) to ground |
+| Resistor | 1 kΩ, any wattage: about 3 mA at 5 V and 1.5 mA at 3.5 V, bright enough indoors and far below the pin's 40 mA absolute maximum (Read: ATtiny25/45/85 datasheet 2586Q) |
+| Wiring | pin 2 (PB3) to the resistor, the resistor to the LED anode (long leg), the cathode (flat side) to ground |
 
 | Stage | What the LED does |
 |:------|:------------------|
@@ -307,7 +301,7 @@ Codes are long 700 ms flashes, 300 ms apart, with a 2 s pause before the code re
 
 ## Versioning
 
-Releases follow [Semantic Versioning](https://semver.org/) on the `0.x` line, which means a minor release can break compatibility: v0.3.0 replaced the ATtiny85 four-wire design with the ATtiny84. Every release is tagged and built from a commit whose CI passed; see [releases](../../releases) for the notes.
+Releases follow [Semantic Versioning](https://semver.org/) on the `0.x` line, which means a minor release can break compatibility: v0.3.0 replaced the ATtiny85 four-wire design with the ATtiny84, and the release after v0.8.0 returned to the ATtiny85 once the design needed no clock and no lid wire. Every release is tagged and built from a commit whose CI passed; see [releases](../../releases) for the notes.
 
 ## Support
 
