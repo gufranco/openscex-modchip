@@ -259,7 +259,8 @@ ISP は何でも使えます。Arduino as ISP も可。フラッシュを先に�
 検証:
 
 ```bash
-make test        # ホストテスト、simavr コンソールモデル、静的解析、MISRA
+make size        # イメージサイズ。空きフラッシュが 256 バイト未満なら失敗
+make test        # ホストテスト、simavr コンソールモデルとスタック検査、静的解析、MISRA
 make repro       # 2 回の新規ビルドがバイト単位で一致
 make mutate      # ロジック層のミューテーションテスト
 ```

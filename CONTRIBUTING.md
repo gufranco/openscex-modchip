@@ -14,12 +14,13 @@ Every build, check and test runs in the pinned Docker toolchain through `make`; 
 
 ```bash
 make hooks        # once: enables the commit-message and formatting hooks
-make test         # host tests, simavr console model, static analysis, MISRA
+make size         # image size; fails when less than 256 bytes of flash stay free
+make test         # host tests, simavr console model and its stack check, static analysis, MISRA
 make repro        # two fresh builds must be byte-identical
 make mutate       # mutation testing on the logic layer
 ```
 
-A change is ready when `make all size analyse test repro mutate` passes with 100 percent host line and branch coverage, every mutant killed, and zero warnings. A bug fix adds a test that fails without it.
+A change is ready when `make all size analyse test repro mutate` passes with 100 percent host line and branch coverage, every mutant killed, zero warnings, at least 256 bytes of flash free and at least 96 bytes of RAM left between the stack and the static data in every simulated scenario. A bug fix adds a test that fails without it.
 
 ## Commits and pull requests
 

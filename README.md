@@ -259,7 +259,8 @@ Brown-out detection holds the chip in reset while the supply is below 2.7 V, so 
 Verify:
 
 ```bash
-make test        # host tests, simavr console model, static analysis, MISRA
+make size        # image size; fails when less than 256 bytes of flash stay free
+make test        # host tests, simavr console model and its stack check, static analysis, MISRA
 make repro       # two fresh builds, byte-identical
 make mutate      # mutation testing on the logic layer
 ```

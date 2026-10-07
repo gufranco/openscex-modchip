@@ -259,7 +259,8 @@ avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse
 验证：
 
 ```bash
-make test        # 主机测试、simavr 主机模型、静态分析、MISRA
+make size        # 镜像大小；剩余闪存少于 256 字节时失败
+make test        # 主机测试、simavr 主机模型及其栈检查、静态分析、MISRA
 make repro       # 两次全新构建逐字节一致
 make mutate      # 逻辑层的变异测试
 ```
