@@ -49,7 +49,11 @@ fi
 
 base=$1
 head=$2
-if [ "${base}" = "${zero_sha}" ]; then
+# A new branch has no old tip, and a force push leaves an old tip that is not
+# an ancestor of the new head and is often not even fetched, so git would walk
+# the whole rewritten history or stop with an unknown revision. Neither has a
+# range of new commits to walk, so only the head commit is checked.
+if [ "${base}" = "${zero_sha}" ] || ! git merge-base --is-ancestor "${base}" "${head}" 2>/dev/null; then
         range=$(git rev-list --no-merges --max-count=1 "${head}")
 else
         range=$(git rev-list --no-merges "${base}..${head}")
