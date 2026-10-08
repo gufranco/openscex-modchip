@@ -83,7 +83,7 @@ endif
 VARIANT := $(REGION_TAG)$(TIMING_TAG)$(VCD_TAG)
 
 CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate format \
-	precommit image image_size image_misra
+	precommit image image_size image_misra bench_runners bench bench_ci
 
 .PHONY: $(CONTAINER_TARGETS) clean hooks
 
@@ -125,7 +125,8 @@ FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
 HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_test.c tests/host/trim_test.c tests/host/disc_test.c tests/host/led_test.c tests/host/loop_test.c
 SIM_TEST_C := tests/sim/sim_test.c tests/sim/harness.c tests/sim/sim_inject.c tests/sim/sim_disc.c tests/sim/sim_calib.c
 SIM_TEST_H := tests/sim/harness.h tests/sim/scenarios.h tests/sim/sim_t85.h
-C_FILES := $(ALL_SRC_C) $(FIRMWARE_H) $(HOST_TEST_C) $(SIM_TEST_C) $(SIM_TEST_H)
+BENCH_SRC := bench/pic_runner.cc bench/avr_runner.c
+C_FILES := $(ALL_SRC_C) $(FIRMWARE_H) $(HOST_TEST_C) $(SIM_TEST_C) $(SIM_TEST_H) $(BENCH_SRC)
 HOST_TEST := $(BUILD)/host/host_test
 SIM_TEST := $(BUILD)/sim/sim_test
 SIM_CFLAGS := $(C_STD) -O2 -Wall -Wextra -Werror \
@@ -199,6 +200,38 @@ $(SIM_TEST): $(SIM_TEST_C) $(SIM_TEST_H) all
 	@mkdir -p $(@D)
 	$(HOST_CC) $(SIM_CFLAGS) -o $@ $(SIM_TEST_C) $(SIM_LIBS)
 
+# The console bench's runners (tools/bench): one plays a console timeline into
+# an AVR image on simavr, the other into a PIC image on gpsim's library, and
+# both write the chip's output pins and the addresses it executed. Library
+# headers come in as system includes so their own warnings stay out of -Werror.
+BENCH_PIC := $(BUILD)/bench/pic_runner
+BENCH_AVR := $(BUILD)/bench/avr_runner
+BENCH_CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -Werror \
+	$(patsubst -I%,-isystem %,$(shell pkg-config --cflags gpsim glib-2.0))
+BENCH_PIC_LIBS := $(shell pkg-config --libs gpsim glib-2.0) -lgpsim
+
+$(BENCH_PIC): bench/pic_runner.cc
+	@mkdir -p $(@D)
+	g++ $(BENCH_CXXFLAGS) -o $@ $< $(BENCH_PIC_LIBS)
+
+$(BENCH_AVR): bench/avr_runner.c tests/sim/sim_t85.h
+	@mkdir -p $(@D)
+	$(HOST_CC) $(SIM_CFLAGS) -Itests/sim -o $@ $< $(SIM_LIBS)
+
+bench_runners: $(BENCH_PIC) $(BENCH_AVR)
+
+# The bench itself. `bench` puts every chip through every scenario; a chip
+# whose firmware is not on this machine is skipped with how to obtain it, so
+# it runs anywhere and is complete only where the unlicensed images were
+# placed by hand (artifacts.manifest.json). `bench_ci` is the part any machine
+# can reproduce: ours against PsNee, which is fetched at its pinned commit and
+# built here. Either fails when ours leaves the field-proven envelope.
+bench: all bench_runners
+	$(PYTHON) -m tools.bench.cli
+
+bench_ci: all bench_runners
+	$(PYTHON) -m tools.bench.cli --chips ours,psnee-attiny85,psnee-atmega328p
+
 # The simulator runs the firmware at the nominal 8 MHz it is built for; the
 # oscillator trim scenarios model a fast or slow RC by running the console side
 # at a different rate. simavr does not change speed when OSCCAL is written, so
@@ -220,7 +253,7 @@ precommit:
 	ruff check
 	ruff format --check
 
-analyse: all
+analyse: all bench_runners
 	clang-format --dry-run --Werror $(C_FILES)
 	ruff check
 	ruff format --check
