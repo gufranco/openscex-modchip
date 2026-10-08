@@ -218,7 +218,16 @@ int main(int argc, char **argv) {
       } else if (event.signal == "wfck") {
         wfck = event.value != 0;
         drive_line("wfck", wfck);
-      } else if (event.signal != "vcc_mv") {
+      } else if (event.signal == "power_cycle") {
+        // Switching the console off and on: a power-on reset. The calibration
+        // word placed at load stays in program memory, as a real part keeps it.
+        cpu->reset(POR_RESET);
+      } else if (event.signal == "vcc_mv" || event.signal == "eeprom_byte" ||
+                 event.signal == "osccal_factory") {
+        // The supply level, the AVR record seed and the AVR factory OSCCAL have
+        // no counterpart here: gpsim models no supply on these parts, and
+        // Mayumi V4 and MM3 keep no EEPROM record.
+      } else {
         drive_line(event.signal, event.value != 0);
       }
       next_event++;

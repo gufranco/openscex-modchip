@@ -16,12 +16,22 @@
 // read as driven low through every gap between strings).
 // An ATtiny85 image gets the Timer1 and OSCCAL fixes the console harness uses
 // (tests/sim/sim_t85.h), shared so the bench and the harness run ours alike.
+// A `power_cycle` event models switching the console off and on: the core is
+// reset with its EEPROM kept, as the chip's EEPROM survives power loss, so a
+// scenario can boot a second time onto what the first boot stored. An
+// `eeprom_byte` event writes one EEPROM byte, its value the address times 256
+// plus the byte, so a scenario can start from a record a console would have
+// left, as the console harness seeds it (tests/sim/sim_calib.c). An
+// `osccal_factory` event sets the factory OSCCAL value an ATtiny85 boots with,
+// kept across power cycles, for a part calibrated near the CAL7 range boundary;
+// otherwise the harness's mid-range 0x50 applies.
 
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "avr_eeprom.h"
 #include "avr_ioport.h"
 #include "sim_avr.h"
 #include "sim_elf.h"
@@ -38,11 +48,15 @@ typedef struct {
   long value;
 } event_t;
 
+// One named line of the pin map, with the level the console last drove on it,
+// so a power cycle can put each console input back where the console holds it;
+// outputs keep 0 here and are never driven.
 typedef struct {
   char name[NAME_LEN];
   char port;
   uint8_t bit;
   int inverted;
+  int value;
 } line_t;
 
 typedef struct {
@@ -58,6 +72,7 @@ static line_t g_lines[MAX_LINES];
 static int g_line_count = 0;
 static output_t g_outputs[3];
 static int g_output_count = 0;
+static int g_osccal_factory = -1;
 
 static void parse_pin_map(const char *text) {
   char copy[256];
@@ -80,7 +95,7 @@ static void parse_pin_map(const char *text) {
   }
 }
 
-static const line_t *find_line(const char *name) {
+static line_t *find_line(const char *name) {
   for (int i = 0; i < g_line_count; i++) {
     if (strcmp(g_lines[i].name, name) == 0) {
       return &g_lines[i];
@@ -90,12 +105,40 @@ static const line_t *find_line(const char *name) {
 }
 
 static void drive(avr_t *avr, const char *name, int value) {
-  const line_t *line = find_line(name);
+  line_t *line = find_line(name);
   if (line == NULL) {
     return;
   }
+  line->value = value;
   avr_irq_t *irq = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ(line->port), line->bit);
   avr_raise_irq(irq, (uint32_t)((value != 0) != line->inverted));
+}
+
+// Write one EEPROM byte through simavr's EEPROM model, as a programmer would.
+static void eeprom_byte(avr_t *avr, long packed) {
+  uint8_t byte = (uint8_t)(packed & 0xFF);
+  avr_eeprom_desc_t desc = { .ee = &byte, .offset = (uint16_t)(packed >> 8), .size = 1 };
+  avr_ioctl(avr, AVR_IOCTL_EEPROM_SET, &desc);
+}
+
+// Switch the chip off and on. avr_reset clears the core and the I/O registers,
+// so the ATtiny85 fixes are installed again and every console input is driven
+// back to its last level; the EEPROM array is left as it was.
+static void power_cycle(avr_t *avr, const char *mcu) {
+  avr_reset(avr);
+  if (strcmp(mcu, "attiny85") == 0) {
+    sim_t85_install(avr);
+    if (g_osccal_factory >= 0) {
+      avr->data[SIM_OSCCAL_ADDR] = (uint8_t)g_osccal_factory;
+    }
+  }
+  static const char *const inputs[] = { "sqck", "subq", "wfck", "lid", "reset", "sense" };
+  for (size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); i++) {
+    const line_t *line = find_line(inputs[i]);
+    if (line != NULL) {
+      drive(avr, inputs[i], line->value);
+    }
+  }
 }
 
 // One output's state from the port's own registers: driven when its DDR bit
@@ -174,7 +217,7 @@ int main(int argc, char **argv) {
   }
   const char *outputs[] = { "data", "gate", "led" };
   for (int i = 0; i < 3; i++) {
-    const line_t *line = find_line(outputs[i]);
+    line_t *line = find_line(outputs[i]);
     if (line == NULL) {
       continue;
     }
@@ -211,6 +254,13 @@ int main(int argc, char **argv) {
       } else if (strcmp(event->signal, "vcc_mv") == 0) {
         avr->vcc = (uint32_t)event->value;
         avr->avcc = (uint32_t)event->value;
+      } else if (strcmp(event->signal, "power_cycle") == 0) {
+        power_cycle(avr, argv[2]);
+      } else if (strcmp(event->signal, "eeprom_byte") == 0) {
+        eeprom_byte(avr, event->value);
+      } else if (strcmp(event->signal, "osccal_factory") == 0) {
+        g_osccal_factory = (int)event->value;
+        avr->data[SIM_OSCCAL_ADDR] = (uint8_t)event->value;
       } else {
         drive(avr, event->signal, (int)event->value);
       }

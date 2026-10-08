@@ -15,6 +15,7 @@ from tools.bench.timeline import (
     LEAD_IN,
     Signal,
     Timeline,
+    dry_run,
 )
 
 
@@ -74,6 +75,34 @@ class ControlTest(unittest.TestCase):
         ]
         self.assertEqual(len(lows), 2)
         self.assertEqual(lows[1] - lows[0], FRAME_NS // 2)
+
+    def test_a_slower_console_spaces_frames_further_apart(self) -> None:
+        timeline = Timeline(frame_ns=FRAME_NS + 1_000)
+
+        timeline.frames(LEAD_IN, 2)
+
+        self.assertEqual(timeline.now_ns, 2 * (FRAME_NS + 1_000))
+
+    def test_a_power_cycle_is_one_event_at_the_cursor(self) -> None:
+        timeline = Timeline().idle(5_000).set(Signal.POWER_CYCLE, 1)
+
+        self.assertEqual(
+            [(e.time_ns, e.signal) for e in timeline.events],
+            [(5_000, Signal.POWER_CYCLE)],
+        )
+
+    def test_a_mark_records_the_cursor_under_its_name(self) -> None:
+        timeline = Timeline().idle(7_000).mark("program")
+
+        self.assertEqual(timeline.marks, {"program": 7_000})
+
+    def test_a_dry_build_keeps_time_and_marks_but_no_events(self) -> None:
+        with dry_run():
+            timeline = Timeline().set(Signal.LID, 1).mark("lead_in").frames(LEAD_IN, 3)
+
+        self.assertEqual(timeline.events, [])
+        self.assertEqual(timeline.now_ns, 3 * FRAME_NS)
+        self.assertEqual(timeline.marks, {"lead_in": 0})
 
     def test_lines_are_time_sorted_text(self) -> None:
         timeline = Timeline().set(Signal.WFCK_HALF_NS, 68_000)

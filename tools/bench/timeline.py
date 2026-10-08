@@ -13,10 +13,18 @@ runner to toggle WFCK at that half period from then on (0 stops it), which
 keeps a 10 s scenario to a few hundred thousand lines.
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import StrEnum
 
 EDGE_NS = 14_170
+# Whether timelines built now keep their events. A dry build only moves the
+# cursor and records marks, which is all a scenario needs to know its phases
+# and length; the longest scenario holds millions of events, so building it
+# for real only when a runner plays it keeps memory to one at a time.
+_RECORDING: ContextVar[bool] = ContextVar("recording", default=True)
 FRAME_NS = 1_000_000_000 // 75
 FRAME_BYTES = 12
 
@@ -38,6 +46,9 @@ class Signal(StrEnum):
     RESET = "reset"
     SENSE = "sense"
     VCC_MV = "vcc_mv"
+    POWER_CYCLE = "power_cycle"
+    EEPROM_BYTE = "eeprom_byte"
+    OSCCAL_FACTORY = "osccal_factory"
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,16 +71,29 @@ class Timeline:
     frame the drive reads. Their real cadence is Unknown, so scenarios set
     it; 0 sends no strobes, and a scenario may instead drive the line as a
     level with set().
+
+    frame_ns is the time from one frame's start to the next: 1/75 s for a
+    console on time, longer or shorter for one whose clock runs slow or fast,
+    which is what the chip's oscillator trim is measured against.
     """
 
     strobes_per_frame: int = 0
+    frame_ns: int = FRAME_NS
     strobe_width_ns: int = 4_000
     now_ns: int = 0
     events: list[Event] = field(default_factory=list)
+    marks: dict[str, int] = field(default_factory=dict)
+    record: bool = field(default_factory=_RECORDING.get)
 
     def set(self, signal: Signal, value: int) -> "Timeline":
         """Change one signal at the cursor."""
-        self.events.append(Event(self.now_ns, signal, value))
+        if self.record:
+            self.events.append(Event(self.now_ns, signal, value))
+        return self
+
+    def mark(self, name: str) -> "Timeline":
+        """Name the cursor's time, a console phase the metrics judge by."""
+        self.marks[name] = self.now_ns
         return self
 
     def idle(self, duration_ns: int) -> "Timeline":
@@ -80,6 +104,9 @@ class Timeline:
     def frame(self, data: tuple[int, ...]) -> "Timeline":
         """Clock one SUBQ frame and wait out the rest of its 1/75 s."""
         start = self.now_ns
+        if not self.record:
+            self.now_ns = start + self.frame_ns
+            return self
         at = start
         for byte in data:
             for bit in range(8):
@@ -88,10 +115,10 @@ class Timeline:
                 self.events.append(Event(at + EDGE_NS, Signal.SQCK, 1))
                 at += 2 * EDGE_NS
         for pulse in range(self.strobes_per_frame):
-            low = start + pulse * (FRAME_NS // self.strobes_per_frame)
+            low = start + pulse * (self.frame_ns // self.strobes_per_frame)
             self.events.append(Event(low, Signal.SENSE, 0))
             self.events.append(Event(low + self.strobe_width_ns, Signal.SENSE, 1))
-        self.now_ns = start + FRAME_NS
+        self.now_ns = start + self.frame_ns
         return self
 
     def frames(self, data: tuple[int, ...], count: int) -> "Timeline":
@@ -104,3 +131,13 @@ class Timeline:
         """The timeline as the runners read it, sorted by time."""
         ordered = sorted(self.events, key=lambda event: event.time_ns)
         return [f"{e.time_ns} {e.signal} {e.value}" for e in ordered]
+
+
+@contextmanager
+def dry_run() -> Iterator[None]:
+    """Build timelines inside the block without keeping their events."""
+    token = _RECORDING.set(False)
+    try:
+        yield
+    finally:
+        _RECORDING.reset(token)
