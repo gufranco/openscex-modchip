@@ -6,14 +6,19 @@ FROM debian:trixie@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d28
 ARG CPPCHECK_VERSION=2.22.0
 ARG CPPCHECK_SHA256=d74945deb2d50393430e07596b766f8a779512c7f60dac2a30ea64e059ece57b
 
+# gpsim is pinned to its source release, 0.32.1-2, with any rebuild suffix: the
+# binary rebuild number differs by architecture (+b1 on amd64, +b2 on arm64 in
+# trixie, read with apt-cache madison on 2026-10-08), so an exact pin built on
+# one machine failed to install on the other. The quotes keep the shell from
+# treating the pattern as a file glob; apt matches it against versions.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       gcc-avr=1:14.2.0-2 \
       avr-libc=1:2.2.1-1 \
       binutils-avr \
       libsimavr-dev=1.6+dfsg-3+b3 \
-      gpsim=0.32.1-2+b2 \
-      gpsim-dev=0.32.1-2+b2 \
+      'gpsim=0.32.1-2+b*' \
+      'gpsim-dev=0.32.1-2+b*' \
       gputils=1.5.2-1 \
       libglib2.0-dev \
       libelf-dev \
