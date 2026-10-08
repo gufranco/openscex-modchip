@@ -110,7 +110,7 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 | Feature | Detail |
 |:--------|:-------|
 | SCEx injection | 44-bit LSB-first region string, the PU-7 to PU-20 static-gate method, with the WFCK gate held low for each string as PsNee and Mayumi V4 do, and the PU-22-and-later WFCK-carrier method |
-| Board auto-detect | WFCK behaviour at boot selects gate or carrier mode; one build fits every family. Before each string on a board taken for a gate, WFCK is watched again for 9.4 ms, so a carrier that starts after boot is never held low |
+| Board auto-detect | WFCK behaviour at boot selects gate or carrier mode; one build fits every family. Before each string on a board taken for a gate, WFCK is watched again for 9.4 ms, so a carrier that starts after boot is never held low. After a watchdog reset the board recorded at boot is kept rather than detected again, so a carrier that stalled mid-string is not mistaken for a gate and driven |
 | Supply guard | before every string the chip measures its own supply against its 1.1 V bandgap; below about 2.75 V, or on a reading no real supply gives, it sends nothing and shows code 7; a brief dip pauses a burst without restarting its count, and a window it kept shut teaches the calibration nothing |
 | Oscillator trim | the chip runs from its internal 8 MHz oscillator and times the console's 75 Hz SUBQ frames, stepping OSCCAL one notch at a time until it is within 1% and never more than 16 notches from the factory value; the trim is kept in EEPROM and applied at boot |
 | Disc swaps | no lid wire: 1.5 s with no valid SUBQ frame, which a stopped drive gives, ends the acceptance latch and re-arms the chip for the next disc; a seek or a reread on a spinning disc keeps producing frames, so it never reads as a swap |
@@ -122,7 +122,7 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 | In-field diagnostics | no programmer needed: the LED codes name the failing stage, from a SUBQ line that never clocks to one that never shows a region check; nothing is read back with a programmer |
 | Per-console calibration | learns how many strings this console needs, how late it can start and how fast its own oscillator runs, kept in a seven-byte EEPROM record that falls back to the defaults when missing or damaged |
 | Closed-loop confirmation | after injecting, the chip watches SUBQ for a program-area frame (a real track number), which the mechacon only allows once it accepts the region string, and shows whether the region check passed |
-| Verification | host tests 100% line and branch coverage, simavr console model, including a fast and a slow oscillator, mutation testing, reproducible builds, and a console bench that plays one simulated console into this firmware, PsNee, Mayumi V4 and MM3 and checks that this one accepts wherever they do, keeps its bit cell in their range and sends no more outside the region check |
+| Verification | host tests 100% line and branch coverage, simavr console model, including a fast and a slow oscillator, mutation testing, reproducible builds, and a console bench that plays one simulated console into this firmware, PsNee, Mayumi V4 and MM3 and checks that this one accepts wherever they do, keeps its bit cell in their range and sends no more outside the region check; its scenarios execute every instruction of this firmware a console can reach, and each one they cannot carries its reason in the source |
 
 ## Confidence tags
 

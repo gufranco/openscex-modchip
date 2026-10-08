@@ -24,6 +24,10 @@ make bench        # the same with every chip whose image is on this machine
 
 The console bench plays one simulated console into several modchip firmwares and checks that this one stays inside what the field-proven chips do: it accepts wherever they accept, keeps its bit cell in their range, starts no later and sends no more outside the region check. PsNee is fetched and built at a pinned commit. The Mayumi V4 and MM3 images carry no licence, so they are never committed; [`artifacts.manifest.json`](artifacts.manifest.json) names each by SHA-256 and says where to obtain it, and the bench skips any image that is missing or differs. The report lands in `build/bench/report.md`.
 
+Only the core scenarios are judged that way; the edge, fault and sense-line scenarios exist to reach code, so their counts are reported and never compared with another chip's.
+
+The bench also measures instruction coverage, and this firmware must reach all of it: every instruction is executed by some scenario or excused with a reason. A line no console input can reach carries a comment `coverage: unreachable: <reason>` above it, or `coverage: unreachable block: <reason>` above a stretch of assembly that runs to the next blank line; the bench maps instructions to lines through the image's debug information. A full `make bench_ci` fails on any instruction that is neither. Reasons for third-party images live in [`bench/coverage-exclusions.json`](bench/coverage-exclusions.json).
+
 A change is ready when `make all size analyse test repro mutate` passes with 100 percent host line and branch coverage, every mutant killed, zero warnings, at least 256 bytes of flash free and at least 96 bytes of RAM left between the stack and the static data in every simulated scenario. A bug fix adds a test that fails without it.
 
 ## Commits and pull requests
