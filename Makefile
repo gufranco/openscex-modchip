@@ -138,10 +138,17 @@ RELEASE_ELF := $(RELEASE)/$(NAME)-$(MCU)$(VARIANT).elf
 RELEASE_HEX := $(RELEASE)/$(NAME)-$(MCU)$(VARIANT).hex
 RELEASE_OBJECTS := $(patsubst src/%,$(RELEASE)/%.o,$(FIRMWARE_C) $(FIRMWARE_S))
 
+# -g adds a line table to the ELF and leaves the code alone: GCC generates the
+# same instructions with and without it, so the flash image and the .hex are
+# byte-identical (checked 2026-10-08). The console bench reads that table to
+# map each instruction to its source line, which is where the reasons for
+# code no console input reaches are kept. The link step needs it too, since
+# link-time optimisation generates the code there.
+AVR_DEBUG := -g
 AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(TIMING_DEF) $(VCD_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
-	$(WARNINGS) -fno-common -ffunction-sections -fdata-sections
-AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) $(TIMING_DEF) -Iinclude -Wall -Wextra -Werror
-AVR_LDFLAGS := -mmcu=$(MCU) -Os -flto -Wl,--gc-sections
+	$(WARNINGS) -fno-common -ffunction-sections -fdata-sections $(AVR_DEBUG)
+AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) $(TIMING_DEF) -Iinclude -Wall -Wextra -Werror $(AVR_DEBUG)
+AVR_LDFLAGS := -mmcu=$(MCU) -Os -flto -Wl,--gc-sections $(AVR_DEBUG)
 
 AVR_INCLUDE := /usr/lib/avr/include
 AVR_GCC_INCLUDE := $(shell $(AVR_CC) -print-file-name=include)
