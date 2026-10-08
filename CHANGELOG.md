@@ -1,3 +1,10 @@
+## [0.10.2](https://github.com/gufranco/openscex-modchip/compare/v0.10.1...v0.10.2) (2026-10-08)
+
+
+### Bug Fixes
+
+* make the SQCK gap check last 1 ms ([e10d4dc](https://github.com/gufranco/openscex-modchip/commit/e10d4dc82afc1d1c43fc6a53a562037f8e7e3bde))
+
 ## [0.10.1](https://github.com/gufranco/openscex-modchip/compare/v0.10.0...v0.10.1) (2026-10-07)
 
 
