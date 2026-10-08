@@ -104,7 +104,11 @@ CARRIER_BOARDS = frozenset(Board) - GATE_BOARDS
 @dataclass(frozen=True, slots=True)
 class Scenario:
     """A named console situation: its timeline builder, phase marks, and the
-    boards whose signals it plays."""
+    boards whose signals it plays. A judged scenario holds ours to the
+    field-proven envelope; one that is not exists to reach code, such as a
+    run of power cycles whose later discs all count as play, and comparing
+    its counts with a field-proven chip's would measure the script, not the
+    chip."""
 
     name: str
     description: str
@@ -112,6 +116,7 @@ class Scenario:
     phases: dict[Phase, int]
     build: Callable[[], Timeline]
     boards: frozenset[Board]
+    judged: bool = True
 
 
 def _boot(half_ns: int) -> Timeline:
