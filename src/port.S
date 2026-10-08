@@ -198,7 +198,10 @@ pscu_port_delay_ms:
 // reads the port, shifts the WFCK bit down to the DATA bit position (the shift
 // count is the pin-number distance, computed at assemble time by .rept so it is
 // correct for whichever board profile is built), masks it, and writes it back
-// into DATA without disturbing the other port bits.
+// into DATA without disturbing the other port bits. Only the fixed-timing build
+// calls it, from pscu_port_bit_mirror; the adaptive build times each one by
+// WFCK periods instead, so there it is left out rather than linked in unused.
+#if !PSCU_TIMING_ADAPTIVE
 	.global pscu_port_data_mirror_wfck_ms
 	.func pscu_port_data_mirror_wfck_ms
 pscu_port_data_mirror_wfck_ms:
@@ -223,6 +226,7 @@ pscu_port_data_mirror_wfck_ms:
 6:
 	ret
 	.endfunc
+#endif
 
 // Clock in r22 bytes of SUBQ into the buffer at r25:r24, least significant bit
 // first, sampling SUBQ right after each SQCK rising edge, as PsNee does. The caller

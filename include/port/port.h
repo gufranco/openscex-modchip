@@ -10,7 +10,8 @@
 // All of these are implemented in src/port.S; no C file touches a register
 // directly. Reads return the masked pin bit (nonzero means high); the two DATA
 // calls give an active low or a high-Z release; the two delays busy-wait and
-// kick the watchdog; mirror_wfck drives DATA as a copy of the WFCK carrier.
+// kick the watchdog; mirror_wfck drives DATA as a copy of the WFCK carrier,
+// and exists only in the fixed-timing build, the one that calls it.
 void pscu_port_init(void);
 
 void pscu_port_watchdog_reset(void);
