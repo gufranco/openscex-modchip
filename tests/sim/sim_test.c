@@ -52,6 +52,7 @@ int main(int argc, char *argv[]) {
   scenario_gate(&t85, elf, freq, 0);
   scenario_gate(&t85, elf, freq, 1);
   scenario_string_gap(&t85, elf, freq);
+  scenario_gap_check(&t85, elf, freq);
   scenario_trim(&t85, elf, freq);
 
   // The optional third argument is the SCPH-5903 Video-CD image.

@@ -426,3 +426,45 @@ void scenario_families(const target_t *t, const char *elf, uint32_t freq) {
   }
   scenario_inject(t, elf, freq, 0, 0, WFCK_HZ, "legacy non-TOC negative");
 }
+
+// The gap check before each capture must last one millisecond of continuous idle
+// SQCK, PsNee's resync gap, and no more: on a silent pass every extra
+// microsecond is time in which a disc's first frame can begin unseen and go
+// uncounted (traced with the console bench, 2026-10-08). Its poll count is
+// derived from the cost of one poll, so this times the check in the built image
+// rather than trusting that cost: from the first SQCK read after a silent
+// capture begins to the next capture's entry, by the program counter.
+#define GAP_CHECK_MIN_NS 1000000ULL
+#define GAP_CHECK_MAX_NS 1050000ULL
+#define GAP_CHECK_LIMIT_MS 200U
+
+void scenario_gap_check(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  boot_quiet(avr, t, 0, &ctx);
+  uint64_t limit = avr->cycle + ms_cycles(GAP_CHECK_LIMIT_MS);
+  uint64_t entry = 0U;
+  uint64_t first_read = 0U;
+  uint64_t next = 0U;
+  while ((avr->cycle < limit) && (next == 0U)) {
+    uint32_t pc = avr->pc;
+    if ((pc == g_addr_capture) && (entry == 0U)) {
+      entry = avr->cycle;
+    } else if ((pc == g_addr_read_sqck) && (entry != 0U) && (first_read == 0U)) {
+      first_read = avr->cycle;
+    } else if ((pc == g_addr_capture) && (first_read != 0U)) {
+      next = avr->cycle;
+    }
+    avr_run(avr);
+  }
+  uint64_t gap = next - first_read;
+  char label[112];
+  (void)snprintf(label,
+                 sizeof(label),
+                 "%s: the gap check lasts 1 ms of idle SQCK (%llu us)",
+                 t->mcu,
+                 (unsigned long long)((gap * 1000000ULL) / freq));
+  check((g_addr_capture != 0U) && (g_addr_read_sqck != 0U) && (next != 0U) &&
+            (gap >= ns_cycles(GAP_CHECK_MIN_NS)) && (gap <= ns_cycles(GAP_CHECK_MAX_NS)),
+        label);
+}

@@ -34,6 +34,9 @@ uint64_t g_edge_ns = EDGE_NS;
 // the stack and that data.
 static uint32_t g_ram_floor = 0U;
 static int64_t g_min_free = INT64_MAX;
+// Where two port functions sit in the loaded image (see harness.h).
+uint32_t g_addr_read_sqck = 0U;
+uint32_t g_addr_capture = 0U;
 // When nonzero, frames start this many nanoseconds apart, a console's fixed
 // sector rate; when zero, each frame is followed by FRAME_GAP_CYCLES.
 uint64_t g_frame_period_ns = 0U;
@@ -174,11 +177,23 @@ static uint32_t ram_floor(const elf_firmware_t *firmware) {
   return (found != 0) ? floor : 0xFFFFU;
 }
 
+// The flash address of a named function, zero when the image lacks it.
+static uint32_t symbol_addr(const elf_firmware_t *firmware, const char *name) {
+  for (uint32_t i = 0U; i < firmware->symbolcount; i++) {
+    if (strcmp(firmware->symbol[i]->symbol, name) == 0) {
+      return firmware->symbol[i]->addr;
+    }
+  }
+  return 0U;
+}
+
 avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
   elf_firmware_t firmware;
   memset(&firmware, 0, sizeof(firmware));
   (void)elf_read_firmware(elf, &firmware);
   g_ram_floor = ram_floor(&firmware);
+  g_addr_read_sqck = symbol_addr(&firmware, "pscu_port_read_sqck");
+  g_addr_capture = symbol_addr(&firmware, "pscu_port_capture_frame");
 
   avr_t *avr = avr_make_mcu_by_name(t->mcu);
   avr_init(avr);
