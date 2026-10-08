@@ -77,7 +77,7 @@ graph LR
 | Boards | PU-7 to PM-41(2) | PU-7 to PM-41(2) | PU-18 and later | PU-7 and later |
 | Diagnostics | LED stage and result codes | serial debug | none | none |
 | Per-console learning | string cap and start point | none | none | none |
-| Tests and static analysis | host, simavr, mutation, MISRA | none | none | none |
+| Tests and static analysis | host, simavr, mutation, MISRA, console bench | none | none | none |
 | Field record | 2 boards, earlier firmware | years | decades | decades |
 
 ## Overview
@@ -122,7 +122,7 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 | In-field diagnostics | no programmer needed: the LED codes name the failing stage, from a SUBQ line that never clocks to one that never shows a region check; nothing is read back with a programmer |
 | Per-console calibration | learns how many strings this console needs, how late it can start and how fast its own oscillator runs, kept in a seven-byte EEPROM record that falls back to the defaults when missing or damaged |
 | Closed-loop confirmation | after injecting, the chip watches SUBQ for a program-area frame (a real track number), which the mechacon only allows once it accepts the region string, and shows whether the region check passed |
-| Verification | host tests 100% line and branch coverage, simavr console model, including a fast and a slow oscillator, mutation testing, reproducible builds |
+| Verification | host tests 100% line and branch coverage, simavr console model, including a fast and a slow oscillator, mutation testing, reproducible builds, and a console bench that plays one simulated console into this firmware, PsNee, Mayumi V4 and MM3 and checks that this one accepts wherever they do, keeps its bit cell in their range and sends no more outside the region check |
 
 ## Confidence tags
 
@@ -263,6 +263,7 @@ make size        # image size; fails when less than 256 bytes of flash stay free
 make test        # host tests, simavr console model and its stack check, static analysis, MISRA
 make repro       # two fresh builds, byte-identical
 make mutate      # mutation testing on the logic layer
+make bench_ci    # console bench: this firmware against PsNee in the same simulated console
 ```
 
 The same gates run in CI on every push and pull request, defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Contributors can run `make hooks` once to enable the commit-message and formatting checks locally.
