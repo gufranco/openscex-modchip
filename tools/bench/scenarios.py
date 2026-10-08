@@ -16,10 +16,23 @@ here detects its board within 0.4 s. A lead-in of 8 s covers the slowest
 first string seen while staying under the 20 s region-check budget the LED
 code 4 assumes. WFCK runs at 7.3 kHz, the carrier the simulator harness and
 PsNee use for a single-speed read, and 14.6 kHz for a double-speed read.
-XLAT, Mayumi's sense line, pulses four times per frame read; its real cadence
-is Unknown. That GP4 senses the mechacon's command port is Concluded from the
-quade.co PM-41(2) diagram ("Stealth: Pin 3", near IC304 pin 44) and the
-psx-spx HC05 pinout (pin 43 DATA, 44 XLAT, 45 CLOK).
+The sense line Mayumi V4 and MM3 read on GP4 depends on the board. On
+carrier boards it is the mechacon's command strobe, XLAT, pulsed four times
+per frame read here; the real cadence is Unknown. That it is XLAT there is
+Concluded from the quade.co PM-41(2) diagram ("Stealth: Pin 3", near IC304
+pin 44) and the psx-spx HC05 pinout (pin 43 DATA, 44 XLAT, 45 CLOK). On the
+static-gate boards it is the mechacon's SPEED output, IC304 pin 27, which
+switches the spindle driver between single and double speed (Read: PU-18
+service manual schematic sheet 3; psx-spx, SPEED to IC722 pin 3, the motor
+driver). That GP4 sits on it there is Concluded: the chips' gate-board code
+reads GP4 as a slow level, keeps sending while it is low and times low and
+high spells of 130 ms to 2.75 s, and older Mayumi chips sensed this "X1/X2
+speed control line" (psdevwiki). SPEED is held low, single speed, from power
+on through the lead-in, and goes high, double speed, when the program area
+is read: the region check reads the lead-in wobble at single speed, the
+owner's recollection of a slower disc at that moment, and data is read at
+double speed. That polarity and the switch point are Concluded, not
+measured.
 """
 
 from collections.abc import Callable
@@ -43,7 +56,9 @@ REREAD_FRAMES = 4 * 75
 SWAP_SILENCE_NS = 2 * SECOND_NS
 HALF_7K3_NS = SECOND_NS // (2 * 7_300)
 HALF_14K6_NS = SECOND_NS // (2 * 14_600)
-XLAT_PER_FRAME = 4
+STROBES_PER_FRAME = 4
+SINGLE_SPEED = 0
+DOUBLE_SPEED = 1
 TAIL_NS = SECOND_NS
 
 
@@ -74,10 +89,15 @@ class Board(StrEnum):
 # Which boards a scenario's signals stand for. The PU-7 to PU-20 hold WFCK
 # static, the gate the chip pulls low; the PU-22 and later run it as a
 # carrier the chip mirrors (Read: PsNee V9.0 PSNee.ino:372-406, BoardDetection).
-# The bench cannot tell a PU-7 from a PU-20 by its signals, so the gate
-# scenario stands for all four, and a chip that misses any of them is not
-# evidence for it.
-GATE_BOARDS = frozenset({Board.PU_7, Board.PU_8, Board.PU_18, Board.PU_20})
+# The PU-7 and PU-8 and the PU-18 and PU-20 play the same signals here, but
+# not the same chips: Mayumi V4 is timed by the mechacon clock, which the
+# PU-8 takes from its own 4.0000 MHz oscillator and the PU-18 derives as
+# 4.2336 MHz from the CD DSP (Read: psx-spx HC05 pinouts), so it supports only
+# the later pair. Each pair gets its own scenario, so MM3 is the evidence on
+# the early boards and both chips on the later ones.
+EARLY_GATE_BOARDS = frozenset({Board.PU_7, Board.PU_8})
+LATE_GATE_BOARDS = frozenset({Board.PU_18, Board.PU_20})
+GATE_BOARDS = EARLY_GATE_BOARDS | LATE_GATE_BOARDS
 CARRIER_BOARDS = frozenset(Board) - GATE_BOARDS
 
 
@@ -95,10 +115,15 @@ class Scenario:
 
 
 def _boot(half_ns: int) -> Timeline:
-    timeline = Timeline(xlat_per_frame=XLAT_PER_FRAME)
-    if half_ns:
-        timeline.set(Signal.WFCK_HALF_NS, half_ns)
+    timeline = Timeline(strobes_per_frame=STROBES_PER_FRAME)
+    timeline.set(Signal.WFCK_HALF_NS, half_ns)
     return timeline.idle(BOOT_NS)
+
+
+def _gate_accept() -> Timeline:
+    timeline = Timeline().set(Signal.SENSE, SINGLE_SPEED).idle(BOOT_NS)
+    timeline.frames(LEAD_IN, LEAD_IN_FRAMES).set(Signal.SENSE, DOUBLE_SPEED)
+    return timeline.frames(PROGRAM, PLAY_FRAMES)
 
 
 def _accept(half_ns: int) -> Timeline:
@@ -151,12 +176,20 @@ SCENARIOS = (
         CARRIER_BOARDS,
     ),
     Scenario(
-        "gate-accept",
-        "PU-7 to PU-20 board, static gate: lead-in, then play",
+        "gate-accept-early",
+        "PU-7 or PU-8 board, static gate: lead-in, then play",
         _PLAY_END + TAIL_NS,
         _ACCEPT_PHASES,
-        lambda: _accept(0),
-        GATE_BOARDS,
+        _gate_accept,
+        EARLY_GATE_BOARDS,
+    ),
+    Scenario(
+        "gate-accept",
+        "PU-18 or PU-20 board, static gate: lead-in, then play",
+        _PLAY_END + TAIL_NS,
+        _ACCEPT_PHASES,
+        _gate_accept,
+        LATE_GATE_BOARDS,
     ),
     Scenario(
         "carrier-reread",

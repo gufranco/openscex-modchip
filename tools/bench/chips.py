@@ -45,7 +45,7 @@ class Chip:
     boards: frozenset[Board]
 
 
-_MAYUMI_PINS = "wfck=5,lid=7,reset=4,xlat=3,data=6,gate=5"
+_MAYUMI_PINS = "wfck=5,lid=7,reset=4,sense=3,data=6,gate=5"
 
 # Every board from the PU-7 to the PM-41(2): this firmware's targets (README),
 # PsNee's (its README), and MM3's, whose internal oscillator bought PU-7 and

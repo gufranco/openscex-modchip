@@ -44,7 +44,7 @@ class SelectTest(unittest.TestCase):
 
 class EvidenceTest(unittest.TestCase):
     def test_a_chip_missing_one_of_the_scenario_boards_is_not_evidence(self) -> None:
-        gate = scenario("gate-accept")
+        gate = scenario("gate-accept-early")
         runs = [
             Run(chip("mayumi-v4"), gate, BASE, frozenset()),
             Run(chip("psnee-attiny85"), gate, replace(BASE, valid=9), frozenset()),

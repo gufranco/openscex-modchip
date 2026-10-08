@@ -187,7 +187,7 @@ int main(int argc, char **argv) {
   drive(avr, "wfck", 1);
   drive(avr, "lid", 0);
   drive(avr, "reset", 1);
-  drive(avr, "xlat", 1);
+  drive(avr, "sense", 1);
   drive(avr, "sqck", 1);
 
   const size_t flash_words = (size_t)(avr->flashend + 1U) / 2U;

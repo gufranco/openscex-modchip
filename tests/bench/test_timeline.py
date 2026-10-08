@@ -62,15 +62,15 @@ class ControlTest(unittest.TestCase):
             [(0, Signal.LID, 1), (1_000, Signal.LID, 0)],
         )
 
-    def test_xlat_pulses_ride_on_each_frame_when_enabled(self) -> None:
-        timeline = Timeline(xlat_per_frame=2, xlat_width_ns=4_000)
+    def test_sense_strobes_ride_on_each_frame_when_enabled(self) -> None:
+        timeline = Timeline(strobes_per_frame=2, strobe_width_ns=4_000)
 
         timeline.frame(LEAD_IN)
 
         lows = [
             e.time_ns
             for e in timeline.events
-            if e.signal is Signal.XLAT and e.value == 0
+            if e.signal is Signal.SENSE and e.value == 0
         ]
         self.assertEqual(len(lows), 2)
         self.assertEqual(lows[1] - lows[0], FRAME_NS // 2)

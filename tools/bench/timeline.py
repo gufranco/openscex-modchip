@@ -36,7 +36,7 @@ class Signal(StrEnum):
     WFCK_HALF_NS = "wfck_half_ns"
     LID = "lid"
     RESET = "reset"
-    XLAT = "xlat"
+    SENSE = "sense"
     VCC_MV = "vcc_mv"
 
 
@@ -53,14 +53,17 @@ class Event:
 class Timeline:
     """Builds a scenario's signal changes in time order.
 
-    xlat_per_frame models the mechacon's command strobe, the line Mayumi and
-    MM3 watch on GP4: that many low pulses of xlat_width_ns spread over each
-    frame the drive reads. Its real cadence is Unknown, so scenarios set it;
-    0 leaves XLAT idle high.
+    The sense line is the console signal Mayumi and MM3 watch on GP4, which
+    the install guides wire to a different point per board. strobes_per_frame
+    models it as the mechacon's command strobe, XLAT, on the boards where it
+    is wired there: that many low pulses of strobe_width_ns spread over each
+    frame the drive reads. Their real cadence is Unknown, so scenarios set
+    it; 0 sends no strobes, and a scenario may instead drive the line as a
+    level with set().
     """
 
-    xlat_per_frame: int = 0
-    xlat_width_ns: int = 4_000
+    strobes_per_frame: int = 0
+    strobe_width_ns: int = 4_000
     now_ns: int = 0
     events: list[Event] = field(default_factory=list)
 
@@ -84,10 +87,10 @@ class Timeline:
                 self.events.append(Event(at, Signal.SQCK, 0))
                 self.events.append(Event(at + EDGE_NS, Signal.SQCK, 1))
                 at += 2 * EDGE_NS
-        for pulse in range(self.xlat_per_frame):
-            low = start + pulse * (FRAME_NS // self.xlat_per_frame)
-            self.events.append(Event(low, Signal.XLAT, 0))
-            self.events.append(Event(low + self.xlat_width_ns, Signal.XLAT, 1))
+        for pulse in range(self.strobes_per_frame):
+            low = start + pulse * (FRAME_NS // self.strobes_per_frame)
+            self.events.append(Event(low, Signal.SENSE, 0))
+            self.events.append(Event(low + self.strobe_width_ns, Signal.SENSE, 1))
         self.now_ns = start + FRAME_NS
         return self
 

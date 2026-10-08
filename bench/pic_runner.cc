@@ -9,13 +9,12 @@
 // It plays a console timeline (tools/bench/timeline.py) into one PIC image and
 // writes what the chip did to its output pins, plus every program address it
 // executed. The pin map names package pins, for example
-// "wfck=5,lid=7,reset=4,xlat=3,data=6,gate=5"; a leading '!' inverts a line
+// "wfck=5,lid=7,reset=4,sense=3,data=6,gate=5"; a leading '!' inverts a line
 // whose polarity is the console's opposite. gpsim counts instruction cycles,
 // four clocks each on these cores, so times convert with 4e9 / clock_hz.
 //
-// Three gpsim behaviours shaped this file (measured 2026-10-07, see the bench
-// plan's decisions): step_one() never advances the cycle counter, step(1)
-// does; a pin's putState(), setDrivenState() and forceDrivenState() do not
+// Three gpsim behaviours shaped this file (measured 2026-10-07): step_one() never advances the
+// cycle counter, step(1) does; a pin's putState(), setDrivenState() and forceDrivenState() do not
 // reach the GPIO register the firmware reads, a stimulus on the pin's node
 // does; and the 12-bit cores' TRIS is not a loggable register, so the output
 // direction is read from the pin itself after every instruction.
@@ -152,9 +151,10 @@ int main(int argc, char **argv) {
 
   // Every input line gets its own node and source. Lines start at the
   // console's idle levels: WFCK high (the gate's resting state), lid closed,
-  // reset released and XLAT idle high.
+  // reset released and the sense line high, which is XLAT's idle level; a
+  // scenario that wires it to the SPEED level sets it at time zero.
   std::map<std::string, Drive *> drives;
-  const char *inputs[] = { "sqck", "subq", "wfck", "lid", "reset", "xlat" };
+  const char *inputs[] = { "sqck", "subq", "wfck", "lid", "reset", "sense" };
   for (const char *name : inputs) {
     auto found = pins.find(name);
     if (found == pins.end() || found->second.pin == 0) {
@@ -176,7 +176,7 @@ int main(int argc, char **argv) {
   drive_line("wfck", true);
   drive_line("lid", false);
   drive_line("reset", true);
-  drive_line("xlat", true);
+  drive_line("sense", true);
   drive_line("sqck", true);
 
   std::FILE *trace = std::fopen(argv[5], "w");

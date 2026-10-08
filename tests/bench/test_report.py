@@ -16,6 +16,7 @@ from tools.bench.chips import by_name
 from tools.bench.envelope import Finding, Verdict
 from tools.bench.report import coverage, render
 from tools.bench.run import Run
+from tools.bench.scenarios import Board
 from tools.bench.scenarios import by_name as scenario
 
 
@@ -58,13 +59,14 @@ class RenderTest(unittest.TestCase):
         self.assertIn("| ours | carrier-accept | yes |", text)
 
     def test_each_row_says_whether_the_chip_supports_the_boards(self) -> None:
-        mayumi = Run(by_name("mayumi-v4"), scenario("gate-accept"), BASE, frozenset())
+        early_only = replace(by_name("mayumi-v4"), boards=frozenset({Board.PU_7}))
+        mayumi = Run(early_only, scenario("gate-accept-early"), BASE, frozenset())
         carrier = Run(by_name("mayumi-v4"), scenario("no-disc"), BASE, frozenset())
 
         text = render([self.run, mayumi, carrier], {}, [], [])
 
         self.assertRegex(text, r"\| ours \| carrier-accept \|.*\| all \|\n")
-        self.assertRegex(text, r"\| mayumi-v4 \| gate-accept \|.*\| partly \|\n")
+        self.assertRegex(text, r"\| mayumi-v4 \| gate-accept-early \|.*\| partly \|\n")
         self.assertRegex(text, r"\| mayumi-v4 \| no-disc \|.*\| all \|\n")
 
     def test_a_chip_made_for_none_of_the_boards_says_so(self) -> None:
