@@ -152,19 +152,6 @@ avr_irq_t *pin_irq(avr_t *avr, const target_t *t, uint8_t pin) {
   return avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ((uint32_t)t->port), pin);
 }
 
-// The free-running count Timer1 would hold: stopped at CS 0, else the cycle
-// count divided by the selected prescaler, in the timer's 8 bits.
-static uint8_t sim_tcnt1_read(struct avr_t *avr, avr_io_addr_t addr, void *param) {
-  (void)addr;
-  (void)param;
-  uint8_t cs = (uint8_t)(avr->data[SIM_TCCR1_ADDR] & 0x0FU);
-  uint8_t count = 0U;
-  if (cs != 0U) {
-    count = (uint8_t)(avr->cycle >> (cs - 1U));
-  }
-  return count;
-}
-
 // The firmware's port init runs within its first cycles; letting it run before
 // the scenario starts keeps every scenario's pins in their post-init state.
 #define PORT_INIT_CYCLES 2000U
@@ -196,11 +183,7 @@ avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = avr_make_mcu_by_name(t->mcu);
   avr_init(avr);
   avr_load_firmware(avr, &firmware);
-  avr->data[SIM_OSCCAL_ADDR] = SIM_OSCCAL_FACTORY;
-  // simavr already hooks this address with a timer model that never counts, and
-  // refuses a second hook, so the harness takes over the read slot outright.
-  avr->io[AVR_DATA_TO_IO(SIM_TCNT1_ADDR)].r.c = sim_tcnt1_read;
-  avr->io[AVR_DATA_TO_IO(SIM_TCNT1_ADDR)].r.param = NULL;
+  sim_t85_install(avr);
   if (g_seed_len > 0U) {
     avr_eeprom_desc_t desc = { .ee = g_seed, .offset = 0, .size = g_seed_len };
     (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_SET, &desc);

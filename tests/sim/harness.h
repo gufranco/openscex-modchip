@@ -8,6 +8,7 @@
 
 #include "sim_avr.h"
 #include "sim_irq.h"
+#include "sim_t85.h"
 
 // A software PlayStation, just enough to exercise the firmware end to end in
 // simavr: it drives the console-side pins (SQCK, SUBQ, WFCK) and watches the
@@ -85,20 +86,6 @@ extern const char SCEI_BITS[SCEX_BITS + 1];
 // a pulse of 80 to 200 ms that starts after boot counts as one string.
 #define MAX_PULSES 512
 
-// OSCCAL, the oscillator calibration register, at data address 0x51 (Read:
-// ATtiny25/45/85 datasheet 2586Q, register summary, 0x31 (0x51)). simavr does not
-// load a factory value, so the harness presets a mid-range one the firmware
-// reads as factory at boot; writes to it do not change simavr's speed.
-#define SIM_OSCCAL_ADDR 0x51U
-// Timer1 on the ATtiny85: TCCR1 at 0x50 and TCNT1 at 0x4F (Read: ATtiny25/45/85
-// datasheet 2586Q, register summary). simavr's ATtiny85 model does not run this
-// timer at any prescaler (measured: TCNT1 held one value through 100000 cycles
-// for every CS setting), so the harness answers TCNT1 reads itself, from the
-// cycle count and the prescaler TCCR1 selects, as the datasheet describes for
-// the synchronous clocking mode: CK divided by 2^(CS - 1).
-#define SIM_TCCR1_ADDR 0x50U
-#define SIM_TCNT1_ADDR 0x4FU
-#define SIM_OSCCAL_FACTORY 0x50U
 // The stack pointer, SPL at data address 0x5D and SPH at 0x5E (Read: ATtiny25/45/85
 // datasheet 2586Q, register summary, 0x3D (0x5D) and 0x3E (0x5E)). The ATtiny85
 // has 512 bytes of SRAM, no heap, and no other RAM user than the static data the
