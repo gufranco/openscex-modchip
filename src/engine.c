@@ -39,24 +39,28 @@
 // Polling for continuous idle rather than sleeping a fixed time also realigns
 // when the previous capture ended inside a burst, as it can at boot or after the
 // blocking injection. The poll count is the millisecond divided by the cost of
-// one idle pass of pscu_wait_sqck_idle with SQCK high: 54 cycles, measured in
+// one idle pass of pscu_wait_sqck_idle with SQCK high: 56 cycles, measured in
 // simavr on the avr-gcc 14.2 -Os -flto ATtiny85 image (2026-10-08), where the
 // loop is inlined into the run loop and the 30 ms bound's counter lives on the
 // stack. An earlier count of 41 from the listing no longer held, which made the
 // check 1.3 ms; the extra time is a slice in which a disc's first frame after a
 // silent pass can begin unseen. The sim check scenario_gap_check times the
 // whole check in the built image and fails if this cost moves. The count is
-// rounded up so the check never falls short of the millisecond, and stays
-// unsigned long so no cast narrows it.
-#define PSCU_SQCK_IDLE_POLL_CYCLES (54UL)
-#define PSCU_SQCK_IDLE_POLLS \
-  ((F_CPU + (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES) - 1UL) / (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES))
+// rounded up, plus one poll: n polls span only n - 1 intervals, so the first
+// and last high reads must be a full millisecond apart. At 55 cycles the
+// rounding happened to cover that interval; at 56 it fell 2 us short, which the
+// sim check caught. It stays unsigned long so no cast narrows it.
+#define PSCU_SQCK_IDLE_POLL_CYCLES (56UL)
+#define PSCU_SQCK_IDLE_POLLS                                \
+  (((F_CPU + (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES) - 1UL) / \
+    (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES)) +                \
+   1UL)
 // The idle wait gives up after 30 ms, as do the edge waits inside the assembly
 // frame capture. That still covers the longest real wait, the inter-frame gap
 // before a burst's first edge (a frame every 13.3 ms at single speed), yet a
 // stopped drive fails a capture within about 60 ms, so the run loop keeps
 // timing the silence that tells it the disc is gone.
-// The poll count is 30 ms divided by the 54-cycle idle pass measured above.
+// The poll count is 30 ms divided by the 56-cycle idle pass measured above.
 #define PSCU_WAIT_MS (30UL)
 #define PSCU_SQCK_IDLE_WAIT_POLLS ((F_CPU * PSCU_WAIT_MS) / (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES))
 // A frame that could not be captured is filled with this value. Its TNO and ZERO
@@ -70,15 +74,24 @@
 // line stuck low) fails the capture instead of hanging the loop.
 static bool pscu_wait_sqck_idle(void) {
   uint32_t quiet = 0U;
-  for (uint32_t i = 0U; (i < PSCU_SQCK_IDLE_WAIT_POLLS) && (quiet < PSCU_SQCK_IDLE_POLLS); i++) {
+  uint32_t left = PSCU_SQCK_IDLE_WAIT_POLLS;
+  bool idle = false;
+  // The loop has one exit test, the polls left. Reaching the quiet count empties
+  // the budget instead of being a second loop condition: with two conditions
+  // the compiler tests the bound first and then the quiet count again, a branch
+  // taken only when the gap completes on the very last poll, which no console
+  // timing can be made to hit on purpose.
+  while (left > 0U) {
     if (pscu_port_read_sqck() != 0U) {
       quiet = quiet + 1U;
     } else {
       quiet = 0U;
     }
+    idle = quiet >= PSCU_SQCK_IDLE_POLLS;
+    left = idle ? 0U : (left - 1U);
     pscu_port_watchdog_reset();
   }
-  return quiet >= PSCU_SQCK_IDLE_POLLS;
+  return idle;
 }
 
 // Drive one SCEx bit onto DATA. A zero is always a hard low. A one is high-Z on
