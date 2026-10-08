@@ -39,6 +39,9 @@ jobs:
       - name: Mutation testing
         run: make mutate
 
+      - name: Console bench against PsNee
+        run: make bench_ci
+
       - name: Build other-region variants (compile check)
         run: make REGION=jp size && make REGION=eu size
 
