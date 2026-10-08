@@ -39,9 +39,6 @@ jobs:
       - name: Mutation testing
         run: make mutate
 
-      - name: Console bench against PsNee
-        run: make bench_ci
-
       - name: Build other-region variants (compile check)
         run: make REGION=jp size && make REGION=eu size
 
@@ -50,6 +47,26 @@ jobs:
 
       - name: Build and check the SCPH-5903 Video-CD variant
         run: make REGION=jp VCD_FILTER=on image_size image_misra
+
+  # The console bench in a job of its own: it builds the same toolchain image,
+  # then plays every scenario to this firmware and to PsNee, and fails on a
+  # broken envelope rule or on code of ours neither executed nor excused.
+  bench:
+    name: Console bench
+    runs-on: ubuntu-26.04
+    # Backstop with no green run of the full catalogue yet: the 9-scenario
+    # bench took 7 min 46 s as a step (2026-10-08); the catalogue is 24
+    # scenarios run four at a time, about 15 minutes expected with the image
+    # build, so 45 is that doubled with margin.
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Console bench against PsNee
+        run: make bench_ci
 
   # Runs on pull requests and on pushes to main, because releases are versioned
   # from these subjects and most changes land on main directly. Dependabot's own
