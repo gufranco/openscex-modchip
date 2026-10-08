@@ -1,3 +1,10 @@
+## [0.10.3](https://github.com/gufranco/openscex-modchip/compare/v0.10.2...v0.10.3) (2026-10-08)
+
+
+### Bug Fixes
+
+* keep the board after a watchdog reset ([5834986](https://github.com/gufranco/openscex-modchip/commit/5834986e02c1da144ccf00ac24f62ab656ba0f7b))
+
 ## [0.10.2](https://github.com/gufranco/openscex-modchip/compare/v0.10.1...v0.10.2) (2026-10-08)
 
 
