@@ -84,6 +84,16 @@ pscu_calib_boot_t pscu_calib_boot(pscu_calib_t stored, uint8_t board) {
   return out;
 }
 
+bool pscu_calib_keeps_board(pscu_calib_t stored, bool watchdog) {
+  return watchdog && (stored.board != PSCU_CALIB_BOARD_NONE);
+}
+
+pscu_board_mode_t pscu_calib_stored_board(pscu_calib_t stored) {
+  PSCU_ASSERT(stored.board <= 1U);
+
+  return (stored.board == 1U) ? PSCU_BOARD_MODE_WFCK : PSCU_BOARD_MODE_GATE;
+}
+
 // Step the start back to the last value that worked and stop probing. Repeated
 // failures keep stepping back, down to the default, which is where the chip
 // started before it learned anything. The trigger sits on the step grid, so one

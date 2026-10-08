@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "pscu/board_mode.h"
 #include "pscu/config.h"
 #include "pscu/run.h"
 #include "pscu/trim.h"
@@ -127,6 +128,19 @@ pscu_calib_record_t pscu_calib_encode(pscu_calib_t calib);
 // so they restart from the defaults under the new board. The trim describes the
 // chip's own oscillator, not the console, so it is kept.
 pscu_calib_boot_t pscu_calib_boot(pscu_calib_t stored, uint8_t board);
+
+// Whether this boot keeps the board recorded at the last one instead of
+// detecting it again. A watchdog reset comes mid-session on the console the
+// chip booted on, and the usual cause, a WFCK carrier that stalled
+// mid-string, may still hold when the chip restarts: detection would read the
+// stalled carrier as a static gate and the chip would then drive WFCK against
+// the CD DSP that outputs it. A power-on boot always detects, so a chip moved
+// to another console learns its board; with no board recorded there is nothing
+// to keep.
+bool pscu_calib_keeps_board(pscu_calib_t stored, bool watchdog);
+
+// The board mode a valid record names.
+pscu_board_mode_t pscu_calib_stored_board(pscu_calib_t stored);
 
 // Learn from one resolved session. strings is the number sent for it.
 pscu_calib_t pscu_calib_learn(pscu_calib_t calib, pscu_calib_outcome_t outcome, uint8_t strings);

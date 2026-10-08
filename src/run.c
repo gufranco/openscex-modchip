@@ -145,7 +145,9 @@ static pscu_clock_step_t pscu_clock_step(pscu_clock_t clock) {
   return out;
 }
 
-// The whole modchip, as one loop. Detect the board era once, then forever:
+// The whole modchip, as one loop. Detect the board era once, or after a
+// watchdog reset keep the one recorded at boot (see pscu_calib_keeps_board),
+// then forever:
 // capture a SUBQ frame, read the timer and the supply, and let the pure loop
 // step decide everything else: the counter and the window, whether to emit one
 // region string, what the session and the calibration learn, and the LED level
@@ -157,8 +159,13 @@ static pscu_clock_step_t pscu_clock_step(pscu_clock_t clock) {
 void pscu_run(void) {
   pscu_calib_t stored = pscu_engine_load_calib();
   pscu_osc_t osc = pscu_osc_init(pscu_engine_apply_trim(stored.trim));
-  pscu_board_mode_t board = pscu_engine_detect_board();
   bool watchdog = pscu_port_reset_was_watchdog() != 0U;
+  pscu_board_mode_t board = PSCU_BOARD_MODE_GATE;
+  if (pscu_calib_keeps_board(stored, watchdog)) {
+    board = pscu_calib_stored_board(stored);
+  } else {
+    board = pscu_engine_detect_board();
+  }
   pscu_calib_boot_t boot = pscu_calib_start(stored, board);
   uint8_t changed_code = boot.board_changed ? PSCU_LED_CODE_BOARD_CHANGED : 0U;
   uint8_t boot_code = watchdog ? PSCU_LED_CODE_WATCHDOG : changed_code;

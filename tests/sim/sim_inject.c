@@ -237,6 +237,14 @@ void scenario_carrier_after_boot(const target_t *t, const char *elf, uint32_t fr
 // the next 0.75 s, comfortably past the ~0.5 s watchdog timeout.
 #define STALL_AFTER_CYCLES ns_cycles(47000000ULL)
 #define STALL_WAIT_CYCLES ns_cycles(1417000000ULL)
+#define STALL_TOC_FRAMES 150
+
+// The WFCK pin's direction bit: set while the chip drives the line.
+static uint8_t wfck_ddr(avr_t *avr, const target_t *t) {
+  avr_ioport_state_t state;
+  (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE((uint32_t)t->port), &state);
+  return (uint8_t)((state.ddr >> t->wfck) & 1U);
+}
 
 void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
@@ -270,6 +278,18 @@ void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
   run_cycles(avr, ms_cycles(9000U));
   (void)snprintf(label, sizeof(label), "stall %s: the next boot shows watchdog code 5", tag);
   check(code_after(rebooted) == 5, label);
+
+  // The carrier is still stalled after the reset, which a fresh detection would
+  // read as a static gate; the chip must keep the carrier board it booted on
+  // and never drive WFCK, an output of the CD DSP on this board, through a
+  // whole lead-in.
+  int wfck_driven = 0;
+  for (int i = 0; i < STALL_TOC_FRAMES; i++) {
+    clock_frame(avr, t, toc);
+    wfck_driven |= (int)wfck_ddr(avr, t);
+  }
+  (void)snprintf(label, sizeof(label), "stall %s: WFCK is never driven after the reset", tag);
+  check(wfck_driven == 0, label);
 }
 
 // The board-family matrix. The firmware has no per-family code path, only the

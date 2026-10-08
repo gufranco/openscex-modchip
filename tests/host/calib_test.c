@@ -212,6 +212,20 @@ static void test_missed(void) {
   g_check(!pscu_calib_missed(prompt, MIN_T, below, false), "calib: the default start cannot miss");
 }
 
+static void test_watchdog_board(void) {
+  pscu_calib_t carrier = make(1U, 7U, MIN_T, false);
+  g_check(pscu_calib_keeps_board(carrier, true),
+          "calib: a watchdog reset keeps the board recorded at boot");
+  g_check(!pscu_calib_keeps_board(carrier, false),
+          "calib: a power-on boot detects the board again");
+  g_check(!pscu_calib_keeps_board(defaults(), true),
+          "calib: with no board recorded a watchdog reset still detects one");
+  g_check(pscu_calib_stored_board(carrier) == PSCU_BOARD_MODE_WFCK,
+          "calib: a recorded carrier board reads as the carrier mode");
+  g_check(pscu_calib_stored_board(make(0U, 7U, MIN_T, false)) == PSCU_BOARD_MODE_GATE,
+          "calib: a recorded gate board reads as the gate mode");
+}
+
 void calib_tests(pscu_check_fn check) {
   g_check = check;
   test_record_round_trip();
@@ -222,4 +236,5 @@ void calib_tests(pscu_check_fn check) {
   test_learn_start();
   test_back_off();
   test_missed();
+  test_watchdog_board();
 }
