@@ -9,26 +9,32 @@
 Every selected chip is prepared, a chip that cannot be is skipped with its
 reason, and each ready chip plays every selected scenario. Ours is then held
 against the field-proven chips that ran the same scenario, and the report is
-written as Markdown. The exit status is 1 when any envelope rule fails, 2 on
+written as Markdown. The exit status is 1 when any envelope rule fails or
+when ours has an instruction no scenario executed and no reason excuses, 2 on
 a bad argument, else 0; a run where nothing could be compared still exits 0,
-and the report says every rule is unchecked rather than passed.
+and the report says every rule is unchecked rather than passed. Coverage is
+judged only when every scenario runs: a run of a chosen few is expected to
+leave code uncovered.
 """
 
 import argparse
+import os
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
-from tools.bench.chips import CHIPS
+from tools.bench.catalogue import CATALOGUE
+from tools.bench.catalogue import find as scenario_by_name
+from tools.bench.chips import CHIPS, Chip
 from tools.bench.chips import by_name as chip_by_name
 from tools.bench.envelope import Finding, Verdict, check_ours
 from tools.bench.manifest import ROOT
 from tools.bench.metrics import Metrics
 from tools.bench.report import Coverage, coverage, render
-from tools.bench.run import Run, prepare, program_addresses, run
-from tools.bench.scenarios import SCENARIOS, Scenario
-from tools.bench.scenarios import by_name as scenario_by_name
+from tools.bench.run import Run, excuse, prepare, program_addresses, run
+from tools.bench.scenarios import Scenario
 
 DEFAULT_REPORT = ROOT / "build" / "bench" / "report.md"
 OURS = "ours"
@@ -71,12 +77,27 @@ def evidence(runs: list[Run], scenario: Scenario) -> list[Metrics]:
     ]
 
 
-def _envelope(runs: list[Run]) -> list[Finding]:
+def judge(runs: list[Run]) -> list[Finding]:
+    """Hold ours to the envelope in every judged scenario it ran."""
     findings: list[Finding] = []
-    for ours in (r for r in runs if r.chip.name == OURS):
+    for ours in (r for r in runs if r.chip.name == OURS and r.scenario.judged):
         proven = evidence(runs, ours.scenario)
         findings.extend(check_ours(ours.scenario.name, ours.metrics, proven))
     return findings
+
+
+def _run_all(root: Path, chip: Chip, scenarios: list[str], workdir: Path) -> list[Run]:
+    """One chip through every scenario, the runs side by side.
+
+    Each run is its own simulator process writing its own files, so they share
+    nothing and can run at once; the pool is bounded by the machine's cores.
+    The results keep the scenarios' order.
+    """
+    jobs = os.cpu_count() or 1
+    with ThreadPoolExecutor(max_workers=jobs) as pool:
+        return list(
+            pool.map(lambda s: run(root, chip, scenario_by_name(s), workdir), scenarios)
+        )
 
 
 def bench(root: Path, chips: list[str], scenarios: list[str], workdir: Path) -> Bench:
@@ -89,11 +110,13 @@ def bench(root: Path, chips: list[str], scenarios: list[str], workdir: Path) -> 
         if reason is not None:
             skips = {**skips, chip.name: reason}
             continue
-        mine = [run(root, chip, scenario_by_name(s), workdir) for s in scenarios]
+        mine = _run_all(root, chip, scenarios, workdir)
         runs.extend(mine)
         addresses = program_addresses(root, chip)
-        coverages.append(coverage(chip.name, addresses, (r.executed for r in mine)))
-    return Bench(runs, skips, _envelope(runs), coverages)
+        ran = frozenset().union(*(r.executed for r in mine))
+        excused = excuse(root, chip, addresses - ran)
+        coverages.append(coverage(chip.name, addresses, [ran], excused))
+    return Bench(runs, skips, judge(runs), coverages)
 
 
 def verdict(findings: list[Finding]) -> int:
@@ -102,6 +125,20 @@ def verdict(findings: list[Finding]) -> int:
     for finding in broken:
         print(f"BROKEN {finding.scenario} {finding.metric}: {finding.ours}")
     return 1 if broken else 0
+
+
+def reached(coverages: list[Coverage]) -> int:
+    """Fail the run when this firmware has an instruction no scenario reaches
+    and no reason excuses.
+
+    Only ours is held to it: a third-party image's gaps are reported, since
+    its code is not this project's to change, but they never fail the run.
+    """
+    left = [c for c in coverages if c.chip == OURS and c.uncovered]
+    for result in left:
+        spans = ", ".join(f"{low:#x}-{high:#x}" for low, high in result.uncovered)
+        print(f"UNCOVERED {result.chip} {spans}")
+    return 1 if left else 0
 
 
 def _parse(argv: list[str]) -> argparse.Namespace:
@@ -118,7 +155,7 @@ def main(argv: list[str]) -> int:
     args = _parse(argv)
     try:
         chips = select(args.chips, [c.name for c in CHIPS])
-        scenarios = select(args.scenarios, [s.name for s in SCENARIOS])
+        scenarios = select(args.scenarios, [s.name for s in CATALOGUE])
     except ValueError as error:
         print(f"bench: {error}", file=sys.stderr)
         return 2
@@ -131,7 +168,8 @@ def main(argv: list[str]) -> int:
         render(result.runs, result.skips, result.findings, result.coverages)
     )
     print(f"bench report: {args.out}")
-    return verdict(result.findings)
+    whole = args.scenarios is None
+    return max(verdict(result.findings), reached(result.coverages) if whole else 0)
 
 
 if __name__ == "__main__":

@@ -26,6 +26,9 @@ from tools.bench.run import (
     _hex_bytes,
     _instruction_address,
     build_psnee,
+    excuse,
+    load_exclusions,
+    parse_lines,
     prepare,
     program_addresses,
     run,
@@ -259,6 +262,63 @@ class ListingTest(unittest.TestCase):
         addresses = [_instruction_address(line) for line in lines]
 
         self.assertEqual(addresses, [None, None, None, None])
+
+
+class LinesTest(unittest.TestCase):
+    def test_lines_in_and_out_of_the_tree_and_code_without_lines(self) -> None:
+        root = Path("/src")
+        text = [
+            "/src/src/inject.c:124 (discriminator 1)",
+            "??:?",
+            "/usr/lib/avr/lib/crt.o:?",
+            "/tmp/clone/PSNee/PSNee.ino:540",
+            "/usr/lib/avr/include/util/delay.h:174",
+        ]
+
+        lines = parse_lines([2, 4, 6, 8, 10], text, root)
+
+        self.assertEqual(
+            lines,
+            {
+                2: ("src/inject.c", 124),
+                4: None,
+                6: None,
+                8: ("PSNee.ino", 540),
+                10: ("delay.h", 174),
+            },
+        )
+
+    def test_a_line_number_lost_inside_the_tree_is_kept_as_zero(self) -> None:
+        lines = parse_lines([2], ["/src/src/loop.c:?"], Path("/src"))
+
+        self.assertEqual(lines, {2: ("src/loop.c", 0)})
+
+
+class ExclusionsTest(unittest.TestCase):
+    def test_the_committed_table_loads_entries_by_artifact(self) -> None:
+        table = load_exclusions(ROOT)
+
+        self.assertTrue(all(isinstance(k, str) for k in table))
+
+    def test_nothing_uncovered_needs_no_excuse(self) -> None:
+        excused = excuse(ROOT, by_name("ours"), frozenset())
+
+        self.assertEqual(excused, {})
+
+    def test_a_pic_image_is_excused_by_address_from_the_table(self) -> None:
+        excused = excuse(ROOT, by_name("mayumi-v4"), frozenset({0x008, 0x050}))
+
+        self.assertEqual(list(excused), [0x008])
+        self.assertIn("Mayumi04", excused[0x008])
+
+    def test_ours_excuses_only_marked_and_runtime_instructions(self) -> None:
+        chip = by_name("ours")
+        addresses = program_addresses(ROOT, chip)
+
+        excused = excuse(ROOT, chip, addresses)
+
+        self.assertGreater(len(excused), 0)
+        self.assertLess(len(excused), len(addresses) // 10)
 
 
 class HexTest(unittest.TestCase):

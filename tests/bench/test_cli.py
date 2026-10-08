@@ -16,10 +16,12 @@ from dataclasses import replace
 from pathlib import Path
 
 from tests.bench.test_envelope import BASE
+from tools.bench.catalogue import find
 from tools.bench.chips import by_name as chip
-from tools.bench.cli import bench, evidence, main, select, verdict
+from tools.bench.cli import bench, evidence, judge, main, reached, select, verdict
 from tools.bench.envelope import Finding, Verdict
 from tools.bench.manifest import ROOT
+from tools.bench.report import Coverage
 from tools.bench.run import Run
 from tools.bench.scenarios import by_name as scenario
 
@@ -66,6 +68,30 @@ class EvidenceTest(unittest.TestCase):
         self.assertEqual(proven, [])
 
 
+class JudgeTest(unittest.TestCase):
+    def test_a_judged_scenario_is_held_to_the_envelope(self) -> None:
+        gate = scenario("gate-accept")
+        runs = [
+            Run(chip("ours"), gate, BASE, frozenset()),
+            Run(chip("psnee-attiny85"), gate, BASE, frozenset()),
+        ]
+
+        findings = judge(runs)
+
+        self.assertEqual({f.scenario for f in findings}, {"gate-accept"})
+
+    def test_a_coverage_scenario_is_never_held_to_the_envelope(self) -> None:
+        stuck = find("sqck-stuck")
+        runs = [
+            Run(chip("ours"), stuck, replace(BASE, during_play=9), frozenset()),
+            Run(chip("psnee-attiny85"), stuck, BASE, frozenset()),
+        ]
+
+        findings = judge(runs)
+
+        self.assertEqual(findings, [])
+
+
 class BenchTest(unittest.TestCase):
     def test_a_chip_without_its_image_is_skipped_with_the_reason(self) -> None:
         with tempfile.TemporaryDirectory() as work:
@@ -95,6 +121,24 @@ class VerdictTest(unittest.TestCase):
         ]
 
         code = verdict(findings)
+
+        self.assertEqual(code, 0)
+
+
+class ReachedTest(unittest.TestCase):
+    def test_ours_with_an_uncovered_range_fails_the_run(self) -> None:
+        left = Coverage("ours", 3, 4, ((0x10, 0x12),))
+
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            code = reached([left])
+
+        self.assertEqual(code, 1)
+        self.assertIn("UNCOVERED ours 0x10-0x12", out.getvalue())
+
+    def test_another_chip_left_uncovered_is_only_reported(self) -> None:
+        left = Coverage("mayumi-v4", 3, 4, ((0x10, 0x10),))
+
+        code = reached([left])
 
         self.assertEqual(code, 0)
 

@@ -13,6 +13,7 @@ Every runner call is bounded by a timeout, and the runners themselves stop
 after a fixed number of instruction steps.
 """
 
+import json
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +21,7 @@ from pathlib import Path
 from tools.bench.chips import Chip, Simulator
 from tools.bench.manifest import Artifact, Status, check, load
 from tools.bench.metrics import Metrics, measure
+from tools.bench.reach import Entry, Line, by_line, by_table, markers
 from tools.bench.scenarios import Scenario
 from tools.bench.scex import Region
 from tools.bench.trace import parse
@@ -35,6 +37,8 @@ PSNEE_PRELUDE = (
     "#include <util/delay.h>\n#include <stdint.h>\n"
 )
 RUN_TIMEOUT_S = 600
+EXCLUSIONS = "bench/coverage-exclusions.json"
+SOURCE_GLOBS = ("src/*.c", "src/*.S", "include/**/*.h")
 HEX_DATA = 0
 HEX_EXTENDED_LINEAR_ADDRESS = 4
 
@@ -62,7 +66,9 @@ def build_psnee(root: Path, artifact: Artifact, workdir: Path) -> str | None:
     checked after checkout, so a rewritten history at the same commit id, or a
     local edit, is refused rather than built. The sketch is included by its
     absolute path because the compiler resolves a quoted include against the
-    wrapper's own folder, which breaks any relative work directory.
+    wrapper's own folder, which breaks any relative work directory. It is
+    built with -g, which changes no code, so its instructions map to sketch
+    lines for the coverage report.
     """
     source = workdir / "psnee-src"
     if not source.is_dir():
@@ -87,6 +93,7 @@ def build_psnee(root: Path, artifact: Artifact, workdir: Path) -> str | None:
                 f"-DF_CPU={clock}",
                 "-DSCPH_xxx1",
                 "-Os",
+                "-g",
                 "-std=gnu++17",
                 "-x",
                 "c++",
@@ -197,3 +204,85 @@ def _hex_bytes(path: Path) -> set[int]:
         elif kind == HEX_EXTENDED_LINEAR_ADDRESS:
             base = ((record[4] << 8) | record[5]) << 16
     return addresses
+
+
+def parse_lines(
+    addresses: list[int], text: list[str], root: Path
+) -> dict[int, Line | None]:
+    """Pair each address with the source line avr-addr2line printed for it.
+
+    A file in this repository becomes its path from the root, so a marker in
+    it applies; a line in any other file with debug information, a sketch
+    fetched elsewhere or an avr-libc header inlined into it, keeps only its
+    file name, for the exclusion table to name. Code with no line at all,
+    avr-libc's and libgcc's precompiled objects, has none here. A line number
+    the compiler lost inside the tree is 0, so it is never taken for library
+    code.
+    """
+    lines: dict[int, Line | None] = {}
+    for address, printed in zip(addresses, text, strict=True):
+        location = printed.split(" (", 1)[0].strip()
+        path, _, number = location.rpartition(":")
+        source = Path(path)
+        if source.is_relative_to(root):
+            line = int(number) if number.isdigit() else 0
+            lines[address] = (str(source.relative_to(root)), line)
+        elif number.isdigit():
+            lines[address] = (source.name, int(number))
+        else:
+            lines[address] = None
+    return lines
+
+
+def _source_lines(
+    root: Path, chip: Chip, addresses: list[int]
+) -> dict[int, Line | None]:
+    if not addresses:
+        return {}
+    printed = subprocess.run(
+        ["avr-addr2line", "-e", str(root / chip.firmware), *map(hex, addresses)],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    return parse_lines(addresses, printed, root)
+
+
+def load_exclusions(root: Path) -> dict[str, list[Entry]]:
+    """The committed exclusion table for third-party images, by artifact id."""
+    raw = json.loads((root / EXCLUSIONS).read_text())
+    return {
+        artifact: [
+            Entry(
+                line=item.get("line"),
+                start=int(item["start"], 16) if "start" in item else None,
+                end=int(item["end"], 16) if "end" in item else None,
+                reason=item["reason"],
+            )
+            for item in entries
+        ]
+        for artifact, entries in raw.items()
+    }
+
+
+def _markers(root: Path) -> dict[Line, str]:
+    files = sorted({path for glob in SOURCE_GLOBS for path in root.glob(glob)})
+    return markers({str(path.relative_to(root)): path.read_text() for path in files})
+
+
+def excuse(root: Path, chip: Chip, uncovered: frozenset[int]) -> dict[int, str]:
+    """The uncovered instructions no console input can reach, with reasons.
+
+    Ours carries its reasons as marker comments in its own source; a
+    third-party image takes them from the committed table under its artifact
+    id. An AVR image is mapped to source lines through its debug information,
+    which also excuses avr-libc's start-up code; a PIC image is matched by
+    address only.
+    """
+    table = load_exclusions(root).get(chip.artifact or chip.name, [])
+    ordered = sorted(uncovered)
+    if chip.simulator is not Simulator.AVR:
+        return by_table(ordered, {}, table)
+    lines = _source_lines(root, chip, ordered)
+    marked = _markers(root) if chip.artifact is None else {}
+    return {**by_line(ordered, lines, marked), **by_table(ordered, lines, table)}

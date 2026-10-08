@@ -121,6 +121,8 @@ pscu_presence_t pscu_presence_init(void) {
 pscu_presence_t pscu_presence_step(pscu_presence_t state, bool valid, uint32_t elapsed_ms) {
   pscu_presence_t next = state;
   uint32_t sum = state.quiet_ms + elapsed_ms;
+  // coverage: unreachable: the saturated branch needs 2^32 ms, 49.7 days, of
+  // quiet; the console bench runs minutes.
   next.quiet_ms = valid ? 0U : ((sum < state.quiet_ms) ? 0xFFFFFFFFUL : sum);
   next.seen = state.seen || valid;
   return next;

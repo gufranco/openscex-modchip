@@ -53,9 +53,12 @@ pscu_port_supply_raw:
 	rjmp 17f
 	sbiw r26, 1
 	brne 16b
+// coverage: unreachable block: only a conversion that never ends, a faulty ADC,
+// gets here; simavr's ADC, like a working one, always finishes.
 	ldi r24, 0
 	ldi r25, 0
 	ret
+
 17:
 	in r24, _SFR_IO_ADDR(ADCL)
 	in r25, _SFR_IO_ADDR(ADCH)
@@ -97,6 +100,8 @@ pscu_port_eeprom_wait:
 	wdr
 	sbis _SFR_IO_ADDR(EECR), EEPE
 	ret
+// coverage: unreachable block: simavr completes an EEPROM write at once, so
+// EEPE is always clear here; on the chip a byte takes 3.4 ms and this loop runs.
 	sbiw r26, 1
 	brne 15b
 	ret

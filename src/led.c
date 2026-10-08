@@ -127,6 +127,8 @@ pscu_led_step_t pscu_led_step(pscu_led_t state,
   // pattern. A zero step leaves the sum equal to the old phase, never pinned.
   pscu_led_t timed = state;
   uint32_t sum = state.phase_ms + elapsed_ms;
+  // coverage: unreachable: the saturated branch needs one LED stage to last
+  // 2^32 ms, 49.7 days; the console bench runs minutes.
   timed.phase_ms = (sum < state.phase_ms) ? 0xFFFFFFFFUL : sum;
 
   pscu_led_step_t out;

@@ -166,6 +166,8 @@ static pscu_since_disc_t pscu_loop_since(pscu_since_disc_t since,
   pscu_since_disc_t next = { 0U, false, false };
   if (!pass->disc_gone) {
     uint32_t sum = since.ms + elapsed_ms;
+    // coverage: unreachable: the saturated branch needs one disc to stay 2^32
+    // ms, 49.7 days; the console bench runs minutes.
     next.ms = (sum < since.ms) ? 0xFFFFFFFFUL : sum;
     next.framed = since.framed || pass->valid;
     next.armed = since.armed || pass->reached || pass->program;

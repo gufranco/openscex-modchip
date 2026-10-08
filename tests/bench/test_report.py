@@ -41,10 +41,19 @@ class CoverageTest(unittest.TestCase):
 
         self.assertEqual(result.executed, 2)
 
-    def test_an_empty_image_reports_zero_rather_than_dividing_by_zero(self) -> None:
+    def test_an_empty_image_is_fully_reached_without_dividing_by_zero(self) -> None:
         result = coverage("c", frozenset(), [])
 
-        self.assertEqual(result.percent, 0.0)
+        self.assertEqual(result.percent, 100.0)
+
+    def test_excused_instructions_leave_the_uncovered_ranges(self) -> None:
+        result = coverage(
+            "c", frozenset({0, 2, 4, 6}), [frozenset({0})], {2: "why", 4: "why"}
+        )
+
+        self.assertEqual(result.uncovered, ((6, 6),))
+        self.assertEqual(result.excluded, (("why", 2),))
+        self.assertEqual(result.percent, 75.0)
 
 
 class RenderTest(unittest.TestCase):
@@ -104,5 +113,23 @@ class RenderTest(unittest.TestCase):
 
         text = render([], {}, [], [result])
 
-        self.assertIn("| ours | 1 | 3 | 33.3 |", text)
+        self.assertIn("| ours | 1 | 0 | 3 | 33.3 |", text)
         self.assertIn("ours: 0x2-0x4", text)
+
+    def test_one_uncovered_instruction_never_reads_as_whole(self) -> None:
+        image = frozenset(range(0, 2 * 3802, 2))
+        result = coverage("ours", image, [image - {0}])
+
+        text = render([], {}, [], [result])
+
+        self.assertIn("| ours | 3801 | 0 | 3802 | 99.9 |", text)
+
+    def test_coverage_lists_each_reason_with_its_count(self) -> None:
+        result = coverage(
+            "ours", frozenset({0, 2}), [frozenset({0})], {2: "a stuck ADC"}
+        )
+
+        text = render([], {}, [], [result])
+
+        self.assertIn("| ours | 1 | 1 | 2 | 100.0 |", text)
+        self.assertIn("- ours, 1: a stuck ADC", text)
