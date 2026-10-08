@@ -12,6 +12,10 @@ RUN apt-get update \
       avr-libc=1:2.2.1-1 \
       binutils-avr \
       libsimavr-dev=1.6+dfsg-3+b3 \
+      gpsim=0.32.1-2+b2 \
+      gpsim-dev=0.32.1-2+b2 \
+      gputils=1.5.2-1 \
+      libglib2.0-dev \
       libelf-dev \
       pkg-config \
       gcc \
