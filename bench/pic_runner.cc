@@ -148,6 +148,15 @@ int main(int argc, char **argv) {
   if (cpu->get_program_memory_at_address(last) == erased) {
     cpu->init_program_memory(last, factory);
   }
+  // The 16C5x starts from the last program word, its reset vector (PIC16C5X
+  // data sheet DS30453, reset and program memory map); gpsim's 16C54 model
+  // starts from 0x000, which runs a program's first routine before its start
+  // code has set OPTION. The reset address is set to the part's own and the
+  // core reset once, so the run begins where the silicon does.
+  if (processor == "p16c54") {
+    cpu->pc->set_reset_address(last);
+    cpu->reset(POR_RESET);
+  }
 
   // Every input line gets its own node and source. Lines start at the
   // console's idle levels: WFCK high (the gate's resting state), lid closed,

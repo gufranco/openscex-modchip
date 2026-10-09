@@ -30,7 +30,7 @@ RUNNERS = {
     Simulator.AVR: "build/bench/avr_runner",
     Simulator.PIC: "build/bench/pic_runner",
 }
-PROGRAM_WORDS = {"p12c508": 0x200, "p12f629": 0x400}
+PROGRAM_WORDS = {"p12c508": 0x200, "p12f629": 0x400, "p16c84": 0x400, "p16c54": 0x200}
 PSNEE_TARGETS = {"attiny85": "8000000UL", "atmega328p": "16000000UL"}
 PSNEE_PRELUDE = (
     "#include <avr/io.h>\n#include <avr/interrupt.h>\n"

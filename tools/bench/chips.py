@@ -177,6 +177,48 @@ CHIPS = (
         boards=GATE_BOARDS,
     ),
     Chip(
+        name="old-crow-12c508-v54f",
+        simulator=Simulator.PIC,
+        cpu="p12c508",
+        clock_hz=4_000_000,
+        pins="data=6,gate=5",
+        firmware="docs/research/sources/old-crow/jstic/m508v54f/m508v54f.hex",
+        artifact="old-crow-12c508-v54f",
+        field_proven=False,
+        origin="Old Crow v5.4F, his last 4-wire 12C508 code (14-JUN-98), "
+        "published image; GP1 DATA, GP2 gate as in v5.3; internal 4 MHz RC",
+        boards=GATE_BOARDS,
+    ),
+    Chip(
+        name="old-crow-16c84",
+        simulator=Simulator.PIC,
+        cpu="p16c84",
+        clock_hz=4_000_000,
+        pins="data=7,gate=8",
+        firmware="docs/research/sources/old-crow/jstic/modc84/MODC84.HEX",
+        artifact="old-crow-16c84-v101",
+        field_proven=False,
+        origin="Old Crow v1.01 for the PIC16C84 (19-JAN-97), the first public "
+        "port of his Z8 chip, published image; 6-wire: RB1, pin 7, DATA, RB2, "
+        "pin 8, the gate, MCLR wired to the console and held released here, "
+        "since gpsim drives no stimulus on MCLR; XT oscillator fed on OSC1, "
+        "taken as the 4 MHz of the early boards' mechacon clock (Concluded)",
+        boards=GATE_BOARDS,
+    ),
+    Chip(
+        name="old-crow-16c54",
+        simulator=Simulator.PIC,
+        cpu="p16c54",
+        clock_hz=4_000_000,
+        pins="data=7,gate=8",
+        firmware="docs/research/sources/old-crow/jstic/modc54/MODC54.HEX",
+        artifact="old-crow-16c54-v101",
+        field_proven=False,
+        origin="Old Crow v1.01 for the PIC16C54, published image; the same "
+        "6-wire pins and external clock as the 16C84 version",
+        boards=GATE_BOARDS,
+    ),
+    Chip(
         name="modavr-attiny13",
         simulator=Simulator.AVR,
         cpu="attiny13",

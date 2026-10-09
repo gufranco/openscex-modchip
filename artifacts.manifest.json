@@ -96,6 +96,33 @@
       "license": "LGPL-2.1-or-later",
       "redistributable": true,
       "obtain": "fetched by the bench at release 1.8.8; the tree id is checked before building"
+    },
+    {
+      "id": "old-crow-16c84-v101",
+      "kind": "pic-image",
+      "path": "docs/research/sources/old-crow/jstic/modc84/MODC84.HEX",
+      "sha256": "23a649f03a074d038fb559ce72e5f606472f1f10cfa4748c3f272648c28d1c7b",
+      "license": "none stated",
+      "redistributable": false,
+      "obtain": "Old Crow's archive on Richard Erbe's PlayStation page, http://www.jstic.com/cypher/sony/files/modc84.zip, unzipped under the path above; the gpasm build of its MODC84.ASM"
+    },
+    {
+      "id": "old-crow-16c54-v101",
+      "kind": "pic-image",
+      "path": "docs/research/sources/old-crow/jstic/modc54/MODC54.HEX",
+      "sha256": "15d89962a92393d22183bc4da30dfd3d517df4fd25f6022d4a9f031aca92f9b3",
+      "license": "none stated",
+      "redistributable": false,
+      "obtain": "Old Crow's archive on Richard Erbe's PlayStation page, http://www.jstic.com/cypher/sony/files/modc54.zip, unzipped under the path above; the gpasm build of its MODC54.ASM"
+    },
+    {
+      "id": "old-crow-12c508-v54f",
+      "kind": "pic-image",
+      "path": "docs/research/sources/old-crow/jstic/m508v54f/m508v54f.hex",
+      "sha256": "db0dfe30a808f42fcbf0f053af56fc0ba71f30363ee3e84646cb580d23510a83",
+      "license": "none stated",
+      "redistributable": false,
+      "obtain": "Old Crow's archive on Richard Erbe's PlayStation page, http://www.jstic.com/cypher/sony/files/m508v54f.zip, unzipped under the path above; the gpasm build of its m508v54f.asm"
     }
   ]
 }
