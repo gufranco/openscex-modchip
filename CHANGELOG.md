@@ -1,3 +1,10 @@
+# [0.11.0](https://github.com/gufranco/openscex-modchip/compare/v0.10.4...v0.11.0) (2026-10-09)
+
+
+### Features
+
+* faster, steadier per-console calibration ([011baaf](https://github.com/gufranco/openscex-modchip/commit/011baafd44a5deab44297cb268eba29d8f0285c5))
+
 ## [0.10.4](https://github.com/gufranco/openscex-modchip/compare/v0.10.3...v0.10.4) (2026-10-09)
 
 
