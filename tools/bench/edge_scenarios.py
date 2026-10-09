@@ -76,6 +76,12 @@ OFF_WINDOW_CONSOLE = 0.7
 # spans about 300 frames. 700 frames leave the trim the 64 consecutive samples
 # a verdict needs once the burst is over.
 TRIM_REREAD_FRAMES = 700
+# The debug indicator ticks when OSCCAL moves on its dark display, which comes
+# only once a disc's result has played, 9 s in the debug profile (include/pscu/
+# led.h). The console plays at its nominal rate for 10 s, then 4 s slow: the
+# trim needs 64 consecutive frames, about 0.9 s, to judge a batch.
+RESULT_SHOWN_FRAMES = 10 * 75
+SLOW_PLAY_FRAMES = 4 * 75
 STUCK_AFTER_BYTES = 6
 STUCK_NS = 100 * 1_000_000
 MS = 1_000_000
@@ -179,6 +185,12 @@ def _trim(scale: float, factory: int | None = None) -> Timeline:
     timeline.frame_ns = int(FRAME_NS * scale)
     timeline.mark(Phase.REREAD).frames(LEAD_IN, TRIM_REREAD_FRAMES)
     return timeline.frames(SILENCE, 260)
+
+
+def _trim_in_play() -> Timeline:
+    timeline = disc(carrier().idle(BOOT_NS), True, RESULT_SHOWN_FRAMES)
+    timeline.frame_ns = int(FRAME_NS * SLOW_CONSOLE)
+    return timeline.frames(PROGRAM, SLOW_PLAY_FRAMES)
 
 
 def _trim_replay() -> Timeline:
@@ -350,6 +362,12 @@ EDGE_SCENARIOS = (
         "a console 5 percent slow on a part calibrated at 0x7F: the step up "
         "would cross CAL7 and is refused",
         lambda: _trim(SLOW_CONSOLE, CAL7_FACTORY),
+    ),
+    edge(
+        "carrier-trim-in-play",
+        "long after acceptance, with the result already shown, the console "
+        "runs 5 percent slow during play",
+        _trim_in_play,
     ),
     edge(
         "carrier-trim-off-window",

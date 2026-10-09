@@ -62,6 +62,23 @@ else
 $(error unknown VCD_FILTER '$(VCD_FILTER)'; use off or on)
 endif
 
+# Indicator profile on PB3, which drives an LED or an active piezo buzzer.
+# debug (default) shows every stage, each region string and every fault code
+# while it holds, plus a tick during play when the chip learns something; final
+# chirps at power-on and when a disc is accepted, and shows each fault once.
+# Only the pin changes: what is sent on DATA, and when, is the same in both.
+# See include/pscu/led.h.
+PROFILE ?= debug
+ifeq ($(PROFILE),final)
+PROFILE_DEF := -DPSCU_PROFILE_FINAL=1
+PROFILE_TAG := -final
+else ifeq ($(PROFILE),debug)
+PROFILE_DEF := -DPSCU_PROFILE_FINAL=0
+PROFILE_TAG :=
+else
+$(error unknown PROFILE '$(PROFILE)'; use debug or final)
+endif
+
 # Region the chip emulates. The build is region-specific so the firmware emits
 # only the console's own region string. us is the default and carries no tag.
 REGION ?= us
@@ -80,7 +97,7 @@ endif
 # objects must never share a directory; VARIANT keeps them separate. An empty
 # VARIANT (America, adaptive timing, no filter) keeps the plain artifact name
 # the sim uses.
-VARIANT := $(REGION_TAG)$(TIMING_TAG)$(VCD_TAG)
+VARIANT := $(REGION_TAG)$(TIMING_TAG)$(VCD_TAG)$(PROFILE_TAG)
 
 CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate format \
 	precommit image image_size image_misra bench_runners bench bench_ci showcase
@@ -98,7 +115,7 @@ hooks:
 ifndef PSCU_TOOLCHAIN
 
 $(CONTAINER_TARGETS):
-	$(PYTHON) tools/docker_make.py $@ REGION=$(REGION) TIMING=$(TIMING) VCD_FILTER=$(VCD_FILTER)
+	$(PYTHON) tools/docker_make.py $@ REGION=$(REGION) TIMING=$(TIMING) VCD_FILTER=$(VCD_FILTER) PROFILE=$(PROFILE)
 
 else
 
@@ -123,7 +140,7 @@ ALL_SRC_C := $(FIRMWARE_C)
 FIRMWARE_S := src/port.S src/port_chip.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
 HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_test.c tests/host/trim_test.c tests/host/disc_test.c tests/host/led_test.c tests/host/loop_test.c
-SIM_TEST_C := tests/sim/sim_test.c tests/sim/harness.c tests/sim/sim_inject.c tests/sim/sim_disc.c tests/sim/sim_calib.c
+SIM_TEST_C := tests/sim/sim_test.c tests/sim/harness.c tests/sim/sim_inject.c tests/sim/sim_disc.c tests/sim/sim_calib.c tests/sim/sim_profile.c
 SIM_TEST_H := tests/sim/harness.h tests/sim/scenarios.h tests/sim/sim_t85.h
 BENCH_SRC := bench/pic_runner.cc bench/avr_runner.c
 C_FILES := $(ALL_SRC_C) $(FIRMWARE_H) $(HOST_TEST_C) $(SIM_TEST_C) $(SIM_TEST_H) $(BENCH_SRC)
@@ -145,7 +162,7 @@ RELEASE_OBJECTS := $(patsubst src/%,$(RELEASE)/%.o,$(FIRMWARE_C) $(FIRMWARE_S))
 # code no console input reaches are kept. The link step needs it too, since
 # link-time optimisation generates the code there.
 AVR_DEBUG := -g
-AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(TIMING_DEF) $(VCD_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
+AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(TIMING_DEF) $(VCD_DEF) $(PROFILE_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
 	$(WARNINGS) -fno-common -ffunction-sections -fdata-sections $(AVR_DEBUG)
 AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) $(TIMING_DEF) -Iinclude -Wall -Wextra -Werror $(AVR_DEBUG)
 AVR_LDFLAGS := -mmcu=$(MCU) -Os -flto -Wl,--gc-sections $(AVR_DEBUG)
@@ -156,7 +173,7 @@ CPPCHECK_FLAGS := --std=c17 --platform=avr8 --enable=all --check-level=exhaustiv
 	--error-exitcode=1 --suppress=checkersReport --inline-suppr \
 	'--suppress=*:$(AVR_INCLUDE)/*' '--suppress=*:$(AVR_GCC_INCLUDE)/*' \
 	-Iinclude -I$(AVR_INCLUDE) -I$(AVR_GCC_INCLUDE) \
-	$(CPPCHECK_MCU_DEF) $(REGION_DEF) $(TIMING_DEF) $(VCD_DEF) -DF_CPU=$(F_CPU)
+	$(CPPCHECK_MCU_DEF) $(REGION_DEF) $(TIMING_DEF) $(VCD_DEF) $(PROFILE_DEF) -DF_CPU=$(F_CPU)
 CPPCHECK_CONFIGS := -DPSCU_DEBUG -UPSCU_DEBUG
 
 all: image
@@ -179,7 +196,9 @@ $(RELEASE_ELF): $(RELEASE_OBJECTS)
 $(RELEASE_HEX): $(RELEASE_ELF)
 	$(AVR_OBJCOPY) -O ihex -R .eeprom $< $@
 
+# Both profiles must fit: the final image is sized with the default one.
 size: image_size
+	$(MAKE) --no-print-directory PROFILE=final image_size
 
 image_size: $(RELEASE_ELF)
 	$(AVR_SIZE) $(RELEASE_ELF)
@@ -202,6 +221,7 @@ $(HOST_TEST): $(HOST_LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H)
 
 SIM_ELF := $(BUILD)/attiny85/release/$(NAME)-attiny85.elf
 SIM_ELF_VCD := $(BUILD)/attiny85-jp-vcd/release/$(NAME)-attiny85-jp-vcd.elf
+SIM_ELF_FINAL := $(BUILD)/attiny85-final/release/$(NAME)-attiny85-final.elf
 
 $(SIM_TEST): $(SIM_TEST_C) $(SIM_TEST_H) all
 	@mkdir -p $(@D)
@@ -251,10 +271,12 @@ showcase:
 # oscillator trim scenarios model a fast or slow RC by running the console side
 # at a different rate. simavr does not change speed when OSCCAL is written, so
 # the trim is checked for direction, bounds and persistence, not its effect. The
-# SCPH-5903 Video-CD image is the optional second argument.
+# SCPH-5903 Video-CD image and the final-profile image are the optional third
+# and fourth arguments.
 simtest: $(SIM_TEST)
 	$(MAKE) --no-print-directory REGION=jp VCD_FILTER=on image
-	$(SIM_TEST) $(SIM_ELF) $(F_CPU) $(SIM_ELF_VCD)
+	$(MAKE) --no-print-directory PROFILE=final image
+	$(SIM_TEST) $(SIM_ELF) $(F_CPU) $(SIM_ELF_VCD) $(SIM_ELF_FINAL)
 
 test: hosttest simtest
 
@@ -277,7 +299,9 @@ analyse: all bench_runners
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage run --branch --source=tools -m unittest discover -s tests -t . -p 'test_*.py'
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage report -m
 
+# MISRA covers both profiles, since each compiles different code paths.
 misra: image_misra
+	$(MAKE) --no-print-directory PROFILE=final image_misra
 
 image_misra:
 	$(foreach config,$(CPPCHECK_CONFIGS),cppcheck $(CPPCHECK_FLAGS) $(config) --addon=misra $(FIRMWARE_C) &&) true

@@ -20,7 +20,7 @@ static pscu_led_step_t led_after(pscu_led_t state, uint32_t ms) {
 }
 
 static void test_led_boot(void) {
-  pscu_led_t gate = pscu_led_init(1U, 0U);
+  pscu_led_t gate = pscu_led_init(1U, 0U, PSCU_LED_PROFILE_DEBUG);
   g_check(led_after(gate, 0U).on, "led: board blink lit at start");
   g_check(!led_after(gate, 310U).on, "led: board blink gap is dark");
   // Boundaries: a flash lasts exactly its on time, and a pass that took no
@@ -33,7 +33,7 @@ static void test_led_boot(void) {
   g_check((waiting.state.stage == PSCU_LED_WAIT) && !waiting.on,
           "led: one gate blink then the heartbeat wait");
 
-  pscu_led_t carrier = pscu_led_init(2U, PSCU_LED_CODE_WATCHDOG);
+  pscu_led_t carrier = pscu_led_init(2U, PSCU_LED_CODE_WATCHDOG, PSCU_LED_PROFILE_DEBUG);
   g_check(led_after(carrier, 610U).on, "led: carrier second blink lit");
   pscu_led_step_t replay = led_after(carrier, 1200U);
   g_check((replay.state.stage == PSCU_LED_REPLAY) && replay.on,
@@ -45,7 +45,7 @@ static void test_led_boot(void) {
   g_check(led_after(replay.state, 6999U).state.stage == PSCU_LED_REPLAY,
           "led: replay still showing just before its one cycle ends");
 
-  pscu_led_t moved = pscu_led_init(1U, PSCU_LED_CODE_BOARD_CHANGED);
+  pscu_led_t moved = pscu_led_init(1U, PSCU_LED_CODE_BOARD_CHANGED, PSCU_LED_PROFILE_DEBUG);
   pscu_led_step_t moved_replay = led_after(moved, 600U);
   g_check((moved_replay.state.stage == PSCU_LED_REPLAY) && (moved_replay.state.replay == 6U),
           "led: a board change is replayed as code 6");
@@ -55,7 +55,7 @@ static void test_led_boot(void) {
 }
 
 static void test_led_heartbeat(void) {
-  pscu_led_t wait = led_after(pscu_led_init(1U, 0U), 600U).state;
+  pscu_led_t wait = led_after(pscu_led_init(1U, 0U, PSCU_LED_PROFILE_DEBUG), 600U).state;
   g_check(!led_after(wait, 1959U).on, "led: heartbeat dark before the blip");
   g_check(led_after(wait, 1960U).on, "led: heartbeat blip at the end of the period");
   g_check(led_after(wait, 1999U).on, "led: heartbeat blip lasts 40 ms");
@@ -63,7 +63,7 @@ static void test_led_heartbeat(void) {
 }
 
 static void test_led_results(void) {
-  pscu_led_t wait = led_after(pscu_led_init(1U, 0U), 600U).state;
+  pscu_led_t wait = led_after(pscu_led_init(1U, 0U, PSCU_LED_PROFILE_DEBUG), 600U).state;
   pscu_led_step_t fired = pscu_led_step(wait, PSCU_LED_EVENT_FIRED, 0U, 0U);
   g_check((fired.state.stage == PSCU_LED_INJECT) && !fired.on,
           "led: injection leaves the LED to the string flashes");
@@ -86,7 +86,7 @@ static void test_led_results(void) {
 }
 
 static void test_led_faults(void) {
-  pscu_led_t wait = led_after(pscu_led_init(1U, 0U), 600U).state;
+  pscu_led_t wait = led_after(pscu_led_init(1U, 0U, PSCU_LED_PROFILE_DEBUG), 600U).state;
   pscu_led_step_t live = pscu_led_step(wait, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_NO_SQCK, 0U);
   g_check((live.state.code == PSCU_LED_CODE_NO_SQCK) && live.state.live,
           "led: a fault takes the waiting LED");
@@ -122,7 +122,7 @@ static void test_led_faults(void) {
   pscu_led_t beating = led_after(wait, 1500U).state;
   g_check(pscu_led_disc_arrived(beating).phase_ms == 1500U, "led: the heartbeat keeps its phase");
   g_check(pscu_led_disc_arrived(live.state).live, "led: a live fault survives a new disc");
-  pscu_led_t booting = pscu_led_init(2U, 0U);
+  pscu_led_t booting = pscu_led_init(2U, 0U, PSCU_LED_PROFILE_DEBUG);
   g_check(pscu_led_disc_arrived(booting).stage == PSCU_LED_BOARD,
           "led: the boot blinks are not cut");
 
@@ -162,15 +162,113 @@ static void test_led_supply_fault(void) {
           "fault: a low supply outranks no SUBQ");
   g_check(pscu_led_fault(true, true, 0U, 20000U, true, false) == PSCU_LED_CODE_SUPPLY,
           "fault: a low supply outranks no region check");
-  pscu_led_t wait = led_after(pscu_led_init(1U, 0U), 600U).state;
+  pscu_led_t wait = led_after(pscu_led_init(1U, 0U, PSCU_LED_PROFILE_DEBUG), 600U).state;
   pscu_led_step_t low = pscu_led_step(wait, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_SUPPLY, 0U);
   g_check((low.state.code == PSCU_LED_CODE_SUPPLY) && low.state.live, "led: code 7 is shown live");
   g_check(pscu_led_step(low.state, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_SUPPLY, 6000U).on,
           "led: code 7 has a seventh flash");
   g_check(!pscu_led_step(low.state, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_SUPPLY, 7000U).on,
           "led: code 7 has no eighth flash");
-  g_check(pscu_led_init(1U, PSCU_LED_CODE_SUPPLY).replay == PSCU_LED_CODE_SUPPLY,
+  g_check(pscu_led_init(1U, PSCU_LED_CODE_SUPPLY, PSCU_LED_PROFILE_DEBUG).replay ==
+              PSCU_LED_CODE_SUPPLY,
           "led: 7 is the highest code the display accepts");
+}
+
+// The final profile, driven to the millisecond either side of each change. A
+// chirp is PSCU_LED_CHIRP_MS long; a code cycle is its flashes, each with its
+// 300 ms gap, then the pause.
+static pscu_led_t final_waiting(void) {
+  return led_after(pscu_led_init(1U, 0U, PSCU_LED_PROFILE_FINAL), 360U).state;
+}
+
+static void test_led_final_boot(void) {
+  pscu_led_t gate = pscu_led_init(1U, 0U, PSCU_LED_PROFILE_FINAL);
+  g_check(led_after(gate, 59U).on, "final: the board chirp is lit through its 59th ms");
+  g_check(!led_after(gate, 60U).on, "final: the board chirp lasts 60 ms");
+  g_check(led_after(gate, 359U).state.stage == PSCU_LED_BOARD,
+          "final: one chirp and its gap before waiting");
+  pscu_led_t wait = led_after(gate, 360U).state;
+  g_check(wait.stage == PSCU_LED_WAIT, "final: the board chirp then the wait");
+  g_check(!led_after(wait, 1960U).on, "final: the wait has no heartbeat");
+
+  pscu_led_t carrier = pscu_led_init(2U, 0U, PSCU_LED_PROFILE_FINAL);
+  g_check(led_after(carrier, 360U).on, "final: a carrier board chirps twice");
+  g_check(led_after(carrier, 720U).state.stage == PSCU_LED_WAIT,
+          "final: two chirps and their gaps before waiting");
+}
+
+static void test_led_final_results(void) {
+  pscu_led_t wait = final_waiting();
+  pscu_led_t accepted = pscu_led_step(wait, PSCU_LED_EVENT_ACCEPTED, 0U, 0U).state;
+  g_check(led_after(accepted, 59U).on, "final: an accepted disc chirps");
+  g_check(!led_after(accepted, 60U).on, "final: the acceptance chirp lasts 60 ms");
+  g_check(led_after(accepted, 2359U).state.stage == PSCU_LED_CODE,
+          "final: the chirp holds the display for one cycle");
+  pscu_led_step_t played = led_after(accepted, 2360U);
+  g_check((played.state.stage == PSCU_LED_DARK) && !played.on,
+          "final: one chirp, then dark for play");
+
+  pscu_led_t refused = pscu_led_step(wait, PSCU_LED_EVENT_REFUSED, 0U, 0U).state;
+  g_check(led_after(refused, 4000U).on, "final: code 2 plays a second time");
+  g_check(led_after(refused, 7999U).state.stage == PSCU_LED_CODE,
+          "final: code 2 still showing just before its second repeat ends");
+  g_check(led_after(refused, 8000U).state.stage == PSCU_LED_DARK, "final: code 2 plays twice");
+}
+
+static void test_led_final_faults(void) {
+  pscu_led_t wait = final_waiting();
+  pscu_led_t live = pscu_led_step(wait, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_NO_CHECK, 0U).state;
+  g_check(live.live && (live.code == PSCU_LED_CODE_NO_CHECK), "final: a fault is shown");
+  g_check(pscu_led_step(live, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_NO_CHECK, 5999U).state.stage ==
+              PSCU_LED_CODE,
+          "final: a fault plays its whole cycle");
+  pscu_led_t told = pscu_led_step(live, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_NO_CHECK, 6000U).state;
+  g_check(told.stage == PSCU_LED_WAIT, "final: a fault plays once, then the display is quiet");
+  g_check(pscu_led_step(told, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_NO_CHECK, 0U).state.stage ==
+              PSCU_LED_WAIT,
+          "final: a told fault is not shown again while it holds");
+  g_check(pscu_led_step(told, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_NO_SQCK, 0U).state.code ==
+              PSCU_LED_CODE_NO_SQCK,
+          "final: a different fault is still shown");
+  pscu_led_t next_disc = pscu_led_disc_arrived(told);
+  g_check(pscu_led_step(next_disc, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_NO_CHECK, 0U).state.stage ==
+              PSCU_LED_CODE,
+          "final: a new disc may report the fault again");
+
+  pscu_led_t low = pscu_led_step(wait, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_SUPPLY, 0U).state;
+  g_check(!pscu_led_step(low, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_SUPPLY, 9000U).on,
+          "final: code 7 waits out its backoff instead of the 2 s pause");
+  pscu_led_step_t again = pscu_led_step(low, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_SUPPLY, 37000U);
+  g_check(again.on && (again.state.stage == PSCU_LED_CODE),
+          "final: code 7 repeats every 30 s while the supply is low");
+  g_check(pscu_led_step(low, PSCU_LED_EVENT_NONE, PSCU_LED_CODE_SUPPLY, 9000U).state.stage ==
+              PSCU_LED_CODE,
+          "final: code 7 is never marked told");
+}
+
+// The debug tick: noted only on the dark display of the debug profile, lit for
+// PSCU_LED_TICK_MS of elapsed time, then gone.
+static void test_led_ticks(void) {
+  pscu_led_t accepted =
+      pscu_led_step(led_after(pscu_led_init(1U, 0U, PSCU_LED_PROFILE_DEBUG), 600U).state,
+                    PSCU_LED_EVENT_ACCEPTED,
+                    0U,
+                    0U)
+          .state;
+  pscu_led_t dark = led_after(accepted, 9000U).state;
+  pscu_led_t ticking = pscu_led_note(dark);
+  g_check(led_after(ticking, 0U).on, "tick: a note lights the dark display");
+  g_check(led_after(ticking, 39U).on, "tick: the tick lasts through its 39th ms");
+  g_check(!led_after(ticking, 40U).on, "tick: the tick lasts 40 ms");
+  g_check(!led_after(ticking, 50U).on, "tick: a long pass ends the tick");
+  g_check(!led_after(dark, 0U).on, "tick: the dark display is dark without a note");
+  pscu_led_t noted_result = pscu_led_note(accepted);
+  g_check((noted_result.stage == PSCU_LED_CODE) && (noted_result.code == PSCU_LED_CODE_ACCEPTED),
+          "tick: no tick while a result is showing");
+
+  pscu_led_t final_dark =
+      led_after(pscu_led_step(final_waiting(), PSCU_LED_EVENT_ACCEPTED, 0U, 0U).state, 2360U).state;
+  g_check(!led_after(pscu_led_note(final_dark), 0U).on, "tick: the final profile never ticks");
 }
 
 // The supply reading is the 1.1 V bandgap against VCC, raw = 1024 x 1.1 / VCC,
@@ -194,5 +292,9 @@ void led_tests(pscu_check_fn check) {
   test_led_faults();
   test_led_fault_rules();
   test_led_supply_fault();
+  test_led_final_boot();
+  test_led_final_results();
+  test_led_final_faults();
+  test_led_ticks();
   test_supply();
 }

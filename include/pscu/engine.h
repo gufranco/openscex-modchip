@@ -15,7 +15,7 @@
 // a frame boundary, filling the buffer with 0xFF and returning false when no
 // frame could be captured; and inject the one configured region word using the method the
 // detected board needs.
-pscu_board_mode_t pscu_engine_detect_board(void);
+pscu_board_mode_t pscu_engine_detect_board(bool lamp);
 
 // Re-check a board taken for a static gate just before a string: if WFCK is a
 // live carrier after all, return the carrier mode so WFCK is never driven.
@@ -23,7 +23,7 @@ pscu_board_mode_t pscu_engine_confirm_board(pscu_board_mode_t board);
 
 bool pscu_engine_capture_frame(uint8_t *frame);
 
-void pscu_engine_inject(pscu_board_mode_t board);
+void pscu_engine_inject(pscu_board_mode_t board, bool lamp);
 
 // Read the calibration record from EEPROM; a missing or damaged one reads as the
 // defaults.

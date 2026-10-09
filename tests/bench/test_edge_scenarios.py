@@ -75,6 +75,7 @@ class EdgeScenarioTest(unittest.TestCase):
             "carrier-trim-slow",
             "carrier-trim-cal7",
             "carrier-trim-off-window",
+            "carrier-trim-in-play",
         )
         for name in names:
             frames = [
@@ -85,6 +86,23 @@ class EdgeScenarioTest(unittest.TestCase):
             gaps = {b - a for a, b in pairwise(frames) if b - a > FRAME_NS // 2}
 
             self.assertTrue(any(abs(g - FRAME_NS) > FRAME_NS // 50 for g in gaps), name)
+
+    def test_the_in_play_trim_turns_slow_only_after_the_result_has_shown(self) -> None:
+        scenario = find("carrier-trim-in-play")
+        program = scenario.phases[Phase.PROGRAM]
+        lows = [
+            e.time_ns
+            for e in scenario.build().events
+            if e.signal is Signal.SQCK and e.value == 0 and e.time_ns >= program
+        ]
+        gaps = [(a, b - a) for a, b in pairwise(lows) if b - a > FRAME_NS // 2]
+        nominal = gaps[0][1]
+
+        first_slow = next(
+            at for at, gap in gaps if abs(gap - nominal) > FRAME_NS // 100
+        )
+
+        self.assertGreaterEqual(first_slow - program, 9 * 1_000_000_000)
 
     def test_the_trim_replay_scenario_sets_a_factory_near_cal7(self) -> None:
         events = find("trim-replay").build().events

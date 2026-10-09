@@ -123,6 +123,10 @@ jobs:
           make REGION=eu image
           make REGION=jp image
           make REGION=jp VCD_FILTER=on image
+          make REGION=us PROFILE=final image
+          make REGION=eu PROFILE=final image
+          make REGION=jp PROFILE=final image
+          make REGION=jp VCD_FILTER=on PROFILE=final image
           mkdir -p release-artifacts
           find build -type f -name '*.hex' -exec cp {} release-artifacts/ \;
           cp LICENSE release-artifacts/LICENSE.txt

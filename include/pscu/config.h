@@ -36,6 +36,18 @@
 #endif
 #define PSCU_VCD_FILTER_ENABLED (PSCU_VCD_FILTER != 0)
 
+// Indicator profile on PB3. The Makefile's PROFILE knob always defines
+// PSCU_PROFILE_FINAL as 0 (debug) or 1 (final) on the command line; a build
+// outside the Makefile gets debug, the profile that says everything. Only the
+// debug profile lights the pin for the board-detect wait and for each region
+// string; the final profile keeps it dark through both (pscu/led.h). Neither
+// changes what is sent or when: the pin is written before and after each
+// string, never inside one.
+#ifndef PSCU_PROFILE_FINAL
+#define PSCU_PROFILE_FINAL 0
+#endif
+#define PSCU_LAMP_STRINGS (PSCU_PROFILE_FINAL == 0)
+
 // Upper bound on region strings emitted per arming. The console latches the
 // region within a few reads, so this only has to be large enough to be
 // reliable; its real purpose is a safety cap so a stuck window can never make

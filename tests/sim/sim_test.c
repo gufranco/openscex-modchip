@@ -18,7 +18,7 @@
 
 int main(int argc, char *argv[]) {
   if (argc < 3) {
-    (void)fprintf(stderr, "usage: %s elf freq_hz [vcd_elf]\n", argv[0]);
+    (void)fprintf(stderr, "usage: %s elf freq_hz [vcd_elf [final_elf]]\n", argv[0]);
     return 2;
   }
   const char *elf = argv[1];
@@ -59,6 +59,12 @@ int main(int argc, char *argv[]) {
   if (argc >= 4) {
     scenario_vcd(argv[3], freq);
     scenario_calib_jp(&t85, argv[3], freq);
+  }
+
+  // The optional fourth argument is the final-profile image of the default
+  // build, checked against the default (debug) image.
+  if (argc >= 5) {
+    scenario_profiles(&t85, elf, argv[4], freq);
   }
 
   check_stack();

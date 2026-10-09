@@ -66,6 +66,15 @@ typedef struct {
   pscu_calib_t calib;
 } pscu_osc_store_t;
 
+// The build's indicator profile, from the Makefile's PROFILE knob (see
+// pscu/config.h and pscu/led.h). Fixed by the preprocessor, so the image holds
+// no switch a user could flip and EEPROM never stores it (AGENTS.md rule 7).
+#if PSCU_PROFILE_FINAL
+#define PSCU_RUN_PROFILE PSCU_LED_PROFILE_FINAL
+#else
+#define PSCU_RUN_PROFILE PSCU_LED_PROFILE_DEBUG
+#endif
+
 // The LED level the loop decided for the rest of the pass. Injection drives the
 // LED itself for each string; between strings the pattern player decides.
 static void pscu_run_show(bool on) {
@@ -167,12 +176,13 @@ void pscu_run(void) {
   if (pscu_calib_keeps_board(stored, watchdog)) {
     board = pscu_calib_stored_board(stored);
   } else {
-    board = pscu_engine_detect_board();
+    board = pscu_engine_detect_board(PSCU_LAMP_STRINGS);
   }
   pscu_calib_boot_t boot = pscu_calib_start(stored, board);
   uint8_t changed_code = boot.board_changed ? PSCU_LED_CODE_BOARD_CHANGED : 0U;
   uint8_t boot_code = watchdog ? PSCU_LED_CODE_WATCHDOG : changed_code;
-  pscu_led_t led = pscu_led_init((board == PSCU_BOARD_MODE_WFCK) ? 2U : 1U, boot_code);
+  pscu_led_t led =
+      pscu_led_init((board == PSCU_BOARD_MODE_WFCK) ? 2U : 1U, boot_code, PSCU_RUN_PROFILE);
   pscu_loop_t loop = pscu_loop_init(boot.calib, led, PSCU_VCD_FILTER_ENABLED);
   pscu_clock_t clock = { pscu_port_ticks(), 0U };
 
@@ -185,17 +195,23 @@ void pscu_run(void) {
     bool supply_ok = pscu_supply_ok(pscu_port_supply_raw());
     pscu_loop_in_t in = { frame, captured, supply_ok, tick.elapsed_ms };
     pscu_loop_out_t out = pscu_loop_step(&loop, &in);
+    uint8_t osccal_before = osc.osccal;
     osc = pscu_osc_step(osc, stamp, out.trim_sample);
     if (out.fire) {
       board = pscu_engine_confirm_board(board);
-      pscu_engine_inject(board);
+      pscu_engine_inject(board, PSCU_LAMP_STRINGS);
     }
     if (out.store) {
       pscu_engine_store_calib(loop.calib);
     }
     pscu_osc_store_t kept = pscu_osc_store(osc, loop.calib, out.quiet);
+    // Anything learned this pass, a moved OSCCAL, a stored trim or a stored
+    // calibration, is noted to the display, which ticks for it in the debug
+    // profile once the disc's result has finished (pscu_led_note).
+    bool learned = out.store || (osc.osccal != osccal_before) || (kept.osc.dirty != osc.dirty);
     osc = kept.osc;
     loop.calib = kept.calib;
+    loop.led = learned ? pscu_led_note(loop.led) : loop.led;
     pscu_run_show(out.led_on);
     pscu_port_watchdog_reset();
   }

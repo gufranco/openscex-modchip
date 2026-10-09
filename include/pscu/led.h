@@ -58,6 +58,33 @@
 #define PSCU_LED_NO_SQCK_UNTIL_MS ((uint32_t)20000U)
 #define PSCU_LED_NO_CHECK_MS ((uint32_t)20000U)
 
+// Two profiles for the same pin, picked at build time (Makefile PROFILE). PB3
+// drives either an LED through its resistor or an active piezo buzzer, which
+// beeps whenever the pin is high, so the profile, not the part, decides how much
+// is said. Debug says everything above and adds a tick during play; final says
+// only what a player needs to hear: a chirp at power-on, a chirp when a disc is
+// accepted, and each fault once.
+typedef enum { PSCU_LED_PROFILE_DEBUG = 0, PSCU_LED_PROFILE_FINAL = 1 } pscu_led_profile_t;
+
+// Final-profile timings. A chirp is short enough to read as "fine" next to the
+// 700 ms fault flashes, and long enough for a piezo to sound: the buzzer's
+// datasheet gives no rise time, and 60 ms is many cycles of its 3.5 kHz tone
+// (Read: PUI Audio AI-3035-TWT-3V-R datasheet). A refused disc's code 2 plays
+// twice instead of three times. A low supply, the one fault that stops the chip
+// sending, repeats while it holds, but 30 s apart rather than 2 s, so a buzzer
+// reports it without drowning the room. All four are design choices.
+#define PSCU_LED_CHIRP_MS ((uint32_t)60U)
+#define PSCU_LED_FINAL_REFUSED_REPEATS ((uint32_t)2U)
+#define PSCU_LED_SUPPLY_BACKOFF_MS ((uint32_t)30000U)
+
+// Debug-profile tick: a 40 ms pulse during play each time OSCCAL moves or the
+// calibration record is written, so the learning that happens after a disc is
+// accepted can be watched. Shown only once the result has finished, in the dark
+// stage, so a tick never lands inside a code, a string flash or the window before
+// the first string, where it could be miscounted. 40 ms matches the heartbeat
+// blip, well clear of a string's 90 to 181 ms.
+#define PSCU_LED_TICK_MS ((uint32_t)40U)
+
 typedef enum {
   PSCU_LED_BOARD = 0,
   PSCU_LED_REPLAY = 1,
@@ -80,7 +107,10 @@ typedef enum {
 // code stage; live marks a fault code that repeats for as long as the fault
 // holds; board the 1 or 2 short boot blinks; replay a code shown once at boot,
 // 6 after a watchdog reset, 7 after a board change, 0 otherwise; phase_ms the
-// time spent in the current stage.
+// time spent in the current stage; profile the build's profile; told the live
+// faults the final profile has already shown for this disc, one bit per code.
+// In the dark stage code is 1 while a debug tick shows, timed by phase_ms like
+// any other pattern, and 0 otherwise, so the tick needs no field of its own.
 typedef struct {
   pscu_led_stage_t stage;
   uint8_t code;
@@ -88,6 +118,8 @@ typedef struct {
   uint8_t board;
   uint8_t replay;
   uint32_t phase_ms;
+  pscu_led_profile_t profile;
+  uint8_t told;
 } pscu_led_t;
 
 typedef struct {
@@ -97,15 +129,21 @@ typedef struct {
 
 // Start the display after board detection: board short blinks (1 for a static
 // gate, 2 for a WFCK carrier), then the boot code once if any, then the waiting
-// heartbeat.
-pscu_led_t pscu_led_init(uint8_t board_blinks, uint8_t replay_code);
+// heartbeat, in the given profile.
+pscu_led_t pscu_led_init(uint8_t board_blinks, uint8_t replay_code, pscu_led_profile_t profile);
 
 // A new disc has arrived: a result still showing belonged to the last one, so
 // the display drops back to the heartbeat, as it does from a string or the dark
 // stage. The result stays up until then, so a refused disc's code 2 remains
 // readable while the console idles after it. Boot blinks, the boot replay, a
-// live fault and the heartbeat itself are left alone.
+// live fault and the heartbeat itself are left alone. The new disc may report
+// each fault again, so the final profile forgets which ones it has told.
 pscu_led_t pscu_led_disc_arrived(pscu_led_t state);
+
+// Something was learned during play: OSCCAL moved or the calibration was
+// written. The debug profile starts a tick if the display is dark; otherwise,
+// and always in the final profile, nothing changes.
+pscu_led_t pscu_led_note(pscu_led_t state);
 
 // Advance by elapsed_ms, apply this pass's event and the live fault (0 for
 // none), and say whether the LED is lit.

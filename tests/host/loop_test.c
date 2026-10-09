@@ -46,7 +46,8 @@ static pscu_calib_t calib_with(uint8_t cap, uint8_t trigger, bool frozen) {
 
 // The LED past its boot blink, so a fault or a result can take it at once.
 static pscu_led_t waiting_led(void) {
-  return pscu_led_step(pscu_led_init(1U, 0U), PSCU_LED_EVENT_NONE, 0U, 700U).state;
+  return pscu_led_step(pscu_led_init(1U, 0U, PSCU_LED_PROFILE_DEBUG), PSCU_LED_EVENT_NONE, 0U, 700U)
+      .state;
 }
 
 // The cap an accepted session leaves from CAP: halfway down to its need plus

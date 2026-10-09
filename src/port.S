@@ -46,8 +46,8 @@
 
 // Bring the chip up. Writing 0x80 then 0x00 to CLKPR within four cycles is the
 // AVR timed sequence that clears the clock prescaler, so the core runs at the
-// full 8 MHz regardless of the factory CKDIV8 fuse. LED is the only output at
-// boot. The ADC is switched on to read the 1.1 V bandgap against VCC, which is
+// full 8 MHz regardless of the factory CKDIV8 fuse. PB3, the LED or buzzer
+// pin, is the only output at boot. The ADC is switched on to read the 1.1 V bandgap against VCC, which is
 // how the chip measures its own supply: REFS 000 makes VCC the reference and
 // MUX 1100 selects the bandgap (Read: ATtiny25/45/85 datasheet 2586Q, ADC input
 // channel and voltage reference selections), and CK/64 gives the 125 kHz the

@@ -27,7 +27,7 @@
 
 </div>
 
-闪存 [**7214**](Makefile) 字节 · [**8**](assets/psnee) 个主板系列，PU-7 至 PM-41(2) · [**3**](src/region.c) 个区域 · MISRA 偏离 [**0**](AGENTS.md) · 主机测试行与分支覆盖率 [**100%**](tests/host) · 变异体 [**186/186**](tools/mutate.py) 被杀死
+闪存 [**6434**](Makefile) 字节 · [**8**](assets/psnee) 个主板系列，PU-7 至 PM-41(2) · [**3**](src/region.c) 个区域 · MISRA 偏离 [**0**](AGENTS.md) · 主机测试行与分支覆盖率 [**100%**](tests/host) · 变异体 [**208/208**](tools/mutate.py) 被杀死
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -44,7 +44,7 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 |:--|:--|:--|
 | **接受后保持静默**<br>第一个程序区帧即停止注入（字符串中途也一样），游戏运行时不发送任何内容；只有新的导入区读取，例如反改机游戏强制的 TOC 重读，才会再次得到响应。 | **无需光驱盖线的换盘**<br>芯片把光驱安静 1.5 s 视为换盘，并为多光盘游戏的每张光盘重新武装。 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [src/run.c](src/run.c) |
 | **自校正的时序**<br>芯片对主机 75 Hz 的 SUBQ 帧计时，把内部振荡器校正到约 1% 以内，无需时钟线。 | **一个区域，一个窗口**<br>只送出配置的区域字符串，只在 SUBQ 区域检查窗口内，每次武装最多 16 次。 | [src/trim.c](src/trim.c), [src/region.c](src/region.c), [include/pscu/config.h](include/pscu/config.h) |
-| **状态 LED 代码**<br>一个 LED 用闪烁次数显示每个启动阶段、每张光盘的结果和当前的接线故障。 | **代码实证**<br>MISRA C:2012 合规，主机覆盖率 100%，simavr 主机模型，变异测试，逐字节一致的重新构建。 | [src/led.c](src/led.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
+| **状态 LED 或蜂鸣器**<br>接在一个引脚上的 LED 或有源蜂鸣器显示每个启动阶段、每张光盘的结果和当前的接线故障；final 构建只发短响，每个故障只报一次。 | **代码实证**<br>MISRA C:2012 合规，主机覆盖率 100%，simavr 主机模型，变异测试，逐字节一致的重新构建。 | [src/led.c](src/led.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
 
 ## 概览
 
@@ -55,7 +55,7 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 | 方式 | SCEx 注入 | [src/inject.c](src/inject.c), [psx-spx cdromdrive.md, SCEx](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromdrive.md#L1211-L1230) |
 | 区域 | 每次构建一个，`REGION=jp|us|eu`（默认 us） | [Makefile](Makefile), [src/region.c](src/region.c) |
 | 时钟 | 内部 8 MHz RC 振荡器，按主机的 SUBQ 帧率校正 | [src/trim.c](src/trim.c), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 连线 | 4 根信号线（SQCK、SUBQ、DATA、WFCK）加电源；LED 可选 | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
+| 连线 | 4 根信号线（SQCK、SUBQ、DATA、WFCK）加电源；LED 或有源蜂鸣器可选 | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
 | 工具链 | C17，MISRA C:2012 零偏离，版本固定的 Docker 镜像 | [Dockerfile](Dockerfile), [AGENTS.md](AGENTS.md) |
 
 ## 各机型的构建
@@ -77,7 +77,7 @@ PU-7 与 PU-8 使用与 PU-18、PU-20 相同的静态门控方式，PsNee V9.0 �
 
 ## 快速开始
 
-各[发布](../../releases)都附有按机型预构建的 `.hex`，可跳过工具链，直接用下面的 `avrdude` 步骤烧录。每个发布附带三份 ATtiny85 镜像（`us`、`eu`、`jp`）、SCPH-5903 镜像（`jp-vcd`）、`SHA256SUMS` 文件、许可证与构建来源证明。v0.3.0 至 v0.8.0 的发布附带 ATtiny84 镜像，v0.2.0 及之前的发布附带旧四线设计的 ATtiny85 镜像。烧录前请先校验下载文件：
+各[发布](../../releases)都附有按机型预构建的 `.hex`，可跳过工具链，直接用下面的 `avrdude` 步骤烧录。每个发布附带三份 ATtiny85 镜像（`us`、`eu`、`jp`）、SCPH-5903 镜像（`jp-vcd`）、这四份各自安静的 `-final` 镜像（见[状态 LED](#状态-led)）、`SHA256SUMS` 文件、许可证与构建来源证明。v0.3.0 至 v0.8.0 的发布附带 ATtiny84 镜像，v0.2.0 及之前的发布附带旧四线设计的 ATtiny85 镜像。烧录前请先校验下载文件：
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing
@@ -97,6 +97,7 @@ git clone https://github.com/gufranco/openscex-modchip.git
 cd openscex-modchip
 make REGION=us                                        # 美洲
 make REGION=jp VCD_FILTER=on                          # SCPH-5903
+make REGION=us PROFILE=final                          # 美洲，安静的指示
 avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
 ```
@@ -166,23 +167,28 @@ make bench_ci    # 主机测试台：在同一个模拟主机中对比本固件�
 
 ## 状态 LED
 
-LED 是可选的，也是芯片唯一的诊断手段：它显示芯片处于哪个阶段、每张光盘是否通过区域检查，以及出问题时该检查哪根线。它从不延迟或阻碍任何功能，也不保存历史，所以除两个启动代码外，代码反映当前状态。 出处：[src/led.c](src/led.c)。
+PB3 可选接一个 LED 或一个有源蜂鸣器，两者都是芯片唯一的诊断手段：它显示芯片处于哪个阶段、每张光盘是否通过区域检查，以及出问题时该检查哪根线。它从不延迟或阻碍任何功能，也不保存历史，所以除两个启动代码外，代码反映当前状态。 出处：[src/led.c](src/led.c)。
 
 | 部件 | 选择 | 出处 |
 |:-----|:-----|:--|
 | LED | 3 mm 或 5 mm 的红、橙、黄、绿 LED，正向电压约 2 V；不要用蓝色或白色，其 3 V 正向电压在 PSone 较低的电源下几乎不给电阻留电压 | [Kingbright WP7113ID datasheet](https://www.kingbrightusa.com/images/catalog/SPEC/WP7113ID.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 电阻 | 1 kΩ，功率不限：5 V 时约 3 mA，3.5 V 时约 1.5 mA，室内足够亮，远低于引脚 40 mA 的绝对最大值（Read：ATtiny25/45/85 数据手册 2586Q） | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 接线 | 2 号引脚（PB3）接电阻，电阻接 LED 阳极（长脚），阴极（平边）接地 | [include/port/registers.h](include/port/registers.h) |
+| LED 接线 | 2 号引脚（PB3）接电阻，电阻接 LED 阳极（长脚），阴极（平边）接地 | [include/port/registers.h](include/port/registers.h) |
+| 蜂鸣器 | 代替 LED 的有源压电蜂鸣器，即自带驱动、通直流就响的型号，例如 PUI Audio AI-3035-TWT-3V-R：2 至 5 V，3 V 时最大 9 mA，约 3.5 kHz，直径 30 mm；在 5 V 的厚机上请实测电流 | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
+| 蜂鸣器接线 | 2 号引脚（PB3）接蜂鸣器 + 端，- 端接地，不需要电阻也不需要二极管：压电元件不是线圈，关断时不会把电压尖峰送回引脚。电磁蜂鸣器是线圈，不支持 | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [include/port/registers.h](include/port/registers.h) |
 
-| 阶段 | LED 表现 | 出处 |
-|:-----|:---------|:--|
-| 主板识别 | 上电后点亮约 0.4 s | [src/led.c](src/led.c) |
-| 主板确定 | 静态门控主板（PU-18、PU-20）闪 1 次 300 ms，WFCK 载波主板（PU-22 及以后）闪 2 次 | [src/led.c](src/led.c) |
-| 等待光盘 | 每 2 s 短闪 40 ms | [src/led.c](src/led.c) |
-| 注入中 | 每个区域字符串闪 90 至 181 ms | [src/led.c](src/led.c) |
-| 结果 | 代码显示 3 次，之后游戏时熄灭 | [src/led.c](src/led.c) |
+驱动该引脚的构建有两种。默认的 `debug` 显示下表全部内容；用 `make PROFILE=final` 构建、以 `-final` 镜像发布的 `final` 保持安静。安装和排查故障时烧录 `debug`，玩游戏时换成 `final`。两者在同一时刻发送相同的字符串，只有该引脚不同，模拟器逐个边沿核对。 出处：[include/pscu/led.h](include/pscu/led.h), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
 
-代码是 700 ms 的长闪，间隔 300 ms，暂停 2 s 后重复。 出处：[src/led.c](src/led.c)。
+| 阶段 | debug | final | 出处 |
+|:-----|:------|:------|:--|
+| 主板识别 | 上电后点亮约 0.4 s | 熄灭 | [src/engine.c](src/engine.c) |
+| 主板确定 | 静态门控主板（PU-18、PU-20）闪 1 次 300 ms，WFCK 载波主板（PU-22 及以后）闪 2 次 | 静态门控主板短响 1 次 60 ms，WFCK 载波主板 2 次 | [src/led.c](src/led.c) |
+| 等待光盘 | 每 2 s 短闪 40 ms | 熄灭 | [src/led.c](src/led.c) |
+| 注入中 | 每个区域字符串闪 90 至 181 ms | 熄灭 | [src/engine.c](src/engine.c) |
+| 结果 | 代码显示 3 次，之后熄灭 | 被接受的光盘短响 1 次 60 ms，被拒绝的光盘显示代码 2 两次；之后熄灭 | [src/led.c](src/led.c) |
+| 游戏中 | 熄灭；每次 OSCCAL 变动或写入校准值时闪 40 ms | 熄灭 | [src/led.c](src/led.c), [src/run.c](src/run.c) |
+
+代码是 700 ms 的长闪，间隔 300 ms，暂停 2 s 后重复。`final` 中代码 3 和 4 每张光盘只显示一次，代码 7 在持续期间每 30 s 重复一次。 出处：[src/led.c](src/led.c)。
 
 | 代码 | 含义 | 检查 | 出处 |
 |:----:|:-----|:-----|:--|
@@ -232,8 +238,8 @@ graph LR
 | 单一区域 | 只送出 `REGION`，从不送出全部三个 | [src/region.c](src/region.c) |
 | 自适应时序 | 在 WFCK 载波主板上通过计数 WFCK 周期为注入位计时；`TIMING=fixed` 改用由校正后振荡器计时的延时 | [src/port.S](src/port.S), [Makefile](Makefile) |
 | 自我恢复 | 每次 SUBQ 采集都在帧间空隙重新对齐，并在 30 ms 后放弃；注入中 WFCK 载波停止时看门狗会释放 DATA；所有未使用的引脚都开启上拉，不会悬空 | [src/engine.c](src/engine.c), [src/port.S](src/port.S), [include/port/registers.h](include/port/registers.h) |
-| 状态 LED | 独立引脚上的可选 LED 用闪烁次数显示启动阶段、每张光盘的结果和当前故障；固件从不等待它，不装 LED 也正确运行 | [src/led.c](src/led.c) |
-| 现场诊断 | 无需编程器：LED 代码指出失败的阶段，从没有时钟的 SUBQ 到始终没有区域检查的 SUBQ；无需用编程器读回任何内容 | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
+| 状态 LED | 独立引脚上的可选 LED 或有源蜂鸣器显示启动阶段、每张光盘的结果和当前故障；`debug` 构建显示全部，`final` 构建只发短响并对每个故障只报一次；固件从不等待它，什么都不接也正确运行 | [src/led.c](src/led.c) |
+| 现场诊断 | 无需编程器：LED 或蜂鸣器的代码指出失败的阶段，从没有时钟的 SUBQ 到始终没有区域检查的 SUBQ；无需用编程器读回任何内容 | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
 | 按主机校准 | 学习本主机需要多少字符串、最晚可在何时开始以及自身振荡器的快慢，保存在 7 字节的 EEPROM 记录中，缺失或损坏时回退到默认值 | [src/calib.c](src/calib.c) |
 | 闭环确认 | 注入后，芯片在 SUBQ 中等待程序区帧（真实的音轨号），机芯控制器只有在接受区域字符串后才允许读取它，因此显示区域检查是否通过 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c) |
 | 验证 | 主机测试行与分支覆盖率 100%，包含偏快与偏慢振荡器的 simavr 主机模型，变异测试，可复现构建，以及主机测试台：把同一个模拟主机接到本固件、PsNee、Mayumi V4 和 MM3 上，检查凡是它们被接受的场景本固件也被接受、位单元落在它们的范围内、在区域检查之外发送的不多于它们；其场景执行本固件中主机可达的每一条指令，无法到达的指令都在源码中注明原因 | [tests/host](tests/host), [tests/sim](tests/sim), [tools/mutate.py](tools/mutate.py), [tools/bench](tools/bench), [CONTRIBUTING.md](CONTRIBUTING.md) |
@@ -259,9 +265,10 @@ graph LR
 |:-----|:-----|:-----|:-----|:--|
 | `REGION` | `jp`、`us`、`eu` | `us` | 芯片送出的唯一区域字符串 | [Makefile](Makefile), [src/region.c](src/region.c) |
 | `TIMING` | `adaptive`、`fixed` | `adaptive` | adaptive 通过计数 WFCK 周期为 WFCK 载波注入位计时；fixed 使用编译期延时，由校正后的内部振荡器计时 | [Makefile](Makefile), [src/port.S](src/port.S) |
+| `PROFILE` | `debug`、`final` | `debug` | LED 或蜂鸣器显示的内容：debug 显示每个阶段、字符串和故障；final 在上电和光盘被接受时短响，每个故障只显示一次；两者的 DATA 相同 | [Makefile](Makefile), [include/pscu/led.h](include/pscu/led.h) |
 | `VCD_FILTER` | `off`、`on` | `off` | 仅 SCPH-5903 设为 on：注入只在游戏的导入区 TOC 触发，不在 Video CD 上触发，遵循 PsNee V9.0 的 SCPH-5903 过滤器 | [Makefile](Makefile), [src/subq.c](src/subq.c), [PsNee PSNee.ino L456-L490](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L456-L490) |
 
-非默认区域或过滤器会在产物名上加标签，例如 `openscex-modchip-attiny85-jp.hex` 或 `openscex-modchip-attiny85-jp-vcd.hex`。 出处：[Makefile](Makefile)。
+非默认区域、过滤器或配置会在产物名上加标签，例如 `openscex-modchip-attiny85-jp.hex`、`openscex-modchip-attiny85-jp-vcd.hex` 或 `openscex-modchip-attiny85-final.hex`。 出处：[Makefile](Makefile)。
 
 ## 与其他芯片对比
 

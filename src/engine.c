@@ -151,9 +151,13 @@ static pscu_board_mode_t pscu_sample_wfck(uint16_t window) {
 // wait, about 0.4 s, which the chip spends anyway: an installer who sees it at
 // power-on knows the chip has power, a running clock and its firmware,
 // before any disc is read. Lighting it here adds no delay and sits on no timing
-// path, and with no LED fitted nothing changes.
-pscu_board_mode_t pscu_engine_detect_board(void) {
-  pscu_port_led_on();
+// path, and with no LED fitted nothing changes. lamp is false in the final
+// profile, where a buzzer would otherwise sound for the whole 0.4 s; the board
+// chirps that follow tell the same story.
+pscu_board_mode_t pscu_engine_detect_board(bool lamp) {
+  if (lamp) {
+    pscu_port_led_on();
+  }
   pscu_port_delay_ms(PSCU_DETECT_SETTLE_MS);
   pscu_board_mode_t mode = pscu_sample_wfck(PSCU_DETECT_WINDOW);
   pscu_port_led_off();
@@ -206,12 +210,16 @@ bool pscu_engine_capture_frame(uint8_t *frame) {
 // expects and nothing more. The run loop calls this only inside the check
 // window and only up to the stealth cap, so DATA is high-Z and the LED off
 // during normal play. On a gate board the WFCK gate is held low for the string
-// and released with DATA, so both lines are high-Z between strings.
-void pscu_engine_inject(pscu_board_mode_t board) {
+// and released with DATA, so both lines are high-Z between strings. lamp lights
+// the pin for the string in the debug profile only; it is set before the first
+// cell and cleared after the last, so it never sits inside the bit timing.
+void pscu_engine_inject(pscu_board_mode_t board, bool lamp) {
   PSCU_ASSERT((board == PSCU_BOARD_MODE_GATE) || (board == PSCU_BOARD_MODE_WFCK));
 
   bool gate = board == PSCU_BOARD_MODE_GATE;
-  pscu_port_led_on();
+  if (lamp) {
+    pscu_port_led_on();
+  }
   if (gate) {
     pscu_port_gate_drive_low();
   }

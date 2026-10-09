@@ -27,7 +27,7 @@
 
 </div>
 
-フラッシュ [**7214**](Makefile) バイト · 基板 [**8**](assets/psnee) 系統、PU-7 から PM-41(2) · リージョン [**3**](src/region.c) 種 · MISRA 逸脱 [**0**](AGENTS.md) · ホストの行と分岐カバレッジ [**100%**](tests/host) · ミュータント [**186/186**](tools/mutate.py) 撃破
+フラッシュ [**6434**](Makefile) バイト · 基板 [**8**](assets/psnee) 系統、PU-7 から PM-41(2) · リージョン [**3**](src/region.c) 種 · MISRA 逸脱 [**0**](AGENTS.md) · ホストの行と分岐カバレッジ [**100%**](tests/host) · ミュータント [**208/208**](tools/mutate.py) 撃破
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -44,7 +44,7 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 |:--|:--|:--|
 | **受け入れ後は沈黙**<br>最初のプログラム領域フレームで注入を止め（文字列の途中でも）、ゲーム中は何も送りません。アンチモッドのゲームが強制する TOC 再読み取りのような新しいリードイン読み取りにだけ、再び応じます。 | **蓋線なしのディスク交換**<br>ドライブが 1.5 s 静かになることを交換とみなし、マルチディスクのゲームの全ディスクに向けて再武装します。 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [src/run.c](src/run.c) |
 | **自己補正のタイミング**<br>チップはコンソールの 75 Hz の SUBQ フレームを計時し、内蔵発振器を約 1% 以内に補正します。クロック線は不要です。 | **1 リージョン、1 つの窓**<br>設定したリージョン文字列だけを、SUBQ リージョンチェックの窓の間だけ、武装ごとに最大 16 回。 | [src/trim.c](src/trim.c), [src/region.c](src/region.c), [include/pscu/config.h](include/pscu/config.h) |
-| **ステータス LED コード**<br>LED 1 個で起動の各段階、ディスクごとの結果、配線の異常を点滅回数で示し。 | **コードで実証**<br>MISRA C:2012 準拠、ホストカバレッジ 100%、simavr コンソールモデル、ミューテーションテスト、バイト一致の再ビルド。 | [src/led.c](src/led.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
+| **ステータス LED またはブザー**<br>1 本のピンにつないだ LED かアクティブブザーで、起動の各段階、ディスクごとの結果、配線の異常を示す。final ビルドは短く鳴るだけで、異常は 1 回だけ知らせる。 | **コードで実証**<br>MISRA C:2012 準拠、ホストカバレッジ 100%、simavr コンソールモデル、ミューテーションテスト、バイト一致の再ビルド。 | [src/led.c](src/led.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
 
 ## 概要
 
@@ -55,7 +55,7 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 | 方式 | SCEx 注入 | [src/inject.c](src/inject.c), [psx-spx cdromdrive.md, SCEx](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromdrive.md#L1211-L1230) |
 | リージョン | ビルドごとに 1 つ、`REGION=jp|us|eu`（既定 us） | [Makefile](Makefile), [src/region.c](src/region.c) |
 | クロック | 内蔵 8 MHz RC 発振器。コンソールの SUBQ フレームレートで補正 | [src/trim.c](src/trim.c), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 配線 | 信号 4 本（SQCK、SUBQ、DATA、WFCK）と電源、LED は任意 | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
+| 配線 | 信号 4 本（SQCK、SUBQ、DATA、WFCK）と電源、LED かアクティブブザーは任意 | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
 | ツールチェーン | C17、MISRA C:2012 逸脱ゼロ、バージョン固定の Docker イメージ | [Dockerfile](Dockerfile), [AGENTS.md](AGENTS.md) |
 
 ## 機種ごとのビルド
@@ -77,7 +77,7 @@ PU-7 と PU-8 は PU-18 と PU-20 と同じ静的ゲート方式で、PsNee V9.0
 
 ## クイックスタート
 
-機種別のビルド済み `.hex` は各[リリース](../../releases)に添付されるので、ツールチェーンを飛ばして下の `avrdude` 手順で書き込めます。各リリースには ATtiny85 のイメージ 3 種（`us`、`eu`、`jp`）、SCPH-5903 用イメージ（`jp-vcd`）、`SHA256SUMS` ファイル、ライセンス、ビルド来歴のアテステーションが付きます。v0.3.0 から v0.8.0 のリリースには ATtiny84 のイメージが、v0.2.0 までのリリースには以前の 4 線設計の ATtiny85 イメージが付いていました。書き込む前にダウンロードを確認してください:
+機種別のビルド済み `.hex` は各[リリース](../../releases)に添付されるので、ツールチェーンを飛ばして下の `avrdude` 手順で書き込めます。各リリースには ATtiny85 のイメージ 3 種（`us`、`eu`、`jp`）、SCPH-5903 用イメージ（`jp-vcd`）、この 4 種それぞれの静かな `-final` イメージ（[ステータス LED](#ステータス-led) を参照）、`SHA256SUMS` ファイル、ライセンス、ビルド来歴のアテステーションが付きます。v0.3.0 から v0.8.0 のリリースには ATtiny84 のイメージが、v0.2.0 までのリリースには以前の 4 線設計の ATtiny85 イメージが付いていました。書き込む前にダウンロードを確認してください:
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing
@@ -97,6 +97,7 @@ git clone https://github.com/gufranco/openscex-modchip.git
 cd openscex-modchip
 make REGION=us                                        # アメリカ
 make REGION=jp VCD_FILTER=on                          # SCPH-5903
+make REGION=us PROFILE=final                          # アメリカ、静かな表示
 avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
 ```
@@ -166,23 +167,28 @@ make bench_ci    # コンソールベンチ: 同じ模擬コンソールでこ�
 
 ## ステータス LED
 
-LED は任意で、チップ唯一の診断手段です。いまどの段階にいるか、各ディスクがリージョンチェックを通ったか、問題があればどの配線を見るべきかを示します。どの機能も遅らせず妨げず、履歴も持たないので、コードは起動時の 2 つを除いて現在の状態です。 出典: [src/led.c](src/led.c)。
+PB3 には任意で LED かアクティブブザーをつなぎます。どちらもチップ唯一の診断手段です。いまどの段階にいるか、各ディスクがリージョンチェックを通ったか、問題があればどの配線を見るべきかを示します。どの機能も遅らせず妨げず、履歴も持たないので、コードは起動時の 2 つを除いて現在の状態です。 出典: [src/led.c](src/led.c)。
 
 | 部品 | 選び方 | 出典 |
 |:-----|:-------|:--|
 | LED | 3 mm か 5 mm の赤、橙、黄、緑の LED、順方向電圧約 2 V。青や白は順方向電圧が 3 V あり、PSone の低めの電源では抵抗にほとんど電圧が残らないので不可 | [Kingbright WP7113ID datasheet](https://www.kingbrightusa.com/images/catalog/SPEC/WP7113ID.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 抵抗 | 1 kΩ、ワット数は問わない。5 V で約 3 mA、3.5 V で約 1.5 mA。室内では十分明るく、ピンの絶対最大定格 40 mA を大きく下回る（Read: ATtiny25/45/85 データシート 2586Q） | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 配線 | 2 番ピン（PB3）から抵抗、抵抗から LED のアノード（長い足）、カソード（平らな側）を GND へ | [include/port/registers.h](include/port/registers.h) |
+| LED の配線 | 2 番ピン（PB3）から抵抗、抵抗から LED のアノード（長い足）、カソード（平らな側）を GND へ | [include/port/registers.h](include/port/registers.h) |
+| ブザー | LED の代わりに、直流をかけるだけで鳴る駆動回路内蔵のアクティブ圧電ブザー。例えば PUI Audio AI-3035-TWT-3V-R: 2 から 5 V、3 V で最大 9 mA、約 3.5 kHz、直径 30 mm。5 V の初期型本体では電流を確認すること | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
+| ブザーの配線 | 2 番ピン（PB3）をブザーの + 端子へ、- 端子を GND へ。抵抗もダイオードも不要: 圧電素子はコイルではないので、切っても電圧スパイクがピンに戻らない。コイルである電磁ブザーには対応しない | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [include/port/registers.h](include/port/registers.h) |
 
-| 段階 | LED の動き | 出典 |
-|:-----|:-----------|:--|
-| 基板判別 | 電源投入後約 0.4 s 点灯 | [src/led.c](src/led.c) |
-| 基板確定 | 静的ゲート基板（PU-18、PU-20）なら 300 ms の点滅 1 回、WFCK キャリア基板（PU-22 以降）なら 2 回 | [src/led.c](src/led.c) |
-| ディスク待ち | 2 s ごとに 40 ms の短い点灯 | [src/led.c](src/led.c) |
-| 注入中 | リージョン文字列 1 本ごとに 90 から 181 ms の点灯 | [src/led.c](src/led.c) |
-| 結果 | コードを 3 回示し、その後プレイ中は消灯 | [src/led.c](src/led.c) |
+ピンを駆動するビルドは 2 種類あります。既定の `debug` は下の表のすべてを示し、`make PROFILE=final` でビルドして `-final` イメージとして配布する `final` は静かです。取り付けと不具合調査には `debug` を書き込み、遊ぶときは `final` にします。どちらも同じ文字列を同じ時刻に送り、違うのはピンだけで、シミュレータがエッジ単位で確かめます。 出典: [include/pscu/led.h](include/pscu/led.h), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
 
-コードは 700 ms の長い点灯を 300 ms 間隔で数え、2 s 休んでから繰り返します。 出典: [src/led.c](src/led.c)。
+| 段階 | debug | final | 出典 |
+|:-----|:------|:------|:--|
+| 基板判別 | 電源投入後約 0.4 s 点灯 | 消灯 | [src/engine.c](src/engine.c) |
+| 基板確定 | 静的ゲート基板（PU-18、PU-20）なら 300 ms の点滅 1 回、WFCK キャリア基板（PU-22 以降）なら 2 回 | 静的ゲート基板なら 60 ms の短音 1 回、WFCK キャリア基板なら 2 回 | [src/led.c](src/led.c) |
+| ディスク待ち | 2 s ごとに 40 ms の短い点灯 | 消灯 | [src/led.c](src/led.c) |
+| 注入中 | リージョン文字列 1 本ごとに 90 から 181 ms の点灯 | 消灯 | [src/engine.c](src/engine.c) |
+| 結果 | コードを 3 回示し、その後消灯 | 受理されたディスクは 60 ms の短音 1 回、拒否されたディスクはコード 2 を 2 回。その後消灯 | [src/led.c](src/led.c) |
+| プレイ中 | 消灯。OSCCAL が動くか校正値を書き込むたびに 40 ms の点灯 | 消灯 | [src/led.c](src/led.c), [src/run.c](src/run.c) |
+
+コードは 700 ms の長い点灯を 300 ms 間隔で数え、2 s 休んでから繰り返します。`final` ではコード 3 と 4 はディスクごとに 1 回だけ示し、コード 7 は続く間 30 s ごとに繰り返します。 出典: [src/led.c](src/led.c)。
 
 | コード | 意味 | 確認先 | 出典 |
 |:------:|:-----|:-------|:--|
@@ -232,8 +238,8 @@ graph LR
 | 単一リージョン | `REGION` だけを送り、3 つ全部は送らない | [src/region.c](src/region.c) |
 | 適応タイミング | WFCK キャリアの基板では注入ビットを WFCK の周期を数えて計時する。`TIMING=fixed` は補正済み発振器で計時した遅延を使う | [src/port.S](src/port.S), [Makefile](Makefile) |
 | 自己回復 | 各 SUBQ 取得はフレーム間の隙間で再同期し、30 ms で諦める。注入中に WFCK キャリアが止まるとウォッチドッグが DATA を解放する。未使用のピンはすべてプルアップを有効にし、浮かないようにする | [src/engine.c](src/engine.c), [src/port.S](src/port.S), [include/port/registers.h](include/port/registers.h) |
-| ステータス LED | 専用ピンの任意の LED が起動の段階、ディスクごとの結果、現在の異常を点滅回数で示す。ファームウェアは LED を待たず、LED が無くても正しく動く | [src/led.c](src/led.c) |
-| 現場診断 | プログラマ不要。LED のコードが、クロックが来ない SUBQ からリージョンチェックが来ない SUBQ まで、失敗した段階を示す。プログラマで読み出すものは無い | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
+| ステータス LED | 専用ピンの任意の LED かアクティブブザーが起動の段階、ディスクごとの結果、現在の異常を示す。`debug` ビルドはすべてを、`final` ビルドは短音と各異常 1 回だけを示す。ファームウェアはそれを待たず、何もつながなくても正しく動く | [src/led.c](src/led.c) |
+| 現場診断 | プログラマ不要。LED かブザーのコードが、クロックが来ない SUBQ からリージョンチェックが来ない SUBQ まで、失敗した段階を示す。プログラマで読み出すものは無い | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
 | コンソールごとのキャリブレーション | このコンソールが必要とする文字列数、どこまで遅く始められるか、自分の発振器の速さを学び、7 バイトの EEPROM レコードに保存する。無いか壊れていれば既定値に戻る | [src/calib.c](src/calib.c) |
 | 閉ループ確認 | 注入後、SUBQ でプログラム領域のフレーム（実在のトラック番号）を待つ。メカコンはリージョン文字列を受け入れた後でしかそれを許さないので、リージョンチェックが通ったかを示す | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c) |
 | 検証 | ホストテストの行と分岐カバレッジ 100%、速い発振器と遅い発振器も含む simavr コンソールモデル、ミューテーションテスト、再現可能ビルド、そして 1 台の模擬コンソールをこのファームウェア、PsNee、Mayumi V4、MM3 に流し、他のチップが受け入れられる場面ではこのチップも受け入れられること、ビットセルがそれらの範囲内にあること、リージョンチェックの外で送る量がそれ以下であることを確かめるコンソールベンチ。そのシナリオはコンソールから到達できるこのファームウェアの全命令を実行し、到達できない命令にはソースに理由を記す | [tests/host](tests/host), [tests/sim](tests/sim), [tools/mutate.py](tools/mutate.py), [tools/bench](tools/bench), [CONTRIBUTING.md](CONTRIBUTING.md) |
@@ -259,9 +265,10 @@ graph LR
 |:-----|:---|:-----|:---------|:--|
 | `REGION` | `jp`、`us`、`eu` | `us` | チップが送る唯一のリージョン文字列 | [Makefile](Makefile), [src/region.c](src/region.c) |
 | `TIMING` | `adaptive`、`fixed` | `adaptive` | adaptive は WFCK キャリアの注入ビットを WFCK の周期を数えて計時する。fixed はコンパイル時の遅延を使い、これは補正済みの内蔵発振器で計時する | [Makefile](Makefile), [src/port.S](src/port.S) |
+| `PROFILE` | `debug`、`final` | `debug` | LED かブザーが示す内容。debug はすべての段階、文字列、異常を示し、final は電源投入時と受理時に短く鳴り、各異常を 1 回だけ示す。DATA はどちらも同じ | [Makefile](Makefile), [include/pscu/led.h](include/pscu/led.h) |
 | `VCD_FILTER` | `off`、`on` | `off` | SCPH-5903 専用で on。注入はゲームのリードイン TOC でのみ起動し、ビデオ CD では起動しない。PsNee V9.0 の SCPH-5903 フィルタに準拠 | [Makefile](Makefile), [src/subq.c](src/subq.c), [PsNee PSNee.ino L456-L490](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L456-L490) |
 
-既定以外のリージョンやフィルタは成果物名にタグを付けます。例 `openscex-modchip-attiny85-jp.hex` や `openscex-modchip-attiny85-jp-vcd.hex`。 出典: [Makefile](Makefile)。
+既定以外のリージョン、フィルタ、プロファイルは成果物名にタグを付けます。例 `openscex-modchip-attiny85-jp.hex`、`openscex-modchip-attiny85-jp-vcd.hex`、`openscex-modchip-attiny85-final.hex`。 出典: [Makefile](Makefile)。
 
 ## 他のチップとの比較
 
