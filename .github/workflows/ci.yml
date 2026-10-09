@@ -50,15 +50,16 @@ jobs:
 
   # The console bench in a job of its own: it builds the same toolchain image,
   # then plays every scenario to this firmware and to PsNee, and fails on a
-  # broken envelope rule or on code of ours neither executed nor excused.
+  # broken envelope rule, a showcase property ours fails, or code of ours
+  # neither executed nor excused.
   bench:
     name: Console bench
     runs-on: ubuntu-26.04
-    # Backstop with no green run of the full catalogue yet: the 9-scenario
-    # bench took 7 min 46 s as a step (2026-10-08); the catalogue is 24
-    # scenarios run four at a time, about 15 minutes expected with the image
-    # build, so 45 is that doubled with margin.
-    timeout-minutes: 45
+    # Backstop from one measured run: the job took 22 min 44 s for three chips
+    # and 27 scenarios (run 37847092399, 2026-10-08). The same chips with 33
+    # scenarios, PsNee now skipping the sense-line walks, scale that to about
+    # 28 minutes; 60 is that doubled with margin.
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
