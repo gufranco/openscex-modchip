@@ -1,3 +1,10 @@
+# [0.12.0](https://github.com/gufranco/openscex-modchip/compare/v0.11.0...v0.12.0) (2026-10-09)
+
+
+### Features
+
+* debug and final indicator profiles ([a446fda](https://github.com/gufranco/openscex-modchip/commit/a446fda0c1e72ff4afc6fb8157b70180c7a896af))
+
 # [0.11.0](https://github.com/gufranco/openscex-modchip/compare/v0.10.4...v0.11.0) (2026-10-09)
 
 
