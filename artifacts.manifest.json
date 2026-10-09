@@ -3,29 +3,29 @@
     {
       "id": "mayumi-v4-12c508a-usa",
       "kind": "pic-image",
-      "path": "docs/research/sources/mayumi-mm3/mayumi_v4_12c508a_usa.hex",
+      "path": "docs/research/sources/mayumi_v4_12c508a_usa.hex",
       "sha256": "4b3ccc0e76599af5ffce0395e343780fa9bce64c9ad18a44bcbd0a2e65b4990c",
       "license": "none stated",
       "redistributable": false,
-      "obtain": "Mayumi V4 USA image from the quade.co PS1 modchip guide (https://quade.co/ps1-modchip-guide/mayumi-v4/), saved under the path above"
+      "obtain": "Mayumi V4 USA image from the quade.co PS1 modchip guide (https://quade.co/ps1-modchip-guide/mayumi-v4/), saved and renamed to the path above"
     },
     {
       "id": "mm3-12c508a-usa",
       "kind": "pic-image",
-      "path": "docs/research/sources/mayumi-mm3/mm3_v3_12c508a_usa.hex",
+      "path": "docs/research/sources/multimode_v3_12c508a_usa.hex",
       "sha256": "a87bd6e699d3df43e90f5e551e8595539e3d4ee98b6a75be897e8eb919a2cd7d",
       "license": "none stated",
       "redistributable": false,
-      "obtain": "MultiMode 3 12C508A USA image from the quade.co PS1 modchip guide (https://quade.co/ps1-modchip-guide/mm3/), saved under the path above"
+      "obtain": "MultiMode 3 12C508A USA image from the quade.co PS1 modchip guide (https://quade.co/ps1-modchip-guide/mm3/), saved and renamed to the path above"
     },
     {
       "id": "mm3-12f629-usa",
       "kind": "pic-image",
-      "path": "docs/research/sources/mayumi-mm3/mm3_v3_12f629_usa.hex",
+      "path": "docs/research/sources/multimode_v3_12f629_usa.hex",
       "sha256": "9598bff7e0430ae355d8f57715b3e7404a531bc166f343bed157197debac2806",
       "license": "none stated",
       "redistributable": false,
-      "obtain": "MultiMode 3 12F629 USA image from the quade.co PS1 modchip guide (https://quade.co/ps1-modchip-guide/mm3/), saved under the path above; it is the gpasm build of its published source"
+      "obtain": "MultiMode 3 12F629 USA image from the quade.co PS1 modchip guide (https://quade.co/ps1-modchip-guide/mm3/), saved and renamed to the path above; it is the gpasm build of its published source"
     },
     {
       "id": "psnee-v9",
@@ -40,19 +40,19 @@
     {
       "id": "old-crow-12c508",
       "kind": "pic-source",
-      "path": "docs/research/sources/old-crow/oldcrow-modchip.asm",
+      "path": "docs/research/sources/oldcrow_v5.3-4wire_12c508_all.asm",
       "sha256": "dabac66ad2b7946d7762945dcf8e900bf6c0ebdfc97c85241b6abd9194cc9af5",
       "license": "none stated",
       "redistributable": false,
       "defines": [
         "_INT_OSC=_IntRC_OSC"
       ],
-      "obtain": "Old Crow's PIC12C508 v5.3 source (Scott Rider, 1997; 4-wire changes by Charles, 1999) from https://psx.arthus.net/modchips/oldcrow-modchip.asm, saved under the path above"
+      "obtain": "Old Crow's PIC12C508 v5.3 source (Scott Rider, 1997; 4-wire changes by Charles, 1999) from https://psx.arthus.net/modchips/oldcrow-modchip.asm, saved and renamed to the path above"
     },
     {
       "id": "old-crow-12f629",
       "kind": "pic-source",
-      "path": "docs/research/sources/old-crow/oldcrow-12f629-garyopa.asm",
+      "path": "docs/research/sources/oldcrow-garyopa_v1_12f629_all.asm",
       "sha256": "1a292969f41b92bfa22c19126a46a0192d55dd9a115ea8155771785faca5f129",
       "license": "none stated",
       "redistributable": false,
@@ -61,20 +61,20 @@
     {
       "id": "modavr-attiny13",
       "kind": "avr-image",
-      "path": "docs/research/sources/modavr/modavr.hex",
+      "path": "docs/research/sources/modavr_v1.0_attiny13_all.hex",
       "sha256": "c95f779f3e86ae3c246cf75a092a797fbc95727e1d96f9ccfece997ae0649ef7",
       "license": "none stated",
       "redistributable": false,
-      "obtain": "modavr.hex from https://github.com/vxbinaca/modavr at commit 4673239, saved under the path above"
+      "obtain": "modavr.hex from https://github.com/vxbinaca/modavr at commit 4673239, saved and renamed to the path above"
     },
     {
       "id": "onechip-12c508a-pal",
       "kind": "pic-image",
-      "path": "docs/research/sources/onechip/onechip_v1_12c508a_pal.hex",
+      "path": "docs/research/sources/onechip_v1.00_12c508a_eur.hex",
       "sha256": "cbb3c762a274cb392021bc34484d0b77315e880f2b58ce24615cbc21dc7030ce",
       "license": "none stated",
       "redistributable": false,
-      "obtain": "ONEchip V1.00 PIC12C508A image from the quade.co ONEchip guide (https://quade.co/ps1-modchip-guide/onechip/), saved under the path above"
+      "obtain": "ONEchip V1.00 PIC12C508A image from the quade.co ONEchip guide (https://quade.co/ps1-modchip-guide/onechip/), saved and renamed to the path above"
     },
     {
       "id": "ubernee-v142",
@@ -100,29 +100,29 @@
     {
       "id": "old-crow-16c84-v101",
       "kind": "pic-image",
-      "path": "docs/research/sources/old-crow/jstic/modc84/MODC84.HEX",
+      "path": "docs/research/sources/oldcrow_v1.01_16c84_all.hex",
       "sha256": "23a649f03a074d038fb559ce72e5f606472f1f10cfa4748c3f272648c28d1c7b",
       "license": "none stated",
       "redistributable": false,
-      "obtain": "Old Crow's archive on Richard Erbe's PlayStation page, http://www.jstic.com/cypher/sony/files/modc84.zip, unzipped under the path above; the gpasm build of its MODC84.ASM"
+      "obtain": "Old Crow's archive on Richard Erbe's PlayStation page, http://www.jstic.com/cypher/sony/files/modc84.zip, unzipped and renamed to the path above; the gpasm build of its MODC84.ASM"
     },
     {
       "id": "old-crow-16c54-v101",
       "kind": "pic-image",
-      "path": "docs/research/sources/old-crow/jstic/modc54/MODC54.HEX",
+      "path": "docs/research/sources/oldcrow_v1.01_16c54_all.hex",
       "sha256": "15d89962a92393d22183bc4da30dfd3d517df4fd25f6022d4a9f031aca92f9b3",
       "license": "none stated",
       "redistributable": false,
-      "obtain": "Old Crow's archive on Richard Erbe's PlayStation page, http://www.jstic.com/cypher/sony/files/modc54.zip, unzipped under the path above; the gpasm build of its MODC54.ASM"
+      "obtain": "Old Crow's archive on Richard Erbe's PlayStation page, http://www.jstic.com/cypher/sony/files/modc54.zip, unzipped and renamed to the path above; the gpasm build of its MODC54.ASM"
     },
     {
       "id": "old-crow-12c508-v54f",
       "kind": "pic-image",
-      "path": "docs/research/sources/old-crow/jstic/m508v54f/m508v54f.hex",
+      "path": "docs/research/sources/oldcrow_v5.4f_12c508_all.hex",
       "sha256": "db0dfe30a808f42fcbf0f053af56fc0ba71f30363ee3e84646cb580d23510a83",
       "license": "none stated",
       "redistributable": false,
-      "obtain": "Old Crow's archive on Richard Erbe's PlayStation page, http://www.jstic.com/cypher/sony/files/m508v54f.zip, unzipped under the path above; the gpasm build of its m508v54f.asm"
+      "obtain": "Old Crow's archive on Richard Erbe's PlayStation page, http://www.jstic.com/cypher/sony/files/m508v54f.zip, unzipped and renamed to the path above; the gpasm build of its m508v54f.asm"
     }
   ]
 }
