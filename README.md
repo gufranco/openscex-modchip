@@ -37,7 +37,7 @@ Region-unlock firmware for the original Sony PlayStation (fat) and PSone, on an 
 
 | | |
 |:--|:--|
-| **Silent after acceptance**<br>The first program-area frame stops injection, mid-string included, and the chip stays silent through every reread until the disc leaves. | **Disc swaps without a lid wire**<br>The chip sees a swap as the drive going quiet for 1.5 s and re-arms for every disc of a multi-disc game. |
+| **Silent after acceptance**<br>The first program-area frame stops injection, mid-string included, and nothing is sent while the game runs; only a new lead-in read, such as the TOC re-read anti-mod games force, is served again. | **Disc swaps without a lid wire**<br>The chip sees a swap as the drive going quiet for 1.5 s and re-arms for every disc of a multi-disc game. |
 | **Self-trimmed timing**<br>The chip times the console's 75 Hz SUBQ frames and trims its internal oscillator to within about 1%, with no clock wire. | **One region, one window**<br>Only the configured region string, only inside the SUBQ region-check window, at most 16 strings per arming. |
 | **Status LED codes**<br>One LED shows each boot stage, every disc's result and any live wiring fault as counted flashes. | **Proven in code**<br>MISRA C:2012 clean, 100% host coverage, a simavr console model, mutation testing, byte-identical rebuilds. |
 
@@ -70,7 +70,7 @@ graph LR
 
 | Capability | openscex | PsNee V9 | Mayumi V4 | MM3 |
 |:-----------|:---------|:---------|:----------|:----|
-| Stealth trigger | SUBQ check window plus acceptance latch | SUBQ decode | sense line plus lid line | same program as Mayumi V4 |
+| Stealth trigger | SUBQ check window, closed by the program area | SUBQ decode | sense line plus lid line | same program as Mayumi V4 |
 | Disc-swap detection | SUBQ silence while the drive is stopped | SUBQ counter decay | lid line | lid line |
 | Clock | internal, trimmed against SUBQ | internal | console | internal RC |
 | Boot-ROM BIOS patch | no, use a patched BIOS | yes, ATmega builds | no | no |
@@ -79,6 +79,32 @@ graph LR
 | Per-console learning | string cap and start point | none | none | none |
 | Tests and static analysis | host, simavr, mutation, MISRA, console bench | none | none | none |
 | Field record | 2 boards, earlier firmware | years | decades | decades |
+
+### In the console bench
+
+The console bench plays one simulated console into every chip it can build or load and judges each on the checks below. Each check models an anti-mod test a game runs or a fault a console can show, and holds only if it holds in every scenario that stands for a board the chip is made for; a chip made for none of a check's boards reads n/a. These are results of a simulation against the bench's console model, not of a console; [CONTRIBUTING.md](CONTRIBUTING.md) describes the model and its sources.
+
+<!-- showcase:start -->
+| Property | openscex | psnee-attiny85 | psnee-atmega328p | mayumi-v4 | mm3-12c508a | mm3-12f629 | old-crow-12c508 | old-crow-12f629 | modavr-attiny13 | ubernee-atmega328p | onechip-12c508a |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Silent in the anti-mod v1 probe | pass | pass | pass | fail | fail | fail | fail | fail | fail | pass | pass |
+| Re-authenticates in the anti-mod v2 re-read | pass | pass | pass | fail | fail | fail | pass | pass | pass | pass | fail |
+| Silent in the anti-mod v2 probe | pass | pass | pass | fail | fail | fail | fail | fail | fail | pass | pass |
+| No string once the game runs | pass | pass | pass | fail | fail | fail | fail | fail | fail | fail | fail |
+| Console pins float while not injecting | pass | fail | fail | fail | fail | fail | fail | fail | fail | fail | fail |
+| Accepts after SQCK sticks low | pass | pass | pass | pass | pass | pass | n/a | n/a | n/a | pass | fail |
+| Recovers from a WFCK stall, WFCK never driven | pass | pass | pass | pass | pass | pass | n/a | n/a | n/a | fail | pass |
+| Rearms for a second disc | pass | pass | pass | pass | pass | pass | n/a | n/a | n/a | pass | pass |
+
+- **Silent in the anti-mod v1 probe**: the game counts SCEx strings while playing the program area, where an original disc has none; any string there, even a partial one, means a modchip. Source: psx-spx cdromformat.md, anti-modchip sequence.
+- **Re-authenticates in the anti-mod v2 re-read**: ReadTOC clears the licensed status, and GetID fails on a copy unless a full string arrives while the lead-in is read again. Source: tonyhax docs/ap_v2.c; aprip readme, APv2.
+- **Silent in the anti-mod v2 probe**: after the re-read the game seeks to the middle of the disc and counts SCEx strings again. Source: tonyhax docs/ap_v2.c; psx-spx cdromformat.md.
+- **No string once the game runs**: the region check reads the lead-in; a string while the program area is read is what a detector looks for. Source: psx-spx cdromdrive.md, 19h,04h.
+- **Console pins float while not injecting**: a line driven or pulled up between strings loads the console's own signal, the PM-41(2) pickup noise, and is visible to anything watching it; checked on DATA, the gate and every input. Source: PsNee description on quade.co: floats all I/O pins when not injecting.
+- **Accepts after SQCK sticks low**: a clock that stops mid-frame must not hang the chip past the check. Source: bench fault scenario sqck-stuck.
+- **Recovers from a WFCK stall, WFCK never driven**: on a carrier board WFCK is the CD DSP's output; driving it fights the console. Source: bench fault scenario carrier-watchdog.
+- **Rearms for a second disc**: a multi-disc game asks for the region again after a swap. Source: bench scenario carrier-swap.
+<!-- showcase:end -->
 
 ## Overview
 
@@ -101,7 +127,7 @@ Combinations that booted out of region on a real console (SCEx region unlock), w
 | PU-18 | fat, NTSC-U/C | console | SCEx | Verified 2026-10-05 |
 | PM-41 | PSone | console | SCEx | Verified 2026-10-05 |
 
-These results predate the current design: disc swaps seen from SUBQ with no lid wire, the internal oscillator with its trim, the acceptance latch, the bounded SUBQ waits, and every change since 2026-10-06. The current firmware passes the full simulation gate and has not yet run on a console. Which chip carried the 2026-10-05 console-clock builds, the exact SCPH of each unit, and the frequency they were built for are not recorded. Not confirmed on hardware: PU-7, PU-8, PU-20, PU-22, PU-23, PM-41(2), and PAL or NTSC-J on any family.
+These results predate the current design: disc swaps seen from SUBQ with no lid wire, the internal oscillator with its trim, the program-area silence and re-read handling, the bounded SUBQ waits, and every change since 2026-10-06. The current firmware passes the full simulation gate and has not yet run on a console. Which chip carried the 2026-10-05 console-clock builds, the exact SCPH of each unit, and the frequency they were built for are not recorded. Not confirmed on hardware: PU-7, PU-8, PU-20, PU-22, PU-23, PM-41(2), and PAL or NTSC-J on any family.
 
 Per-console validation is community-driven. Tested it on your console? Open a [compatibility report](../../issues/new?template=compatibility.yml) and this table grows from confirmed installs.
 
@@ -113,8 +139,8 @@ Per-console validation is community-driven. Tested it on your console? Open a [c
 | Board auto-detect | WFCK behaviour at boot selects gate or carrier mode; one build fits every family. Before each string on a board taken for a gate, WFCK is watched again for 9.4 ms, so a carrier that starts after boot is never held low. After a watchdog reset the board recorded at boot is kept rather than detected again, so a carrier that stalled mid-string is not mistaken for a gate and driven |
 | Supply guard | before every string the chip measures its own supply against its 1.1 V bandgap; below about 2.75 V, or on a reading no real supply gives, it sends nothing and shows code 7; a brief dip pauses a burst without restarting its count, and a window it kept shut teaches the calibration nothing |
 | Oscillator trim | the chip runs from its internal 8 MHz oscillator and times the console's 75 Hz SUBQ frames, stepping OSCCAL one notch at a time until it is within 1% and never more than 16 notches from the factory value; the trim is kept in EEPROM and applied at boot |
-| Disc swaps | no lid wire: 1.5 s with no valid SUBQ frame, which a stopped drive gives, ends the acceptance latch and re-arms the chip for the next disc; a seek or a reread on a spinning disc keeps producing frames, so it never reads as a swap |
-| Stealth | injects only inside the SUBQ region-check window, capped per arming, with 5 frames, 67 ms, between strings as PsNee and Mayumi V4 space them, then DATA high-Z and LED off; stops the moment the console reads the program area and stays silent through every later lead-in read until the disc leaves |
+| Disc swaps | no lid wire: 1.5 s with no valid SUBQ frame, which a stopped drive gives, re-arms the chip for the next disc; a seek or a reread on a spinning disc keeps producing frames, so it never reads as a swap |
+| Stealth | injects only inside the SUBQ region-check window, capped per arming, with 5 frames, 67 ms, between strings as PsNee and Mayumi V4 space them, then DATA high-Z and LED off; stops the moment the console reads the program area and stays silent while it does; a later lead-in read, such as the TOC re-read of the anti-mod v2 check that needs a fresh string on a copy, is served again under the same cap |
 | Single configured region | emits only `REGION`, never all three |
 | Adaptive timing | on WFCK-carrier boards the injection bit is timed by counting WFCK periods; `TIMING=fixed` uses the trimmed-oscillator delay instead |
 | Self-recovery | each SUBQ capture realigns on the gap between frames and gives up after 30 ms; a WFCK carrier that stalls mid-injection lets the watchdog release DATA; every unused pin has its pull-up on, so none floats |

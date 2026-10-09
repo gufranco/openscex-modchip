@@ -12,6 +12,7 @@ from pathlib import Path
 from tests.bench.test_envelope import BASE
 from tools.bench.catalogue import find
 from tools.bench.chips import by_name as chip
+from tools.bench.manifest import ROOT
 from tools.bench.run import Run
 from tools.bench.showcase import (
     END,
@@ -20,6 +21,7 @@ from tools.bench.showcase import (
     RESULTS,
     START,
     Outcome,
+    block,
     evaluate,
     failures,
     from_json,
@@ -185,3 +187,16 @@ class MainTest(unittest.TestCase):
         self.assertEqual(written, results)
         self.assertTrue(all("old" not in text for text in tables))
 
+
+class ReadmeSyncTest(unittest.TestCase):
+    def test_every_readme_shows_exactly_the_recorded_results(self) -> None:
+        results = from_json((ROOT / RESULTS).read_text())
+
+        stale = [
+            name
+            for lang, name in READMES.items()
+            if rewrite((ROOT / name).read_text(), block(results, lang))
+            != (ROOT / name).read_text()
+        ]
+
+        self.assertEqual(stale, [])
