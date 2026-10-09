@@ -48,6 +48,7 @@ from tools.bench.timeline import (
     Signal,
     Timeline,
     dry_run,
+    with_crc,
 )
 
 RECORD_MAGIC = 0xC6
@@ -66,6 +67,15 @@ CAL7_FACTORY = 0x7F
 SILENCE = (0,) * 12
 FAST_CONSOLE = 0.95
 SLOW_CONSOLE = 1.05
+# Frames at 70 percent of the period span about 4.6 Timer1 ticks, under the
+# trim's 5-tick floor (run.c PSCU_TRIM_LOW, 80 percent), so every sample is
+# refused: a console or a glitch that fast must never move OSCCAL.
+OFF_WINDOW_CONSOLE = 0.7
+# The re-read after acceptance is served again, up to the 16-string cap with
+# 5 frames between strings; each string blocks capture for 176 ms, so the burst
+# spans about 300 frames. 700 frames leave the trim the 64 consecutive samples
+# a verdict needs once the burst is over.
+TRIM_REREAD_FRAMES = 700
 STUCK_AFTER_BYTES = 6
 STUCK_NS = 100 * 1_000_000
 MS = 1_000_000
@@ -167,7 +177,7 @@ def _trim(scale: float, factory: int | None = None) -> Timeline:
         start.set(Signal.OSCCAL_FACTORY, factory)
     timeline = disc(start.idle(BOOT_NS), True, 120)
     timeline.frame_ns = int(FRAME_NS * scale)
-    timeline.mark(Phase.REREAD).frames(LEAD_IN, 200)
+    timeline.mark(Phase.REREAD).frames(LEAD_IN, TRIM_REREAD_FRAMES)
     return timeline.frames(SILENCE, 260)
 
 
@@ -198,15 +208,21 @@ def _no_disc_long() -> Timeline:
 
 
 def _frame_kinds() -> Timeline:
-    point = (0x41, 0x00, 0x05, 0x50, 0, 0, 0, 0, 0, 0, 0, 0)
-    early = (0x41, 0x00, 0x01, 0x50, 0, 0, 0, 0, 0, 0, 0, 0)
-    late = (0x41, 0x00, 0x01, 0x98, 0, 0, 0, 0, 0, 0, 0, 0)
-    bad_track = (0x41, 0x1A, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    audio_play = (0x01, 0x01, 0x01, 0, 0x02, 0, 0, 0, 0x02, 0, 0, 0)
-    other_control = (0x02, 0x01, 0x01, 0, 0x02, 0, 0, 0, 0x02, 0, 0, 0)
-    zero_lead = (0x41, 0x00, 0xA0, 0, 0, 0, 0x05, 0, 0, 0, 0, 0)
-    zero_play = (0x41, 0x01, 0x01, 0, 0x02, 0, 0x05, 0, 0x02, 0, 0, 0)
-    timeline = carrier().idle(BOOT_NS).mark(Phase.LEAD_IN).frames(LEAD_IN, 3)
+    point = with_crc((0x41, 0x00, 0x05, 0x50, 0, 0, 0, 0, 0, 0))
+    early = with_crc((0x41, 0x00, 0x01, 0x50, 0, 0, 0, 0, 0, 0))
+    late = with_crc((0x41, 0x00, 0x01, 0x98, 0, 0, 0, 0, 0, 0))
+    bad_track = with_crc((0x41, 0x1A, 0x01, 0, 0, 0, 0, 0, 0, 0))
+    audio_play = with_crc((0x01, 0x01, 0x01, 0, 0x02, 0, 0, 0, 0x02, 0))
+    other_control = with_crc((0x02, 0x01, 0x01, 0, 0x02, 0, 0, 0, 0x02, 0))
+    zero_lead = with_crc((0x41, 0x00, 0xA0, 0, 0, 0, 0x05, 0, 0, 0))
+    zero_play = with_crc((0x41, 0x01, 0x01, 0, 0x02, 0, 0x05, 0, 0x02, 0))
+    # Control 0x61 is a data track with the digital-copy bit set, which some
+    # pressings carry, and an audio track's POINT 01 entry is the third lead-in
+    # form UberNee tests for (its sketch, _hysteresis).
+    copy_lead = with_crc((0x61, 0x00, 0xA0, 0, 0, 0, 0, 0, 0, 0))
+    audio_point = with_crc((0x01, 0x00, 0x01, 0x50, 0, 0, 0, 0, 0, 0))
+    timeline = carrier().idle(BOOT_NS).mark(Phase.LEAD_IN).frames(early, 2)
+    timeline.frames(LEAD_IN, 3)
     for _ in range(60):
         timeline.frames(AUDIO_LEAD_IN, 1).frames(LEAD_IN, 1)
     for frame in (
@@ -217,6 +233,8 @@ def _frame_kinds() -> Timeline:
         other_control,
         zero_lead,
         zero_play,
+        copy_lead,
+        audio_point,
     ):
         timeline.frames(frame, 20)
     timeline.frames(late, QUICK_LEAD_IN_FRAMES)
@@ -275,6 +293,7 @@ def edge(
     description: str,
     build: Callable[[], Timeline],
     boards: frozenset[Board] = CARRIER_BOARDS,
+    drives: str | None = None,
 ) -> Scenario:
     """A scenario whose phases and length come from a dry build of its
     timeline, one that keeps the marks and the length but no events; the
@@ -284,7 +303,9 @@ def edge(
         timeline = build()
     phases = {Phase(mark): at for mark, at in timeline.marks.items()}
     length = timeline.now_ns + TAIL_NS
-    return Scenario(name, description, length, phases, build, boards, judged=False)
+    return Scenario(
+        name, description, length, phases, build, boards, judged=False, drives=drives
+    )
 
 
 EDGE_SCENARIOS = (
@@ -323,6 +344,18 @@ EDGE_SCENARIOS = (
         "carrier-trim-slow",
         "after acceptance a console 5 percent slow rereads the lead-in, then stops",
         lambda: _trim(SLOW_CONSOLE),
+    ),
+    edge(
+        "carrier-trim-cal7",
+        "a console 5 percent slow on a part calibrated at 0x7F: the step up "
+        "would cross CAL7 and is refused",
+        lambda: _trim(SLOW_CONSOLE, CAL7_FACTORY),
+    ),
+    edge(
+        "carrier-trim-off-window",
+        "a console whose frames come at 70 percent of the period: every trim "
+        "sample is refused",
+        lambda: _trim(OFF_WINDOW_CONSOLE),
     ),
     edge(
         "trim-replay",

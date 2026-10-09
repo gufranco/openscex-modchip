@@ -21,9 +21,9 @@ from pathlib import Path
 from tools.bench.chips import Chip, Simulator
 from tools.bench.manifest import Artifact, Status, check, load
 from tools.bench.metrics import Metrics, measure
+from tools.bench.prepare import ARDUINO_CORE, assemble, avr_elf, build_ubernee
 from tools.bench.reach import Entry, Line, by_line, by_table, markers
 from tools.bench.scenarios import Scenario
-from tools.bench.scex import Region
 from tools.bench.trace import parse
 
 RUNNERS = {
@@ -36,7 +36,14 @@ PSNEE_PRELUDE = (
     "#include <avr/io.h>\n#include <avr/interrupt.h>\n"
     "#include <util/delay.h>\n#include <stdint.h>\n"
 )
+# A run's backstop: a fixed allowance plus a share per simulated second. The
+# slowest chip measured, UberNee on the ATmega328P at 16 MHz with its serial
+# debug output on, took 107 s of wall time for 21 s simulated, 5.1 s per
+# simulated second alone on one core (2026-10-08); runs share the cores, so
+# the share is that doubled. Ours took 9 s for the same 21 s.
 RUN_TIMEOUT_S = 600
+RUN_TIMEOUT_PER_SIM_S = 10
+NANOSECONDS_PER_SECOND = 1_000_000_000
 EXCLUSIONS = "bench/coverage-exclusions.json"
 SOURCE_GLOBS = ("src/*.c", "src/*.S", "include/**/*.h")
 HEX_DATA = 0
@@ -107,19 +114,47 @@ def build_psnee(root: Path, artifact: Artifact, workdir: Path) -> str | None:
     return None
 
 
+def _from_source(
+    root: Path, artifact: Artifact, chip: Chip, workdir: Path
+) -> str | None:
+    """Build a fetched source once; a sketch builds against the Arduino core."""
+    if (root / chip.firmware).is_file():
+        return None
+    if artifact.sketch is not None:
+        core = load(root)[ARDUINO_CORE]
+        return build_ubernee(root, artifact, core, chip, workdir)
+    return build_psnee(root, artifact, workdir)
+
+
+def _from_file(root: Path, artifact: Artifact, chip: Chip, workdir: Path) -> str | None:
+    """Check a file's bytes, then assemble or convert it if its kind asks."""
+    result = check(root, artifact)
+    if result.status is not Status.READY:
+        return result.message
+    if artifact.kind == "pic-source":
+        return assemble(root, artifact, chip)
+    if artifact.kind == "avr-image":
+        avr_elf(root, artifact, chip, workdir)
+    return None
+
+
 def prepare(root: Path, chip: Chip, workdir: Path) -> str | None:
     """Make a chip's firmware ready; return None, or why it is skipped."""
-    if chip.artifact is not None:
-        artifact = load(root)[chip.artifact]
-        if artifact.kind == "git-source":
-            if (root / chip.firmware).is_file():
-                return None
-            return build_psnee(root, artifact, workdir)
-        result = check(root, artifact)
-        return None if result.status is Status.READY else result.message
-    if not (root / chip.firmware).is_file():
-        return f"{chip.name}: {chip.firmware} is missing; run make all first"
-    return None
+    if chip.artifact is None:
+        if not (root / chip.firmware).is_file():
+            return f"{chip.name}: {chip.firmware} is missing; run make all first"
+        return None
+    artifact = load(root)[chip.artifact]
+    if artifact.kind == "git-source":
+        return _from_source(root, artifact, chip, workdir)
+    return _from_file(root, artifact, chip, workdir)
+
+
+def run_timeout(duration_ns: int) -> int:
+    """Seconds a run of this simulated length may take before it is stopped."""
+    return RUN_TIMEOUT_S + RUN_TIMEOUT_PER_SIM_S * (
+        duration_ns // NANOSECONDS_PER_SECOND
+    )
 
 
 def run(root: Path, chip: Chip, scenario: Scenario, workdir: Path) -> Run:
@@ -143,10 +178,10 @@ def run(root: Path, chip: Chip, scenario: Scenario, workdir: Path) -> Run:
         ],
         check=True,
         capture_output=True,
-        timeout=RUN_TIMEOUT_S,
+        timeout=run_timeout(scenario.duration_ns),
     )
     metrics = measure(
-        parse(trace.read_text().splitlines()), scenario.phases, Region.AMERICA
+        parse(trace.read_text().splitlines()), scenario.phases, chip.region
     )
     executed = frozenset(int(line, 16) for line in coverage.read_text().split())
     return Run(chip, scenario, metrics, executed)
@@ -258,6 +293,7 @@ def load_exclusions(root: Path) -> dict[str, list[Entry]]:
                 start=int(item["start"], 16) if "start" in item else None,
                 end=int(item["end"], 16) if "end" in item else None,
                 reason=item["reason"],
+                file=item.get("file"),
             )
             for item in entries
         ]

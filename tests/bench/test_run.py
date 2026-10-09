@@ -20,9 +20,14 @@ import unittest
 from dataclasses import asdict, replace
 from pathlib import Path
 
+from tests.bench.test_prepare import CORE_FILES, SKETCH, repository
+from tests.bench.test_prepare import source as fixture_source
 from tools.bench.chips import Chip, Simulator, by_name
 from tools.bench.manifest import ROOT, Artifact
+from tools.bench.prepare import ARDUINO_CORE
 from tools.bench.run import (
+    RUN_TIMEOUT_PER_SIM_S,
+    RUN_TIMEOUT_S,
     _hex_bytes,
     _instruction_address,
     build_psnee,
@@ -32,6 +37,7 @@ from tools.bench.run import (
     prepare,
     program_addresses,
     run,
+    run_timeout,
 )
 from tools.bench.scenarios import by_name as scenario
 
@@ -132,6 +138,15 @@ class PicRunnerTest(unittest.TestCase):
         self.assertLessEqual(result.executed, addresses)
 
 
+class TimeoutTest(unittest.TestCase):
+    def test_the_backstop_grows_with_the_simulated_time(self) -> None:
+        short = run_timeout(1_000_000_000)
+        long = run_timeout(300_000_000_000)
+
+        self.assertEqual(long - short, 299 * RUN_TIMEOUT_PER_SIM_S)
+        self.assertGreaterEqual(short, RUN_TIMEOUT_S)
+
+
 class PrepareTest(unittest.TestCase):
     def test_missing_ours_says_to_build_first(self) -> None:
         with tempfile.TemporaryDirectory() as work:
@@ -166,6 +181,96 @@ class PrepareTest(unittest.TestCase):
                 json.dumps({"artifacts": [entry]})
             )
             chip = replace(by_name("mayumi-v4"), artifact="img", firmware="image.hex")
+
+            reason = prepare(root, chip, root)
+
+        self.assertIsNone(reason)
+
+    def manifest(self, root: Path, entry: dict[str, object]) -> None:
+        (root / "artifacts.manifest.json").write_text(
+            json.dumps({"artifacts": [entry]})
+        )
+
+    def file_entry(self, root: Path, name: str, text: str, kind: str) -> dict:
+        (root / name).write_text(text)
+        return {
+            "id": "x",
+            "kind": kind,
+            "path": name,
+            "sha256": hashlib.sha256(text.encode()).hexdigest(),
+            "license": "test",
+            "redistributable": False,
+            "obtain": "test",
+        }
+
+    def test_a_pic_source_is_assembled_into_the_chip_image(self) -> None:
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            (root / "build" / "bench").mkdir(parents=True)
+            self.manifest(
+                root, self.file_entry(root, "a.asm", FIXTURE_ASM, "pic-source")
+            )
+            chip = replace(by_name("old-crow-12f629"), artifact="x")
+
+            reason = prepare(root, chip, root)
+            built = (root / chip.firmware).is_file()
+
+        self.assertIsNone(reason)
+        self.assertTrue(built)
+
+    def test_an_avr_image_is_wrapped_into_the_chip_elf(self) -> None:
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            (root / "build" / "bench").mkdir(parents=True)
+            image = ":0400000000C0FFCF6E\n:00000001FF\n"
+            self.manifest(root, self.file_entry(root, "m.hex", image, "avr-image"))
+            chip = replace(by_name("modavr-attiny13"), artifact="x")
+
+            reason = prepare(root, chip, root)
+            built = (root / chip.firmware).is_file()
+
+        self.assertIsNone(reason)
+        self.assertTrue(built)
+
+    def test_a_source_with_the_wrong_bytes_is_not_built(self) -> None:
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            entry = self.file_entry(root, "a.asm", FIXTURE_ASM, "pic-source")
+            self.manifest(root, {**entry, "sha256": "0" * 64})
+            chip = replace(by_name("old-crow-12f629"), artifact="x")
+
+            reason = prepare(root, chip, root)
+
+        self.assertIn("SHA-256", str(reason))
+
+    def test_a_sketch_source_is_built_against_the_arduino_core(self) -> None:
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            (root / "build" / "bench").mkdir(parents=True)
+            core = fixture_source(
+                repository(root / "core", CORE_FILES), ARDUINO_CORE, None
+            )
+            sketch = fixture_source(
+                repository(root / "ub", {"U.ino": SKETCH}), "ub", "U.ino"
+            )
+            entries = [asdict(core), asdict(sketch)]
+            (root / "artifacts.manifest.json").write_text(
+                json.dumps({"artifacts": entries})
+            )
+            chip = replace(by_name("ubernee-atmega328p"), artifact="ub")
+
+            reason = prepare(root, chip, root)
+            built = (root / chip.firmware).is_file()
+
+        self.assertIsNone(reason)
+        self.assertTrue(built)
+
+    def test_a_built_sketch_source_is_not_built_again(self) -> None:
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            chip = replace(by_name("ubernee-atmega328p"), firmware="built.elf")
+            (root / "built.elf").write_bytes(b"elf")
+            shutil.copy(ROOT / "artifacts.manifest.json", root)
 
             reason = prepare(root, chip, root)
 
@@ -299,6 +404,7 @@ class ExclusionsTest(unittest.TestCase):
         table = load_exclusions(ROOT)
 
         self.assertTrue(all(isinstance(k, str) for k in table))
+        self.assertTrue(any(e.file for e in table["ubernee-v142"]))
 
     def test_nothing_uncovered_needs_no_excuse(self) -> None:
         excused = excuse(ROOT, by_name("ours"), frozenset())

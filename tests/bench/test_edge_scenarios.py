@@ -70,7 +70,13 @@ class EdgeScenarioTest(unittest.TestCase):
         self.assertGreater(names.count(Signal.POWER_CYCLE), 5)
 
     def test_the_trim_scenarios_play_an_off_rate_console(self) -> None:
-        for name in ("carrier-trim-fast", "carrier-trim-slow"):
+        names = (
+            "carrier-trim-fast",
+            "carrier-trim-slow",
+            "carrier-trim-cal7",
+            "carrier-trim-off-window",
+        )
+        for name in names:
             frames = [
                 e.time_ns
                 for e in find(name).build().events

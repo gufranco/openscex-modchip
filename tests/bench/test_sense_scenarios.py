@@ -26,6 +26,11 @@ class SenseScenarioTest(unittest.TestCase):
 
         self.assertEqual(marked, [s.name for s in SENSE_SCENARIOS])
 
+    def test_every_sense_scenario_drives_the_sense_line(self) -> None:
+        drives = {s.drives for s in SENSE_SCENARIOS}
+
+        self.assertEqual(drives, {"sense"})
+
     def test_no_sense_scenario_is_judged_against_the_envelope(self) -> None:
         judged = [s.name for s in SENSE_SCENARIOS if s.judged]
 

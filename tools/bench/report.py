@@ -109,8 +109,9 @@ def _runs(runs: list[Run]) -> list[str]:
         "",
         "| chip | scenario | accepts | valid | garbled | before program "
         "| in play | in reread | second window | first string ms | cell ms "
-        "| driven outside strings ms | boards |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| driven outside strings ms | valid in reread | strings in probe "
+        "| gate outside strings ms | pulled up ms | boards |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for run in runs:
         m = run.metrics
@@ -120,7 +121,9 @@ def _runs(runs: list[Run]) -> list[str]:
             f"| {'yes' if m.would_accept else 'no'} | {m.valid} | {m.garbled} "
             f"| {m.before_program} | {m.during_play} | {m.during_reread} "
             f"| {m.second_window} | {_ms(m.first_latency_ns)} | {cell} "
-            f"| {_ms(m.data_driven_outside_ns)} | {_support(run)} |"
+            f"| {_ms(m.data_driven_outside_ns)} | {m.reread_valid} "
+            f"| {m.probe_strings} | {_ms(m.gate_driven_outside_ns)} "
+            f"| {_ms(m.pulled_ns)} | {_support(run)} |"
         )
     return lines
 

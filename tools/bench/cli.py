@@ -10,11 +10,13 @@ Every selected chip is prepared, a chip that cannot be is skipped with its
 reason, and each ready chip plays every selected scenario. Ours is then held
 against the field-proven chips that ran the same scenario, and the report is
 written as Markdown. The exit status is 1 when any envelope rule fails or
-when ours has an instruction no scenario executed and no reason excuses, 2 on
-a bad argument, else 0; a run where nothing could be compared still exits 0,
-and the report says every rule is unchecked rather than passed. Coverage is
-judged only when every scenario runs: a run of a chosen few is expected to
-leave code uncovered.
+when ours has an instruction no scenario executed and no reason excuses, or
+fails a showcase property, 2 on a bad argument, else 0; a run where nothing
+could be compared still exits 0, and the report says every rule is unchecked
+rather than passed. Coverage and the showcase are judged only when every
+scenario runs: a run of a chosen few is expected to leave code uncovered and
+properties unexercised. The showcase results are written as showcase.json
+next to the report.
 """
 
 import argparse
@@ -25,6 +27,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
+from tools.bench import showcase
 from tools.bench.catalogue import CATALOGUE
 from tools.bench.catalogue import find as scenario_by_name
 from tools.bench.chips import CHIPS, Chip
@@ -86,6 +89,18 @@ def judge(runs: list[Run]) -> list[Finding]:
     return findings
 
 
+def applies(chip: Chip, scenario: Scenario) -> bool:
+    """Whether a chip runs a scenario. A scenario that exists to drive one
+    line, such as the sense-line walks of Mayumi V4 and MM3, is skipped by a
+    third-party chip that has no such line, where it would only burn time;
+    ours runs every scenario, since every instruction of it must be reached."""
+    return (
+        chip.name == OURS
+        or scenario.drives is None
+        or f"{scenario.drives}=" in chip.pins
+    )
+
+
 def _run_all(root: Path, chip: Chip, scenarios: list[str], workdir: Path) -> list[Run]:
     """One chip through every scenario, the runs side by side.
 
@@ -95,9 +110,12 @@ def _run_all(root: Path, chip: Chip, scenarios: list[str], workdir: Path) -> lis
     """
     jobs = os.cpu_count() or 1
     with ThreadPoolExecutor(max_workers=jobs) as pool:
-        return list(
-            pool.map(lambda s: run(root, chip, scenario_by_name(s), workdir), scenarios)
-        )
+        chosen = [
+            scenario_by_name(name)
+            for name in scenarios
+            if applies(chip, scenario_by_name(name))
+        ]
+        return list(pool.map(lambda s: run(root, chip, s, workdir), chosen))
 
 
 def bench(root: Path, chips: list[str], scenarios: list[str], workdir: Path) -> Bench:
@@ -141,6 +159,15 @@ def reached(coverages: list[Coverage]) -> int:
     return 1 if left else 0
 
 
+def showcased(results: showcase.Results) -> int:
+    """Fail the run when ours fails a showcase property; the other chips'
+    outcomes are reported only."""
+    failed = showcase.failures(results)
+    for key in failed:
+        print(f"SHOWCASE {OURS} fails {key}")
+    return 1 if failed else 0
+
+
 def _parse(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="python3 -m tools.bench.cli")
     parser.add_argument("--chips", help="comma-separated chip names")
@@ -167,9 +194,18 @@ def main(argv: list[str]) -> int:
     args.out.write_text(
         render(result.runs, result.skips, result.findings, result.coverages)
     )
+    results = showcase.evaluate(result.runs)
+    args.out.with_name("showcase.json").write_text(showcase.to_json(results))
     print(f"bench report: {args.out}")
-    whole = args.scenarios is None
-    return max(verdict(result.findings), reached(result.coverages) if whole else 0)
+    return exit_status(result, results, whole=args.scenarios is None)
+
+
+def exit_status(result: Bench, results: showcase.Results, *, whole: bool) -> int:
+    """The run's exit status: broken rules always count; uncovered code and
+    failed showcase properties only on a run of every scenario."""
+    if not whole:
+        return verdict(result.findings)
+    return max(verdict(result.findings), reached(result.coverages), showcased(results))
 
 
 if __name__ == "__main__":

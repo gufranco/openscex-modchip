@@ -6,7 +6,7 @@
 import unittest
 
 from tools.bench.decode import Change
-from tools.bench.trace import driven_ns, parse
+from tools.bench.trace import driven_ns, parse, pulled_ns
 
 
 class ParseTest(unittest.TestCase):
@@ -26,6 +26,24 @@ class ParseTest(unittest.TestCase):
 
 
 class DrivenTest(unittest.TestCase):
+    def test_pull_lines_are_kept_per_console_line(self) -> None:
+        lines = [
+            "0 pull-sqck 1 1",
+            "50 pull-sqck 0 0",
+            "60 pull-subq 1 1",
+            "90 end 0 0",
+        ]
+
+        trace = parse(lines)
+
+        self.assertEqual(sorted(trace.pulls), ["sqck", "subq"])
+        self.assertEqual(pulled_ns(trace), 50 + 30)
+
+    def test_a_trace_without_pull_lines_pulls_nothing(self) -> None:
+        trace = parse(["0 data 1 0", "10 end 0 0"])
+
+        self.assertEqual(pulled_ns(trace), 0)
+
     def test_driven_time_outside_excluded_spans(self) -> None:
         changes = [Change(0, True, False), Change(100, False, False)]
 

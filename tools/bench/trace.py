@@ -6,12 +6,16 @@
 Both runners write `<time_ns> <output> <driven> <level>` whenever an output
 changes, and one final `<time_ns> end 0 0` line at the end of the run. DATA
 and the gate (the WFCK pin when the chip drives it) are what the console sees;
-any other output, such as the LED on ours, is ignored here.
+any other output, such as the LED on ours, is ignored here. A `pull-<line>`
+line says whether that console line is held by the chip's internal pull-up,
+`<time_ns> pull-<line> <pulled> <pulled>`, and is kept per line.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from tools.bench.decode import Change
+
+PULL_PREFIX = "pull-"
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,19 +25,29 @@ class Trace:
     data: list[Change]
     gate: list[Change]
     end_ns: int
+    pulls: dict[str, list[Change]] = field(default_factory=dict)
 
 
 def parse(lines: list[str]) -> Trace:
     """Read the trace lines a runner wrote."""
     pins: dict[str, list[Change]] = {"data": [], "gate": []}
+    pulls: dict[str, list[Change]] = {}
     end_ns = 0
     for line in lines:
         time_ns, name, driven, level = line.split()
+        change = Change(int(time_ns), driven == "1", level == "1")
         if name == "end":
             end_ns = int(time_ns)
         elif name in pins:
-            pins[name].append(Change(int(time_ns), driven == "1", level == "1"))
-    return Trace(pins["data"], pins["gate"], end_ns)
+            pins[name].append(change)
+        elif name.startswith(PULL_PREFIX):
+            pulls.setdefault(name.removeprefix(PULL_PREFIX), []).append(change)
+    return Trace(pins["data"], pins["gate"], end_ns, pulls)
+
+
+def pulled_ns(trace: Trace) -> int:
+    """Total time any console line was held by the chip's pull-up."""
+    return sum(driven_ns(changes, trace.end_ns, []) for changes in trace.pulls.values())
 
 
 def driven_ns(

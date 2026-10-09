@@ -36,6 +36,66 @@
       "license": "Unlicense",
       "redistributable": true,
       "obtain": "fetched by the bench at the commit above; the tree id is checked before building"
+    },
+    {
+      "id": "old-crow-12c508",
+      "kind": "pic-source",
+      "path": "docs/research/sources/old-crow/oldcrow-modchip.asm",
+      "sha256": "dabac66ad2b7946d7762945dcf8e900bf6c0ebdfc97c85241b6abd9194cc9af5",
+      "license": "none stated",
+      "redistributable": false,
+      "defines": [
+        "_INT_OSC=_IntRC_OSC"
+      ],
+      "obtain": "Old Crow's PIC12C508 v5.3 source (Scott Rider, 1997; 4-wire changes by Charles, 1999) from https://psx.arthus.net/modchips/oldcrow-modchip.asm, saved under the path above"
+    },
+    {
+      "id": "old-crow-12f629",
+      "kind": "pic-source",
+      "path": "docs/research/sources/old-crow/oldcrow-12f629-garyopa.asm",
+      "sha256": "1a292969f41b92bfa22c19126a46a0192d55dd9a115ea8155771785faca5f129",
+      "license": "none stated",
+      "redistributable": false,
+      "obtain": "GaryOPA's 2007 PIC12F629 port of Old Crow's design, the source printed in https://www.neperos.com/article/q1it8me83bb3bbba, saved as plain text under the path above"
+    },
+    {
+      "id": "modavr-attiny13",
+      "kind": "avr-image",
+      "path": "docs/research/sources/modavr/modavr.hex",
+      "sha256": "c95f779f3e86ae3c246cf75a092a797fbc95727e1d96f9ccfece997ae0649ef7",
+      "license": "none stated",
+      "redistributable": false,
+      "obtain": "modavr.hex from https://github.com/vxbinaca/modavr at commit 4673239, saved under the path above"
+    },
+    {
+      "id": "onechip-12c508a-pal",
+      "kind": "pic-image",
+      "path": "docs/research/sources/onechip/onechip_v1_12c508a_pal.hex",
+      "sha256": "cbb3c762a274cb392021bc34484d0b77315e880f2b58ce24615cbc21dc7030ce",
+      "license": "none stated",
+      "redistributable": false,
+      "obtain": "ONEchip V1.00 PIC12C508A image from the quade.co ONEchip guide (https://quade.co/ps1-modchip-guide/onechip/), saved under the path above"
+    },
+    {
+      "id": "ubernee-v142",
+      "kind": "git-source",
+      "url": "https://github.com/L10N37/tehUberChip_Another_PSX_Modchip.git",
+      "commit": "357607fa2401ec36ceafb23cc085d447a268dd69",
+      "tree": "af72ca0e317b74ff287eebe832005c446976cab3",
+      "sketch": "UberNee/UberNeeV1.42.ino",
+      "license": "MIT",
+      "redistributable": true,
+      "obtain": "fetched by the bench at the commit above; the tree id is checked before building"
+    },
+    {
+      "id": "arduino-core-avr",
+      "kind": "git-source",
+      "url": "https://github.com/arduino/ArduinoCore-avr.git",
+      "commit": "86df345b3cf46754a5db38fb983ec2808ce31303",
+      "tree": "e1c0e830bf07688ee0f1f68c273f0dc8fa21cf52",
+      "license": "LGPL-2.1-or-later",
+      "redistributable": true,
+      "obtain": "fetched by the bench at release 1.8.8; the tree id is checked before building"
     }
   ]
 }

@@ -13,6 +13,7 @@ runner to toggle WFCK at that half period from then on (0 stops it), which
 keeps a 10 s scenario to a few hundred thousand lines.
 """
 
+import binascii
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -28,11 +29,25 @@ _RECORDING: ContextVar[bool] = ContextVar("recording", default=True)
 FRAME_NS = 1_000_000_000 // 75
 FRAME_BYTES = 12
 
-LEAD_IN = (0x41, 0x00, 0xA0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-PROGRAM = (0x41, 0x01, 0x01, 0x00, 0x02, 0, 0, 0, 0x02, 0, 0, 0)
-LEAD_OUT = (0x41, 0xAA, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-AUDIO_LEAD_IN = (0x01, 0x00, 0xA0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-VCD_LEAD_IN = (0x41, 0x00, 0xA0, 0x02, 0, 0, 0, 0, 0, 0, 0, 0)
+
+def with_crc(data: tuple[int, ...]) -> tuple[int, ...]:
+    """Append the SUBQ CRC: CRC-16-CCITT from zero over the ten bytes, stored
+    inverted and most significant byte first (psx-spx cdromformat.md,
+    Subchannel Q and adjust_crc_16_ccitt). A disc always carries it, and a
+    chip that checks it, as UberNee rejects a read whose CRC bytes are zero,
+    must see a real one; crc_hqx is the same CCITT polynomial from zero."""
+    crc = binascii.crc_hqx(bytes(data), 0) ^ 0xFFFF
+    return (*data, crc >> 8, crc & 0xFF)
+
+
+# The first ten bytes are the fields the chips read: ADR/control, track, the
+# point or index, and the zero byte; the lead-in's addresses are left zero,
+# which no chip here reads. Bytes ten and eleven are the CRC over them.
+LEAD_IN = with_crc((0x41, 0x00, 0xA0, 0, 0, 0, 0, 0, 0, 0))
+PROGRAM = with_crc((0x41, 0x01, 0x01, 0x00, 0x02, 0, 0, 0, 0x02, 0))
+LEAD_OUT = with_crc((0x41, 0xAA, 0x01, 0, 0, 0, 0, 0, 0, 0))
+AUDIO_LEAD_IN = with_crc((0x01, 0x00, 0xA0, 0, 0, 0, 0, 0, 0, 0))
+VCD_LEAD_IN = with_crc((0x41, 0x00, 0xA0, 0x02, 0, 0, 0, 0, 0, 0))
 
 
 class Signal(StrEnum):

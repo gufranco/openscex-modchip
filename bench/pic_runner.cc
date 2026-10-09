@@ -197,6 +197,25 @@ int main(int argc, char **argv) {
       outputs.push_back({ name, cpu->get_pin(found->second.pin), -1, -1 });
     }
   }
+  // Whether each console line is pulled up: an input whose weak pull-up gpsim
+  // reports enabled, which these PICs switch with OPTION's /GPPU bit and, on
+  // the 12F629, the WPU register (Read: the 12C508A and 12F629 datasheets,
+  // GPIO and OPTION); a pin with no pull-up circuit reports none. Written as
+  // pull-<name>, sampled every PULL_SAMPLE_STEPS
+  // instructions as in the AVR runner, since a pull-up holds once written.
+  struct Pull {
+    std::string name;
+    IOPIN *pin;
+    int pulled;
+  };
+  std::vector<Pull> pulls;
+  for (const auto &entry : pins) {
+    if (entry.second.pin != 0) {
+      pulls.push_back({ entry.first, cpu->get_pin(entry.second.pin), -1 });
+    }
+  }
+  constexpr unsigned PULL_SAMPLE_STEPS = 256U;
+  unsigned long long pic_steps = 0U;
 
   // The step bound is the duration in instruction cycles plus a margin; a
   // two-cycle instruction only makes the loop end sooner, never later.
@@ -239,6 +258,23 @@ int main(int argc, char **argv) {
     }
     executed.insert(cpu->pc->get_value());
     cpu->step(1, false);
+    if ((pic_steps++ % PULL_SAMPLE_STEPS) == 0U) {
+      for (Pull &pull : pulls) {
+        bool input = pull.pin->get_direction() != IOPIN::DIR_OUTPUT;
+        auto *bidirectional = dynamic_cast<IO_bi_directional *>(pull.pin);
+        bool enabled = bidirectional != nullptr && bidirectional->getPullupStatus();
+        int pulled = (input && enabled) ? 1 : 0;
+        if (pulled != pull.pulled) {
+          std::fprintf(trace,
+                       "%llu pull-%s %d %d\n",
+                       static_cast<unsigned long long>(get_cycles().get() * ns_per_cycle),
+                       pull.name.c_str(),
+                       pulled,
+                       pulled);
+          pull.pulled = pulled;
+        }
+      }
+    }
     for (Output &out : outputs) {
       int driven = out.pin->get_direction() == IOPIN::DIR_OUTPUT ? 1 : 0;
       int level = out.pin->getDrivingState() ? 1 : 0;

@@ -71,6 +71,8 @@ class Phase(StrEnum):
     SWAP = "swap"
     SECOND_LEAD_IN = "second_lead_in"
     SECOND_PROGRAM = "second_program"
+    PROBE = "probe"
+    AFTER_PROBE = "after_probe"
 
 
 class Board(StrEnum):
@@ -117,6 +119,7 @@ class Scenario:
     build: Callable[[], Timeline]
     boards: frozenset[Board]
     judged: bool = True
+    drives: str | None = None
 
 
 def _boot(half_ns: int) -> Timeline:

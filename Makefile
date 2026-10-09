@@ -83,7 +83,7 @@ endif
 VARIANT := $(REGION_TAG)$(TIMING_TAG)$(VCD_TAG)
 
 CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate format \
-	precommit image image_size image_misra bench_runners bench bench_ci
+	precommit image image_size image_misra bench_runners bench bench_ci showcase
 
 .PHONY: $(CONTAINER_TARGETS) clean hooks
 
@@ -231,13 +231,21 @@ bench_runners: $(BENCH_PIC) $(BENCH_AVR)
 # whose firmware is not on this machine is skipped with how to obtain it, so
 # it runs anywhere and is complete only where the unlicensed images were
 # placed by hand (artifacts.manifest.json). `bench_ci` is the part any machine
-# can reproduce: ours against PsNee, which is fetched at its pinned commit and
-# built here. Either fails when ours leaves the field-proven envelope.
+# can reproduce: ours against PsNee, fetched at its pinned commit and built
+# here. UberNee is fetched and built the same way but runs only in the full
+# bench: it is recorded, never evidence, and its 16 MHz serial-debug build
+# simulates at about a fifth of real time, which CI does not need to pay. Either fails when ours leaves the field-proven envelope.
 bench: all bench_runners
 	$(PYTHON) -m tools.bench.cli
 
 bench_ci: all bench_runners
 	$(PYTHON) -m tools.bench.cli --chips ours,psnee-attiny85,psnee-atmega328p
+
+# Copies the showcase results of the last full `make bench` into the tree and
+# regenerates the comparison table in the three READMEs from them. Run it only
+# after a full bench with every image present, or the table loses its columns.
+showcase:
+	$(PYTHON) -m tools.bench.showcase build/bench/showcase.json
 
 # The simulator runs the firmware at the nominal 8 MHz it is built for; the
 # oscillator trim scenarios model a fast or slow RC by running the console side

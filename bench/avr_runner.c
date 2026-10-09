@@ -121,11 +121,25 @@ static void eeprom_byte(avr_t *avr, long packed) {
   avr_ioctl(avr, AVR_IOCTL_EEPROM_SET, &desc);
 }
 
+// Power-on sets PORF, bit 0 of MCUSR, which sits at I/O address 0x34, data
+// address 0x54, on the ATtiny13, the ATtiny85 and the ATmega328P alike (Read:
+// each datasheet's MCUSR description and register summary). simavr's cores
+// leave it clear, and modavr halts at reset unless some reset cause is set, as
+// the silicon always has one; so the runner sets it at power-on, and only
+// there: a watchdog reset inside a run leaves PORF as the chip left it.
+#define MCUSR_DATA_ADDR 0x54U
+#define MCUSR_PORF 0x01U
+
+static void power_on_flag(avr_t *avr) {
+  avr->data[MCUSR_DATA_ADDR] = (uint8_t)(avr->data[MCUSR_DATA_ADDR] | MCUSR_PORF);
+}
+
 // Switch the chip off and on. avr_reset clears the core and the I/O registers,
 // so the ATtiny85 fixes are installed again and every console input is driven
 // back to its last level; the EEPROM array is left as it was.
 static void power_cycle(avr_t *avr, const char *mcu) {
   avr_reset(avr);
+  power_on_flag(avr);
   if (strcmp(mcu, "attiny85") == 0) {
     sim_t85_install(avr);
     if (g_osccal_factory >= 0) {
@@ -157,6 +171,40 @@ static void sample(output_t *out) {
             level);
     out->driven = driven;
     out->level = level;
+  }
+}
+
+// Whether each console line is pulled up: an input, DDR bit clear, with its
+// PORT bit set, which on these AVRs enables the internal pull-up (Read: each
+// datasheet's port description). A pulled line loads the console's own signal
+// and is what a chip that "floats all I/O pins" never does, so the trace
+// carries it as pull-<name>. The LED is not a console line and is left out.
+// Sampled every PULL_SAMPLE_STEPS instructions, 32 us at 8 MHz: a pull-up is
+// set by a register write that then holds for milliseconds or more, so the
+// coarse sampling keeps the run fast and misses nothing the metric uses.
+#define PULL_SAMPLE_STEPS 256U
+
+static int g_pulled[MAX_LINES];
+
+static void sample_pulls(avr_t *avr, FILE *trace, double ns_per_cycle) {
+  for (int i = 0; i < g_line_count; i++) {
+    const line_t *line = &g_lines[i];
+    if (strcmp(line->name, "led") == 0) {
+      continue;
+    }
+    avr_ioport_state_t state;
+    avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE(line->port), &state);
+    int input = ((state.ddr >> line->bit) & 1U) == 0U;
+    int pulled = input && (((state.port >> line->bit) & 1U) != 0U);
+    if (pulled != g_pulled[i]) {
+      fprintf(trace,
+              "%llu pull-%s %d %d\n",
+              (unsigned long long)((double)avr->cycle * ns_per_cycle),
+              line->name,
+              pulled,
+              pulled);
+      g_pulled[i] = pulled;
+    }
   }
 }
 
@@ -206,6 +254,7 @@ int main(int argc, char **argv) {
   avr->frequency = clock_hz;
   avr->vcc = 5000;
   avr->avcc = 5000;
+  power_on_flag(avr);
   if (strcmp(argv[2], "attiny85") == 0) {
     sim_t85_install(avr);
   }
@@ -225,6 +274,10 @@ int main(int argc, char **argv) {
     *out = (output_t){ line, avr, trace, ns_per_cycle, -1, -1 };
     sample(out);
   }
+  for (int i = 0; i < g_line_count; i++) {
+    g_pulled[i] = -1;
+  }
+  sample_pulls(avr, trace, ns_per_cycle);
 
   // Console idle levels, as in the PIC runner.
   drive(avr, "wfck", 1);
@@ -277,6 +330,9 @@ int main(int argc, char **argv) {
     int state = avr_run(avr);
     for (int i = 0; i < g_output_count; i++) {
       sample(&g_outputs[i]);
+    }
+    if ((step % PULL_SAMPLE_STEPS) == 0U) {
+      sample_pulls(avr, trace, ns_per_cycle);
     }
     if (state == cpu_Crashed || state == cpu_Done) {
       fprintf(stderr, "cpu stopped at cycle %llu\n", (unsigned long long)avr->cycle);

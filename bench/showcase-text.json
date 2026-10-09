@@ -1,0 +1,127 @@
+{
+  "heading": {
+    "en": "Property",
+    "ja": "項目",
+    "zh": "项目"
+  },
+  "source": {
+    "en": "Source",
+    "ja": "出典",
+    "zh": "出处"
+  },
+  "outcome": {
+    "en": {
+      "pass": "pass",
+      "fail": "fail",
+      "n/a": "n/a"
+    },
+    "ja": {
+      "pass": "合格",
+      "fail": "不合格",
+      "n/a": "対象外"
+    },
+    "zh": {
+      "pass": "通过",
+      "fail": "未通过",
+      "n/a": "不适用"
+    }
+  },
+  "properties": {
+    "antimod-v1": {
+      "title": {
+        "en": "Silent in the anti-mod v1 probe",
+        "ja": "アンチモッド v1 の検査中は無信号",
+        "zh": "反改机 v1 检测期间保持静默"
+      },
+      "mechanism": {
+        "en": "the game counts SCEx strings while playing the program area, where an original disc has none; any string there, even a partial one, means a modchip",
+        "ja": "ゲームはプログラム領域の再生中に SCEx 文字列を数える。正規ディスクではそこに文字列はなく、部分的な文字列でも 1 本あればモッドチップと判定される",
+        "zh": "游戏在播放程序区时统计 SCEx 字符串；正版光盘在那里没有字符串，哪怕只出现一段不完整的字符串也会被判定为改机芯片"
+      }
+    },
+    "antimod-v2-reauth": {
+      "title": {
+        "en": "Re-authenticates in the anti-mod v2 re-read",
+        "ja": "アンチモッド v2 の再読込で再認証",
+        "zh": "反改机 v2 重读时重新认证"
+      },
+      "mechanism": {
+        "en": "ReadTOC clears the licensed status, and GetID fails on a copy unless a full string arrives while the lead-in is read again",
+        "ja": "ReadTOC は正規ディスクの認証状態を消し、リードインを読み直す間に完全な文字列が届かなければ、コピーでは GetID が失敗する",
+        "zh": "ReadTOC 会清除正版认证状态；重读导入区期间若没有收到完整字符串，拷贝盘的 GetID 就会失败"
+      }
+    },
+    "antimod-v2": {
+      "title": {
+        "en": "Silent in the anti-mod v2 probe",
+        "ja": "アンチモッド v2 の検査中は無信号",
+        "zh": "反改机 v2 检测期间保持静默"
+      },
+      "mechanism": {
+        "en": "after the re-read the game seeks to the middle of the disc and counts SCEx strings again",
+        "ja": "再読み取りの後、ゲームはディスクの中央へシークし、再び SCEx 文字列を数える",
+        "zh": "重读之后，游戏寻道到光盘中部，再次统计 SCEx 字符串"
+      }
+    },
+    "silent-in-play": {
+      "title": {
+        "en": "No string once the game runs",
+        "ja": "ゲーム開始後は文字列を送らない",
+        "zh": "游戏运行后不再发送字符串"
+      },
+      "mechanism": {
+        "en": "the region check reads the lead-in; a string while the program area is read is what a detector looks for",
+        "ja": "リージョンチェックはリードインを読む。プログラム領域を読んでいる間の文字列こそ検出側が探すものである",
+        "zh": "区域检查读取的是导入区；读取程序区时出现的字符串正是检测方要找的"
+      }
+    },
+    "pins-float": {
+      "title": {
+        "en": "Console pins float while not injecting",
+        "ja": "注入していない間はコンソール側のピンを解放",
+        "zh": "不注入时主机侧引脚全部悬空"
+      },
+      "mechanism": {
+        "en": "a line driven or pulled up between strings loads the console's own signal, the PM-41(2) pickup noise, and is visible to anything watching it; checked on DATA, the gate and every input",
+        "ja": "文字列の合間に駆動またはプルアップされた線はコンソール自身の信号に負荷をかけ (PM-41(2) のピックアップノイズ)、監視する側からも見える。DATA、ゲート、すべての入力で確認する",
+        "zh": "字符串之间被驱动或上拉的线会给主机自身的信号加负载（PM-41(2) 的拾取噪声），也会被任何监视者看到；在 DATA、门控线和所有输入上检查"
+      }
+    },
+    "stuck-sqck": {
+      "title": {
+        "en": "Accepts after SQCK sticks low",
+        "ja": "SQCK が固着した後も認証",
+        "zh": "SQCK 卡住后仍能认证"
+      },
+      "mechanism": {
+        "en": "a clock that stops mid-frame must not hang the chip past the check",
+        "ja": "フレームの途中で止まったクロックで、チップがチェックを越えて止まってはならない",
+        "zh": "在帧中途停止的时钟不得让芯片卡住而错过检查"
+      }
+    },
+    "watchdog": {
+      "title": {
+        "en": "Recovers from a WFCK stall, WFCK never driven",
+        "ja": "WFCK 停止から復帰し WFCK を駆動しない",
+        "zh": "WFCK 停顿后恢复且从不驱动 WFCK"
+      },
+      "mechanism": {
+        "en": "on a carrier board WFCK is the CD DSP's output; driving it fights the console",
+        "ja": "キャリア基板では WFCK は CD DSP の出力であり、それを駆動するとコンソールとぶつかる",
+        "zh": "在载波主板上 WFCK 是 CD DSP 的输出，驱动它会与主机冲突"
+      }
+    },
+    "swap": {
+      "title": {
+        "en": "Rearms for a second disc",
+        "ja": "2 枚目のディスクで再起動",
+        "zh": "第二张光盘时重新启用"
+      },
+      "mechanism": {
+        "en": "a multi-disc game asks for the region again after a swap",
+        "ja": "複数枚組のゲームは、交換の後に再びリージョンを求める",
+        "zh": "多光盘游戏在换盘后会再次要求区域字符串"
+      }
+    }
+  }
+}

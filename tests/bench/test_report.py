@@ -67,6 +67,14 @@ class RenderTest(unittest.TestCase):
 
         self.assertIn("| ours | carrier-accept | yes |", text)
 
+    def test_a_row_carries_the_reread_strings_and_the_probe_drive(self) -> None:
+        metrics = replace(BASE, reread_valid=3, probe_strings=2)
+        run = replace(self.run, metrics=metrics)
+
+        text = render([run], {}, [], [])
+
+        self.assertIn("| 0.000 | 3 | 2 | 0.000 | 0.000 | all |", text)
+
     def test_each_row_says_whether_the_chip_supports_the_boards(self) -> None:
         early_only = replace(by_name("mayumi-v4"), boards=frozenset({Board.PU_7}))
         mayumi = Run(early_only, scenario("gate-accept-early"), BASE, frozenset())

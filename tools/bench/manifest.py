@@ -33,7 +33,8 @@ class Status(StrEnum):
 @dataclass(frozen=True, slots=True)
 class Artifact:
     """One manifest entry. File entries carry path and sha256; git sources
-    carry url, commit and tree."""
+    carry url, commit and tree. A PIC source may carry assembler defines, and
+    a sketch source the path of its sketch in the repository."""
 
     id: str
     kind: str
@@ -45,6 +46,8 @@ class Artifact:
     url: str | None = None
     commit: str | None = None
     tree: str | None = None
+    defines: list[str] | None = None
+    sketch: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

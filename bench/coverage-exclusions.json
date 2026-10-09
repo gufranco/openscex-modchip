@@ -102,5 +102,110 @@
       "end": "0x1f3",
       "reason": "the endless injection a lid open at power-on starts; GP0 never reads open on this port, which never writes CMCON (Microchip DS41190G, Figure 6-2); MM3 on the 12C508A takes it with the lid open at boot"
     }
+  ],
+  "old-crow-12c508": [
+    {
+      "start": "0x009",
+      "end": "0x00c",
+      "reason": "the branches taken when GP3, pin 4, reads low: it is the timing input of the 5-wire install, which the 4-wire install the bench models leaves unconnected, so it reads high (the source's own pin diagram and steps 1 to 4)"
+    }
+  ],
+  "old-crow-12f629": [
+    {
+      "start": "0x004",
+      "end": "0x00b",
+      "reason": "the interrupt handler the port keeps at 0x004; the program never sets GIE, so no interrupt enters it"
+    }
+  ],
+  "ubernee-v142": [
+    {
+      "file": "HardwareSerial.cpp",
+      "reason": "Arduino AVR core 1.8.8 serial code the sketch's debug output never reaches: receive, peek and availability calls nothing makes, the baud setup for 57600 or very slow rates that Serial.begin(115200) skips, and the interrupts-off waits of flush and write, which the sketch calls only with interrupts on"
+    },
+    {
+      "file": "HardwareSerial0.cpp",
+      "reason": "Arduino AVR core 1.8.8: the UART receive interrupt and the serialEvent hook; nothing drives the chip's RX pin and the sketch defines no serialEvent"
+    },
+    {
+      "file": "HardwareSerial_private.h",
+      "reason": "Arduino AVR core 1.8.8: the receive-complete handler; nothing drives the chip's RX pin"
+    },
+    {
+      "file": "Print.cpp",
+      "reason": "Arduino AVR core 1.8.8: Print overloads the sketch never calls"
+    },
+    {
+      "file": "Print.h",
+      "reason": "Arduino AVR core 1.8.8: a Print overload the sketch never calls"
+    },
+    {
+      "file": "Tone.cpp",
+      "reason": "Arduino AVR core 1.8.8: tone() support and its timer interrupt, linked in through turnOffPWM; the sketch plays no tone"
+    },
+    {
+      "file": "WInterrupts.c",
+      "reason": "Arduino AVR core 1.8.8: external interrupt stubs; the sketch attaches no interrupt"
+    },
+    {
+      "file": "wiring_digital.c",
+      "reason": "Arduino AVR core 1.8.8: pinMode, digitalWrite and turnOffPWM cases for pins and timers the sketch never passes; it drives its own pins through the port registers"
+    }
+  ],
+  "onechip-12c508a-pal": [
+    {
+      "start": "0x008",
+      "end": "0x015",
+      "reason": "the ROM tag 'ONEchip V1.00 ', retlw data that no code calls"
+    },
+    {
+      "start": "0x055",
+      "end": "0x059",
+      "reason": "a branch on GP0 reading high: OneChip has no source and its PM-41 wiring is published only as a diagram image, so GP0's console point is not established; the bench holds it low, the level its string path waits for"
+    },
+    {
+      "start": "0x06b",
+      "end": "0x06b",
+      "reason": "a branch on GP5 reading low: GP5's console point is not established (no source, wiring only in a diagram image); the bench leaves it high, which keeps the flag GP5 low would clear"
+    },
+    {
+      "start": "0x084",
+      "end": "0x087",
+      "reason": "a branch on GP5 reading low: GP5's console point is not established (no source, wiring only in a diagram image); the bench leaves it high, which keeps the flag GP5 low would clear"
+    },
+    {
+      "start": "0x09c",
+      "end": "0x09e",
+      "reason": "a branch on GP5 reading low: GP5's console point is not established (no source, wiring only in a diagram image); the bench leaves it high, which keeps the flag GP5 low would clear"
+    },
+    {
+      "start": "0x0a4",
+      "end": "0x0a6",
+      "reason": "a branch on GP5 reading low: GP5's console point is not established (no source, wiring only in a diagram image); the bench leaves it high, which keeps the flag GP5 low would clear"
+    },
+    {
+      "start": "0x0aa",
+      "end": "0x0ac",
+      "reason": "a branch on GP5 reading low: GP5's console point is not established (no source, wiring only in a diagram image); the bench leaves it high, which keeps the flag GP5 low would clear"
+    },
+    {
+      "start": "0x0bc",
+      "end": "0x0cc",
+      "reason": "a branch on GP0 reading high: OneChip has no source and its PM-41 wiring is published only as a diagram image, so GP0's console point is not established; the bench holds it low, the level its string path waits for"
+    },
+    {
+      "start": "0x0e8",
+      "end": "0x0e8",
+      "reason": "a branch on GP0 reading high: OneChip has no source and its PM-41 wiring is published only as a diagram image, so GP0's console point is not established; the bench holds it low, the level its string path waits for"
+    },
+    {
+      "start": "0x0f8",
+      "end": "0x0f8",
+      "reason": "the boot wait for BIOS address line A18 on GP3, OneChip's 'fire now' signal (UberNee's OneChip analysis, PAL_PSOne_OneChip_Analysis); the bench does not model the BIOS bus and holds the line high, so the wait never loops"
+    },
+    {
+      "start": "0x100",
+      "end": "0x100",
+      "reason": "the boot wait for BIOS address line A18 on GP3, OneChip's 'fire now' signal (UberNee's OneChip analysis, PAL_PSOne_OneChip_Analysis); the bench does not model the BIOS bus and holds the line high, so the wait never loops"
+    }
   ]
 }

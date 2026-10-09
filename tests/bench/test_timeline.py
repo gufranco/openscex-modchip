@@ -11,8 +11,12 @@ ours would behave differently in the bench than in tests/sim.
 import unittest
 
 from tools.bench.timeline import (
+    AUDIO_LEAD_IN,
     FRAME_NS,
     LEAD_IN,
+    LEAD_OUT,
+    PROGRAM,
+    VCD_LEAD_IN,
     Signal,
     Timeline,
     dry_run,
@@ -110,3 +114,31 @@ class ControlTest(unittest.TestCase):
         text = timeline.lines()
 
         self.assertEqual(text, ["0 wfck_half_ns 68000"])
+
+
+def psx_spx_crc(data: bytes) -> tuple[int, int]:
+    msb, lsb = 0, 0
+    for byte in data:
+        x = (byte ^ msb) & 0xFF
+        x = (x ^ (x >> 4)) & 0xFF
+        msb = (lsb ^ (x >> 3) ^ (x << 4)) & 0xFF
+        lsb = (x ^ (x << 5)) & 0xFF
+    return msb ^ 0xFF, lsb ^ 0xFF
+
+
+class SubqCrcTest(unittest.TestCase):
+    def test_every_frame_carries_the_red_book_crc_of_its_first_ten_bytes(
+        self,
+    ) -> None:
+        frames = [LEAD_IN, PROGRAM, LEAD_OUT, AUDIO_LEAD_IN, VCD_LEAD_IN]
+
+        wrong = [f for f in frames if tuple(f[10:]) != psx_spx_crc(bytes(f[:10]))]
+
+        self.assertEqual(wrong, [])
+
+    def test_no_frame_has_a_zero_crc_byte(self) -> None:
+        frames = [LEAD_IN, PROGRAM, LEAD_OUT, AUDIO_LEAD_IN, VCD_LEAD_IN]
+
+        zero = [f for f in frames if 0 in f[10:]]
+
+        self.assertEqual(zero, [])

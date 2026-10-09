@@ -10,7 +10,7 @@ checked against the console phase it is judged by.
 import unittest
 
 from tools.bench.decode import Change
-from tools.bench.metrics import measure
+from tools.bench.metrics import GATE_MARGIN_NS, framed, measure
 from tools.bench.scenarios import Phase
 from tools.bench.scex import Region, region_bits
 from tools.bench.trace import Trace
@@ -108,3 +108,91 @@ class MeasureTest(unittest.TestCase):
         self.assertEqual(metrics.data_driven_outside_ns, 100)
         self.assertEqual(metrics.gate_driven_ns, 50)
         self.assertEqual(metrics.cell_min_ns, CELL)
+
+    def test_strings_inside_the_probe_window_are_counted_apart(self) -> None:
+        phases = {
+            **PHASES,
+            Phase.PROBE: 8 * SECOND,
+            Phase.AFTER_PROBE: 10 * SECOND,
+        }
+        europe = region_bits(Region.EUROPE)
+        data = (
+            string_at(int(7.5 * SECOND))
+            + string_at(int(8.2 * SECOND))
+            + string_at(int(8.6 * SECOND), europe)
+            + string_at(int(10.5 * SECOND))
+        )
+
+        metrics = measure(Trace(data, [], 12 * SECOND), phases, Region.AMERICA)
+
+        self.assertEqual(metrics.probe_strings, 2)
+
+    def test_a_held_line_without_a_string_counts_nothing_in_the_probe(
+        self,
+    ) -> None:
+        phases = {**PHASES, Phase.PROBE: 8 * SECOND, Phase.AFTER_PROBE: 10 * SECOND}
+        data = [Change(7 * SECOND, True, False), Change(11 * SECOND, False, False)]
+
+        metrics = measure(Trace(data, [], 12 * SECOND), phases, Region.AMERICA)
+
+        self.assertEqual(metrics.probe_strings, 0)
+
+    def test_only_valid_strings_in_the_reread_count_as_reauthentication(
+        self,
+    ) -> None:
+        europe = region_bits(Region.EUROPE)
+        data = (
+            string_at(2 * SECOND)
+            + string_at(int(6.5 * SECOND))
+            + string_at(7 * SECOND, europe)
+        )
+
+        metrics = measure(Trace(data, [], 9 * SECOND), PHASES, Region.AMERICA)
+
+        self.assertEqual(metrics.during_reread, 2)
+        self.assertEqual(metrics.reread_valid, 1)
+
+    def test_gate_drive_outside_strings_and_pull_ups_are_timed(self) -> None:
+        start = 2 * SECOND
+        end = start + 44 * CELL
+        gate = [
+            Change(start - 1_000, True, False),
+            Change(end + 1_000, False, False),
+            Change(end + CELL + 100, True, False),
+            Change(end + CELL + 300, False, False),
+        ]
+        pulls = {"sqck": [Change(0, True, True), Change(700, False, False)]}
+        trace = Trace(string_at(start), gate, 5 * SECOND, pulls)
+
+        metrics = measure(trace, PHASES, Region.AMERICA)
+
+        self.assertEqual(metrics.gate_driven_outside_ns, 200)
+        self.assertEqual(metrics.pulled_ns, 700)
+
+    def test_a_gate_held_between_strings_counts_beyond_the_margins(self) -> None:
+        start = 2 * SECOND
+        second = start + 74 * CELL
+        gate = [Change(start, True, False), Change(second + 44 * CELL, False, False)]
+        trace = Trace(string_at(start) + string_at(second), gate, 5 * SECOND)
+
+        metrics = measure(trace, PHASES, Region.AMERICA)
+
+        self.assertEqual(metrics.gate_driven_outside_ns, 30 * CELL - 2 * GATE_MARGIN_NS)
+
+
+class FramedTest(unittest.TestCase):
+    def test_spans_closer_than_two_margins_merge(self) -> None:
+        spans = [(100_000_000, 200_000_000), (205_000_000, 300_000_000)]
+
+        merged = framed(spans)
+
+        self.assertEqual(
+            merged, [(100_000_000 - GATE_MARGIN_NS, 300_000_000 + GATE_MARGIN_NS)]
+        )
+
+    def test_distant_spans_stay_apart(self) -> None:
+        spans = [(100_000_000, 200_000_000), (300_000_000, 400_000_000)]
+
+        merged = framed(spans)
+
+        self.assertEqual(len(merged), 2)

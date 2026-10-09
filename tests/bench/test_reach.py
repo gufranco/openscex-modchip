@@ -97,6 +97,18 @@ class ByTableTest(unittest.TestCase):
 
         self.assertEqual(excluded, {0x10: "loop"})
 
+    def test_a_file_entry_excuses_every_line_of_that_file(self) -> None:
+        lines = {
+            0x10: ("/w/arduino-core/cores/arduino/Tone.cpp", 547),
+            0x12: ("/w/arduino-core/cores/arduino/Tone.cpp", 558),
+            0x14: ("/w/ubernee-build/sketch.ino", 244),
+        }
+        table = [Entry(line=None, start=None, end=None, reason="core", file="Tone.cpp")]
+
+        excluded = by_table([0x10, 0x12, 0x14], lines, table)
+
+        self.assertEqual(excluded, {0x10: "core", 0x12: "core"})
+
     def test_an_entry_with_neither_line_nor_range_excuses_nothing(self) -> None:
         table = [Entry(line=None, start=None, end=None, reason="malformed")]
 

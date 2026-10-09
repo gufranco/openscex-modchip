@@ -39,13 +39,17 @@ Line = tuple[str, int]
 
 @dataclass(frozen=True, slots=True)
 class Entry:
-    """One table exclusion: a source line `file:line`, or an address range
-    from start to end inclusive, and why nothing reaches it."""
+    """One table exclusion: a source line `file:line`, an address range from
+    start to end inclusive, or a whole source file by name, and why nothing
+    reaches it. A file entry is for framework code a third-party build links
+    in, such as the Arduino core's serial receive paths, never for a chip's
+    own program."""
 
     line: str | None
     start: int | None
     end: int | None
     reason: str
+    file: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +131,8 @@ def by_line(
 
 
 def _entry_covers(entry: Entry, address: int, line: Line | None) -> bool:
+    if entry.file is not None:
+        return line is not None and Path(line[0]).name == entry.file
     if entry.line is not None:
         return line is not None and f"{Path(line[0]).name}:{line[1]}" == entry.line
     if entry.start is None or entry.end is None:

@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from tools.bench.decode import decode
 from tools.bench.scenarios import Phase
 from tools.bench.scex import Region
-from tools.bench.trace import Trace, driven_ns
+from tools.bench.trace import Trace, driven_ns, pulled_ns
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +40,10 @@ class Metrics:
     carrier: bool | None
     data_driven_outside_ns: int
     gate_driven_ns: int
+    probe_strings: int = 0
+    reread_valid: int = 0
+    gate_driven_outside_ns: int = 0
+    pulled_ns: int = 0
 
 
 def _segment(start_ns: int, phases: dict[Phase, int]) -> Phase | None:
@@ -49,6 +53,27 @@ def _segment(start_ns: int, phases: dict[Phase, int]) -> Phase | None:
         if start_ns >= mark:
             current = phase
     return current
+
+
+# A gate board's chip holds the gate for a whole string, so it is set before
+# the first bit and released after the last; the decoder dates a string from
+# its first and last DATA edges. Gate drive is judged against each string
+# widened by one 4 ms bit cell (PsNee V9.0 PSNee.ino:587 and :603, the cell a
+# string is clocked in) on either side: the set-up and release that frame a
+# string are part of sending it, while a gate held between strings is not.
+GATE_MARGIN_NS = 4_000_000
+
+
+def framed(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Each string's span widened by the gate margin, overlaps merged."""
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted(spans):
+        low, high = start - GATE_MARGIN_NS, end + GATE_MARGIN_NS
+        if merged and low <= merged[-1][1]:
+            merged = [*merged[:-1], (merged[-1][0], max(merged[-1][1], high))]
+        else:
+            merged = [*merged, (low, high)]
+    return merged
 
 
 def measure(trace: Trace, phases: dict[Phase, int], region: Region) -> Metrics:
@@ -71,6 +96,7 @@ def measure(trace: Trace, phases: dict[Phase, int], region: Region) -> Metrics:
         if s.start_ns >= lead_in and program is not None and s.end_ns <= program
     ]
     cells = [s.cell_ns for s in strings]
+    spans = [(s.start_ns, s.end_ns) for s in strings]
     return Metrics(
         strings=len(strings),
         valid=len(valid),
@@ -86,8 +112,12 @@ def measure(trace: Trace, phases: dict[Phase, int], region: Region) -> Metrics:
         cell_max_ns=max(cells) if cells else None,
         spread_max_ns=max(s.cell_spread_ns for s in strings) if strings else None,
         carrier=strings[0].carrier if strings else None,
-        data_driven_outside_ns=driven_ns(
-            trace.data, trace.end_ns, [(s.start_ns, s.end_ns) for s in strings]
-        ),
+        data_driven_outside_ns=driven_ns(trace.data, trace.end_ns, spans),
         gate_driven_ns=driven_ns(trace.gate, trace.end_ns, []),
+        probe_strings=counts[Phase.PROBE],
+        gate_driven_outside_ns=driven_ns(trace.gate, trace.end_ns, framed(spans)),
+        pulled_ns=pulled_ns(trace),
+        reread_valid=sum(
+            1 for s in valid if _segment(s.start_ns, phases) is Phase.REREAD
+        ),
     )

@@ -13,6 +13,8 @@ chip plays them, so the envelope still compares like with like; a chip with
 no sense line, reset or lid input meets them as ordinary discs.
 """
 
+from collections.abc import Callable
+
 from tools.bench.edge_scenarios import (
     MS,
     QUICK_LEAD_IN_FRAMES,
@@ -23,11 +25,14 @@ from tools.bench.edge_scenarios import (
 )
 from tools.bench.scenarios import (
     BOOT_NS,
+    CARRIER_BOARDS,
     DOUBLE_SPEED,
     LATE_GATE_BOARDS,
     SECOND_NS,
     SINGLE_SPEED,
+    Board,
     Phase,
+    Scenario,
 )
 from tools.bench.timeline import FRAME_NS, LEAD_IN, PROGRAM, Signal, Timeline
 
@@ -258,31 +263,42 @@ def _reset_modes(on_carrier: bool) -> Timeline:
     return timeline
 
 
+def _sense(
+    name: str,
+    description: str,
+    build: Callable[[], Timeline],
+    boards: frozenset[Board] = CARRIER_BOARDS,
+) -> Scenario:
+    """A sense-line scenario: it exists to walk the chips that read that line,
+    so a third-party chip without one skips it (cli.applies)."""
+    return edge(name, description, build, boards, drives="sense")
+
+
 SENSE_SCENARIOS = (
-    edge(
+    _sense(
         "gate-speed-spells",
         "SPEED spells of every length a gate-board chip times, a lid cycle, play",
         _gate_speed_spells,
         LATE_GATE_BOARDS,
     ),
-    edge(
+    _sense(
         "gate-reset-modes",
         "reset held at power-on and three times more on a gate board, then discs",
         lambda: _reset_modes(on_carrier=False),
         LATE_GATE_BOARDS,
     ),
-    edge(
+    _sense(
         "gate-sense-paths",
         "SPEED spells, reset taps and lid openings down each gate-board path",
         lambda: _sense_paths(on_carrier=False),
         LATE_GATE_BOARDS,
     ),
-    edge(
+    _sense(
         "carrier-sense-paths",
         "reset taps and lid openings in each phase of the carrier-board path",
         lambda: _sense_paths(on_carrier=True),
     ),
-    edge(
+    _sense(
         "carrier-reset-modes",
         "reset held at power-on and three times more on a carrier board, then discs",
         lambda: _reset_modes(on_carrier=True),

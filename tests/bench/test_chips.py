@@ -13,6 +13,7 @@ import unittest
 from tools.bench.chips import CHIPS, Simulator, by_name
 from tools.bench.manifest import ROOT, load
 from tools.bench.scenarios import Board
+from tools.bench.scex import Region
 
 
 class CatalogueTest(unittest.TestCase):
@@ -57,6 +58,30 @@ class CatalogueTest(unittest.TestCase):
         partial = [n for n in names if by_name(n).boards != frozenset(Board)]
 
         self.assertEqual(partial, [])
+
+    def test_the_recorded_chips_never_bound_ours(self) -> None:
+        recorded = [
+            "old-crow-12c508",
+            "old-crow-12f629",
+            "modavr-attiny13",
+            "ubernee-atmega328p",
+            "onechip-12c508a",
+        ]
+
+        proven = [n for n in recorded if by_name(n).field_proven]
+
+        self.assertEqual(proven, [])
+
+    def test_onechip_is_a_pal_psone_chip(self) -> None:
+        onechip = by_name("onechip-12c508a")
+
+        self.assertIs(onechip.region, Region.EUROPE)
+        self.assertEqual(onechip.boards, frozenset({Board.PM_41, Board.PM_41_2}))
+
+    def test_every_other_chip_sends_the_usa_string(self) -> None:
+        regions = {c.region for c in CHIPS if c.name != "onechip-12c508a"}
+
+        self.assertEqual(regions, {Region.AMERICA})
 
     def test_an_unknown_name_is_refused(self) -> None:
         with self.assertRaises(KeyError):

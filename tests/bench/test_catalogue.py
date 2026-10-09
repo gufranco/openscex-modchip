@@ -5,6 +5,7 @@
 
 import unittest
 
+from tools.bench.antimod_scenarios import ANTIMOD_SCENARIOS
 from tools.bench.catalogue import CATALOGUE, find
 from tools.bench.edge_scenarios import EDGE_SCENARIOS
 from tools.bench.scenarios import SCENARIOS
@@ -15,12 +16,22 @@ class CatalogueTest(unittest.TestCase):
     def test_the_catalogue_holds_every_set_with_unique_names(self) -> None:
         names = [s.name for s in CATALOGUE]
 
-        expected = len(SCENARIOS) + len(EDGE_SCENARIOS) + len(SENSE_SCENARIOS)
+        expected = (
+            len(SCENARIOS)
+            + len(EDGE_SCENARIOS)
+            + len(SENSE_SCENARIOS)
+            + len(ANTIMOD_SCENARIOS)
+        )
         self.assertEqual(len(CATALOGUE), expected)
         self.assertEqual(len(names), len(set(names)))
 
     def test_find_reaches_a_scenario_of_each_set(self) -> None:
-        names = ["carrier-accept", "carrier-power-cycle", "gate-sense-paths"]
+        names = [
+            "carrier-accept",
+            "carrier-power-cycle",
+            "gate-sense-paths",
+            "antimod-v2-carrier",
+        ]
 
         found = [find(name).name for name in names]
 
