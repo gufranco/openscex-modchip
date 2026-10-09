@@ -37,21 +37,30 @@ pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state,
 
   // A gone disc: emit nothing and drop both the count and the acceptance, so the
   // next disc finds the chip re-armed. With a disc present, a program-area frame
-  // proves the console accepted the
-  // string. Out of the window the count resets; inside it the chip emits until
-  // the safety cap, and not at all once accepted, so it never drives the bus
-  // without bound and never after the console has what it needs. Between two
-  // strings it lets gap frames pass, as PsNee and Mayumi V4 do. A held window
-  // freezes the burst where it stands, gap included.
+  // proves the console accepted the string, and the chip stays silent for the
+  // rest of that window, mid-burst included. Out of the window the count and
+  // the acceptance reset: the program area has drained the SUBQ counter, so the
+  // next opening is a new lead-in read, such as the ReadTOC re-read of the
+  // anti-mod v2 check, which clears the drive's licensed status and needs a
+  // fresh string on a copy (tonyhax docs/ap_v2.c, aprip readme). Inside the
+  // window the chip emits until the safety cap, so it never drives the bus
+  // without bound. Between two strings it lets gap frames pass, as PsNee and
+  // Mayumi V4 do. A held window freezes the burst where it stands, gap
+  // included.
   if (disc_gone) {
     out.state = pscu_stealth_init();
   } else {
     if (program) {
+      // coverage: unreachable: in the firmware a program-area frame meets an
+      // open window only if the caller keeps the counter up; pscu_loop_read
+      // empties it on that frame, so the window is always closed here. The
+      // latch stays for this function's own contract, held by the host tests.
       out.state.accepted = true;
     }
     if (window == PSCU_WINDOW_CLOSED) {
       out.state.sent = 0U;
       out.state.wait = 0U;
+      out.state.accepted = false;
     } else if (out.state.accepted || (window == PSCU_WINDOW_HELD)) {
     } else if (state.wait > 0U) {
       out.state.wait = (uint8_t)(state.wait - 1U);

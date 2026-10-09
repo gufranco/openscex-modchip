@@ -81,15 +81,22 @@ static pscu_session_t pscu_loop_session_fired(pscu_session_t session, uint8_t se
 
 // Read the frame: whether the disc is there, and the leaky counter. A gone disc
 // also empties the counter, so the next disc's spin-up cannot find the window
-// already open and spend strings before its lead-in.
+// already open and spend strings before its lead-in. So does a program-area
+// frame: the drive reads there only once it has accepted, and a counter left
+// saturated by a long lead-in would otherwise take some 245 frames, 3.3 s, to
+// close the window. Emptied, the window closes at once, and a later lead-in
+// read, such as the anti-mod v2 ReadTOC re-read that needs a fresh string on a
+// copy (tonyhax docs/ap_v2.c), must climb from zero to the start again, as
+// PsNee's counter reset after each string makes it do (PSNee.ino:736).
 static void pscu_loop_read(pscu_loop_t *next, const pscu_loop_in_t *in, pscu_loop_pass_t *pass) {
   pass->valid = in->captured && pscu_subq_is_valid(in->frame);
   next->presence = pscu_presence_step(next->presence, pass->valid, in->elapsed_ms);
   pass->disc_gone = pscu_presence_gone(next->presence);
-  pass->previous = next->counter;
-  next->counter =
-      pass->disc_gone ? 0U : pscu_subq_update_counter(in->frame, next->counter, next->vcd_filter);
   pass->program = pscu_subq_is_program_area(in->frame);
+  pass->previous = next->counter;
+  bool empties = pass->disc_gone || pass->program;
+  next->counter =
+      empties ? 0U : pscu_subq_update_counter(in->frame, next->counter, next->vcd_filter);
 }
 
 // Decide the string. The window is closed below the learned start, open above

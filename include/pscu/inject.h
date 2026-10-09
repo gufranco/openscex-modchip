@@ -14,13 +14,14 @@
 bool pscu_should_inject(uint8_t counter, uint8_t trigger);
 
 // Stealth state: how many region strings have been emitted since the window
-// was last entered, and whether the console has accepted the string since this
-// disc arrived. After acceptance the console reads the program area, and the
-// drive stays unlocked until the disc leaves (Concluded: the check runs at
-// spin-up, which is why a disc swap needs a new string), so any further string
-// could only expose the chip, including during a later lead-in reread by an
-// anti-mod check. The disc leaving, seen as a stretch with no valid SUBQ frame,
-// is what ends the latch. wait counts the frames still to pass before the
+// was last entered, and whether the console has accepted the string in this
+// window. After acceptance the console reads the program area, where a string
+// is exactly what an anti-mod probe counts (psx-spx, 19h,04h and 19h,05h), so
+// the chip stays silent. The window closing ends the acceptance: a later
+// lead-in read is a new check, as the anti-mod v2 ReadTOC re-read is, which
+// clears the drive's licensed status (aprip readme, tonyhax docs/ap_v2.c).
+// The disc leaving, seen as a stretch with no valid SUBQ frame, also resets
+// everything. wait counts the frames still to pass before the
 // next string may start, so strings are spaced the way a disc and the
 // long-deployed chips space them rather than sent back to back.
 typedef struct {
@@ -48,10 +49,11 @@ pscu_stealth_t pscu_stealth_init(void);
 // Decide, for the current frame, whether to emit one region string. While the
 // disc is gone the chip emits nothing and forgets it, so the next disc finds the
 // chip re-armed. With a disc present, a program-area frame shows the console
-// accepted the string and latches the chip silent at once, mid-burst included,
-// through every later lead-in read until the disc leaves. Before that,
-// inside the window the chip emits up to max_strings and then falls silent, and
-// outside the window it emits nothing and resets the count. A held window
+// accepted the string and silences the chip at once, mid-burst included, for
+// the rest of that window. Inside the window the chip emits up to max_strings
+// and then falls silent, and outside the window it emits nothing and resets
+// both the count and the acceptance, so the next lead-in read is served
+// again. A held window
 // emits nothing and changes nothing. After each string the next waits gap open
 // window frames; each call is one frame.
 pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state,

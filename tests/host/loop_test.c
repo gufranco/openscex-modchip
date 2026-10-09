@@ -148,6 +148,13 @@ static void test_accepted(void) {
   step_t after = pass(accepted.state, PROGRAM);
   g_check(!after.store && (after.state.calib.cap == accepted.state.calib.cap),
           "loop: a resolved session learns once");
+
+  // The drive reads the program area only once it has accepted, so a program
+  // frame empties the counter and closes the window at once; a later lead-in
+  // re-read, as the anti-mod v2 ReadTOC is, climbs from zero and is served.
+  g_check(accepted.state.counter == 0U, "loop: a program-area frame empties the counter");
+  step_t reread = feed(after.state, LEAD_IN, (uint16_t)(TRIGGER + PSCU_CALIB_TRIGGER_STEP));
+  g_check(reread.fire, "loop: a lead-in re-read after play is served again");
 }
 
 // With no program area, the session resolves as refused after the bounded

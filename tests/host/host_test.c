@@ -289,9 +289,17 @@ static void test_stealth_disc_gone(void) {
   check(!reread.fire && reread.state.accepted,
         "a later lead-in read of the same disc stays silent");
 
+  // The program area drains the SUBQ counter and closes the window, which ends
+  // the acceptance: the anti-mod v2 check re-reads the lead-in with ReadTOC,
+  // clearing the drive's licensed status, and a copy then needs a fresh string
+  // (tonyhax docs/ap_v2.c). The next opening of the window is armed again.
   pscu_stealth_step_t closed_out =
       pscu_stealth_step(reread.state, PSCU_WINDOW_CLOSED, false, false, 16U, 0U);
-  check(closed_out.state.accepted, "leaving the window does not end the acceptance");
+  check(!closed_out.state.accepted, "leaving the window ends the acceptance");
+
+  pscu_stealth_step_t toc =
+      pscu_stealth_step(closed_out.state, PSCU_WINDOW_OPEN, false, false, 16U, 0U);
+  check(toc.fire && (toc.state.sent == 1U), "a lead-in re-read after play is injected again");
 
   pscu_stealth_step_t opened =
       pscu_stealth_step(closed_out.state, PSCU_WINDOW_OPEN, false, true, 16U, 0U);

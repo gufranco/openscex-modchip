@@ -13,10 +13,11 @@
 // and every LED stage from the boot light to the live fault codes.
 
 // A multi-disc game, end to end. Each phase counts region strings by LED rises.
-// The first program-area frame must stop the burst; a table-of-contents re-read
-// of the same disc, however long, as an anti-mod check might do, must stay
-// silent; and every swap, seen as SUBQ going silent past the disc-gone bound,
-// must re-arm the chip so the next disc is injected.
+// The first program-area frame must stop the burst. A table-of-contents re-read
+// of the same disc after play, as the anti-mod v2 check's ReadTOC does, clears
+// the drive's licensed status, so it must be served again, under the same cap,
+// and play after it must stay silent. Every swap, seen as SUBQ going silent
+// past the disc-gone bound, must re-arm the chip so the next disc is injected.
 // The harness clocks a frame about every 12 ms, and the firmware may miss frames
 // while an injection blocks, so phase lengths sit well past the trigger.
 #define MD_TOC_FRAMES 40
@@ -26,6 +27,8 @@
 // before strings are counted again: a string lasts 177 ms, about 15 harness
 // frames, and is counted when it ends.
 #define MD_SETTLE_FRAMES 20
+// The per-arming cap, PSCU_STEALTH_STRINGS in include/pscu/config.h.
+#define MD_CAP 16
 static void md_check(const target_t *t, int ok, const char *what, int strings) {
   char label[112];
   (void)snprintf(label, sizeof(label), "multi-disc %s: %s (%d strings)", t->mcu, what, strings);
@@ -52,8 +55,13 @@ void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq) {
   md_check(t, after_accept == 0, "no string once the program area is read", after_accept);
 
   int reread = strings_while(avr, t, toc, MD_REREAD_FRAMES);
-  reread += strings_while(avr, t, play, MD_PLAY_FRAMES);
-  md_check(t, reread == 0, "a long TOC re-read of the same disc stays silent", reread);
+  md_check(t,
+           (reread >= 1) && (reread <= MD_CAP),
+           "a long TOC re-read of the same disc is served again, within the cap",
+           reread);
+  clock_frames(avr, t, play, MD_SETTLE_FRAMES);
+  int replay = strings_while(avr, t, play, MD_PLAY_FRAMES);
+  md_check(t, replay == 0, "play after the re-read stays silent", replay);
 
   swap_disc(avr);
   int disc2 = strings_while(avr, t, toc, MD_TOC_FRAMES);
@@ -67,8 +75,9 @@ void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq) {
 
 // Without a lid wire, a swap is a stretch with no valid SUBQ frame. A pause
 // shorter than the 1.5 s bound, as a seek or a brief stall on the same disc
-// gives, must keep the acceptance latch: the lead-in reread after it gets no
-// string. A swap past the bound re-arms, which the multi-disc scenario covers.
+// gives, keeps the disc and its session (host loop tests), and a lead-in read
+// after it is served like any later lead-in read of the same disc. A swap past
+// the bound re-arms, which the multi-disc scenario covers.
 #define SHORT_PAUSE_MS 800U
 
 void scenario_disc_presence(const target_t *t, const char *elf, uint32_t freq) {
@@ -84,9 +93,12 @@ void scenario_disc_presence(const target_t *t, const char *elf, uint32_t freq) {
   run_cycles(avr, ms_cycles(SHORT_PAUSE_MS));
   int reread = strings_while(avr, t, toc, MD_TOC_FRAMES);
   char label[96];
-  (void)snprintf(
-      label, sizeof(label), "disc %s: a short pause keeps the latch (%d strings)", t->mcu, reread);
-  check((g_led_seen != 0) && (reread == 0), label);
+  (void)snprintf(label,
+                 sizeof(label),
+                 "disc %s: a lead-in read after a short pause is served (%d strings)",
+                 t->mcu,
+                 reread);
+  check((g_led_seen != 0) && (reread >= 1), label);
 
   // A long reread leaves the counter high. After a swap, the next disc's first
   // frames are not lead-in, as a drive spinning up and seeking gives; with the
