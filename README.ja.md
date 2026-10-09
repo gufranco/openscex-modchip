@@ -289,16 +289,16 @@ graph LR
 コンソールベンチは、同じ模擬コンソールを、ビルドまたは読み込みできるすべてのチップに流し、以下の項目で判定します。各項目はゲームが行うアンチモッド検査かコンソールの障害を模したもので、チップが対象とする基板を表すすべてのシナリオで成り立つときだけ合格です。どの基板も対象外の項目は「対象外」です。これはベンチのコンソールモデルに対するシミュレーションの結果で、実機の結果ではありません。モデルと出典は [CONTRIBUTING.md](CONTRIBUTING.md) にあります。
 
 <!-- showcase:start -->
-| 項目 | openscex | psnee-attiny85 | psnee-atmega328p | mayumi-v4 | mm3-12c508a | mm3-12f629 | old-crow-12c508 | old-crow-12f629 | old-crow-12c508-v54f | old-crow-16c84 | old-crow-16c54 | modavr-attiny13 | ubernee-atmega328p | onechip-12c508a | 出典 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| アンチモッド v1 の検査中は無信号 | 合格 | 合格 | 合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 合格 | 合格 | [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
-| アンチモッド v2 の再読込で再認証 | 合格 | 合格 | 合格 | 不合格 | 不合格 | 不合格 | 合格 | 合格 | 合格 | 合格 | 合格 | 合格 | 合格 | 不合格 | [tonyhax docs/ap_v2.c](https://github.com/socram8888/tonyhax/blob/6c9d18ccbdfd3ffc3dc5f0eb373a50600199e208/docs/ap_v2.c#L225-L285), [aprip readme, APv2](https://github.com/alex-free/aprip/blob/767fa1ded63076e2380822986120170272420443/readme.md#apv2) |
-| アンチモッド v2 の検査中は無信号 | 合格 | 合格 | 合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 合格 | 合格 | [tonyhax docs/ap_v2.c](https://github.com/socram8888/tonyhax/blob/6c9d18ccbdfd3ffc3dc5f0eb373a50600199e208/docs/ap_v2.c#L225-L285), [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
-| ゲーム開始後は文字列を送らない | 合格 | 合格 | 合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | [psx-spx cdromdrive.md, 19h,04h](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromdrive.md#L1211-L1230) |
-| 注入していない間はコンソール側のピンを解放 | 合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/), [bench runners](bench) |
-| SQCK が固着した後も認証 | 合格 | 合格 | 合格 | 合格 | 合格 | 合格 | 対象外 | 対象外 | 対象外 | 対象外 | 対象外 | 対象外 | 合格 | 不合格 | [tools/bench/edge_scenarios.py](tools/bench/edge_scenarios.py) |
-| WFCK 停止から復帰し WFCK を駆動しない | 合格 | 合格 | 合格 | 合格 | 合格 | 合格 | 対象外 | 対象外 | 対象外 | 対象外 | 対象外 | 対象外 | 不合格 | 合格 | [tools/bench/edge_scenarios.py](tools/bench/edge_scenarios.py) |
-| 2 枚目のディスクで再起動 | 合格 | 合格 | 合格 | 合格 | 合格 | 合格 | 対象外 | 対象外 | 対象外 | 対象外 | 対象外 | 対象外 | 合格 | 合格 | [tools/bench/scenarios.py](tools/bench/scenarios.py) |
+| 項目 | openscex | psnee-attiny85 | psnee-atmega328p | mayumi-v4 | mm3-12c508a | old-crow-12c508 | old-crow-12c508-v54f | old-crow-16c84 | old-crow-16c54 | modavr-attiny13 | ubernee-atmega328p | onechip-12c508a | 出典 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| アンチモッド v1 の検査中は無信号 | 合格 | 合格 | 合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 合格 | 合格 | [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
+| アンチモッド v2 の再読込で再認証 | 合格 | 合格 | 合格 | 不合格 | 不合格 | 合格 | 合格 | 合格 | 合格 | 合格 | 合格 | 不合格 | [tonyhax docs/ap_v2.c](https://github.com/socram8888/tonyhax/blob/6c9d18ccbdfd3ffc3dc5f0eb373a50600199e208/docs/ap_v2.c#L225-L285), [aprip readme, APv2](https://github.com/alex-free/aprip/blob/767fa1ded63076e2380822986120170272420443/readme.md#apv2) |
+| アンチモッド v2 の検査中は無信号 | 合格 | 合格 | 合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 合格 | 合格 | [tonyhax docs/ap_v2.c](https://github.com/socram8888/tonyhax/blob/6c9d18ccbdfd3ffc3dc5f0eb373a50600199e208/docs/ap_v2.c#L225-L285), [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
+| ゲーム開始後は文字列を送らない | 合格 | 合格 | 合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | [psx-spx cdromdrive.md, 19h,04h](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromdrive.md#L1211-L1230) |
+| 注入していない間はコンソール側のピンを解放 | 合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | 不合格 | [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/), [bench runners](bench) |
+| SQCK が固着した後も認証 | 合格 | 合格 | 合格 | 合格 | 合格 | 対象外 | 対象外 | 対象外 | 対象外 | 対象外 | 合格 | 不合格 | [tools/bench/edge_scenarios.py](tools/bench/edge_scenarios.py) |
+| WFCK 停止から復帰し WFCK を駆動しない | 合格 | 合格 | 合格 | 合格 | 合格 | 対象外 | 対象外 | 対象外 | 対象外 | 対象外 | 不合格 | 合格 | [tools/bench/edge_scenarios.py](tools/bench/edge_scenarios.py) |
+| 2 枚目のディスクで再起動 | 合格 | 合格 | 合格 | 合格 | 合格 | 対象外 | 対象外 | 対象外 | 対象外 | 対象外 | 合格 | 合格 | [tools/bench/scenarios.py](tools/bench/scenarios.py) |
 
 - **アンチモッド v1 の検査中は無信号**: ゲームはプログラム領域の再生中に SCEx 文字列を数える。正規ディスクではそこに文字列はなく、部分的な文字列でも 1 本あればモッドチップと判定される。出典: [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646)。
 - **アンチモッド v2 の再読込で再認証**: ReadTOC は正規ディスクの認証状態を消し、リードインを読み直す間に完全な文字列が届かなければ、コピーでは GetID が失敗する。出典: [tonyhax docs/ap_v2.c](https://github.com/socram8888/tonyhax/blob/6c9d18ccbdfd3ffc3dc5f0eb373a50600199e208/docs/ap_v2.c#L225-L285), [aprip readme, APv2](https://github.com/alex-free/aprip/blob/767fa1ded63076e2380822986120170272420443/readme.md#apv2)。

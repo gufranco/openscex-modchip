@@ -62,7 +62,6 @@ class CatalogueTest(unittest.TestCase):
     def test_the_recorded_chips_never_bound_ours(self) -> None:
         recorded = [
             "old-crow-12c508",
-            "old-crow-12f629",
             "modavr-attiny13",
             "ubernee-atmega328p",
             "onechip-12c508a",

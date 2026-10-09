@@ -31,90 +31,11 @@
       "reason": "the ROM tag 'Multimode3.00 ', retlw data that no code calls"
     }
   ],
-  "mm3-12f629-usa": [
-    {
-      "start": "0x004",
-      "end": "0x00b",
-      "reason": "the interrupt handler the 12F629 port keeps from its template; the program never writes INTCON, so GIE stays clear from power-on and no interrupt enters it"
-    },
-    {
-      "start": "0x014",
-      "end": "0x021",
-      "reason": "the ROM tag 'Multimode3.00 ', retlw data that no code calls"
-    },
-    {
-      "start": "0x10e",
-      "end": "0x10e",
-      "reason": "a branch on the lid input GP0, which never reads open on this port: it never writes CMCON, whose power-on mode keeps GP0 an analog comparator input that reads 0 (Microchip DS41190G, Figure 6-2 and section 3.0); MM3 and Mayumi V4 on the 12C508A take this branch in the same scenarios"
-    },
-    {
-      "start": "0x13c",
-      "end": "0x13c",
-      "reason": "a reset taken while waiting for the lid to close, a wait only an open lid starts; GP0 never reads open on this port, which never writes CMCON (Microchip DS41190G, Figure 6-2)"
-    },
-    {
-      "start": "0x145",
-      "end": "0x145",
-      "reason": "a branch on the lid input GP0, which never reads open on this port: it never writes CMCON, whose power-on mode keeps GP0 an analog comparator input that reads 0 (Microchip DS41190G, Figure 6-2 and section 3.0)"
-    },
-    {
-      "start": "0x163",
-      "end": "0x163",
-      "reason": "a branch on the lid input GP0, which never reads open on this port: it never writes CMCON, whose power-on mode keeps GP0 an analog comparator input that reads 0 (Microchip DS41190G, Figure 6-2 and section 3.0)"
-    },
-    {
-      "start": "0x182",
-      "end": "0x182",
-      "reason": "a branch on the lid input GP0, which never reads open on this port: it never writes CMCON, whose power-on mode keeps GP0 an analog comparator input that reads 0 (Microchip DS41190G, Figure 6-2 and section 3.0)"
-    },
-    {
-      "start": "0x193",
-      "end": "0x193",
-      "reason": "a branch on the lid input GP0, which never reads open on this port: it never writes CMCON, whose power-on mode keeps GP0 an analog comparator input that reads 0 (Microchip DS41190G, Figure 6-2 and section 3.0)"
-    },
-    {
-      "start": "0x1a4",
-      "end": "0x1a4",
-      "reason": "a branch on the lid input GP0, which never reads open on this port: it never writes CMCON, whose power-on mode keeps GP0 an analog comparator input that reads 0 (Microchip DS41190G, Figure 6-2 and section 3.0)"
-    },
-    {
-      "start": "0x1b6",
-      "end": "0x1b6",
-      "reason": "a branch on the lid input GP0, which never reads open on this port: it never writes CMCON, whose power-on mode keeps GP0 an analog comparator input that reads 0 (Microchip DS41190G, Figure 6-2 and section 3.0)"
-    },
-    {
-      "start": "0x1c8",
-      "end": "0x1c8",
-      "reason": "a branch on the lid input GP0, which never reads open on this port: it never writes CMCON, whose power-on mode keeps GP0 an analog comparator input that reads 0 (Microchip DS41190G, Figure 6-2 and section 3.0)"
-    },
-    {
-      "start": "0x1dd",
-      "end": "0x1dd",
-      "reason": "a branch on the lid input GP0, which never reads open on this port: it never writes CMCON, whose power-on mode keeps GP0 an analog comparator input that reads 0 (Microchip DS41190G, Figure 6-2 and section 3.0)"
-    },
-    {
-      "start": "0x1ee",
-      "end": "0x1ee",
-      "reason": "a reset taken while waiting for the lid to close, a wait only an open lid starts; GP0 never reads open on this port, which never writes CMCON (Microchip DS41190G, Figure 6-2)"
-    },
-    {
-      "start": "0x1f2",
-      "end": "0x1f3",
-      "reason": "the endless injection a lid open at power-on starts; GP0 never reads open on this port, which never writes CMCON (Microchip DS41190G, Figure 6-2); MM3 on the 12C508A takes it with the lid open at boot"
-    }
-  ],
   "old-crow-12c508": [
     {
       "start": "0x009",
       "end": "0x00c",
       "reason": "the branches taken when GP3, pin 4, reads low: it is the timing input of the 5-wire install, which the 4-wire install the bench models leaves unconnected, so it reads high (the source's own pin diagram and steps 1 to 4)"
-    }
-  ],
-  "old-crow-12f629": [
-    {
-      "start": "0x004",
-      "end": "0x00b",
-      "reason": "the interrupt handler the port keeps at 0x004; the program never sets GIE, so no interrupt enters it"
     }
   ],
   "ubernee-v142": [

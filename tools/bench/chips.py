@@ -136,20 +136,6 @@ CHIPS = (
         boards=_EVERY_BOARD,
     ),
     Chip(
-        name="mm3-12f629",
-        simulator=Simulator.PIC,
-        cpu="p12f629",
-        clock_hz=4_000_000,
-        pins=_MAYUMI_PINS,
-        firmware="docs/research/sources/multimode_v3_12f629_usa.hex",
-        artifact="mm3-12f629-usa",
-        field_proven=True,
-        origin="MultiMode 3 12F629 port; pins from its source header "
-        "(gpio0 door, gpio1 data, gpio2 gate, gpio3 reset, gpio4 memline); "
-        "internal 4 MHz RC",
-        boards=_EVERY_BOARD,
-    ),
-    Chip(
         name="old-crow-12c508",
         simulator=Simulator.PIC,
         cpu="p12c508",
@@ -161,19 +147,6 @@ CHIPS = (
         origin="Old Crow v5.3 source assembled with gpasm; GP1, pin 6, sends "
         "by port direction and GP2, pin 5, holds the gate low (its source, "
         "steps 1 to 4); internal 4 MHz RC; sends all three region strings",
-        boards=GATE_BOARDS,
-    ),
-    Chip(
-        name="old-crow-12f629",
-        simulator=Simulator.PIC,
-        cpu="p12f629",
-        clock_hz=4_000_000,
-        pins="data=6,gate=5",
-        firmware="build/bench/old-crow-12f629.hex",
-        artifact="old-crow-12f629",
-        field_proven=False,
-        origin="GaryOPA's 4-wire PIC12F629 port of Old Crow, assembled with "
-        "gpasm; same pins as the 12C508 source; internal 4 MHz RC",
         boards=GATE_BOARDS,
     ),
     Chip(

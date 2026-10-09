@@ -19,15 +19,6 @@
       "obtain": "MultiMode 3 12C508A USA image from the quade.co PS1 modchip guide (https://quade.co/ps1-modchip-guide/mm3/), saved and renamed to the path above"
     },
     {
-      "id": "mm3-12f629-usa",
-      "kind": "pic-image",
-      "path": "docs/research/sources/multimode_v3_12f629_usa.hex",
-      "sha256": "9598bff7e0430ae355d8f57715b3e7404a531bc166f343bed157197debac2806",
-      "license": "none stated",
-      "redistributable": false,
-      "obtain": "MultiMode 3 12F629 USA image from the quade.co PS1 modchip guide (https://quade.co/ps1-modchip-guide/mm3/), saved and renamed to the path above; it is the gpasm build of its published source"
-    },
-    {
       "id": "psnee-v9",
       "kind": "git-source",
       "url": "https://github.com/kalymos/PsNee.git",
@@ -48,15 +39,6 @@
         "_INT_OSC=_IntRC_OSC"
       ],
       "obtain": "Old Crow's PIC12C508 v5.3 source (Scott Rider, 1997; 4-wire changes by Charles, 1999) from https://psx.arthus.net/modchips/oldcrow-modchip.asm, saved and renamed to the path above"
-    },
-    {
-      "id": "old-crow-12f629",
-      "kind": "pic-source",
-      "path": "docs/research/sources/oldcrow-garyopa_v1_12f629_all.asm",
-      "sha256": "1a292969f41b92bfa22c19126a46a0192d55dd9a115ea8155771785faca5f129",
-      "license": "none stated",
-      "redistributable": false,
-      "obtain": "GaryOPA's 2007 PIC12F629 port of Old Crow's design, the source printed in https://www.neperos.com/article/q1it8me83bb3bbba, saved as plain text under the path above"
     },
     {
       "id": "modavr-attiny13",

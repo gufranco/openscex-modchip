@@ -210,7 +210,7 @@ class PrepareTest(unittest.TestCase):
             self.manifest(
                 root, self.file_entry(root, "a.asm", FIXTURE_ASM, "pic-source")
             )
-            chip = replace(by_name("old-crow-12f629"), artifact="x")
+            chip = replace(by_name("old-crow-12c508"), artifact="x")
 
             reason = prepare(root, chip, root)
             built = (root / chip.firmware).is_file()
@@ -237,7 +237,7 @@ class PrepareTest(unittest.TestCase):
             root = Path(work)
             entry = self.file_entry(root, "a.asm", FIXTURE_ASM, "pic-source")
             self.manifest(root, {**entry, "sha256": "0" * 64})
-            chip = replace(by_name("old-crow-12f629"), artifact="x")
+            chip = replace(by_name("old-crow-12c508"), artifact="x")
 
             reason = prepare(root, chip, root)
 

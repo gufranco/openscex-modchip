@@ -49,27 +49,7 @@
     "watchdog": "pass",
     "swap": "pass"
   },
-  "mm3-12f629": {
-    "antimod-v1": "fail",
-    "antimod-v2-reauth": "fail",
-    "antimod-v2": "fail",
-    "silent-in-play": "fail",
-    "pins-float": "fail",
-    "stuck-sqck": "pass",
-    "watchdog": "pass",
-    "swap": "pass"
-  },
   "old-crow-12c508": {
-    "antimod-v1": "fail",
-    "antimod-v2-reauth": "pass",
-    "antimod-v2": "fail",
-    "silent-in-play": "fail",
-    "pins-float": "fail",
-    "stuck-sqck": "n/a",
-    "watchdog": "n/a",
-    "swap": "n/a"
-  },
-  "old-crow-12f629": {
     "antimod-v1": "fail",
     "antimod-v2-reauth": "pass",
     "antimod-v2": "fail",
