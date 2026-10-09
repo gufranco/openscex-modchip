@@ -1,3 +1,11 @@
+## [0.10.4](https://github.com/gufranco/openscex-modchip/compare/v0.10.3...v0.10.4) (2026-10-09)
+
+
+### Bug Fixes
+
+* no trim sample across an injected string ([0e1429f](https://github.com/gufranco/openscex-modchip/commit/0e1429f88799b2d999604b75bfc67985db003780))
+* serve a lead-in re-read after play ([7b0efe3](https://github.com/gufranco/openscex-modchip/commit/7b0efe3f6232e7284d7cc11c5553877443aef4fe))
+
 ## [0.10.3](https://github.com/gufranco/openscex-modchip/compare/v0.10.2...v0.10.3) (2026-10-08)
 
 
