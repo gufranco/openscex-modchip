@@ -221,6 +221,16 @@ static void test_trim_sample(void) {
           "loop: a frame that does not rise is no sample");
   g_check(!pass_with(settled.state, LEAD_IN, false, true, FRAME_MS).trim_sample,
           "loop: a failed capture is no sample");
+
+  // The string blocks the loop for 176 ms, so the next frame's stamp would time
+  // the tail of the string, not a frame period; the pass that fires is no
+  // sample, which leaves the next one without a partner.
+  step_t climbing = settled;
+  for (uint8_t i = 0U; (i < (uint8_t)(TRIGGER + 2U)) && !climbing.fire; i++) {
+    climbing = pass(climbing.state, LEAD_IN);
+  }
+  g_check(climbing.fire && !climbing.trim_sample,
+          "loop: the pass that fires a string is no sample");
 }
 
 // The cap is taken when an arming starts: a value learned mid-burst waits for

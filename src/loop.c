@@ -206,10 +206,14 @@ pscu_loop_out_t pscu_loop_step(pscu_loop_t *state, const pscu_loop_in_t *in) {
   pscu_loop_out_t out;
   bool settled = state->since.ms >= PSCU_LOOP_TRIM_SETTLE_MS;
   pscu_loop_read(state, in, &pass);
-  out.trim_sample = in->captured && settled && (state->counter > pass.previous);
+  bool rising = in->captured && settled && (state->counter > pass.previous);
   pscu_loop_burst(state, in->supply_ok, &pass);
   pscu_loop_learned_t learned = pscu_loop_learn(state, &pass);
   out.led_on = pscu_loop_show(state, in, learned, &pass);
+  // A pass that fires blocks the loop for the whole string, so the next frame's
+  // Timer1 stamp would time the string's tail, not a frame period, and bias
+  // the trim; it is no sample, which also leaves the next pass unpaired.
+  out.trim_sample = rising && !pass.fire;
   out.fire = pass.fire;
   out.store = learned.store;
   out.quiet = !pass.reached;
