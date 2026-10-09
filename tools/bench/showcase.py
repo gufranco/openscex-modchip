@@ -60,12 +60,12 @@ class Outcome(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Property:
-    """A behaviour judged over named scenarios, with the source of the
-    mechanism it models; its title and mechanism in each language are in
-    TEXT under its key."""
+    """A behaviour judged over named scenarios, with the sources of the
+    mechanism it models as (label, link) pairs; its title and mechanism in
+    each language are in TEXT under its key."""
 
     key: str
-    source: str
+    sources: tuple[tuple[str, str], ...]
     scenarios: tuple[str, ...]
     holds: Callable[[Metrics], bool]
 
@@ -73,11 +73,13 @@ class Property:
 @dataclass(frozen=True, slots=True)
 class Words:
     """TEXT as read: per language, the column heading, the word before a
-    source, the word for each outcome, and each property's title and
-    mechanism."""
+    source, the sentence stop and the colon the language writes, the word for
+    each outcome, and each property's title and mechanism."""
 
     heading: dict[str, str]
     source: dict[str, str]
+    stop: dict[str, str]
+    colon: dict[str, str]
     outcome: dict[str, dict[str, str]]
     properties: dict[str, dict[str, dict[str, str]]]
 
@@ -85,6 +87,27 @@ class Words:
         """A property's title or mechanism in one language."""
         return self.properties[key][field][lang]
 
+
+_SPX = (
+    "https://github.com/psx-spx/psx-spx.github.io/blob/"
+    "6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/"
+)
+_TONYHAX = (
+    "https://github.com/socram8888/tonyhax/blob/"
+    "6c9d18ccbdfd3ffc3dc5f0eb373a50600199e208/docs/ap_v2.c#L225-L285"
+)
+_APRIP = (
+    "https://github.com/alex-free/aprip/blob/"
+    "767fa1ded63076e2380822986120170272420443/readme.md#apv2"
+)
+_PROBE = ("psx-spx cdromformat.md, anti-modchip", _SPX + "cdromformat.md#L1624-L1646")
+_COUNTERS = ("psx-spx cdromdrive.md, 19h,04h", _SPX + "cdromdrive.md#L1211-L1230")
+_APV2 = ("tonyhax docs/ap_v2.c", _TONYHAX)
+_READTOC = ("aprip readme, APv2", _APRIP)
+_FLOAT = ("quade.co PsNee guide", "https://quade.co/ps1-modchip-guide/psnee/")
+_PULLS = ("bench runners", "bench")
+_EDGE = ("tools/bench/edge_scenarios.py", "tools/bench/edge_scenarios.py")
+_CORE_FILE = ("tools/bench/scenarios.py", "tools/bench/scenarios.py")
 
 _ANTIMOD_V1 = ("antimod-v1-carrier", "antimod-v1-gate-early", "antimod-v1-gate")
 _ANTIMOD_V2 = ("antimod-v2-carrier", "antimod-v2-gate-early", "antimod-v2-gate")
@@ -102,49 +125,49 @@ def _pins_float(m: Metrics) -> bool:
 PROPERTIES = (
     Property(
         "antimod-v1",
-        "psx-spx cdromformat.md, anti-modchip sequence",
+        (_PROBE,),
         _ANTIMOD_V1,
         lambda m: m.probe_strings == 0,
     ),
     Property(
         "antimod-v2-reauth",
-        "tonyhax docs/ap_v2.c; aprip readme, APv2",
+        (_APV2, _READTOC),
         _ANTIMOD_V2,
         lambda m: m.reread_valid >= 1,
     ),
     Property(
         "antimod-v2",
-        "tonyhax docs/ap_v2.c; psx-spx cdromformat.md",
+        (_APV2, _PROBE),
         _ANTIMOD_V2,
         lambda m: m.probe_strings == 0,
     ),
     Property(
         "silent-in-play",
-        "psx-spx cdromdrive.md, 19h,04h",
+        (_COUNTERS,),
         _CORE,
         lambda m: m.during_play == 0,
     ),
     Property(
         "pins-float",
-        "PsNee description on quade.co: floats all I/O pins when not injecting",
+        (_FLOAT, _PULLS),
         _CORE + _ANTIMOD_V1 + _ANTIMOD_V2,
         _pins_float,
     ),
     Property(
         "stuck-sqck",
-        "bench fault scenario sqck-stuck",
+        (_EDGE,),
         ("sqck-stuck",),
         lambda m: m.would_accept,
     ),
     Property(
         "watchdog",
-        "bench fault scenario carrier-watchdog",
+        (_EDGE,),
         ("carrier-watchdog",),
         lambda m: m.would_accept and m.gate_driven_ns == 0,
     ),
     Property(
         "swap",
-        "bench scenario carrier-swap",
+        (_CORE_FILE,),
         ("carrier-swap",),
         lambda m: m.second_window >= 1,
     ),
@@ -157,7 +180,14 @@ Results = dict[str, dict[str, Outcome]]
 def words() -> Words:
     """The README-facing words, read once on first use."""
     raw = json.loads(TEXT.read_text())
-    return Words(raw["heading"], raw["source"], raw["outcome"], raw["properties"])
+    return Words(
+        raw["heading"],
+        raw["source"],
+        raw["stop"],
+        raw["colon"],
+        raw["outcome"],
+        raw["properties"],
+    )
 
 
 def _judge(prop: Property, runs: list[Run]) -> Outcome:
@@ -208,24 +238,30 @@ def table(results: Results, lang: str) -> list[str]:
     lines = [
         f"| {said.heading[lang]} | "
         + " | ".join(OURS_SHOWN if c == OURS else c for c in chips)
-        + " |",
-        "|---|" + "---|" * len(chips),
+        + f" | {said.source[lang]} |",
+        "|---|" + "---|" * len(chips) + "---|",
     ]
     lines.extend(
         f"| {said.said(p.key, 'title', lang)} | "
         + " | ".join(outcome[results[c].get(p.key, Outcome.NA)] for c in chips)
-        + " |"
+        + f" | {_links(p)} |"
         for p in PROPERTIES
     )
     return lines
 
 
+def _links(prop: Property) -> str:
+    return ", ".join(f"[{label}]({url})" for label, url in prop.sources)
+
+
 def legend(lang: str) -> list[str]:
     """One line per property: its title, the mechanism it models, the source."""
     said = words()
+    colon, stop = said.colon[lang], said.stop[lang]
     return [
-        f"- **{said.said(p.key, 'title', lang)}**: "
-        f"{said.said(p.key, 'mechanism', lang)}. {said.source[lang]}: {p.source}."
+        f"- **{said.said(p.key, 'title', lang)}**{colon}"
+        f"{said.said(p.key, 'mechanism', lang)}{stop}"
+        f"{said.source[lang]}{colon}{_links(p)}{stop.rstrip()}"
         for p in PROPERTIES
     ]
 

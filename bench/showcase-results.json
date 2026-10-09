@@ -79,6 +79,36 @@
     "watchdog": "n/a",
     "swap": "n/a"
   },
+  "old-crow-12c508-v54f": {
+    "antimod-v1": "fail",
+    "antimod-v2-reauth": "pass",
+    "antimod-v2": "fail",
+    "silent-in-play": "fail",
+    "pins-float": "fail",
+    "stuck-sqck": "n/a",
+    "watchdog": "n/a",
+    "swap": "n/a"
+  },
+  "old-crow-16c84": {
+    "antimod-v1": "fail",
+    "antimod-v2-reauth": "pass",
+    "antimod-v2": "fail",
+    "silent-in-play": "fail",
+    "pins-float": "fail",
+    "stuck-sqck": "n/a",
+    "watchdog": "n/a",
+    "swap": "n/a"
+  },
+  "old-crow-16c54": {
+    "antimod-v1": "fail",
+    "antimod-v2-reauth": "pass",
+    "antimod-v2": "fail",
+    "silent-in-play": "fail",
+    "pins-float": "fail",
+    "stuck-sqck": "n/a",
+    "watchdog": "n/a",
+    "swap": "n/a"
+  },
   "modavr-attiny13": {
     "antimod-v1": "fail",
     "antimod-v2-reauth": "pass",

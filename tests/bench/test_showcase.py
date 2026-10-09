@@ -103,7 +103,7 @@ class EvaluateTest(unittest.TestCase):
         ]
 
         self.assertEqual(missing, [])
-        self.assertTrue(all(p.source for p in PROPERTIES))
+        self.assertTrue(all(p.sources for p in PROPERTIES))
 
     def test_every_property_scenario_is_in_the_catalogue(self) -> None:
         names = [name for p in PROPERTIES for name in p.scenarios]
