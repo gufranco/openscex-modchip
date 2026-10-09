@@ -140,10 +140,19 @@ static void test_boot(void) {
 
 static void test_learn_cap(void) {
   pscu_calib_t start = make(0U, PSCU_CALIB_CAP_MAX, MIN_T, true);
-  g_check(pscu_calib_learn(start, PSCU_CALIB_ACCEPTED, 1U).cap == PSCU_CALIB_CAP_MIN,
-          "calib: one string needed gives the smallest cap");
-  g_check(pscu_calib_learn(start, PSCU_CALIB_ACCEPTED, 3U).cap == 7U,
-          "calib: the cap is need plus margin");
+  g_check(pscu_calib_learn(start, PSCU_CALIB_ACCEPTED, 1U).cap == 10U,
+          "calib: a smaller need brings the cap halfway down to it");
+  g_check(pscu_calib_learn(start, PSCU_CALIB_ACCEPTED, 3U).cap == 11U,
+          "calib: halfway is measured to the need plus margin");
+  pscu_calib_t settling = start;
+  for (uint8_t disc = 0U; disc < 4U; disc++) {
+    settling = pscu_calib_learn(settling, PSCU_CALIB_ACCEPTED, 1U);
+  }
+  g_check(settling.cap == PSCU_CALIB_CAP_MIN,
+          "calib: four discs that need one string bring the cap to the floor");
+  pscu_calib_t tight = make(0U, PSCU_CALIB_CAP_MIN, MIN_T, true);
+  g_check(pscu_calib_learn(tight, PSCU_CALIB_ACCEPTED, 5U).cap == 9U,
+          "calib: a larger need raises the cap at once");
   uint8_t last_fit = (uint8_t)(PSCU_CALIB_CAP_FITS - 1U);
   g_check(pscu_calib_learn(start, PSCU_CALIB_ACCEPTED, last_fit).cap == PSCU_CALIB_CAP_MAX,
           "calib: the largest need that fits reaches the safety cap");

@@ -98,9 +98,10 @@ static pscu_osc_t pscu_osc_init(uint8_t factory) {
   return osc;
 }
 
-// Time this pass's frame against the last one. Only two lead-in frames in a row
-// make a sample; the batch decides a step, which moves OSCCAL at once, between
-// strings, and marks the trim for storing.
+// Time this pass's frame against the last one. Only two sampled frames in a row
+// make a sample; the batch decides a step, which moves OSCCAL between strings,
+// one notch per write so no write changes the clock by more than a notch
+// (PSCU_TRIM_MAX_STEP), and marks the trim for storing.
 static pscu_osc_t pscu_osc_step(pscu_osc_t osc, uint8_t stamp, bool hit) {
   pscu_trim_ref_t ref = { PSCU_TRIM_LOW, PSCU_TRIM_HIGH, PSCU_TRIM_EXPECTED };
   bool sample = osc.hit && hit;
@@ -110,8 +111,10 @@ static pscu_osc_t pscu_osc_step(pscu_osc_t osc, uint8_t stamp, bool hit) {
   next.batch = step.state;
   next.stamp = stamp;
   next.hit = hit;
-  next.osccal = pscu_trim_apply(osc.factory, osc.osccal, step.adjust);
-  if (next.osccal != osc.osccal) {
+  uint8_t target = pscu_trim_apply(osc.factory, osc.osccal, step.adjust);
+  for (uint8_t n = 0U; (n < (uint8_t)PSCU_TRIM_MAX_STEP) && (next.osccal != target); n++) {
+    next.osccal =
+        (target > next.osccal) ? (uint8_t)(next.osccal + 1U) : (uint8_t)(next.osccal - 1U);
     pscu_port_osccal_write(next.osccal);
     next.dirty = true;
   }

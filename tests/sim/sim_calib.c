@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 // SPDX-License-Identifier: MIT
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -24,6 +25,15 @@
 #define CALIB_CAP_MAX 16U
 #define CALIB_CAP_MARGIN 4U
 #define CALIB_SETTLE_FRAMES 120
+
+// The cap a fresh chip, whose cap is the full 16, keeps after an accepted disc
+// that needed strings: halfway down to the need plus the margin (calib.c,
+// pscu_calib_accepted).
+static uint8_t halfway_cap(int strings) {
+  int fit = strings + (int)CALIB_CAP_MARGIN;
+  fit = (fit > (int)CALIB_CAP_MAX) ? (int)CALIB_CAP_MAX : fit;
+  return (uint8_t)(fit + (((int)CALIB_CAP_MAX - fit) / 2));
+}
 #define CALIB_LONG_TOC_FRAMES 700
 #define CALIB_REPLAY_MS 10000U
 
@@ -73,8 +83,8 @@ void scenario_calib_cap(const target_t *t, const char *elf, uint32_t freq) {
   calib_check(
       t, calib_valid(raw) && (raw[1] == 0U), "a fresh chip stores a valid record and its board");
   calib_check(t,
-              (disc1 >= 1) && (raw[2] == (uint8_t)(disc1 + (int)CALIB_CAP_MARGIN)),
-              "an accepted disc stores its string count plus the margin as the cap");
+              (disc1 >= 1) && (raw[2] == halfway_cap(disc1)),
+              "an accepted disc brings the cap halfway down to its need plus the margin");
   calib_check(t,
               (raw[3] == (CALIB_TRIGGER + CALIB_TRIGGER_STEP)) && (raw[4] == 0U),
               "an accepted disc probes one step later");
@@ -151,16 +161,16 @@ void scenario_calib_jp(const target_t *t, const char *elf, uint32_t freq) {
   uint8_t raw[CALIB_BYTES] = { 0 };
   read_calib(avr, raw);
   calib_check(t,
-              calib_valid(raw) && (raw[2] == (uint8_t)(g_strings + (int)CALIB_CAP_MARGIN)) &&
-                  (raw[3] == CALIB_TRIGGER) && (raw[4] == 1U),
+              calib_valid(raw) && (raw[2] == halfway_cap(g_strings)) && (raw[3] == CALIB_TRIGGER) &&
+                  (raw[4] == 1U),
               "a Japanese build learns the cap but keeps the default start");
 }
 
 // The oscillator trim. simavr runs the chip at whatever rate the harness names,
 // and the firmware believes 8 MHz, so naming 5 percent more models an RC that
 // runs 5 percent fast: 75 Hz frames then span more Timer1 ticks than nominal.
-// The disc is accepted first, so the long lead-in reread that follows, like an
-// anti-mod check's, gets no string and yields only frame samples; the trim must
+// The disc is accepted first, then the long lead-in reread that follows, like
+// an anti-mod check's, is served and then yields frame samples; the trim must
 // step OSCCAL the right way, and store it once the window has closed. simavr does not change speed
 // on an OSCCAL write, so this checks direction, the stored value and the boot replay, not the
 // frequency.
@@ -173,18 +183,62 @@ static uint8_t osccal(avr_t *avr) {
   return avr->data[SIM_OSCCAL_ADDR];
 }
 
+// Every OSCCAL write the firmware makes, watched for the datasheet's rule that
+// the clock must not change by more than 2 percent from one cycle to the next
+// (ATtiny25/45/85 datasheet 2586Q, OSCCAL register description). The firmware
+// keeps it by writing a multi-notch step one notch at a time, so the watch
+// records the largest change any single write made, and the longest run of
+// writes that landed within one pass, which shows a batch did ask for more
+// than one notch. Writes in one pass sit a few dozen cycles apart; passes sit
+// a frame, about 100000 cycles, apart.
+#define TRIM_SAME_PASS_CYCLES 1000U
+
+typedef struct {
+  unsigned writes;
+  unsigned largest_step;
+  unsigned run;
+  unsigned longest_run;
+  avr_cycle_count_t last_cycle;
+} osccal_watch_t;
+
+// simavr hands a hooked write to this callback instead of storing it, so the
+// callback stores the value itself after measuring the change.
+static void osccal_write(struct avr_t *avr, avr_io_addr_t addr, uint8_t v, void *param) {
+  osccal_watch_t *watch = (osccal_watch_t *)param;
+  int change = (int)v - (int)avr->data[addr];
+  unsigned step = (unsigned)((change < 0) ? -change : change);
+  watch->largest_step = (step > watch->largest_step) ? step : watch->largest_step;
+  bool same_pass =
+      (watch->writes > 0U) && ((avr->cycle - watch->last_cycle) < TRIM_SAME_PASS_CYCLES);
+  watch->run = same_pass ? (watch->run + 1U) : 1U;
+  watch->longest_run = (watch->run > watch->longest_run) ? watch->run : watch->longest_run;
+  watch->writes++;
+  watch->last_cycle = avr->cycle;
+  avr->data[addr] = v;
+}
+
+static void watch_osccal(avr_t *avr, osccal_watch_t *watch) {
+  avr->io[AVR_DATA_TO_IO(SIM_OSCCAL_ADDR)].w.c = osccal_write;
+  avr->io[AVR_DATA_TO_IO(SIM_OSCCAL_ADDR)].w.param = watch;
+}
+
 static void trim_case(const target_t *t, const char *elf, uint32_t freq, int percent) {
   uint32_t actual = (uint32_t)(((uint64_t)freq * (uint64_t)(100 + percent)) / 100U);
   avr_t *avr = build_avr(t, elf, actual);
+  osccal_watch_t watch = { 0U, 0U, 0U, 0U, 0U };
+  watch_osccal(avr, &watch);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
   boot_quiet(avr, t, 0, &ctx);
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
   const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
                                            0,     0,     0x02U, 0,     0,     0 };
+  // Every frame of this case comes at the disc's own 75 Hz: the trim samples
+  // play frames as well as lead-in ones, so frames clocked faster than a real
+  // disc would read as an RC running slow.
+  g_frame_period_ns = SIM_SECTOR_NS;
   clock_until_inject(avr, t, toc);
   clock_frames(avr, t, play, CALIB_SETTLE_FRAMES);
-  g_frame_period_ns = SIM_SECTOR_NS;
   clock_frames(avr, t, toc, TRIM_TOC_FRAMES);
   clock_frames(avr, t, silence, TRIM_DECAY_FRAMES);
   g_frame_period_ns = 0U;
@@ -202,6 +256,19 @@ static void trim_case(const target_t *t, const char *elf, uint32_t freq, int per
     calib_check(t, calib_valid(raw) && (moved > 0) && (stored == moved), what);
   } else {
     calib_check(t, (moved == 0) && (stored == 0), "a nominal RC leaves OSCCAL alone");
+  }
+  // simavr keeps its speed whatever OSCCAL holds, so a 5 percent RC stays 5
+  // percent off and every batch asks for the largest step: each such step must
+  // still reach the register one notch per write.
+  if (percent != 0) {
+    unsigned walked = (unsigned)((moved < 0) ? -moved : moved);
+    (void)snprintf(what,
+                   sizeof(what),
+                   "every OSCCAL write moves one notch, %u in one pass",
+                   watch.longest_run);
+    calib_check(t,
+                (watch.largest_step == 1U) && (watch.writes == walked) && (watch.longest_run > 1U),
+                what);
   }
 }
 

@@ -46,6 +46,18 @@ static void test_verdicts(void) {
   g_check(batch_of(EXPECTED - BAND).adjust == 0, "trim: the bottom of the dead band holds still");
   g_check(batch_of(EXPECTED - BAND - 1U).adjust == 1, "trim: a slow oscillator steps up");
 
+  // Past the dead band the step grows with the error, one notch per dead band
+  // of error, up to PSCU_TRIM_MAX_STEP, so a chip far off converges in a few
+  // batches rather than one notch per batch.
+  g_check(batch_of(EXPECTED + (2U * BAND)).adjust == -1,
+          "trim: two bands of error step one notch, leaving one band");
+  g_check(batch_of(EXPECTED + (2U * BAND) + 1U).adjust == -2,
+          "trim: just past two bands steps two notches");
+  g_check(batch_of(EXPECTED - ((3U * BAND) + 1U)).adjust == 3,
+          "trim: just past three bands steps three notches");
+  g_check(batch_of(EXPECTED + (6U * BAND) + 1U).adjust == -PSCU_TRIM_MAX_STEP,
+          "trim: a large error steps at most the largest step");
+
   pscu_trim_step_t done = batch_of(EXPECTED + 200U);
   g_check((done.state.frames == 0U) && (done.state.ticks == 0U),
           "trim: a judged batch starts over");
@@ -85,6 +97,60 @@ static void test_apply(void) {
   g_check(pscu_trim_apply(0x02U, 0x01U, -1) == 0x00U, "trim: a step down to zero is allowed");
   g_check(pscu_trim_apply(0xFDU, 0xFFU, 1) == 0xFFU, "trim: no step above 255");
   g_check(pscu_trim_apply(0xFDU, 0xFEU, 1) == 0xFFU, "trim: a step up to 255 is allowed");
+
+  // A multi-notch step moves as far as it is allowed and stops at the first
+  // bound it meets, the offset limit or the CAL7 edge, rather than being
+  // refused whole and leaving the chip where it was.
+  g_check(pscu_trim_apply(0x50U, 0x50U, -3) == 0x4DU, "trim: a three-notch step moves three");
+  g_check(pscu_trim_apply(0x50U, 0x5EU, 4) == 0x60U, "trim: a step stops at the offset bound");
+  g_check(pscu_trim_apply(0x7DU, 0x7CU, 4) == 0x7FU, "trim: a step stops below the range bit");
+  g_check(pscu_trim_apply(0x82U, 0x81U, -4) == 0x80U, "trim: a step stops above the range bit");
+}
+
+// A chip whose RC is off by error_ppm, where each OSCCAL notch moves the
+// frequency by notch_ppm: each batch measures ticks in proportion to the
+// running frequency, and the trim steps until it holds still. Returns the
+// batches taken, or 0 when it never settles within the limit. The datasheet
+// gives the notch only as a curve (ATtiny25/45/85, calibrated RC oscillator
+// frequency against OSCCAL), so the tests span half to twice the nominal.
+#define MODEL_BATCHES 12U
+#define PPM 1000000L
+
+static uint8_t settle(long error_ppm, long notch_ppm, uint8_t *final_osccal) {
+  const uint8_t factory = 0x50U;
+  uint8_t osccal = factory;
+  for (uint8_t batch = 1U; batch <= MODEL_BATCHES; batch++) {
+    long offset = (long)osccal - (long)factory;
+    long rate = PPM + error_ppm + (notch_ppm * offset);
+    uint32_t ticks = (uint32_t)(((long)EXPECTED * rate) / PPM);
+    int8_t adjust = batch_of(ticks).adjust;
+    if (adjust == 0) {
+      *final_osccal = osccal;
+      return batch;
+    }
+    osccal = pscu_trim_apply(factory, osccal, adjust);
+  }
+  return 0U;
+}
+
+// Whether a chip settled at all, and within the given number of batches.
+static bool settles_within(long error_ppm, long notch_ppm, uint8_t batches) {
+  uint8_t osccal = 0U;
+  uint8_t taken = settle(error_ppm, notch_ppm, &osccal);
+  return (taken > 0U) && (taken <= batches);
+}
+
+static void test_convergence(void) {
+  g_check(settles_within(50000L, 8000L, 4U),
+          "trim: a chip 5 percent fast settles within four batches");
+  g_check(settles_within(-50000L, 8000L, 4U),
+          "trim: a chip 5 percent slow settles within four batches");
+  g_check(settles_within(50000L, 16000L, 5U),
+          "trim: twice the nominal notch settles without oscillating");
+  g_check(settles_within(50000L, 4000L, 5U), "trim: half the nominal notch still settles");
+  uint8_t osccal = 0U;
+  uint8_t taken = settle(9000L, 8000L, &osccal);
+  g_check((taken == 1U) && (osccal == 0x50U), "trim: a chip inside the band never moves");
 }
 
 void trim_tests(pscu_check_fn check) {
@@ -92,4 +158,5 @@ void trim_tests(pscu_check_fn check) {
   test_verdicts();
   test_samples();
   test_apply();
+  test_convergence();
 }

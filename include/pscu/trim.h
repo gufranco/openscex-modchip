@@ -14,12 +14,13 @@
 // crystal-locked rate it already sees: SUBQ frames, 75 per second at single
 // speed (Read: Red Book, 75 sectors per second). The lead-in is read at single
 // speed (Concluded: WFCK runs at about 7.3 kHz during the protection phase and
-// doubles for data reads, PsNee V9.0 PSNee.ino:366-368), so only the time
-// between two consecutive lead-in frames is sampled. The sum over a batch of
-// samples, against what a nominal 8 MHz clock would count, says whether the RC
-// runs fast or slow.
+// doubles for data reads, PsNee V9.0 PSNee.ino:366-368), so the time between
+// two consecutive valid frames is sampled in the lead-in and in play alike, and
+// a double-speed period, half as long, falls outside the accept window. The sum
+// over a batch of samples, against what a nominal 8 MHz clock would count, says
+// whether the RC runs fast or slow.
 
-// Samples per decision: 64 frame periods, about 0.85 s of lead-in. Timer1 at
+// Samples per decision: 64 frame periods, about 0.85 s at single speed. Timer1 at
 // clk/16384 counts about 417 ticks over them, so one tick is 0.24 percent, well
 // inside the dead band.
 #define PSCU_TRIM_FRAMES ((uint16_t)64U)
@@ -32,6 +33,18 @@
 // changes of up to 0x20 per calibration, made in small steps; half of that keeps
 // every trim well inside it, and with the 8.8 MHz ceiling for EEPROM writes.
 #define PSCU_TRIM_MAX_OFFSET ((int8_t)16)
+
+// Largest step one batch may ask for, in OSCCAL notches. Past the dead band the
+// verdict asks for one notch per band of error left outside the dead band, so a chip 5 percent off
+// moves most of the way in its first batch instead of one notch per batch. The
+// datasheet gives a notch only as a curve (ATtiny25/45/85 datasheet 2586Q, the
+// calibrated 8 MHz oscillator against OSCCAL), roughly 0.5 to 1 percent, so a
+// step of one notch per percent undershoots on a fine part and overshoots by
+// under half on a coarse one, and either way settles. The firmware writes the
+// step one notch at a time: the same datasheet warns that a change of more
+// than 2 percent from one clock cycle to the next can upset the core (OSCCAL
+// register description), and one notch stays well under it.
+#define PSCU_TRIM_MAX_STEP ((int8_t)4)
 
 // The CAL7 bit picks one of two overlapping frequency ranges; crossing it jumps
 // the frequency, so a trim never changes it.
@@ -71,7 +84,7 @@ pscu_trim_step_t pscu_trim_step(pscu_trim_t state,
 
 // The OSCCAL value after moving current by adjust, held to within
 // PSCU_TRIM_MAX_OFFSET of factory and to the factory's CAL7 range; a move that
-// would leave either bound is refused and current is returned.
+// would leave either bound stops at that bound.
 uint8_t pscu_trim_apply(uint8_t factory, uint8_t current, int8_t adjust);
 
 #endif

@@ -27,7 +27,7 @@
 
 </div>
 
-闪存 [**7304**](Makefile) 字节 · [**8**](assets/psnee) 个主板系列，PU-7 至 PM-41(2) · [**3**](src/region.c) 个区域 · MISRA 偏离 [**0**](AGENTS.md) · 主机测试行与分支覆盖率 [**100%**](tests/host) · 变异体 [**183/183**](tools/mutate.py) 被杀死
+闪存 [**7214**](Makefile) 字节 · [**8**](assets/psnee) 个主板系列，PU-7 至 PM-41(2) · [**3**](src/region.c) 个区域 · MISRA 偏离 [**0**](AGENTS.md) · 主机测试行与分支覆盖率 [**100%**](tests/host) · 变异体 [**186/186**](tools/mutate.py) 被杀死
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -226,7 +226,7 @@ graph LR
 | SCEx 注入 | 44 位 LSB 优先的区域字符串，PU-7 至 PU-20 的静态门控方式（与 PsNee 和 Mayumi V4 一样，每个字符串期间把 WFCK 门控拉低），以及 PU-22 及以后的 WFCK 载波方式 | [src/inject.c](src/inject.c), [src/port.S](src/port.S), [PsNee PSNee.ino L53](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L53) |
 | 主板自动识别 | 启动时 WFCK 的行为决定门控或载波模式；一个构建适用所有主板。在识别为门控的主板上，每个字符串前再观测 WFCK 9.4 ms，因此启动后才出现的载波绝不会被拉低。看门狗复位后沿用启动时记录的主板而不重新识别，因此在字符串中途停止的载波不会被误认为门控而被驱动 | [src/board_mode.c](src/board_mode.c), [src/engine.c](src/engine.c), [src/calib.c](src/calib.c), [PsNee PSNee.ino L372-L406](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L372-L406) |
 | 电源保护 | 每个字符串前芯片用 1.1 V 带隙测量自身电源；低于约 2.75 V，或读数不可能来自真实电源时，不发送任何内容并显示代码 7；短暂的电压下降只暂停一轮发送而不重新计数，被关闭的窗口不会让校准学到任何东西 | [src/supply.c](src/supply.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 振荡器校正 | 芯片使用内部 8 MHz 振荡器，对主机 75 Hz 的 SUBQ 帧计时，每次把 OSCCAL 调一级，直到误差在 1% 以内，且离出厂值不超过 16 级；校正值保存在 EEPROM 中，启动时应用 | [src/trim.c](src/trim.c), [src/run.c](src/run.c), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
+| 振荡器校正 | 芯片使用内部 8 MHz 振荡器，在导入区与游戏中对主机 75 Hz 的 SUBQ 帧计时，每批最多调 4 级、每次写入一级，直到误差在 1% 以内，且离出厂值不超过 16 级；校正值保存在 EEPROM 中，启动时应用 | [src/trim.c](src/trim.c), [src/run.c](src/run.c), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 换盘 | 无需光驱盖线：停转的光驱带来 1.5 s 没有有效 SUBQ 帧，这会为下一张光盘重新武装；旋转中光盘的寻道或重读会持续产生帧，因此不会被当作换盘 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c) |
 | 隐身 | 只在 SUBQ 区域检查窗口内、每次武装有上限地注入，与 PsNee 和 Mayumi V4 一样在字符串之间间隔 5 帧即 67 ms，之后 DATA 高阻、LED 关闭；主机一读到程序区即停止，并在读取程序区期间保持静默；之后的导入区读取，例如反改机 v2 检测中、拷贝盘需要新字符串的 TOC 重读，会在同一上限下再次得到响应 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/config.h](include/pscu/config.h), [PsNee PSNee.ino L53](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L53), [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
 | 单一区域 | 只送出 `REGION`，从不送出全部三个 | [src/region.c](src/region.c) |
@@ -244,10 +244,10 @@ graph LR
 
 | 值 | 学习来源 | 效果 | 出处 |
 |:---|:---------|:-----|:--|
-| 字符串上限 | 被接受的光盘所需的字符串数加 4 | 之后的光盘最多发送这么多字符串而不是 16 个；一张被拒绝的光盘会让下一张起恢复为 16 | [src/calib.c](src/calib.c), [src/loop.c](src/loop.c) |
+| 字符串上限 | 被接受的光盘所需的字符串数加 4 | 所需更多时上限立即提高，更少时只降低一半，因此一张读得快的光盘不会让下一张不够用；一张被拒绝的光盘会让下一张起恢复为 16 | [src/calib.c](src/calib.c), [src/loop.c](src/loop.c) |
 | 起始位置 | 每张被接受的光盘把起始推迟 2 个导入区帧，即 27 ms，最多 20 帧；`jp` 构建保持默认值，因为 PsNee 告诫在日本主机上不要用更晚的触发 | 字符串更接近区域检查开始；被拒绝，或导入区读取在起始之前结束，则回退 2 帧并停止探索 | [src/calib.c](src/calib.c), [PsNee PSNee.ino L48](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L48) |
 | 主板 | 启动时识别的主板 | 主板不同则显示一次代码 6，并重新学习字符串上限与起始位置 | [src/calib.c](src/calib.c), [src/led.c](src/led.c) |
-| 振荡器 | 主机晶振以 75 Hz 排列的导入区帧间隔 | 每 64 帧把 OSCCAL 调一级，直到误差在 1% 以内；校正属于芯片本身，因此更换主板时保留 | [src/trim.c](src/trim.c), [src/run.c](src/run.c) |
+| 振荡器 | 主机晶振以 75 Hz 排列的单倍速帧间隔，导入区与游戏中均计 | 每批 64 帧按超出 1% 死区的误差每 1% 调一级 (不足 1% 按一级计)、最多 4 级来调整 OSCCAL，每次写入只改一级，直到误差在 1% 以内；校正属于芯片本身，因此更换主板时保留 | [src/trim.c](src/trim.c), [src/run.c](src/run.c) |
 
 芯片只写入值有变化的字节，只在启动时或光盘检查有结果之后写入，从不在发送字符串时写入，因此稳定下来的主机不再写入任何内容。单元擦写寿命为 100,000 次（Read：ATtiny25/45/85 数据手册 2586Q）。校验字节能发现因断电只写了一半的记录，此时按默认值读取。重新烧录也会擦除记录，因为上面两组熔丝都让 EESAVE 保持未编程（Read：同一数据手册，Table 20-4，高熔丝位 3）。4 个字符串的余量、2 帧的步长和 20 帧的上限是设计选择，尚未在主机上调校。 出处：[src/calib.c](src/calib.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
 

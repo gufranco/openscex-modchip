@@ -107,14 +107,23 @@ static pscu_calib_t pscu_calib_back_off(pscu_calib_t calib) {
   return next;
 }
 
-// An accepted disc sets the cap from what it needed, and, while probing, tries
-// the next later start; reaching the bound ends the probe there.
+// An accepted disc moves the cap toward what it needed, and, while probing,
+// tries the next later start; reaching the bound ends the probe there. A need
+// above the cap raises it at once, since the console has just shown it needs
+// that many. A need below it brings the cap only halfway down, rounding toward
+// the need, so one disc that read quickly does not cut the next disc short;
+// four quick discs in a row still take the full cap to the floor.
 static pscu_calib_t pscu_calib_accepted(pscu_calib_t calib, uint8_t strings) {
   PSCU_ASSERT(strings > 0U);
 
   pscu_calib_t next = calib;
-  next.cap = (strings < PSCU_CALIB_CAP_FITS) ? (uint8_t)(strings + PSCU_CALIB_CAP_MARGIN)
-                                             : PSCU_CALIB_CAP_MAX;
+  uint8_t fit = (strings < PSCU_CALIB_CAP_FITS) ? (uint8_t)(strings + PSCU_CALIB_CAP_MARGIN)
+                                                : PSCU_CALIB_CAP_MAX;
+  // The cap minus the fit, as a byte: the top bit is set exactly when the fit
+  // is the larger, since both are at most PSCU_CALIB_CAP_MAX.
+  uint8_t above = (uint8_t)(calib.cap - fit);
+  bool higher = (above & 0x80U) != 0U;
+  next.cap = higher ? fit : (uint8_t)(fit + (uint8_t)(above / 2U));
   if (!calib.frozen) {
     next.trigger = (calib.trigger < PSCU_CALIB_TRIGGER_MAX)
                        ? (uint8_t)(calib.trigger + PSCU_CALIB_TRIGGER_STEP)

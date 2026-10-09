@@ -27,7 +27,7 @@
 
 </div>
 
-フラッシュ [**7304**](Makefile) バイト · 基板 [**8**](assets/psnee) 系統、PU-7 から PM-41(2) · リージョン [**3**](src/region.c) 種 · MISRA 逸脱 [**0**](AGENTS.md) · ホストの行と分岐カバレッジ [**100%**](tests/host) · ミュータント [**183/183**](tools/mutate.py) 撃破
+フラッシュ [**7214**](Makefile) バイト · 基板 [**8**](assets/psnee) 系統、PU-7 から PM-41(2) · リージョン [**3**](src/region.c) 種 · MISRA 逸脱 [**0**](AGENTS.md) · ホストの行と分岐カバレッジ [**100%**](tests/host) · ミュータント [**186/186**](tools/mutate.py) 撃破
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -226,7 +226,7 @@ graph LR
 | SCEx 注入 | 44 ビット LSB ファーストのリージョン文字列。PU-7 から PU-20 の静的ゲート方式（PsNee と Mayumi V4 と同じく文字列ごとに WFCK ゲートを Low に保持）と、PU-22 以降の WFCK キャリア方式 | [src/inject.c](src/inject.c), [src/port.S](src/port.S), [PsNee PSNee.ino L53](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L53) |
 | 基板の自動判別 | 起動時の WFCK の振る舞いでゲートかキャリアかを選ぶ。1 つのビルドが全基板に合う。ゲートと判別した基板では各文字列の前に WFCK を 9.4 ms もう一度観測するので、起動後に始まるキャリアを Low に保つことはない。ウォッチドッグリセットの後は再判別せず起動時に記録した基板を使うので、文字列の途中で止まったキャリアをゲートと取り違えて駆動することはない | [src/board_mode.c](src/board_mode.c), [src/engine.c](src/engine.c), [src/calib.c](src/calib.c), [PsNee PSNee.ino L372-L406](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L372-L406) |
 | 電源ガード | 各文字列の前に 1.1 V のバンドギャップで自分の電源を測る。約 2.75 V 未満、または実在しない読み値なら何も送らずコード 7 を示す。短い低下は送信の途中を止めるだけで数え直さず、閉じたままの窓からキャリブレーションは何も学ばない | [src/supply.c](src/supply.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 発振器の補正 | チップは内蔵 8 MHz 発振器で動き、コンソールの 75 Hz の SUBQ フレームを計時して OSCCAL を 1 段ずつ動かし、1% 以内に入るまで補正する。工場値から 16 段を超えては動かさない。補正値は EEPROM に保存し、起動時に適用する | [src/trim.c](src/trim.c), [src/run.c](src/run.c), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
+| 発振器の補正 | チップは内蔵 8 MHz 発振器で動き、コンソールの 75 Hz の SUBQ フレームをリードイン中もプレイ中も計時し、バッチごとに最大 4 段、1 回の書き込みで 1 段ずつ OSCCAL を動かして、1% 以内に入るまで補正する。工場値から 16 段を超えては動かさない。補正値は EEPROM に保存し、起動時に適用する | [src/trim.c](src/trim.c), [src/run.c](src/run.c), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | ディスク交換 | 蓋線は不要。止まったドライブが生む 1.5 s の有効な SUBQ フレームの途絶で、次のディスクに向けて再武装する。回転中のディスクのシークや再読み取りはフレームを出し続けるので、交換とはみなされない | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c) |
 | ステルス | SUBQ リージョンチェックの窓の間だけ、武装ごとに上限付きで、PsNee と Mayumi V4 と同じく文字列の間に 5 フレーム、67 ms 空けて注入し、その後 DATA をハイ Z、LED をオフ。コンソールがプログラム領域を読んだ瞬間に止め、その間は沈黙。コピーには新しい文字列が要るアンチモッド v2 の TOC 再読み取りのような、以後のリードイン読み取りには同じ上限で再び応じる | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/config.h](include/pscu/config.h), [PsNee PSNee.ino L53](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L53), [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
 | 単一リージョン | `REGION` だけを送り、3 つ全部は送らない | [src/region.c](src/region.c) |
@@ -244,10 +244,10 @@ graph LR
 
 | 値 | 学習元 | 効果 | 出典 |
 |:---|:-------|:-----|:--|
-| 文字列の上限 | 受け入れられたディスクが必要とした文字列数に 4 を足した数 | 以降のディスクは 16 本ではなくその本数まで。拒否されたディスクがあると次のディスクから 16 本に戻る | [src/calib.c](src/calib.c), [src/loop.c](src/loop.c) |
+| 文字列の上限 | 受け入れられたディスクが必要とした文字列数に 4 を足した数 | 必要数が増えれば上限はすぐに上がり、減れば半分だけ下がるので、速く読めたディスク 1 枚が次のディスクを切り詰めることはない。拒否されたディスクがあると次のディスクから 16 本に戻る | [src/calib.c](src/calib.c), [src/loop.c](src/loop.c) |
 | 開始位置 | 受け入れられたディスクごとに開始をリードインのフレーム 2 個分、27 ms 遅らせ、最大 20 フレームまで。`jp` ビルドは既定値のまま。PsNee が日本のコンソールでの遅いトリガーを戒めているため | 文字列がリージョンチェックの近くで始まる。拒否か、開始前にリードインの読み出しが終わると 2 フレーム戻し、探索を止める | [src/calib.c](src/calib.c), [PsNee PSNee.ino L48](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L48) |
 | 基板 | 起動時に判別した基板 | 基板が違えばコード 6 を 1 回示し、文字列の上限と開始位置をやり直す | [src/calib.c](src/calib.c), [src/led.c](src/led.c) |
-| 発振器 | コンソールの水晶が 75 Hz に刻むリードインのフレーム間隔 | 64 フレームごとに OSCCAL を 1 段動かし、1% 以内に入れる。補正はチップのものなので、基板が変わっても保つ | [src/trim.c](src/trim.c), [src/run.c](src/run.c) |
+| 発振器 | コンソールの水晶が 75 Hz に刻む等速のフレーム間隔、リードイン中もプレイ中も | 64 フレームのバッチごとに1% の不感帯を超えた誤差 1% ごとに 1 段 (端数は切り上げ)、最大 4 段まで OSCCAL を動かし、1 回の書き込みで 1 段ずつ変えて 1% 以内に入れる。補正はチップのものなので、基板が変わっても保つ | [src/trim.c](src/trim.c), [src/run.c](src/run.c) |
 
 チップは値が変わったバイトだけを、起動時かディスクのチェックが決着した後にだけ書き、文字列を送っている最中には書かないので、落ち着いたコンソールでは何も書きません。セルの書き換え寿命は 100,000 回です（Read: ATtiny25/45/85 データシート 2586Q）。チェックバイトが電源断で途中まで書かれたレコードを検出し、その場合は既定値として読みます。上記のどちらのヒューズ設定も EESAVE を未プログラムのままにするので、書き直すとレコードも消えます（Read: 同データシート、Table 20-4、ハイヒューズのビット 3）。4 本の余裕、2 フレームの刻み、20 フレームの上限は設計上の選択で、まだコンソールで調整していません。 出典: [src/calib.c](src/calib.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
 

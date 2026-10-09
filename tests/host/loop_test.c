@@ -49,6 +49,13 @@ static pscu_led_t waiting_led(void) {
   return pscu_led_step(pscu_led_init(1U, 0U), PSCU_LED_EVENT_NONE, 0U, 700U).state;
 }
 
+// The cap an accepted session leaves from CAP: halfway down to its need plus
+// the margin (calib.c, pscu_calib_accepted).
+static uint8_t halfway(uint8_t strings) {
+  uint8_t fit = (uint8_t)(strings + PSCU_CALIB_CAP_MARGIN);
+  return (uint8_t)(fit + ((uint8_t)(CAP - fit) / 2U));
+}
+
 static pscu_loop_t fresh(pscu_calib_t calib) {
   return pscu_loop_init(calib, waiting_led(), false);
 }
@@ -132,7 +139,7 @@ static void test_accepted(void) {
   step_t accepted = pass(fired.state, PROGRAM);
   g_check(accepted.store && accepted.state.session.resolved,
           "loop: a program-area frame resolves the session and stores");
-  g_check((accepted.state.calib.cap == (uint8_t)(1U + PSCU_CALIB_CAP_MARGIN)) &&
+  g_check((accepted.state.calib.cap == halfway(1U)) &&
               (accepted.state.calib.trigger == (uint8_t)(TRIGGER + PSCU_CALIB_TRIGGER_STEP)),
           "loop: an accepted disc learns the cap and probes a later start");
   g_check(accepted.state.led.code == PSCU_LED_CODE_ACCEPTED, "loop: an accepted disc shows code 1");
@@ -140,7 +147,7 @@ static void test_accepted(void) {
   g_check(gap.fire && (gap.state.session.injects == 2U),
           "loop: a second string joins the same session");
   step_t two = pass(gap.state, PROGRAM);
-  g_check(two.state.calib.cap == (uint8_t)(2U + PSCU_CALIB_CAP_MARGIN),
+  g_check(two.state.calib.cap == halfway(2U),
           "loop: the cap is learned from every string of the session");
   step_t leaving = pass_with(fired.state, PROGRAM, false, true, PSCU_DISC_GONE_MS);
   g_check(leaving.state.session.resolved && !leaving.store,
@@ -222,10 +229,10 @@ static void test_trim_sample(void) {
   step_t early = pass_with(start, LEAD_OUT, true, true, PSCU_LOOP_TRIM_SETTLE_MS - 1U);
   g_check(!pass(early.state, LEAD_IN).trim_sample, "loop: no trim sample just short of a second");
   step_t settled = pass_with(start, LEAD_OUT, true, true, PSCU_LOOP_TRIM_SETTLE_MS);
-  g_check(pass(settled.state, LEAD_IN).trim_sample,
-          "loop: a rising lead-in frame samples the trim");
-  g_check(!pass(settled.state, LEAD_OUT).trim_sample,
-          "loop: a frame that does not rise is no sample");
+  g_check(pass(settled.state, LEAD_IN).trim_sample, "loop: a lead-in frame samples the trim");
+  g_check(pass(settled.state, PROGRAM).trim_sample,
+          "loop: a program-area frame in play samples the trim too");
+  g_check(!pass(settled.state, FAILED).trim_sample, "loop: a frame that is not valid is no sample");
   g_check(!pass_with(settled.state, LEAD_IN, false, true, FRAME_MS).trim_sample,
           "loop: a failed capture is no sample");
 

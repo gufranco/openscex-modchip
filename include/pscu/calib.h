@@ -42,15 +42,14 @@
 // detected one, so the first boot can never report a board change.
 #define PSCU_CALIB_BOARD_NONE ((uint8_t)0xFFU)
 
-// String cap. A disc that was accepted after n strings sets the cap to n plus a
-// margin, never above the fixed safety cap. n is counted until the program area
-// appears, so it already includes the time the console takes to resume reading
-// after it accepts; the margin covers a disc that reads a little worse than the
-// last one. The margin is a design choice with no console measurement behind it
-// yet (Unknown until hardware), and any refusal puts the cap straight back to
-// PSCU_STEALTH_STRINGS. A session has at least one string, so the smallest cap
-// is one string plus the margin. FITS is the first n whose sum would pass the
-// safety cap; below it the sum is used as is.
+// String cap. A disc that was accepted after n strings moves the cap toward n
+// plus a margin, never above the fixed safety cap: up at once, down halfway. n is counted until the
+// program area appears, so it already includes the time the console takes to resume reading after
+// it accepts; the margin covers a disc that reads a little worse than the last one. The margin is a
+// design choice with no console measurement behind it yet (Unknown until hardware), and any refusal
+// puts the cap straight back to PSCU_STEALTH_STRINGS. A session has at least one string, so the
+// smallest cap is one string plus the margin. FITS is the first n whose sum would pass the safety
+// cap; below it the sum is used as is.
 #define PSCU_CALIB_CAP_MARGIN ((uint8_t)4U)
 #define PSCU_CALIB_CAP_MIN ((uint8_t)(1U + PSCU_CALIB_CAP_MARGIN))
 #define PSCU_CALIB_CAP_MAX PSCU_STEALTH_STRINGS

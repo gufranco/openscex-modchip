@@ -213,14 +213,18 @@ pscu_loop_out_t pscu_loop_step(pscu_loop_t *state, const pscu_loop_in_t *in) {
   pscu_loop_out_t out;
   bool settled = state->since.ms >= PSCU_LOOP_TRIM_SETTLE_MS;
   pscu_loop_read(state, in, &pass);
-  bool rising = in->captured && settled && (state->counter > pass.previous);
+  // Any valid frame times the trim, the lead-in and the program area alike: a
+  // frame at single speed is 13.3 ms apart wherever the head is, so play keeps
+  // the trim following the RC as the chip warms. Double-speed frames, 6.7 ms
+  // apart, fall outside the trim's accept window and count for nothing.
+  bool timed = settled && pass.valid;
   pscu_loop_burst(state, in->supply_ok, &pass);
   pscu_loop_learned_t learned = pscu_loop_learn(state, &pass);
   out.led_on = pscu_loop_show(state, in, learned, &pass);
   // A pass that fires blocks the loop for the whole string, so the next frame's
   // Timer1 stamp would time the string's tail, not a frame period, and bias
   // the trim; it is no sample, which also leaves the next pass unpaired.
-  out.trim_sample = rising && !pass.fire;
+  out.trim_sample = timed && !pass.fire;
   out.fire = pass.fire;
   out.store = learned.store;
   out.quiet = !pass.reached;
