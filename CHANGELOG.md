@@ -1,3 +1,11 @@
+# [0.13.0](https://github.com/gufranco/openscex-modchip/compare/v0.12.0...v0.13.0) (2026-10-10)
+
+
+### Features
+
+* adaptive timing and safer disc swaps ([1ad41ed](https://github.com/gufranco/openscex-modchip/commit/1ad41ed470f801c2550269c1e67b38cc6bc5a222))
+* **hardware:** add carrier, mini and bare boards ([e6de6d4](https://github.com/gufranco/openscex-modchip/commit/e6de6d4b1f20e110541c0016b0c489e6ae457ae3))
+
 # [0.12.0](https://github.com/gufranco/openscex-modchip/compare/v0.11.0...v0.12.0) (2026-10-09)
 
 
