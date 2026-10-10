@@ -1,0 +1,19 @@
+(version 1)
+
+# Noise rules for the single-sided carrier. Different nets keep at least
+# 1 mm of copper-to-copper air between tracks, and 0.8 mm between a track
+# and a pad of another net, so the console's clock and data lines never run
+# shoulder to shoulder; the ground pour fills the gaps as a guard.
+(rule "track to track"
+  (condition "A.Type == 'track' && B.Type == 'track' && A.Net != B.Net")
+  (constraint clearance (min 1.0mm)))
+
+(rule "track to pad"
+  (condition "A.Type == 'track' && B.Type == 'pad' && A.Net != B.Net")
+  (constraint clearance (min 0.8mm)))
+
+# Stitching vias are ground; they keep 0.8 mm from any other net's copper so
+# none of them sits close enough to a signal to couple into it.
+(rule "via isolation"
+  (condition "A.Type == 'via' && A.Net != B.Net")
+  (constraint clearance (min 0.8mm)))

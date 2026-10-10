@@ -1,0 +1,2646 @@
+(kicad_sch (version 20231120) (generator "eeschema") (generator_version "8.0")
+	(uuid "7206801e-1c20-5311-8a84-3899543930cc")
+	(paper "A3")
+	(title_block (title "openscex carrier") (comment 1 "ATtiny85 PS1 modchip carrier: socket, decoupling, LED or buzzer indicator through Q1"))
+	(lib_symbols
+(symbol "MCU_Microchip_ATtiny:ATtiny85-20P"
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "U"
+				(at -12.7 13.97 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left bottom)
+				)
+			)
+			(property "Value" "ATtiny85-20P"
+				(at 2.54 -13.97 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left top)
+				)
+			)
+			(property "Footprint" "Package_DIP:DIP-8_W7.62mm"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+						(italic yes)
+					)
+				)
+			)
+			(property "Datasheet" "http://ww1.microchip.com/downloads/en/DeviceDoc/atmel-2586-avr-8-bit-microcontroller-attiny25-attiny45-attiny85_datasheet.pdf"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "20MHz, 8kB Flash, 512B SRAM, 512B EEPROM, debugWIRE, DIP-8"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "AVR 8bit Microcontroller tinyAVR"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_fp_filters" "DIP*W7.62mm*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "ATtiny85-20P_0_1"
+				(rectangle
+					(start -12.7 -12.7)
+					(end 12.7 12.7)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(symbol "ATtiny85-20P_1_1"
+				(pin bidirectional line
+					(at 15.24 -5.08 180)
+					(length 2.54)
+					(name "~{RESET}/PB5"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin bidirectional line
+					(at 15.24 0 180)
+					(length 2.54)
+					(name "XTAL1/PB3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin bidirectional line
+					(at 15.24 -2.54 180)
+					(length 2.54)
+					(name "XTAL2/PB4"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at 0 -15.24 90)
+					(length 2.54)
+					(name "GND"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin bidirectional line
+					(at 15.24 7.62 180)
+					(length 2.54)
+					(name "AREF/PB0"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "5"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin bidirectional line
+					(at 15.24 5.08 180)
+					(length 2.54)
+					(name "PB1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "6"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin bidirectional line
+					(at 15.24 2.54 180)
+					(length 2.54)
+					(name "PB2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "7"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at 0 15.24 270)
+					(length 2.54)
+					(name "VCC"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "8"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+(symbol "Device:C"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0.254)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "C"
+				(at 0.635 2.54 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Value" "C"
+				(at 0.635 -2.54 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Footprint" ""
+				(at 0.9652 -3.81 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "Unpolarized capacitor"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "cap capacitor"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_fp_filters" "C_*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "C_0_1"
+				(polyline
+					(pts
+						(xy -2.032 0.762)
+						(xy 2.032 0.762)
+					)
+					(stroke
+						(width 0.508)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -2.032 -0.762)
+						(xy 2.032 -0.762)
+					)
+					(stroke
+						(width 0.508)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "C_1_1"
+				(pin passive line
+					(at 0 3.81 270)
+					(length 2.794)
+					(name ""
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 0 -3.81 90)
+					(length 2.794)
+					(name ""
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+(symbol "Device:R"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "R"
+				(at 2.032 0 90)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "R"
+				(at 0 0 90)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at -1.778 0 90)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "Resistor"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "R res resistor"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_fp_filters" "R_*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "R_0_1"
+				(rectangle
+					(start -1.016 -2.54)
+					(end 1.016 2.54)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "R_1_1"
+				(pin passive line
+					(at 0 3.81 270)
+					(length 1.27)
+					(name ""
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 0 -3.81 90)
+					(length 1.27)
+					(name ""
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+(symbol "Transistor_BJT:2N3904"
+			(pin_names
+				(offset 0)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "Q"
+				(at 5.08 1.905 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Value" "2N3904"
+				(at 5.08 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Footprint" "Package_TO_SOT_THT:TO-92_Inline"
+				(at 5.08 -1.905 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+						(italic yes)
+					)
+					(justify left)
+				)
+			)
+			(property "Datasheet" "https://www.onsemi.com/pub/Collateral/2N3903-D.PDF"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Description" "0.2A Ic, 40V Vce, Small Signal NPN Transistor, TO-92"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Sim.Device" "NPN"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Sim.Pins" "1=E 2=B 3=C"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "NPN Transistor"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "2N3904_0_1"
+				(polyline
+					(pts
+						(xy -2.54 0)
+						(xy 0.635 0)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0.635 1.905)
+						(xy 0.635 -1.905)
+					)
+					(stroke
+						(width 0.508)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(circle
+					(center 1.27 0)
+					(radius 2.8194)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "2N3904_1_1"
+				(polyline
+					(pts
+						(xy 0.635 0.635)
+						(xy 2.54 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0.635 -0.635)
+						(xy 2.54 -2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 1.27 -1.778)
+						(xy 1.778 -1.27)
+						(xy 2.286 -2.286)
+						(xy 1.27 -1.778)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type outline)
+					)
+				)
+				(pin passive line
+					(at 2.54 -5.08 90)
+					(length 2.54)
+					(name "E"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -5.08 0 0)
+					(length 2.54)
+					(name "B"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 2.54 5.08 270)
+					(length 2.54)
+					(name "C"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+			(property "ki_fp_filters" "TO?92*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+		)
+(symbol "Switch:SW_DIP_x02"
+			(pin_names
+				(offset 0)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "SW"
+				(at 0 6.35 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "SW_DIP_x02"
+				(at 0 -3.81 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "2x DIP Switch, Single Pole Single Throw (SPST) switch, small symbol"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "dip switch"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_fp_filters" "SW?DIP?x2*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "SW_DIP_x02_0_0"
+				(circle
+					(center -2.032 2.54)
+					(radius 0.508)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(circle
+					(center -2.032 0)
+					(radius 0.508)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.524 2.667)
+						(xy 2.3622 3.7084)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.524 0.127)
+						(xy 2.3622 1.1684)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(circle
+					(center 2.032 2.54)
+					(radius 0.508)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(circle
+					(center 2.032 0)
+					(radius 0.508)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "SW_DIP_x02_0_1"
+				(rectangle
+					(start -3.81 5.08)
+					(end 3.81 -2.54)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+			)
+			(symbol "SW_DIP_x02_1_1"
+				(pin passive line
+					(at -7.62 2.54 0)
+					(length 5.08)
+					(name ""
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -7.62 0 0)
+					(length 5.08)
+					(name ""
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 7.62 0 180)
+					(length 5.08)
+					(name ""
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 7.62 2.54 180)
+					(length 5.08)
+					(name ""
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+(symbol "Device:LED"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 1.016)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "D"
+				(at 0 2.54 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "LED"
+				(at 0 -2.54 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "Light emitting diode"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Sim.Pins" "1=K 2=A"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "LED diode"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_fp_filters" "LED* LED_SMD:* LED_THT:*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "LED_0_1"
+				(polyline
+					(pts
+						(xy -3.048 -0.762)
+						(xy -4.572 -2.286)
+						(xy -3.81 -2.286)
+						(xy -4.572 -2.286)
+						(xy -4.572 -1.524)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.778 -0.762)
+						(xy -3.302 -2.286)
+						(xy -2.54 -2.286)
+						(xy -3.302 -2.286)
+						(xy -3.302 -1.524)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.27 0)
+						(xy 1.27 0)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.27 -1.27)
+						(xy -1.27 1.27)
+					)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 1.27 -1.27)
+						(xy 1.27 1.27)
+						(xy -1.27 0)
+						(xy 1.27 -1.27)
+					)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "LED_1_1"
+				(pin passive line
+					(at -3.81 0 0)
+					(length 2.54)
+					(name "K"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 3.81 0 180)
+					(length 2.54)
+					(name "A"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+(symbol "Device:Buzzer"
+			(pin_names
+				(offset 0.0254)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "BZ"
+				(at 3.81 1.27 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Value" "Buzzer"
+				(at 3.81 -1.27 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Footprint" ""
+				(at -0.635 2.54 90)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at -0.635 2.54 90)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "Buzzer, polarized"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "quartz resonator ceramic"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_fp_filters" "*Buzzer*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "Buzzer_0_1"
+				(polyline
+					(pts
+						(xy -1.651 1.905)
+						(xy -1.143 1.905)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.397 2.159)
+						(xy -1.397 1.651)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(arc
+					(start 0 3.175)
+					(mid 3.1612 0)
+					(end 0 -3.175)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 3.175)
+						(xy 0 -3.175)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "Buzzer_1_1"
+				(pin passive line
+					(at -2.54 2.54 0)
+					(length 2.54)
+					(name "+"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -2.54 -2.54 0)
+					(length 2.54)
+					(name "-"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+(symbol "Diode:1N4148"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "D"
+				(at 0 2.54 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "1N4148"
+				(at 0 -2.54 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" "https://assets.nexperia.com/documents/data-sheet/1N4148_1N4448.pdf"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "100V 0.15A standard switching diode, DO-35"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Sim.Device" "D"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Sim.Pins" "1=K 2=A"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "diode"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_fp_filters" "D*DO?35*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "1N4148_0_1"
+				(polyline
+					(pts
+						(xy -1.27 1.27)
+						(xy -1.27 -1.27)
+					)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 1.27 1.27)
+						(xy 1.27 -1.27)
+						(xy -1.27 0)
+						(xy 1.27 1.27)
+					)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 1.27 0)
+						(xy -1.27 0)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "1N4148_1_1"
+				(pin passive line
+					(at -3.81 0 0)
+					(length 2.54)
+					(name "K"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 3.81 0 180)
+					(length 2.54)
+					(name "A"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+(symbol "Device:C_Polarized"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0.254)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "C"
+				(at 0.635 2.54 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Value" "C_Polarized"
+				(at 0.635 -2.54 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Footprint" ""
+				(at 0.9652 -3.81 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "Polarized capacitor"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "cap capacitor"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_fp_filters" "CP_*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "C_Polarized_0_1"
+				(rectangle
+					(start -2.286 0.508)
+					(end 2.286 1.016)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.778 2.286)
+						(xy -0.762 2.286)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.27 2.794)
+						(xy -1.27 1.778)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(rectangle
+					(start 2.286 -0.508)
+					(end -2.286 -1.016)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type outline)
+					)
+				)
+			)
+			(symbol "C_Polarized_1_1"
+				(pin passive line
+					(at 0 3.81 270)
+					(length 2.794)
+					(name ""
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 0 -3.81 90)
+					(length 2.794)
+					(name ""
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+(symbol "Connector_Generic:Conn_02x03_Odd_Even"
+			(pin_names
+				(offset 1.016)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "J"
+				(at 1.27 5.08 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "Conn_02x03_Odd_Even"
+				(at 1.27 -5.08 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "Generic connector, double row, 02x03, odd/even pin numbering scheme (row 1 odd numbers, row 2 even numbers), script generated (kicad-library-utils/schlib/autogen/connector/)"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "connector"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_fp_filters" "Connector*:*_2x??_*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "Conn_02x03_Odd_Even_1_1"
+				(rectangle
+					(start -1.27 3.81)
+					(end 3.81 -3.81)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+				(rectangle
+					(start -1.27 2.667)
+					(end 0 2.413)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(rectangle
+					(start -1.27 0.127)
+					(end 0 -0.127)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(rectangle
+					(start -1.27 -2.413)
+					(end 0 -2.667)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(rectangle
+					(start 3.81 2.667)
+					(end 2.54 2.413)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(rectangle
+					(start 3.81 0.127)
+					(end 2.54 -0.127)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(rectangle
+					(start 3.81 -2.413)
+					(end 2.54 -2.667)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(pin passive line
+					(at -5.08 2.54 0)
+					(length 3.81)
+					(name "Pin_1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 7.62 2.54 180)
+					(length 3.81)
+					(name "Pin_2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -5.08 0 0)
+					(length 3.81)
+					(name "Pin_3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 7.62 0 180)
+					(length 3.81)
+					(name "Pin_4"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -5.08 -2.54 0)
+					(length 3.81)
+					(name "Pin_5"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "5"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 7.62 -2.54 180)
+					(length 3.81)
+					(name "Pin_6"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "6"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+(symbol "Connector:TestPoint"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0.762)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "TP"
+				(at 0 6.858 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "TestPoint"
+				(at 0 5.08 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 5.08 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 5.08 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "test point"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "test point tp"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_fp_filters" "Pin* Test*"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "TestPoint_0_1"
+				(circle
+					(center 0 3.302)
+					(radius 0.762)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "TestPoint_1_1"
+				(pin passive line
+					(at 0 0 90)
+					(length 2.54)
+					(name "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+(symbol "power:PWR_FLAG"
+			(power global)
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(duplicate_pin_numbers_are_jumpers no)
+			(property "Reference" "#FLG"
+				(at 0 1.905 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "PWR_FLAG"
+				(at 0 3.81 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Description" "Special symbol for telling ERC where power comes from"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "ki_keywords" "flag power"
+				(at 0 0 0)
+				(show_name no)
+				(do_not_autoplace no)
+				(hide yes)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(symbol "PWR_FLAG_0_0"
+				(pin power_out line
+					(at 0 0 90)
+					(length 0)
+					(name ""
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(symbol "PWR_FLAG_0_1"
+				(polyline
+					(pts
+						(xy 0 0)
+						(xy 0 1.27)
+						(xy -1.016 1.905)
+						(xy 0 2.54)
+						(xy 1.016 1.905)
+						(xy 0 1.27)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+	)
+(symbol (lib_id "MCU_Microchip_ATtiny:ATtiny85-20P") (at 76.2 76.2 0) (unit 1)
+	(in_bom yes) (on_board yes) (dnp no)
+	(uuid "bf939e5a-1a71-51a5-a9f1-32d701d8d69d")
+	(property "Reference" "U1" (at 76.2 70.2 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "ATtiny85-20PU" (at 76.2 82.2 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "Package_DIP:DIP-8_W7.62mm_Socket" (at 76.2 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 76.2 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "ATtiny85-20PU in a DIP-8 7.62 mm socket" (at 76.2 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "b70cfd7c-a2c8-5521-b558-e7daf03addd5"))
+	(pin "2" (uuid "1ec1e550-c08f-5dc2-b31e-753cfbfe530b"))
+	(pin "3" (uuid "a110a2e3-6937-556f-8558-6ecaf707f5d4"))
+	(pin "4" (uuid "d092d7f7-a6c4-5181-9845-ca1c67c18ef7"))
+	(pin "5" (uuid "c37fb346-8a86-530f-a637-8f24ffc7542c"))
+	(pin "6" (uuid "93ccfc46-9441-5363-bb39-96f353070320"))
+	(pin "7" (uuid "7a92003d-0145-5b71-b32a-5a5901c4832e"))
+	(pin "8" (uuid "e612fe02-12fc-5e9c-8418-789648a50244"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "U1") (unit 1))))
+)
+(label "RST" (at 91.44 81.28 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "013833df-f93a-5d6f-9511-ac3fb97cb7e4"))
+(label "PB3" (at 91.44 76.2 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "85f40c77-f986-58a8-a2a5-76b099f96be8"))
+(label "WFCK" (at 91.44 78.74 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "5578c21e-43ab-54d9-b1a6-3989a0fb911e"))
+(label "GND" (at 76.2 91.44 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "90d8acc3-10e2-5775-823e-3baf5a7283e4"))
+(label "SQCK" (at 91.44 68.58 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "e5d11065-307f-52e7-b6fa-169e86522d50"))
+(label "SUBQ" (at 91.44 71.12 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "95b0656f-673e-55ab-9d48-4e7b4506631b"))
+(label "DATA" (at 91.44 73.66 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "0b94e4b5-3c4b-5b80-996c-db78960367aa"))
+(label "VCC" (at 76.2 60.96 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "a84fff56-0572-5eaf-bf49-5ea592411309"))
+(symbol (lib_id "Device:C") (at 38.1 76.2 0) (unit 1)
+	(in_bom yes) (on_board yes) (dnp no)
+	(uuid "f21afe39-0f17-515b-b4ee-370537ad93bd")
+	(property "Reference" "C1" (at 38.1 70.2 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "100nF" (at 38.1 82.2 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "Capacitor_THT:C_Disc_D3.0mm_W1.6mm_P2.50mm" (at 38.1 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 38.1 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "100 nF ceramic disc, 50 V, 2.5 mm pitch" (at 38.1 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "8ebb6046-7863-5822-85d1-4e7acc085cc1"))
+	(pin "2" (uuid "52b5e411-dd8c-5da2-9f6b-3bbea4010479"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "C1") (unit 1))))
+)
+(label "VCC" (at 38.1 72.39 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "ed8041c5-3f8b-5af7-b058-086223500254"))
+(label "GND" (at 38.1 80.01 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "b762a9c9-2c5b-5598-96c1-4e3f48e0e3ee"))
+(symbol (lib_id "Device:R") (at 127.0 50.8 0) (unit 1)
+	(in_bom yes) (on_board yes) (dnp no)
+	(uuid "7d557981-bbc5-5f2c-b13c-8ed350cecb5a")
+	(property "Reference" "R2" (at 127.0 44.8 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "1k" (at 127.0 56.8 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P5.08mm_Horizontal" (at 127.0 50.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 127.0 50.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "1 kOhm axial resistor, DIN0204, 5.08 mm pitch" (at 127.0 50.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "76dc6bd8-7ea5-58f7-94cb-7533bde24c7c"))
+	(pin "2" (uuid "50b8b97b-e9e9-5c5c-9458-4cc8a3e88e71"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "R2") (unit 1))))
+)
+(label "PB3" (at 127.0 46.99 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "44ecb2f3-6a88-5eac-ad93-730423c96025"))
+(label "Q_B" (at 127.0 54.61 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "9e702d94-9459-5bf9-b227-a0e3fb50016a"))
+(symbol (lib_id "Device:R") (at 142.24 50.8 0) (unit 1)
+	(in_bom yes) (on_board yes) (dnp no)
+	(uuid "5a5b396c-de8a-57f1-bcc4-dc9c4c35b551")
+	(property "Reference" "R3" (at 142.24 44.8 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "10k" (at 142.24 56.8 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P5.08mm_Horizontal" (at 142.24 50.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 142.24 50.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "10 kOhm axial resistor, DIN0204, 5.08 mm pitch" (at 142.24 50.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "c60fc4c3-4b06-5a1c-8ac2-09885ba4edba"))
+	(pin "2" (uuid "9109fefb-b6a8-580c-914a-7391889b3131"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "R3") (unit 1))))
+)
+(label "Q_B" (at 142.24 46.99 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "cd32001f-f1ec-5448-b973-8ab435c0b7b6"))
+(label "GND" (at 142.24 54.61 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "4cf74502-524c-57b9-81a7-94e7c7ba7f2e"))
+(symbol (lib_id "Transistor_BJT:2N3904") (at 157.48 76.2 0) (unit 1)
+	(in_bom yes) (on_board yes) (dnp no)
+	(uuid "caefad18-8975-50b9-a6f3-b523375c1172")
+	(property "Reference" "Q1" (at 157.48 70.2 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "2N3904" (at 157.48 82.2 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "Package_TO_SOT_THT:TO-92_Inline_Wide" (at 157.48 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 157.48 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "2N3904 NPN, TO-92, legs formed to 2.54 mm" (at 157.48 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "f924bbe6-5a3d-5370-8bb9-fd8d4253ea95"))
+	(pin "2" (uuid "4c8098ad-0b34-5aaa-bcad-f0c404d9988b"))
+	(pin "3" (uuid "e6dc35da-689b-5ab8-a902-88b87d7879b9"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "Q1") (unit 1))))
+)
+(label "GND" (at 160.02 81.28 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "34796e8c-5383-5fd1-94ac-4bc92d72ef92"))
+(label "Q_B" (at 152.4 76.2 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "6cdf984c-bbbd-57d8-81d2-e83391aaea1a"))
+(label "Q_C" (at 160.02 71.12 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "816d814a-ac52-586b-882c-ca13e337d8bc"))
+(symbol (lib_id "Switch:SW_DIP_x02") (at 182.88 76.2 0) (unit 1)
+	(in_bom yes) (on_board yes) (dnp no)
+	(uuid "e29563d1-ba67-5135-8abe-0c5414d01690")
+	(property "Reference" "SW1" (at 182.88 70.2 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "CTS 206-2ST" (at 182.88 82.2 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "Button_Switch_THT:SW_DIP_SPSTx02_Slide_9.78x7.26mm_W7.62mm_P2.54mm" (at 182.88 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 182.88 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "CTS 206-2ST, 2-position DIP switch" (at 182.88 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "4b0e327b-b361-581a-8d8e-4607cbde765f"))
+	(pin "2" (uuid "72a38056-9fdc-5a45-872d-fc486e3582ab"))
+	(pin "3" (uuid "573fd516-82e6-58e1-b290-6852f29b391a"))
+	(pin "4" (uuid "9d5048dd-0e0d-5d97-adba-026ef81d77b2"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "SW1") (unit 1))))
+)
+(label "Q_C" (at 175.26 73.66 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "c6f3f433-91ad-5420-8afe-adde297cf963"))
+(label "Q_C" (at 175.26 76.2 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "2262a8ad-42bc-55bf-bd49-b4e7ac0b7d3d"))
+(label "BUZ_N" (at 190.5 76.2 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "b17f44cd-c6f5-5864-b3ba-927c91c6fc95"))
+(label "LED_K" (at 190.5 73.66 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "1e752e2b-3f48-5cba-8bab-6d28855c2482"))
+(symbol (lib_id "Device:LED") (at 213.36 50.8 0) (unit 1)
+	(in_bom yes) (on_board yes) (dnp no)
+	(uuid "df0ce3bc-d189-5d4c-9616-4e2fac66ad1b")
+	(property "Reference" "D1" (at 213.36 44.8 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "LED red 3 mm" (at 213.36 56.8 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "LED_THT:LED_D3.0mm" (at 213.36 50.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 213.36 50.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "3 mm red LED" (at 213.36 50.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "82c77cb9-f56a-5c26-b8f3-5e81a2138a7a"))
+	(pin "2" (uuid "dfe94679-7c0d-5ecf-a2e7-2a01221b71c1"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "D1") (unit 1))))
+)
+(label "LED_K" (at 209.55 50.8 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "312c4473-9af8-52ba-9804-7fa77a4492bc"))
+(label "LED_A" (at 217.17 50.8 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "ca63aac6-2dc9-53f1-8de8-d058849c3cec"))
+(symbol (lib_id "Device:R") (at 228.6 50.8 0) (unit 1)
+	(in_bom yes) (on_board yes) (dnp no)
+	(uuid "469f096c-b2eb-55ad-b83c-cc3ebdec8bd0")
+	(property "Reference" "R1" (at 228.6 44.8 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "1k" (at 228.6 56.8 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P5.08mm_Horizontal" (at 228.6 50.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 228.6 50.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "1 kOhm axial resistor, DIN0204, 5.08 mm pitch" (at 228.6 50.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "dfb2a123-7830-50d9-9fee-1ee364e88c28"))
+	(pin "2" (uuid "25809c46-d847-55b1-ab93-cfb472934036"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "R1") (unit 1))))
+)
+(label "LED_A" (at 228.6 46.99 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "e3016eb6-017b-5e56-bd93-449e2f6264b1"))
+(label "VCC" (at 228.6 54.61 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "d6a717ad-6a16-5d92-b456-7b805d6db4ed"))
+(symbol (lib_id "Device:Buzzer") (at 213.36 101.6 0) (unit 1)
+	(in_bom yes) (on_board yes) (dnp no)
+	(uuid "3875646c-1db2-577d-a28d-0f95ac710ab5")
+	(property "Reference" "BZ1" (at 213.36 95.6 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "CMI-1295IC-0385T" (at 213.36 107.6 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "Buzzer_Beeper:Buzzer_12x9.5RM7.6" (at 213.36 101.6 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 213.36 101.6 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "Same Sky CMI-1295IC-0385T magnetic buzzer, 12 mm" (at 213.36 101.6 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "103c2e3f-880b-592a-8ad0-f8fb082fc37c"))
+	(pin "2" (uuid "12ade390-8455-5de6-8b0b-a5d987a2982b"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "BZ1") (unit 1))))
+)
+(label "VIND" (at 210.82 99.06 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "86db8599-70c0-5081-92aa-e51ce4d39f4e"))
+(label "BUZ_N" (at 210.82 104.14 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "dbb93ff5-21e7-57e1-9ecb-c9d8db86030d"))
+(symbol (lib_id "Diode:1N4148") (at 233.68 101.6 0) (unit 1)
+	(in_bom yes) (on_board yes) (dnp no)
+	(uuid "48acaad7-a2d8-5220-8dad-30583c4a87e3")
+	(property "Reference" "D2" (at 233.68 95.6 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "1N4148" (at 233.68 107.6 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "Diode_THT:D_DO-35_SOD27_P7.62mm_Horizontal" (at 233.68 101.6 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 233.68 101.6 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "1N4148, DO-35" (at 233.68 101.6 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "5eb193bc-9844-5ad7-bd8c-65c7f318c497"))
+	(pin "2" (uuid "231af3e4-a111-5995-a7d8-36bdfd89e31a"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "D2") (unit 1))))
+)
+(label "VIND" (at 229.87 101.6 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "acf2428e-5720-5390-bdac-f211436a855e"))
+(label "BUZ_N" (at 237.49 101.6 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "e371b56e-f56e-56fc-873b-a93f3332fe71"))
+(symbol (lib_id "Device:R") (at 254.0 76.2 0) (unit 1)
+	(in_bom yes) (on_board yes) (dnp no)
+	(uuid "717d7550-8916-5b31-8874-2bd7cb0025b1")
+	(property "Reference" "R4" (at 254.0 70.2 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "10" (at 254.0 82.2 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P5.08mm_Horizontal" (at 254.0 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 254.0 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "10 Ohm axial resistor, DIN0204, 5.08 mm pitch" (at 254.0 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "f008e9cd-d65c-5cd6-a67c-d74e6ad83ec7"))
+	(pin "2" (uuid "42bb9c8f-0ab6-578a-8fd5-a24fa0262ccf"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "R4") (unit 1))))
+)
+(label "VCC" (at 254.0 72.39 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "f41ee6f6-adf5-57bb-9014-651f0aef1349"))
+(label "VIND" (at 254.0 80.01 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "6483e799-c80a-557c-a864-6655002fe92d"))
+(symbol (lib_id "Device:C_Polarized") (at 269.24 76.2 0) (unit 1)
+	(in_bom yes) (on_board yes) (dnp no)
+	(uuid "affbd4ed-17a9-5899-a5fc-7be13ff35a9f")
+	(property "Reference" "C2" (at 269.24 70.2 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "100uF 10V" (at 269.24 82.2 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "Capacitor_THT:CP_Radial_D5.0mm_P2.00mm" (at 269.24 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 269.24 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "100 uF 10 V radial electrolytic, 5 mm diameter, 2 mm pitch" (at 269.24 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "60983d49-8ad7-5f61-ab1a-de21a36f0dc7"))
+	(pin "2" (uuid "5ad46b17-0fff-5222-928e-e297629d68fd"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "C2") (unit 1))))
+)
+(label "VIND" (at 269.24 72.39 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "915a2bbd-9f1e-5b5a-bfe7-b3ecb405f451"))
+(label "GND" (at 269.24 80.01 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "27cc420a-b201-5872-b3ed-79fc40f9ee96"))
+(symbol (lib_id "Device:R") (at 50.8 50.8 0) (unit 1)
+	(in_bom yes) (on_board yes) (dnp no)
+	(uuid "d4fe92fe-5e82-5112-99f6-74213999db47")
+	(property "Reference" "R5" (at 50.8 44.8 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "10k" (at 50.8 56.8 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P5.08mm_Horizontal" (at 50.8 50.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 50.8 50.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "10 kOhm axial resistor, DIN0204, 5.08 mm pitch" (at 50.8 50.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "c40cb994-47a1-5b12-8da6-7cc8b9d789d4"))
+	(pin "2" (uuid "5e0f098c-2f78-54be-acbe-ef6f6b27e4ec"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "R5") (unit 1))))
+)
+(label "RST" (at 50.8 46.99 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "1bba41c7-e4fd-50e1-82c3-699cff1866f0"))
+(label "VCC" (at 50.8 54.61 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "b7d94add-6ac0-50f0-b298-193435d62e9d"))
+(symbol (lib_id "Connector_Generic:Conn_02x03_Odd_Even") (at 284.48 76.2 0) (unit 1)
+	(in_bom yes) (on_board yes) (dnp no)
+	(uuid "2bb5ab03-3961-509c-a22b-eddf045404c8")
+	(property "Reference" "J1" (at 284.48 70.2 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "ISP" (at 284.48 82.2 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "Connector_IDC:IDC-Header_2x03_P2.54mm_Vertical" (at 284.48 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 284.48 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "2x3 shrouded box header, 2.54 mm, vertical" (at 284.48 76.2 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "38e153dc-dcef-59d8-a20b-c814f8a5fa67"))
+	(pin "2" (uuid "765e58ec-ae49-5ebd-aded-6f95e3affaaa"))
+	(pin "3" (uuid "92218811-6491-5c5e-a8da-0d50590937e4"))
+	(pin "4" (uuid "9ff86f43-14a1-5313-92e5-4b632d504055"))
+	(pin "5" (uuid "a8584b87-46a2-5a96-8066-60383586157d"))
+	(pin "6" (uuid "6be6fb89-e448-588b-9278-591bb8300d2c"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "J1") (unit 1))))
+)
+(label "SUBQ" (at 279.4 73.66 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "235ac676-1432-5543-8304-04f2d8ca38f9"))
+(label "VCC" (at 292.1 73.66 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "c0767793-7975-53db-adba-d98156afac48"))
+(label "DATA" (at 279.4 76.2 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "90be20e0-b75a-5a48-bbba-2226b1521f40"))
+(label "SQCK" (at 292.1 76.2 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "7e194e95-7c61-5d43-8dc2-aed24fdf56ed"))
+(label "RST" (at 279.4 78.74 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "2b4eb447-60d1-5392-a8fc-ab0b3fd21efd"))
+(label "GND" (at 292.1 78.74 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "14cb0abe-b03c-560b-b10d-8932f57cf6d5"))
+(symbol (lib_id "Connector:TestPoint") (at 50.8 139.7 0) (unit 1)
+	(in_bom no) (on_board yes) (dnp no)
+	(uuid "9044b41c-1a34-510a-a600-ec26caa079ee")
+	(property "Reference" "TP1" (at 50.8 133.7 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "WFCK" (at 50.8 145.7 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "TestPoint:TestPoint_Pad_4.0x4.0mm" (at 50.8 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 50.8 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "" (at 50.8 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "6beb038e-ef53-56e2-98dd-2eb7d1081d67"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "TP1") (unit 1))))
+)
+(label "WFCK" (at 50.8 139.7 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "2788ea4b-10c9-5428-8024-1c05bef17950"))
+(symbol (lib_id "Connector:TestPoint") (at 71.12 139.7 0) (unit 1)
+	(in_bom no) (on_board yes) (dnp no)
+	(uuid "58640b50-92c1-5225-8236-e2f5a317177a")
+	(property "Reference" "TP2" (at 71.12 133.7 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "SQCK" (at 71.12 145.7 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "TestPoint:TestPoint_Pad_4.0x4.0mm" (at 71.12 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 71.12 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "" (at 71.12 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "8ad5d534-9942-59bd-9c8e-6c65e84eb573"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "TP2") (unit 1))))
+)
+(label "SQCK" (at 71.12 139.7 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "d73e589c-d00a-52d0-8d30-c078da26a799"))
+(symbol (lib_id "Connector:TestPoint") (at 91.44 139.7 0) (unit 1)
+	(in_bom no) (on_board yes) (dnp no)
+	(uuid "3e30b9be-7ae5-5064-847c-3747c73c4ffb")
+	(property "Reference" "TP3" (at 91.44 133.7 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "SUBQ" (at 91.44 145.7 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "TestPoint:TestPoint_Pad_4.0x4.0mm" (at 91.44 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 91.44 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "" (at 91.44 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "95f7462b-2ec8-5121-8f0d-ad9e354b325b"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "TP3") (unit 1))))
+)
+(label "SUBQ" (at 91.44 139.7 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "ec4116e9-93cd-5074-9e7b-e93e5420cb9c"))
+(symbol (lib_id "Connector:TestPoint") (at 111.76 139.7 0) (unit 1)
+	(in_bom no) (on_board yes) (dnp no)
+	(uuid "6beaed89-53d5-53f0-8f10-edf2f0524eec")
+	(property "Reference" "TP4" (at 111.76 133.7 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "DATA" (at 111.76 145.7 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "TestPoint:TestPoint_Pad_4.0x4.0mm" (at 111.76 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 111.76 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "" (at 111.76 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "c74fdffb-f443-5678-a06a-db8c33fdbcb8"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "TP4") (unit 1))))
+)
+(label "DATA" (at 111.76 139.7 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "61e5b053-d4c0-539b-9981-04df107b6abd"))
+(symbol (lib_id "Connector:TestPoint") (at 132.08 139.7 0) (unit 1)
+	(in_bom no) (on_board yes) (dnp no)
+	(uuid "8fcca953-dc07-5a59-8bd6-8508f8ec73b7")
+	(property "Reference" "TP5" (at 132.08 133.7 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "VCC" (at 132.08 145.7 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "TestPoint:TestPoint_Pad_4.0x4.0mm" (at 132.08 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 132.08 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "" (at 132.08 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "3560c3ae-9e3b-50f8-abcb-bf3e6c48766c"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "TP5") (unit 1))))
+)
+(label "VCC" (at 132.08 139.7 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "8b680559-cd29-577a-aea7-0fa68300dc9f"))
+(symbol (lib_id "Connector:TestPoint") (at 152.4 139.7 0) (unit 1)
+	(in_bom no) (on_board yes) (dnp no)
+	(uuid "a3d8d795-3745-5b48-84a4-5c977949bf9b")
+	(property "Reference" "TP6" (at 152.4 133.7 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "GND" (at 152.4 145.7 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "TestPoint:TestPoint_Pad_4.0x4.0mm" (at 152.4 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 152.4 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "" (at 152.4 139.7 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "e115aa3b-c2bb-5059-8220-613ff6c3deb0"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "TP6") (unit 1))))
+)
+(label "GND" (at 152.4 139.7 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "cde72acd-a210-5adc-9876-077acb26ea76"))
+(symbol (lib_id "power:PWR_FLAG") (at 50.8 177.8 0) (unit 1)
+	(in_bom no) (on_board no) (dnp no)
+	(uuid "94d33cf8-b6b7-5bb2-9882-446995314737")
+	(property "Reference" "#FLG01" (at 50.8 171.8 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "PWR_FLAG" (at 50.8 183.8 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "" (at 50.8 177.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 50.8 177.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "" (at 50.8 177.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "104da223-4594-5b9e-9630-8e448d41687b"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "#FLG01") (unit 1))))
+)
+(label "VCC" (at 50.8 177.8 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "79a1d2b4-7e8c-5dc9-aa65-9c0d5a7bb7fb"))
+(symbol (lib_id "power:PWR_FLAG") (at 71.12 177.8 0) (unit 1)
+	(in_bom no) (on_board no) (dnp no)
+	(uuid "ada576a5-6c70-59f8-837e-85bc1aecafe7")
+	(property "Reference" "#FLG02" (at 71.12 171.8 0) (effects (font (size 1.27 1.27))))
+	(property "Value" "PWR_FLAG" (at 71.12 183.8 0) (effects (font (size 1.27 1.27))))
+	(property "Footprint" "" (at 71.12 177.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Datasheet" "" (at 71.12 177.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(property "Part" "" (at 71.12 177.8 0) (effects (font (size 1.27 1.27)) (hide yes)))
+	(pin "1" (uuid "63e0a739-6a3f-5975-b56f-f69aed30622c"))
+	(instances (project "openscex-carrier" (path "/7206801e-1c20-5311-8a84-3899543930cc" (reference "#FLG02") (unit 1))))
+)
+(label "GND" (at 71.12 177.8 0) (effects (font (size 1.27 1.27)) (justify left bottom)) (uuid "f5c3b66c-7a52-5966-9583-5d6d0917e1fd"))
+	(sheet_instances (path "/" (page "1")))
+)

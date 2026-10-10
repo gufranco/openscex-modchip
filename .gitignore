@@ -22,3 +22,14 @@ specs/
 !.vscode/c_cpp_properties.json
 !.vscode/settings.json
 !.vscode/extensions.json
+
+# KiCad per-user state and backups
+hardware/*.kicad_prl
+hardware/*-backups/
+hardware/fp-info-cache
+hardware/_autosave-*
+hardware/~*.lck
+
+# Board-house archives are committed so the README can link them, even
+# where a global ignore drops every zip.
+!hardware/fab/*.zip

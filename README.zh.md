@@ -160,6 +160,28 @@ make bench_ci    # 主机测试台：在同一个模拟主机中对比本固件�
 
 上方照片在每块受支持主板上标出了 SQCK 与 SUBQ，请以照片为准。出处：[assets/psnee](assets/psnee)。
 
+## 载板
+
+三块可选的载板把芯片装在 DIP-8 插座上，便于取下重新烧录，并在一条边上用六个 4 × 4 mm 焊盘接收主机的导线，间距 6 mm，依次为 WFCK、SQCK、SUBQ、DATA、VCC 和 GND。焊盘位于正面且没有孔，所有元件都是直插件，每块板都是包含原理图、布局和设计规则的 KiCad 10 工程。来源：[hardware](hardware)。
+
+| 板 | 元件 | 尺寸 | 来源 |
+|:--|:--|:--|:--|
+| 载板 | 插座、100 nF 去耦电容、带 10 kΩ RESET 上拉的防呆 ISP 插座，以及指示电路：PB3 驱动一个 2N3904，按两位拨码开关的设置点亮带 1 kΩ 电阻的 LED、驱动蜂鸣器、两者都开或都关；蜂鸣器经 10 Ω 与 100 µF 滤波供电，并联一个 1N4148 | 39.6 × 36.6 mm | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb) |
+| 迷你板 | 插座、100 nF 去耦电容、直接接在 PB3 上带 1 kΩ 电阻的 LED、防呆 ISP 插座 | 35.7 × 25.2 mm | [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [hardware/openscex-mini.kicad_pcb](hardware/openscex-mini.kicad_pcb) |
+| 裸板 | 只有插座和 100 nF 去耦电容 | 35.7 × 21.7 mm | [hardware/openscex-bare.kicad_sch](hardware/openscex-bare.kicad_sch), [hardware/openscex-bare.kicad_pcb](hardware/openscex-bare.kicad_pcb) |
+
+<table>
+<tr><td align="center" width="33%"><a href="assets/boards/carrier-3d.png"><img src="assets/boards/carrier-3d.png" alt="载板, 3D 视图" width="260"></a><br><sub><b>载板</b>, 3D 视图</sub></td><td align="center" width="33%"><a href="assets/boards/carrier-top.png"><img src="assets/boards/carrier-top.png" alt="载板, 正面" width="260"></a><br><sub><b>载板</b>, 正面</sub></td><td align="center" width="33%"><a href="assets/boards/carrier-bottom.png"><img src="assets/boards/carrier-bottom.png" alt="载板, 背面，接地层" width="260"></a><br><sub><b>载板</b>, 背面，接地层</sub></td></tr>
+<tr><td align="center" width="33%"><a href="assets/boards/mini-3d.png"><img src="assets/boards/mini-3d.png" alt="迷你板, 3D 视图" width="260"></a><br><sub><b>迷你板</b>, 3D 视图</sub></td><td align="center" width="33%"><a href="assets/boards/mini-top.png"><img src="assets/boards/mini-top.png" alt="迷你板, 正面" width="260"></a><br><sub><b>迷你板</b>, 正面</sub></td><td align="center" width="33%"><a href="assets/boards/mini-bottom.png"><img src="assets/boards/mini-bottom.png" alt="迷你板, 背面，接地层" width="260"></a><br><sub><b>迷你板</b>, 背面，接地层</sub></td></tr>
+<tr><td align="center" width="33%"><a href="assets/boards/bare-3d.png"><img src="assets/boards/bare-3d.png" alt="裸板, 3D 视图" width="260"></a><br><sub><b>裸板</b>, 3D 视图</sub></td><td align="center" width="33%"><a href="assets/boards/bare-top.png"><img src="assets/boards/bare-top.png" alt="裸板, 正面" width="260"></a><br><sub><b>裸板</b>, 正面</sub></td><td align="center" width="33%"><a href="assets/boards/bare-bottom.png"><img src="assets/boards/bare-bottom.png" alt="裸板, 背面，接地层" width="260"></a><br><sub><b>裸板</b>, 背面，接地层</sub></td></tr>
+</table>
+
+三块都是按抗噪设计的双层板。走线尽量放在正面，使背面在主机信号线下方保持为完整的接地层；两层都铺地，并用 0.6 mm 过孔缝合；没有走线的弯折超过 45 度；不同网络的走线彼此相距 1 mm，与焊盘相距 0.8 mm。载板上的蜂鸣器以 2.4 kHz 脉冲最多吸取 30 mA，放在离主机信号线最远的角落，其纹波由滤波器挡在芯片电源之外。来源：[hardware/openscex-carrier.kicad_dru](hardware/openscex-carrier.kicad_dru), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb), [CMI-1295IC-0385T datasheet](https://www.sameskydevices.com/product/resource/cmi-1295ic-0385t.pdf)。
+
+ISP 插座采用 AVR 六针排列：1 MISO 接 SUBQ，2 VCC，3 SCK 接 DATA，4 MOSI 接 SQCK，5 RESET，6 GND；护套带防呆，并与其他元件保持 1.5 mm 间距，便于插拔排线。请在载板离开主机或拆下导线后再烧录：装在主机上时，编程器会向主机电源供电，并在 SQCK 和 SUBQ 上与主机自身的驱动器冲突。来源：[hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
+
+每块板都附有列出每个元件采购型号的物料清单，以及可直接上传给制板厂的 Gerber 和钻孔压缩包。两者均由 KiCad 10.0.6 导出。压缩包不含泪滴：若要让走线与焊盘的连接处呈弧形，请用 KiCad 打开电路板，按 B 重新填充铺铜后再导出。来源：[hardware/openscex-carrier-bom.csv](hardware/openscex-carrier-bom.csv), [hardware/fab/openscex-carrier-gerbers.zip](hardware/fab/openscex-carrier-gerbers.zip), [hardware/openscex-mini-bom.csv](hardware/openscex-mini-bom.csv), [hardware/fab/openscex-mini-gerbers.zip](hardware/fab/openscex-mini-gerbers.zip), [hardware/openscex-bare-bom.csv](hardware/openscex-bare-bom.csv), [hardware/fab/openscex-bare-gerbers.zip](hardware/fab/openscex-bare-gerbers.zip)。
+
 ## 安全
 
 - 接线前测量每个接点的逻辑电压。数值取自成熟的 PsNee 与 Mayumi 安装（厚机约 5 V，PSone PM-41(2) 较低且对噪声敏感），但假设不等于测量。 出处：[quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/)。
