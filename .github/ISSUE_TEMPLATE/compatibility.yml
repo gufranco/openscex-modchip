@@ -49,15 +49,6 @@ body:
     validations:
       required: true
   - type: dropdown
-    id: timing
-    attributes:
-      label: TIMING build
-      options:
-        - adaptive (default)
-        - fixed
-    validations:
-      required: true
-  - type: dropdown
     id: result
     attributes:
       label: Result

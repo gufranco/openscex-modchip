@@ -23,7 +23,5 @@ CompileFlags:
     - -std=c17
     - -D__AVR_ATtiny85__
     - -DF_CPU=8000000UL
-    - -DPSCU_TIMING_ADAPTIVE=1
-    - -DPSCU_WFCK_PERIODS_PER_BIT=30
     - -DPSCU_VCD_FILTER=0
   Compiler: clang

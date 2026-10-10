@@ -137,12 +137,12 @@ static void pscu_inject_region(pscu_region_t region, pscu_board_mode_t mode) {
 // Watch WFCK for window samples and classify what it shows: enough falling
 // edges mean a live carrier, too few a static gate.
 static pscu_board_mode_t pscu_sample_wfck(uint16_t window) {
-  pscu_board_detect_t state = pscu_board_detect_init();
+  pscu_board_detect_t state = pscu_board_detect_init(PSCU_DETECT_PULSES);
   for (uint16_t i = 0U; i < window; i++) {
     state = pscu_board_detect_step(state, pscu_port_read_wfck());
     pscu_port_watchdog_reset();
   }
-  return pscu_board_detect_mode(state, PSCU_DETECT_PULSES);
+  return pscu_board_detect_mode(state);
 }
 
 // Run once at boot: let WFCK settle, then watch it across the detect window and

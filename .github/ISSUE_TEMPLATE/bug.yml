@@ -14,7 +14,7 @@ body:
     id: build
     attributes:
       label: Build knobs
-      placeholder: "e.g. make REGION=eu TIMING=adaptive"
+      placeholder: "e.g. make REGION=eu PROFILE=final"
     validations:
       required: true
   - type: textarea

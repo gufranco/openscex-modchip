@@ -13,12 +13,8 @@
 #include "port/registers.h"
 
 // Busy-loop iteration counts, derived from F_CPU, the internal 8 MHz oscillator,
-// which the run loop trims against the console's SUBQ frame rate. The delay inner loop is 4
-// cycles. The mirror inner loop is (10 + shift) cycles, where shift is the pin
-// distance WFCK-DATA that aligns the carrier bit onto DATA; computing it from the
-// pins keeps the one-bit cell exactly one millisecond rather than assuming a
-// fixed loop length.
-#define PSCU_MIRROR_LOOP_CYCLES (10UL + (PSCU_PIN_WFCK - PSCU_PIN_DATA))
+// which the run loop trims against the console's SUBQ frame rate. The delay
+// inner loop is 4 cycles.
 #define PSCU_DELAY_1MS_ITERS (F_CPU / 4000UL)
 // A SUBQ edge wait gives up after 30 ms, the same bound as the idle wait in
 // engine.c: long enough for the inter-frame gap before a burst's first edge (a
@@ -27,7 +23,10 @@
 // disc is gone. One wait pass is 7
 // cycles (wdr 1, the skipping sbis or sbic 2, sbiw 2, a taken brne 2).
 #define PSCU_SQCK_WAIT_POLLS ((F_CPU * 30UL) / (1000UL * 7UL))
-#define PSCU_MIRROR_1MS_ITERS (F_CPU / (PSCU_MIRROR_LOOP_CYCLES * 1000UL))
+// A carrier-board bit cell counted in WFCK periods is 30 rising edges, about
+// 4 ms at the 7.3 kHz rate the console runs while it reads the lead-in (Read:
+// PsNee PerformInjectionSequence, "modulated across 30 WFCK edges").
+#define PSCU_WFCK_PERIODS_PER_BIT 30
 
 // Shift a PINREG snapshot already in <reg> right by <count> bit positions, then
 // mask to <mask>, bringing one pin to bit 0 or onto the DATA bit position. This
@@ -192,42 +191,6 @@ pscu_port_delay_ms:
 	ret
 	.endfunc
 
-// Drive DATA as a copy of the live WFCK input for the given milliseconds, the
-// modern-board way to send a logic one: the console samples DATA against WFCK,
-// so DATA must track that carrier rather than sit at a static level. Each pass
-// reads the port, shifts the WFCK bit down to the DATA bit position (the shift
-// count is the pin-number distance, computed at assemble time by .rept so it is
-// correct for whichever board profile is built), masks it, and writes it back
-// into DATA without disturbing the other port bits. Only the fixed-timing build
-// calls it, from pscu_port_bit_mirror; the adaptive build times each one by
-// WFCK periods instead, so there it is left out rather than linked in unused.
-#if !PSCU_TIMING_ADAPTIVE
-	.global pscu_port_data_mirror_wfck_ms
-	.func pscu_port_data_mirror_wfck_ms
-pscu_port_data_mirror_wfck_ms:
-	sbiw r24, 0
-	breq 6f
-	sbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DATA
-4:
-	ldi r26, lo8(PSCU_MIRROR_1MS_ITERS)
-	ldi r27, hi8(PSCU_MIRROR_1MS_ITERS)
-5:
-	in r18, _SFR_IO_ADDR(PSCU_PINREG)
-	pscu_shr_mask r18, (PSCU_PIN_WFCK-PSCU_PIN_DATA), (1<<PSCU_PIN_DATA)
-	in r19, _SFR_IO_ADDR(PSCU_PORT)
-	andi r19, (~(1 << PSCU_PIN_DATA)) & 0xFF
-	or r19, r18
-	out _SFR_IO_ADDR(PSCU_PORT), r19
-	sbiw r26, 1
-	brne 5b
-	wdr
-	sbiw r24, 1
-	brne 4b
-6:
-	ret
-	.endfunc
-#endif
-
 // Clock in r22 bytes of SUBQ into the buffer at r25:r24, least significant bit
 // first, sampling SUBQ right after each SQCK rising edge, as PsNee does. The caller
 // has already waited for the idle gap, so the first falling edge starts the frame.
@@ -295,9 +258,7 @@ pscu_port_ticks:
 	ret
 	.endfunc
 
-#if PSCU_TIMING_ADAPTIVE
-
-// Adaptive injection timing. On a modern board the WFCK line is a live carrier,
+// WFCK-counted injection timing. On a modern board the WFCK line is a live carrier,
 // so instead of timing a bit cell with an MCU delay, which drifts with the RC
 // oscillator, these routines count whole WFCK periods. A bit cell is
 // PSCU_WFCK_PERIODS_PER_BIT rising edges, so the cell length tracks the console
@@ -372,35 +333,20 @@ pscu_port_wfck_mirror_periods:
 	ret
 	.endfunc
 
-#endif
-
-// One modern-board bit cell, selected at build time. The adaptive build counts
-// WFCK periods; the fixed build falls back to the millisecond delay that was
-// exercised on hardware. Each is a tail call, so the wrapper adds no return
-// overhead. The 4 is the 4 ms bit cell (Read, PsNee BIT_DELAY).
+// One modern-board bit cell, timed by counting WFCK periods, so the cell
+// follows the console's own clock at single and double speed alike. Each is a
+// tail call, so the wrapper adds no return overhead.
 	.global pscu_port_bit_hold_low
 	.func pscu_port_bit_hold_low
 pscu_port_bit_hold_low:
-#if PSCU_TIMING_ADAPTIVE
 	ldi r24, PSCU_WFCK_PERIODS_PER_BIT
 	rjmp pscu_port_wfck_wait_periods
-#else
-	ldi r24, lo8(4)
-	ldi r25, hi8(4)
-	rjmp pscu_port_delay_ms
-#endif
 	.endfunc
 
 	.global pscu_port_bit_mirror
 	.func pscu_port_bit_mirror
 pscu_port_bit_mirror:
-#if PSCU_TIMING_ADAPTIVE
 	ldi r24, PSCU_WFCK_PERIODS_PER_BIT
 	rjmp pscu_port_wfck_mirror_periods
-#else
-	ldi r24, lo8(4)
-	ldi r25, hi8(4)
-	rjmp pscu_port_data_mirror_wfck_ms
-#endif
 	.endfunc
 

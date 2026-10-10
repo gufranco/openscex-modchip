@@ -25,15 +25,15 @@ def signals(name: str) -> list[Signal]:
 
 class RecordTest(unittest.TestCase):
     def test_a_record_ends_with_its_check_byte(self) -> None:
-        raw = Record(board=1, cap=8, trigger=12, frozen=0, trim=-3).raw()
+        raw = Record(board=1, trigger=12, frozen=0, trim=-3).raw()
 
-        self.assertEqual(raw[:6], [0xC6, 1, 8, 12, 0, 0xFD])
-        self.assertEqual(raw[6], 0x5A ^ 0xC6 ^ 1 ^ 8 ^ 12 ^ 0 ^ 0xFD)
+        self.assertEqual(raw[:5], [0xC8, 1, 12, 0, 0xFD])
+        self.assertEqual(raw[5], 0x5A ^ 0xC8 ^ 1 ^ 12 ^ 0 ^ 0xFD)
 
     def test_a_damaged_record_keeps_the_given_check(self) -> None:
-        raw = Record(board=1, cap=8, trigger=10, frozen=0, trim=0, check=0).raw()
+        raw = Record(board=1, trigger=10, frozen=0, trim=0, check=0).raw()
 
-        self.assertEqual(raw[6], 0)
+        self.assertEqual(raw[5], 0)
 
 
 class EdgeScenarioTest(unittest.TestCase):

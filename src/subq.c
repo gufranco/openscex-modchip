@@ -113,7 +113,10 @@ bool pscu_subq_is_valid(const uint8_t *frame) {
   return ((uint8_t)(frame[0] & 0x0FU) == 0x01U) && (frame[6] == 0x00U);
 }
 
-uint8_t pscu_subq_update_counter(const uint8_t *frame, uint8_t counter, bool vcd_filter) {
+uint8_t pscu_subq_update_counter(const uint8_t *frame,
+                                 uint8_t counter,
+                                 bool vcd_filter,
+                                 uint8_t ceiling) {
   PSCU_ASSERT(frame != NULL);
 
   // frame[1] is TNO, which is 0x00 only in the lead-in, and frame[6] is the
@@ -129,7 +132,7 @@ uint8_t pscu_subq_update_counter(const uint8_t *frame, uint8_t counter, bool vcd
   // The counter is a leaky integrator: a hit raises it toward the inject
   // trigger, a miss decays it. This rides out single bad frames without losing
   // sync and re-arms on its own after a disc change re-reads the lead-in.
-  if (hit && (counter < PSCU_SUBQ_COUNTER_MAX)) {
+  if (hit && (counter < ceiling)) {
     result = (uint8_t)(counter + 1U);
   }
   if ((!hit) && (counter > 0U)) {

@@ -28,24 +28,6 @@ FLASH_BUDGET := $(shell expr $(FLASH_BYTES) - $(FLASH_RESERVE))
 # brown-out detection at 2.7 V, which holds the chip in reset below its rating.
 F_CPU := 8000000UL
 
-# Injection bit timing. adaptive (default) locks the WFCK-carrier injection bit
-# to the console's own timing by counting WFCK periods, so the modern-board bit cell is
-# immune to the MCU RC oscillator drifting; legacy boards keep the MCU delay
-# because WFCK is static there and offers nothing to lock to. fixed restores the
-# original behaviour where every bit cell is a compile-time MCU delay; that is
-# the build whose timing was exercised on hardware. The adaptive default is
-# verified in simulation only until a console retests it.
-# PSCU_WFCK_PERIODS_PER_BIT is 30, Read from PsNee PerformInjectionSequence
-# ("modulated across 30 WFCK edges"), about 4 ms at the 7.3 kHz init rate.
-TIMING ?= adaptive
-ifeq ($(TIMING),fixed)
-TIMING_DEF := -DPSCU_TIMING_ADAPTIVE=0
-TIMING_TAG := -fixed
-else
-TIMING_DEF := -DPSCU_TIMING_ADAPTIVE=1 -DPSCU_WFCK_PERIODS_PER_BIT=30
-TIMING_TAG :=
-endif
-
 # Video-CD filter for the SCPH-5903, the Asian dual-interface model that also
 # plays Video CDs. on narrows the lead-in match to the TOC markers A0..A2 and
 # rejects the Video-CD lead-in pattern, so a Video CD never draws a region
@@ -93,11 +75,11 @@ REGION_DEF :=
 REGION_TAG :=
 endif
 
-# Each region, timing and filter build differs in generated code, so their
+# Each region, filter and profile build differs in generated code, so their
 # objects must never share a directory; VARIANT keeps them separate. An empty
-# VARIANT (America, adaptive timing, no filter) keeps the plain artifact name
+# VARIANT (America, no filter, debug profile) keeps the plain artifact name
 # the sim uses.
-VARIANT := $(REGION_TAG)$(TIMING_TAG)$(VCD_TAG)$(PROFILE_TAG)
+VARIANT := $(REGION_TAG)$(VCD_TAG)$(PROFILE_TAG)
 
 CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate format \
 	precommit image image_size image_misra bench_runners bench bench_ci showcase
@@ -115,7 +97,7 @@ hooks:
 ifndef PSCU_TOOLCHAIN
 
 $(CONTAINER_TARGETS):
-	$(PYTHON) tools/docker_make.py $@ REGION=$(REGION) TIMING=$(TIMING) VCD_FILTER=$(VCD_FILTER) PROFILE=$(PROFILE)
+	$(PYTHON) tools/docker_make.py $@ REGION=$(REGION) VCD_FILTER=$(VCD_FILTER) PROFILE=$(PROFILE)
 
 else
 
@@ -162,9 +144,9 @@ RELEASE_OBJECTS := $(patsubst src/%,$(RELEASE)/%.o,$(FIRMWARE_C) $(FIRMWARE_S))
 # code no console input reaches are kept. The link step needs it too, since
 # link-time optimisation generates the code there.
 AVR_DEBUG := -g
-AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(TIMING_DEF) $(VCD_DEF) $(PROFILE_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
+AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(VCD_DEF) $(PROFILE_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
 	$(WARNINGS) -fno-common -ffunction-sections -fdata-sections $(AVR_DEBUG)
-AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) $(TIMING_DEF) -Iinclude -Wall -Wextra -Werror $(AVR_DEBUG)
+AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) -Iinclude -Wall -Wextra -Werror $(AVR_DEBUG)
 AVR_LDFLAGS := -mmcu=$(MCU) -Os -flto -Wl,--gc-sections $(AVR_DEBUG)
 
 AVR_INCLUDE := /usr/lib/avr/include
@@ -173,7 +155,7 @@ CPPCHECK_FLAGS := --std=c17 --platform=avr8 --enable=all --check-level=exhaustiv
 	--error-exitcode=1 --suppress=checkersReport --inline-suppr \
 	'--suppress=*:$(AVR_INCLUDE)/*' '--suppress=*:$(AVR_GCC_INCLUDE)/*' \
 	-Iinclude -I$(AVR_INCLUDE) -I$(AVR_GCC_INCLUDE) \
-	$(CPPCHECK_MCU_DEF) $(REGION_DEF) $(TIMING_DEF) $(VCD_DEF) $(PROFILE_DEF) -DF_CPU=$(F_CPU)
+	$(CPPCHECK_MCU_DEF) $(REGION_DEF) $(VCD_DEF) $(PROFILE_DEF) -DF_CPU=$(F_CPU)
 CPPCHECK_CONFIGS := -DPSCU_DEBUG -UPSCU_DEBUG
 
 all: image

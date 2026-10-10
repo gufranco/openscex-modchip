@@ -13,27 +13,17 @@
 // Calibration scenarios: what the chip learns per console, across boots.
 
 // Per-console calibration, read and seeded through simavr's EEPROM. The record
-// layout mirrors include/pscu/calib.h: magic, board, cap, trigger, frozen, trim,
-// check, where check folds the six bytes into a fixed seed. A seed is handed to
+// layout mirrors include/pscu/calib.h: magic, board, trigger, frozen, trim,
+// check, where check folds the five bytes into a fixed seed. A seed is handed to
 // the harness before build_avr, which loads it before the firmware starts.
-#define CALIB_BYTES 7
-#define CALIB_MAGIC 0xC6U
+#define CALIB_BYTES 6
+#define CALIB_MAGIC 0xC8U
 #define CALIB_SEED 0x5AU
 #define CALIB_TRIGGER 10U
 #define CALIB_TRIGGER_STEP 2U
 #define CALIB_TRIGGER_MAX 30U
-#define CALIB_CAP_MAX 16U
-#define CALIB_CAP_MARGIN 4U
+#define CALIB_STEALTH_STRINGS 16
 #define CALIB_SETTLE_FRAMES 120
-
-// The cap a fresh chip, whose cap is the full 16, keeps after an accepted disc
-// that needed strings: halfway down to the need plus the margin (calib.c,
-// pscu_calib_accepted).
-static uint8_t halfway_cap(int strings) {
-  int fit = strings + (int)CALIB_CAP_MARGIN;
-  fit = (fit > (int)CALIB_CAP_MAX) ? (int)CALIB_CAP_MAX : fit;
-  return (uint8_t)(fit + (((int)CALIB_CAP_MAX - fit) / 2));
-}
 #define CALIB_LONG_TOC_FRAMES 700
 #define CALIB_REPLAY_MS 10000U
 
@@ -43,17 +33,17 @@ static void read_calib(avr_t *avr, uint8_t *raw) {
 }
 
 static uint8_t calib_check_byte(const uint8_t *raw) {
-  return (uint8_t)(CALIB_SEED ^ raw[0] ^ raw[1] ^ raw[2] ^ raw[3] ^ raw[4] ^ raw[5]);
+  return (uint8_t)(CALIB_SEED ^ raw[0] ^ raw[1] ^ raw[2] ^ raw[3] ^ raw[4]);
 }
 
-static void seed_calib(uint8_t board, uint8_t cap, uint8_t trigger, uint8_t frozen, int8_t trim) {
-  uint8_t raw[CALIB_BYTES] = { CALIB_MAGIC, board, cap, trigger, frozen, (uint8_t)trim, 0U };
-  raw[6] = calib_check_byte(raw);
+static void seed_calib(uint8_t board, uint8_t trigger, uint8_t frozen, int8_t trim) {
+  uint8_t raw[CALIB_BYTES] = { CALIB_MAGIC, board, trigger, frozen, (uint8_t)trim, 0U };
+  raw[5] = calib_check_byte(raw);
   sim_seed_eeprom(raw, CALIB_BYTES);
 }
 
 static int calib_valid(const uint8_t *raw) {
-  return (raw[0] == CALIB_MAGIC) && (raw[6] == calib_check_byte(raw));
+  return (raw[0] == CALIB_MAGIC) && (raw[5] == calib_check_byte(raw));
 }
 
 static void calib_check(const target_t *t, int ok, const char *what) {
@@ -62,10 +52,9 @@ static void calib_check(const target_t *t, int ok, const char *what) {
   check(ok, label);
 }
 
-// Disc 1 is accepted after a few strings, so the chip stores the cap as that
-// count plus the margin and probes one step later. Disc 2 never reaches the
-// program area: the chip sends exactly the learned cap, not the fixed 16, and
-// the refusal stores the full cap again and steps the start back, frozen.
+// Disc 1 is accepted after a few strings, so the chip probes one step later.
+// Disc 2 never reaches the program area: it still gets the whole stealth cap,
+// whatever disc 1 needed, and the refusal steps the start back, frozen.
 void scenario_calib_cap(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
@@ -83,26 +72,22 @@ void scenario_calib_cap(const target_t *t, const char *elf, uint32_t freq) {
   calib_check(
       t, calib_valid(raw) && (raw[1] == 0U), "a fresh chip stores a valid record and its board");
   calib_check(t,
-              (disc1 >= 1) && (raw[2] == halfway_cap(disc1)),
-              "an accepted disc brings the cap halfway down to its need plus the margin");
-  calib_check(t,
-              (raw[3] == (CALIB_TRIGGER + CALIB_TRIGGER_STEP)) && (raw[4] == 0U),
+              (disc1 >= 1) && (raw[2] == (CALIB_TRIGGER + CALIB_TRIGGER_STEP)) && (raw[3] == 0U),
               "an accepted disc probes one step later");
 
   swap_disc(avr);
   int disc2 = strings_while(avr, t, toc, CALIB_LONG_TOC_FRAMES);
-  calib_check(t, disc2 == (int)raw[2], "the next disc gets at most the learned cap");
+  calib_check(t, disc2 == CALIB_STEALTH_STRINGS, "a refused disc gets the whole stealth cap");
   read_calib(avr, raw);
-  calib_check(t,
-              (raw[2] == CALIB_CAP_MAX) && (raw[3] == CALIB_TRIGGER) && (raw[4] == 1U),
-              "a refusal restores the full cap and steps the start back, frozen");
+  calib_check(
+      t, (raw[2] == CALIB_TRIGGER) && (raw[3] == 1U), "a refusal steps the start back, frozen");
 }
 
 // A record stored on a carrier board meets a gate board: the chip moved or its
 // WFCK wire is intermittent. The boot replays code 7 and the learned values
 // restart from the defaults under the new board.
 void scenario_calib_board(const target_t *t, const char *elf, uint32_t freq) {
-  seed_calib(1U, 7U, 14U, 1U, 0);
+  seed_calib(1U, 14U, 1U, 0);
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
   avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
@@ -112,8 +97,7 @@ void scenario_calib_board(const target_t *t, const char *elf, uint32_t freq) {
   uint8_t raw[CALIB_BYTES] = { 0 };
   read_calib(avr, raw);
   calib_check(t,
-              calib_valid(raw) && (raw[1] == 0U) && (raw[2] == CALIB_CAP_MAX) &&
-                  (raw[3] == CALIB_TRIGGER) && (raw[4] == 0U),
+              calib_valid(raw) && (raw[1] == 0U) && (raw[2] == CALIB_TRIGGER) && (raw[3] == 0U),
               "a board change restarts the learned values");
 }
 
@@ -125,7 +109,7 @@ void scenario_calib_board(const target_t *t, const char *elf, uint32_t freq) {
 #define MISSED_DECAY_FRAMES 40
 
 void scenario_calib_missed(const target_t *t, const char *elf, uint32_t freq) {
-  seed_calib(0U, CALIB_CAP_MAX, CALIB_TRIGGER_MAX, 0U, 0);
+  seed_calib(0U, CALIB_TRIGGER_MAX, 0U, 0);
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
   avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
@@ -141,13 +125,13 @@ void scenario_calib_missed(const target_t *t, const char *elf, uint32_t freq) {
   uint8_t raw[CALIB_BYTES] = { 0 };
   read_calib(avr, raw);
   calib_check(t,
-              (raw[3] == (CALIB_TRIGGER_MAX - CALIB_TRIGGER_STEP)) && (raw[4] == 1U),
+              (raw[2] == (CALIB_TRIGGER_MAX - CALIB_TRIGGER_STEP)) && (raw[3] == 1U),
               "a missed window steps the start back, frozen");
 }
 
 // A Japanese build never probes the start point: PsNee warns against a trigger
-// above 11 on Japanese models. An accepted disc still teaches the cap, and the
-// probe freezes at the default trigger.
+// above 11 on Japanese models. An accepted disc freezes the probe at the
+// default trigger.
 void scenario_calib_jp(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
@@ -161,9 +145,8 @@ void scenario_calib_jp(const target_t *t, const char *elf, uint32_t freq) {
   uint8_t raw[CALIB_BYTES] = { 0 };
   read_calib(avr, raw);
   calib_check(t,
-              calib_valid(raw) && (raw[2] == halfway_cap(g_strings)) && (raw[3] == CALIB_TRIGGER) &&
-                  (raw[4] == 1U),
-              "a Japanese build learns the cap but keeps the default start");
+              calib_valid(raw) && (raw[2] == CALIB_TRIGGER) && (raw[3] == 1U),
+              "a Japanese build keeps the default start");
 }
 
 // The oscillator trim. simavr runs the chip at whatever rate the harness names,
@@ -244,7 +227,7 @@ static void trim_case(const target_t *t, const char *elf, uint32_t freq, int per
   g_frame_period_ns = 0U;
   uint8_t raw[CALIB_BYTES] = { 0 };
   read_calib(avr, raw);
-  int8_t stored = (int8_t)raw[5];
+  int8_t stored = (int8_t)raw[4];
   int8_t moved = (int8_t)((int)osccal(avr) - (int)SIM_OSCCAL_FACTORY);
 
   char what[96];
@@ -277,7 +260,7 @@ void scenario_trim(const target_t *t, const char *elf, uint32_t freq) {
   trim_case(t, elf, freq, -5);
   trim_case(t, elf, freq, 0);
 
-  seed_calib(0U, CALIB_CAP_MAX, CALIB_TRIGGER, 0U, -3);
+  seed_calib(0U, CALIB_TRIGGER, 0U, -3);
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
   boot_quiet(avr, t, 0, &ctx);
@@ -297,7 +280,6 @@ void scenario_trim(const target_t *t, const char *elf, uint32_t freq) {
 #define LOW_SUPPLY_MV 2600U
 #define GOOD_SUPPLY_MV 3300U
 #define SUPPLY_TRIGGER 12U
-#define SUPPLY_CAP 8U
 #define SUPPLY_TOC_FRAMES 60
 #define SUPPLY_WATCH_MS 20000U
 
@@ -318,7 +300,7 @@ static void set_supply(avr_t *avr, uint32_t mv) {
 void scenario_supply(const target_t *t, const char *elf, uint32_t freq) {
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
-  seed_calib(0U, SUPPLY_CAP, SUPPLY_TRIGGER, 0U, 0);
+  seed_calib(0U, SUPPLY_TRIGGER, 0U, 0);
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
   set_supply(avr, LOW_SUPPLY_MV);
@@ -340,26 +322,25 @@ void scenario_supply(const target_t *t, const char *elf, uint32_t freq) {
   calib_check(t, low == 0, what);
   (void)snprintf(what, sizeof(what), "a low supply shows code 7 (%d)", code);
   calib_check(t, code == 7, what);
-  calib_check(
-      t,
-      calib_valid(raw) && (raw[2] == SUPPLY_CAP) && (raw[3] == SUPPLY_TRIGGER) && (raw[4] == 0U),
-      "a window the supply kept shut teaches nothing");
+  calib_check(t,
+              calib_valid(raw) && (raw[2] == SUPPLY_TRIGGER) && (raw[3] == 0U),
+              "a window the supply kept shut teaches nothing");
   calib_check(t, good >= 1, "injects once the supply is back at 3.3 V");
 }
 
 // A single dip of the supply inside a burst must hold the burst, not end it: the
-// count and the session carry on, so the disc gets the learned cap and no more.
-// The cap is seeded small and frozen so the burst is short and the start point
-// stays put. Five frames at 2.6 V land between two strings, then the supply is
-// back at 3.3 V for a lead-in far longer than the rest of the burst.
-#define DIP_CAP 6U
+// count and the session carry on, so the disc gets the stealth cap and no more,
+// where a restarted burst would send it twice. The start point is seeded
+// frozen so it stays put. Five frames at 2.6 V land between two strings, then
+// the supply is back at 3.3 V for a lead-in far longer than the rest of the
+// burst.
 #define DIP_BEFORE_FRAMES 40
 #define DIP_FRAMES 5
-#define DIP_AFTER_FRAMES 300
+#define DIP_AFTER_FRAMES 400
 
 void scenario_supply_dip(const target_t *t, const char *elf, uint32_t freq) {
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  seed_calib(0U, DIP_CAP, CALIB_TRIGGER, 1U, 0);
+  seed_calib(0U, CALIB_TRIGGER, 1U, 0);
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
   avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
@@ -374,8 +355,8 @@ void scenario_supply_dip(const target_t *t, const char *elf, uint32_t freq) {
 
   char what[80];
   (void)snprintf(what, sizeof(what), "the dip came mid-burst (%d strings before it)", before);
-  calib_check(t, (before >= 1) && (before < (int)DIP_CAP), what);
+  calib_check(t, (before >= 1) && (before < CALIB_STEALTH_STRINGS), what);
   (void)snprintf(
       what, sizeof(what), "a supply dip mid-burst keeps the cap (%d strings)", g_strings);
-  calib_check(t, g_strings == (int)DIP_CAP, what);
+  calib_check(t, g_strings == CALIB_STEALTH_STRINGS, what);
 }

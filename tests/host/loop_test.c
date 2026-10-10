@@ -22,7 +22,6 @@ static pscu_check_fn g_check;
 
 #define FRAME_MS 13U
 #define TRIGGER 10U
-#define CAP 16U
 
 // A lead-in TOC marker, the frame the region check reads; a lead-out frame,
 // valid but never framed as lead-in, so it decays the counter; a program-area
@@ -39,8 +38,8 @@ static const uint8_t VCD[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0x02U, 
 static const uint8_t FAILED[PSCU_SUBQ_FRAME_BYTES] = { 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU,
                                                        0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU };
 
-static pscu_calib_t calib_with(uint8_t cap, uint8_t trigger, bool frozen) {
-  pscu_calib_t calib = { 0U, cap, trigger, frozen, 0 };
+static pscu_calib_t calib_with(uint8_t trigger, bool frozen) {
+  pscu_calib_t calib = { 0U, trigger, frozen, 0 };
   return calib;
 }
 
@@ -48,13 +47,6 @@ static pscu_calib_t calib_with(uint8_t cap, uint8_t trigger, bool frozen) {
 static pscu_led_t waiting_led(void) {
   return pscu_led_step(pscu_led_init(1U, 0U, PSCU_LED_PROFILE_DEBUG), PSCU_LED_EVENT_NONE, 0U, 700U)
       .state;
-}
-
-// The cap an accepted session leaves from CAP: halfway down to its need plus
-// the margin (calib.c, pscu_calib_accepted).
-static uint8_t halfway(uint8_t strings) {
-  uint8_t fit = (uint8_t)(strings + PSCU_CALIB_CAP_MARGIN);
-  return (uint8_t)(fit + ((uint8_t)(CAP - fit) / 2U));
 }
 
 static pscu_loop_t fresh(pscu_calib_t calib) {
@@ -94,9 +86,9 @@ static step_t feed(pscu_loop_t state, const uint8_t *frame, uint16_t count) {
 }
 
 static void test_init(void) {
-  pscu_loop_t state = pscu_loop_init(calib_with(7U, 12U, true), waiting_led(), true);
-  g_check((state.cap == 7U) && (state.calib.trigger == 12U) && state.vcd_filter,
-          "loop: init takes the stored cap, start and filter");
+  pscu_loop_t state = pscu_loop_init(calib_with(12U, true), waiting_led(), true);
+  g_check((state.calib.trigger == 12U) && state.vcd_filter,
+          "loop: init takes the stored start and filter");
   g_check((state.counter == 0U) && !state.was_gone && (state.since.ms == 0U) &&
               !state.since.framed && !state.since.armed,
           "loop: init starts with an empty counter and no disc history");
@@ -107,7 +99,7 @@ static void test_init(void) {
 // The window opens on the frame that brings the counter to the start point, and
 // not one frame before; until then the chip is quiet and may store a trim.
 static void test_fire_at_trigger(void) {
-  step_t before = feed(fresh(calib_with(CAP, TRIGGER, false)), LEAD_IN, TRIGGER - 1U);
+  step_t before = feed(fresh(calib_with(TRIGGER, false)), LEAD_IN, TRIGGER - 1U);
   g_check(!before.fire && before.quiet && (before.state.counter == TRIGGER - 1U),
           "loop: no string one frame before the start point");
   step_t fired = pass(before.state, LEAD_IN);
@@ -121,7 +113,7 @@ static void test_fire_at_trigger(void) {
 // A low supply inside the window holds the burst and shows code 7; the next
 // good frame sends the string the low one held back.
 static void test_held_window(void) {
-  step_t before = feed(fresh(calib_with(CAP, TRIGGER, false)), LEAD_IN, TRIGGER - 1U);
+  step_t before = feed(fresh(calib_with(TRIGGER, false)), LEAD_IN, TRIGGER - 1U);
   step_t held = pass_with(before.state, LEAD_IN, true, false, FRAME_MS);
   g_check(!held.fire && !held.quiet && (held.state.stealth.sent == 0U),
           "loop: a low supply sends nothing inside the window");
@@ -133,28 +125,23 @@ static void test_held_window(void) {
 }
 
 // A program-area frame after a string confirms the disc: code 1, a store, and
-// the cap learned as the strings sent plus the margin, with the start probed
-// one step later.
+// the start probed one step later.
 static void test_accepted(void) {
-  step_t fired = feed(fresh(calib_with(CAP, TRIGGER, false)), LEAD_IN, TRIGGER);
+  step_t fired = feed(fresh(calib_with(TRIGGER, false)), LEAD_IN, TRIGGER);
   step_t accepted = pass(fired.state, PROGRAM);
   g_check(accepted.store && accepted.state.session.resolved,
           "loop: a program-area frame resolves the session and stores");
-  g_check((accepted.state.calib.cap == halfway(1U)) &&
-              (accepted.state.calib.trigger == (uint8_t)(TRIGGER + PSCU_CALIB_TRIGGER_STEP)),
-          "loop: an accepted disc learns the cap and probes a later start");
+  g_check(accepted.state.calib.trigger == (uint8_t)(TRIGGER + PSCU_CALIB_TRIGGER_STEP),
+          "loop: an accepted disc probes a later start");
   g_check(accepted.state.led.code == PSCU_LED_CODE_ACCEPTED, "loop: an accepted disc shows code 1");
   step_t gap = feed(fired.state, LEAD_IN, PSCU_STEALTH_GAP_FRAMES + 1U);
   g_check(gap.fire && (gap.state.session.injects == 2U),
           "loop: a second string joins the same session");
-  step_t two = pass(gap.state, PROGRAM);
-  g_check(two.state.calib.cap == halfway(2U),
-          "loop: the cap is learned from every string of the session");
   step_t leaving = pass_with(fired.state, PROGRAM, false, true, PSCU_DISC_GONE_MS);
   g_check(leaving.state.session.resolved && !leaving.store,
           "loop: a program frame read as the disc leaves teaches nothing");
   step_t after = pass(accepted.state, PROGRAM);
-  g_check(!after.store && (after.state.calib.cap == accepted.state.calib.cap),
+  g_check(!after.store && (after.state.calib.trigger == accepted.state.calib.trigger),
           "loop: a resolved session learns once");
 
   // The drive reads the program area only once it has accepted, so a program
@@ -168,22 +155,21 @@ static void test_accepted(void) {
 // With no program area, the session resolves as refused after the bounded
 // wait, counted from the last string, and not one frame sooner.
 static void test_refused(void) {
-  step_t fired = feed(fresh(calib_with(8U, 12U, false)), LEAD_IN, 12U);
+  step_t fired = feed(fresh(calib_with(12U, false)), LEAD_IN, 12U);
   step_t waiting = feed(fired.state, LEAD_OUT, PSCU_CONFIRM_FRAMES - 1U);
   g_check(!waiting.store && !waiting.state.session.resolved,
           "loop: the session waits the whole confirmation span");
   step_t refused = pass(waiting.state, LEAD_OUT);
   g_check(refused.store && (refused.state.led.code == PSCU_LED_CODE_REFUSED),
           "loop: the wait running out stores a refusal and shows code 2");
-  g_check((refused.state.calib.cap == CAP) && (refused.state.calib.trigger == TRIGGER) &&
-              refused.state.calib.frozen,
-          "loop: a refusal restores the full cap and steps the start back");
+  g_check((refused.state.calib.trigger == TRIGGER) && refused.state.calib.frozen,
+          "loop: a refusal steps the start back");
 }
 
 // A disc leaving after a string resolves its session at once without teaching
 // the calibration, and the next disc starts from nothing.
 static void test_disc_gone(void) {
-  step_t fired = feed(fresh(calib_with(CAP, TRIGGER, false)), LEAD_IN, TRIGGER);
+  step_t fired = feed(fresh(calib_with(TRIGGER, false)), LEAD_IN, TRIGGER);
   step_t gone = pass_with(fired.state, FAILED, false, true, PSCU_DISC_GONE_MS);
   g_check(
       !gone.store && gone.state.session.resolved && (gone.state.led.code == PSCU_LED_CODE_REFUSED),
@@ -207,7 +193,7 @@ static void test_disc_gone(void) {
 // window is a missed window: the start steps back and code 2 shows. A window
 // the supply held shut is not a miss.
 static void test_missed(void) {
-  step_t climbed = feed(fresh(calib_with(CAP, 12U, false)), LEAD_IN, 11U);
+  step_t climbed = feed(fresh(calib_with(12U, false)), LEAD_IN, 11U);
   step_t at_default = pass(climbed.state, LEAD_OUT);
   g_check(!at_default.store, "loop: falling to the default start is not yet a miss");
   step_t missed = pass(at_default.state, LEAD_OUT);
@@ -215,7 +201,7 @@ static void test_missed(void) {
           "loop: falling below the default start steps the start back");
   g_check(missed.state.led.code == PSCU_LED_CODE_REFUSED, "loop: a missed window shows code 2");
 
-  step_t reached = feed(fresh(calib_with(CAP, 12U, false)), LEAD_IN, 11U);
+  step_t reached = feed(fresh(calib_with(12U, false)), LEAD_IN, 11U);
   step_t held = pass_with(reached.state, LEAD_IN, true, false, FRAME_MS);
   step_t decayed = feed(held.state, LEAD_OUT, 4U);
   g_check(!decayed.store && (decayed.state.calib.trigger == 12U),
@@ -225,7 +211,7 @@ static void test_missed(void) {
 // The trim times only consecutive lead-in frames from a disc spinning for a
 // second, and only frames that were really captured.
 static void test_trim_sample(void) {
-  pscu_loop_t start = fresh(calib_with(CAP, TRIGGER, false));
+  pscu_loop_t start = fresh(calib_with(TRIGGER, false));
   g_check(!pass(start, LEAD_IN).trim_sample, "loop: no trim sample while the disc settles");
   step_t early = pass_with(start, LEAD_OUT, true, true, PSCU_LOOP_TRIM_SETTLE_MS - 1U);
   g_check(!pass(early.state, LEAD_IN).trim_sample, "loop: no trim sample just short of a second");
@@ -236,6 +222,8 @@ static void test_trim_sample(void) {
   g_check(!pass(settled.state, FAILED).trim_sample, "loop: a frame that is not valid is no sample");
   g_check(!pass_with(settled.state, LEAD_IN, false, true, FRAME_MS).trim_sample,
           "loop: a failed capture is no sample");
+  g_check(!pass_with(settled.state, LEAD_IN, true, false, FRAME_MS).trim_sample,
+          "loop: a frame read while the supply check fails is no sample");
 
   // The string blocks the loop for 176 ms, so the next frame's stamp would time
   // the tail of the string, not a frame period; the pass that fires is no
@@ -248,30 +236,65 @@ static void test_trim_sample(void) {
           "loop: the pass that fires a string is no sample");
 }
 
-// The cap is taken when an arming starts: a value learned mid-burst waits for
-// the next arming.
-static void test_cap_per_arming(void) {
-  step_t fired = feed(fresh(calib_with(6U, TRIGGER, false)), LEAD_IN, TRIGGER);
-  pscu_loop_t learned = fired.state;
-  learned.calib.cap = CAP;
-  step_t mid = pass(learned, LEAD_IN);
-  g_check(mid.state.cap == 6U, "loop: a cap learned mid-burst waits for the next arming");
-  step_t closed = feed(mid.state, LEAD_OUT, TRIGGER);
-  step_t next = pass(closed.state, LEAD_OUT);
-  g_check(next.state.cap == CAP, "loop: the next arming takes the learned cap");
+// Feed lead-in frames until count more strings have gone out.
+static step_t fire_strings(step_t from, uint8_t count) {
+  step_t out = from;
+  uint8_t fired = 0U;
+  for (uint16_t i = 0U; (i < 400U) && (fired < count); i++) {
+    out = pass(out.state, LEAD_IN);
+    fired = out.fire ? (uint8_t)(fired + 1U) : fired;
+  }
+  return out;
+}
+
+// Every arming may send the whole stealth cap: nothing learned shortens it, so
+// a disc that reads worse than the last one, a swapped disc 2 above all, never
+// runs out of strings; and not one string more.
+static void test_whole_cap(void) {
+  step_t start = { fresh(calib_with(TRIGGER, true)), false, false, false, false, false };
+  step_t all = fire_strings(start, PSCU_STEALTH_STRINGS);
+  g_check(all.fire && (all.state.stealth.sent == PSCU_STEALTH_STRINGS),
+          "loop: a refused disc gets the whole stealth cap");
+  step_t more = fire_strings(all, 1U);
+  g_check(!more.fire && (more.state.stealth.sent == PSCU_STEALTH_STRINGS),
+          "loop: and not one string more in that arming");
+}
+
+// The counter never climbs past the start plus the headroom, so a disc the
+// console refused, still in the lead-in with its cap spent, closes its window
+// within a few failed captures once the lid opens, and the next disc gets a
+// fresh burst long before the disc-gone bound.
+static void test_quick_swap(void) {
+  step_t start = { fresh(calib_with(TRIGGER, true)), false, false, false, false, false };
+  step_t spent = fire_strings(start, PSCU_STEALTH_STRINGS);
+  step_t parked = feed(spent.state, LEAD_IN, 50U);
+  g_check(parked.state.counter == (uint8_t)(TRIGGER + PSCU_LOOP_COUNTER_HEADROOM),
+          "loop: the counter stops at the start plus the headroom");
+  step_t opened = parked;
+  uint8_t passes = 0U;
+  while ((passes < 40U) && (opened.state.stealth.sent > 0U)) {
+    opened = pass_with(opened.state, FAILED, false, true, 60U);
+    passes = (uint8_t)(passes + 1U);
+  }
+  g_check(passes == (uint8_t)(PSCU_LOOP_COUNTER_HEADROOM + 1U),
+          "loop: a refused disc's window closes within the headroom of failed captures");
+  g_check(!opened.state.was_gone, "loop: that is well before the disc-gone bound");
+  step_t next_disc = pass(opened.state, LEAD_IN);
+  g_check(next_disc.fire && (next_disc.state.stealth.sent == 1U),
+          "loop: the next disc's lead-in gets a fresh burst");
 }
 
 // The Video-CD filter is the state's, not the build's, so both rules run here.
 static void test_vcd_filter(void) {
-  pscu_loop_t filtered = pscu_loop_init(calib_with(CAP, TRIGGER, false), waiting_led(), true);
+  pscu_loop_t filtered = pscu_loop_init(calib_with(TRIGGER, false), waiting_led(), true);
   g_check(pass(filtered, VCD).state.counter == 0U, "loop: the filter ignores a Video CD lead-in");
-  g_check(pass(fresh(calib_with(CAP, TRIGGER, false)), VCD).state.counter == 1U,
+  g_check(pass(fresh(calib_with(TRIGGER, false)), VCD).state.counter == 1U,
           "loop: without the filter a Video CD lead-in counts");
 }
 
 // The disc history behind codes 3 and 4: time, frames and the window.
 static void test_since(void) {
-  pscu_loop_t start = fresh(calib_with(CAP, TRIGGER, false));
+  pscu_loop_t start = fresh(calib_with(TRIGGER, false));
   g_check(pass(start, LEAD_OUT).state.since.framed, "loop: a valid frame marks the disc framed");
   g_check(!pass_with(start, LEAD_OUT, false, true, FRAME_MS).state.since.framed,
           "loop: a failed capture does not");
@@ -293,7 +316,7 @@ static void test_since(void) {
 }
 
 static void test_faults(void) {
-  pscu_loop_t start = fresh(calib_with(CAP, TRIGGER, false));
+  pscu_loop_t start = fresh(calib_with(TRIGGER, false));
   step_t silent = pass_with(start, FAILED, false, true, PSCU_LED_NO_SQCK_MS);
   g_check(silent.state.led.code == PSCU_LED_CODE_NO_SQCK,
           "loop: no frame since power-on is code 3");
@@ -312,7 +335,8 @@ void loop_tests(pscu_check_fn check) {
   test_disc_gone();
   test_missed();
   test_trim_sample();
-  test_cap_per_arming();
+  test_whole_cap();
+  test_quick_swap();
   test_vcd_filter();
   test_since();
   test_faults();

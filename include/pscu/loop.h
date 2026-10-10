@@ -22,6 +22,19 @@
 // design choice: the drive locks its speed before it reads the lead-in.
 #define PSCU_LOOP_TRIM_SETTLE_MS ((uint32_t)1000U)
 
+// How far past the learned start the SUBQ counter may climb. Every missed pass
+// takes one step off it, so after a disc swap the window closes within this
+// many passes plus one: a lid opened on a disc the console refused, still
+// sitting in the lead-in with its cap spent, stops the frames, and the counter
+// falls below the start in about half a second of failed captures, well before
+// the 1.5 s disc-gone bound, so even a quick swap gets a fresh burst. The
+// headroom still rides out a run of bad frames inside the lead-in, where at
+// least 9 of every 10 frames are mode 1 (pscu/subq.h). Against it, a counter
+// free to reach 255 kept a refused lead-in's window open for 3.3 s of misses.
+// A design choice, Unknown until hardware: no source gives a console figure
+// for how long a swap keeps the drive stopped.
+#define PSCU_LOOP_COUNTER_HEADROOM ((uint8_t)8U)
+
 // One disc's session: how many strings were emitted for it, whether its result
 // has been shown, and the confirmation state that decides which result it is.
 typedef struct {
@@ -43,13 +56,11 @@ typedef struct {
   bool armed;
 } pscu_since_disc_t;
 
-// The loop's state between passes. cap is the string cap taken when the current
-// arming started, so a value learned mid-window applies from the next disc.
+// The loop's state between passes.
 // vcd_filter selects the SCPH-5903 lead-in rule; the firmware fixes it at build
 // time and the host suite drives both values.
 typedef struct {
   pscu_calib_t calib;
-  uint8_t cap;
   uint8_t counter;
   bool was_gone;
   bool vcd_filter;

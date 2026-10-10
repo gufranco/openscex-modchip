@@ -18,8 +18,8 @@ exactly where its builder put them. A power cycle marks the swap point, and
 the second boot's lead-in and program area are its second marks.
 
 The stored records follow this firmware's layout (include/pscu/calib.h): a
-magic byte 0xC6, board, string cap, trigger, frozen flag, trim offset, then a
-check byte, 0x5A exclusive-ored with the six before it. Other chips ignore
+magic byte 0xC8, board, trigger, frozen flag, trim offset, then a check byte,
+0x5A exclusive-ored with the five before it. Other chips ignore
 the EEPROM bytes; they read no such record.
 """
 
@@ -51,12 +51,15 @@ from tools.bench.timeline import (
     with_crc,
 )
 
-RECORD_MAGIC = 0xC6
+RECORD_MAGIC = 0xC8
 RECORD_SEED = 0x5A
 BOARD_CARRIER = 1
 QUICK_LEAD_IN_FRAMES = 2 * 75
 FULL_BURST_LEAD_IN_FRAMES = 270
 QUICK_PLAY_FRAMES = 4 * 75
+# Past the 64 idle frames the chip waits for the program area before it
+# resolves a session as refused (include/pscu/run.h, PSCU_CONFIRM_FRAMES).
+REFUSED_LEAD_OUT_FRAMES = 90
 RESULT_PLAY_FRAMES = 17 * 75
 DRIVE_STOP_NS = 3 * SECOND_NS
 REPLAY_IDLE_NS = 22 * SECOND_NS
@@ -94,7 +97,6 @@ class Record:
     correct check byte, any other value a damaged one."""
 
     board: int
-    cap: int
     trigger: int
     frozen: int
     trim: int
@@ -102,8 +104,8 @@ class Record:
     check: int | None = None
 
     def raw(self) -> list[int]:
-        """The record's seven EEPROM bytes."""
-        body = [self.magic, self.board, self.cap, self.trigger, self.frozen]
+        """The record's six EEPROM bytes."""
+        body = [self.magic, self.board, self.trigger, self.frozen]
         body = [*body, self.trim & 0xFF]
         computed = RECORD_SEED
         for byte in body:
@@ -194,10 +196,10 @@ def _trim_in_play() -> Timeline:
 
 
 def _trim_replay() -> Timeline:
-    timeline = _seed(carrier(), Record(BOARD_CARRIER, 8, 10, 0, -3)).idle(BOOT_NS)
+    timeline = _seed(carrier(), Record(BOARD_CARRIER, 10, 0, -3)).idle(BOOT_NS)
     timeline = disc(timeline, True)
     timeline.set(Signal.OSCCAL_FACTORY, CAL7_FACTORY)
-    _seed(timeline, Record(BOARD_CARRIER, 8, 10, 0, 3))
+    _seed(timeline, Record(BOARD_CARRIER, 10, 0, 3))
     return disc(_power_cycle(timeline), False)
 
 
@@ -259,25 +261,25 @@ def _stored_records() -> Timeline:
     equal terms; then boots onto a probe at its upper limit, a frozen probe,
     and a probe moved past the default that misses its window."""
     damaged = [
-        Record(BOARD_CARRIER, 8, 10, 0, 0, check=0),
-        Record(BOARD_CARRIER, 8, 10, 0, 0, magic=0x11),
-        Record(5, 8, 10, 0, 0),
-        Record(BOARD_CARRIER, 30, 10, 0, 0),
-        Record(BOARD_CARRIER, 8, 11, 0, 0),
-        Record(BOARD_CARRIER, 8, 10, 2, 0),
-        Record(BOARD_CARRIER, 8, 10, 0, 40),
+        Record(BOARD_CARRIER, 10, 0, 0, check=0),
+        Record(BOARD_CARRIER, 10, 0, 0, magic=0x11),
+        Record(5, 10, 0, 0),
+        Record(BOARD_CARRIER, 8, 0, 0),
+        Record(BOARD_CARRIER, 11, 0, 0),
+        Record(BOARD_CARRIER, 10, 2, 0),
+        Record(BOARD_CARRIER, 10, 0, 40),
     ]
     timeline = carrier()
     for stored in damaged[:-1]:
         _seed(timeline, stored).set(Signal.POWER_CYCLE, 1).idle(SECOND_NS)
     _seed(timeline, damaged[-1]).set(Signal.POWER_CYCLE, 1)
     timeline = disc(timeline.idle(BOOT_NS), True)
-    _seed(timeline, Record(BOARD_CARRIER, 8, 30, 0, 0))
+    _seed(timeline, Record(BOARD_CARRIER, 30, 0, 0))
     timeline = disc(_power_cycle(timeline), False)
-    _seed(timeline, Record(BOARD_CARRIER, 8, 14, 1, 0)).set(Signal.POWER_CYCLE, 1)
+    _seed(timeline, Record(BOARD_CARRIER, 14, 1, 0)).set(Signal.POWER_CYCLE, 1)
     timeline.idle(BOOT_NS).frames(LEAD_IN, QUICK_LEAD_IN_FRAMES)
     timeline.frames(PROGRAM, QUICK_PLAY_FRAMES)
-    _seed(timeline, Record(BOARD_CARRIER, 8, 14, 0, 0)).set(Signal.POWER_CYCLE, 1)
+    _seed(timeline, Record(BOARD_CARRIER, 14, 0, 0)).set(Signal.POWER_CYCLE, 1)
     timeline.idle(BOOT_NS).frames(LEAD_IN, 12).frames(LEAD_OUT, 40)
     return timeline.frames(PROGRAM, QUICK_PLAY_FRAMES)
 
@@ -287,6 +289,11 @@ def _disc_gone_pending() -> Timeline:
     timeline.frames(LEAD_OUT, 26).idle(DRIVE_STOP_NS)
     timeline.frames(LEAD_IN, 30).idle(DRIVE_STOP_NS)
     return disc(timeline, False)
+
+
+def _refused() -> Timeline:
+    timeline = carrier().idle(BOOT_NS).mark(Phase.LEAD_IN).frames(LEAD_IN, 13)
+    return timeline.frames(LEAD_OUT, REFUSED_LEAD_OUT_FRAMES).idle(SECOND_NS)
 
 
 def _sqck_stuck() -> Timeline:
@@ -404,6 +411,12 @@ EDGE_SCENARIOS = (
         "disc-gone-pending",
         "the disc leaves while the console has not yet resolved its check",
         _disc_gone_pending,
+    ),
+    edge(
+        "carrier-refused",
+        "a disc whose check never passes: one string on the default start, "
+        "then lead-out frames until the chip resolves a refusal",
+        _refused,
     ),
     edge(
         "sqck-stuck",

@@ -59,57 +59,62 @@ static void test_region(void) {
 
 static void test_subq_counter(void) {
   uint8_t lead_in[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(lead_in, 0U, false) == 1U, "lead-in A0 increments");
+  check(pscu_subq_update_counter(lead_in, 0U, false, 0xFFU) == 1U, "lead-in A0 increments");
+  check(pscu_subq_update_counter(lead_in, 8U, false, 9U) == 9U, "a hit climbs up to the ceiling");
+  check(pscu_subq_update_counter(lead_in, 9U, false, 9U) == 9U, "a hit at the ceiling stays there");
 
   uint8_t unframed[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(unframed, 5U, false) == 4U, "bad framing decays");
+  check(pscu_subq_update_counter(unframed, 5U, false, 0xFFU) == 4U, "bad framing decays");
 
   uint8_t marker6[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0, 0, 0, 0x01U, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(marker6, 5U, false) == 4U, "second sync marker nonzero decays");
+  check(pscu_subq_update_counter(marker6, 5U, false, 0xFFU) == 4U,
+        "second sync marker nonzero decays");
 
   uint8_t audio[PSCU_SUBQ_FRAME_BYTES] = { 0x01U, 0, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(audio, 3U, false) == 4U, "track 01 keeps counter when synced");
-  check(pscu_subq_update_counter(audio, 0U, false) == 0U, "track 01 does not start sync");
+  check(pscu_subq_update_counter(audio, 3U, false, 0xFFU) == 4U,
+        "track 01 keeps counter when synced");
+  check(pscu_subq_update_counter(audio, 0U, false, 0xFFU) == 0U, "track 01 does not start sync");
 
   uint8_t spiral[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x00U, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(spiral, 0U, false) == 1U, "track 01 spiral start hits");
+  check(pscu_subq_update_counter(spiral, 0U, false, 0xFFU) == 1U, "track 01 spiral start hits");
 
   uint8_t spiral_miss[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x05U, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(spiral_miss, 0U, false) == 0U, "track 01 out of window misses");
+  check(pscu_subq_update_counter(spiral_miss, 0U, false, 0xFFU) == 0U,
+        "track 01 out of window misses");
 
   uint8_t minute_97[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x97U, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(minute_97, 0U, false) == 0U,
+  check(pscu_subq_update_counter(minute_97, 0U, false, 0xFFU) == 0U,
         "point 01 at minute 97 is before the window");
 
   uint8_t minute_98[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x98U, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(minute_98, 0U, false) == 1U,
+  check(pscu_subq_update_counter(minute_98, 0U, false, 0xFFU) == 1U,
         "point 01 at minute 98 opens the window");
 
   uint8_t minute_99[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x99U, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(minute_99, 0U, false) == 1U, "point 01 at minute 99 hits");
+  check(pscu_subq_update_counter(minute_99, 0U, false, 0xFFU) == 1U, "point 01 at minute 99 hits");
 
   uint8_t minute_02[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(minute_02, 0U, false) == 1U,
+  check(pscu_subq_update_counter(minute_02, 0U, false, 0xFFU) == 1U,
         "point 01 at minute 02 closes the window");
 
   uint8_t minute_03[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x03U, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(minute_03, 0U, false) == 0U,
+  check(pscu_subq_update_counter(minute_03, 0U, false, 0xFFU) == 0U,
         "point 01 at minute 03 is past the window");
 
   uint8_t mid_point[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x50U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(mid_point, 0U, false) == 0U,
+  check(pscu_subq_update_counter(mid_point, 0U, false, 0xFFU) == 0U,
         "data sector mid-point does not start sync");
-  check(pscu_subq_update_counter(mid_point, 4U, false) == 5U,
+  check(pscu_subq_update_counter(mid_point, 4U, false, 0xFFU) == 5U,
         "data sector keeps counter when synced");
 
   uint8_t other[PSCU_SUBQ_FRAME_BYTES] = { 0x00U, 0, 0x50U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(other, 3U, false) == 2U,
+  check(pscu_subq_update_counter(other, 3U, false, 0xFFU) == 2U,
         "non-data non-audio sample decays while synced");
 
   uint8_t empty[PSCU_SUBQ_FRAME_BYTES] = { 0 };
-  check(pscu_subq_update_counter(empty, 0U, false) == 0U, "decay floors at zero");
+  check(pscu_subq_update_counter(empty, 0U, false, 0xFFU) == 0U, "decay floors at zero");
 
-  check(pscu_subq_update_counter(lead_in, 0xFFU, false) == 0xFFU, "counter clamps at max");
+  check(pscu_subq_update_counter(lead_in, 0xFFU, false, 0xFFU) == 0xFFU, "counter clamps at max");
 }
 
 // The SCPH-5903 Video-CD filter, read from PsNee V9.0's SCPH_5903 variant: only
@@ -119,45 +124,48 @@ static void test_subq_counter(void) {
 // or narrows the rule fails here.
 static void test_subq_vcd_filter(void) {
   uint8_t game_toc[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0x00U, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(game_toc, 0U, true) == 1U, "vcd filter: game TOC A0 arms");
+  check(pscu_subq_update_counter(game_toc, 0U, true, 0xFFU) == 1U, "vcd filter: game TOC A0 arms");
 
   uint8_t vcd_toc[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(vcd_toc, 0U, true) == 0U,
+  check(pscu_subq_update_counter(vcd_toc, 0U, true, 0xFFU) == 0U,
         "vcd filter: video CD lead-in does not arm");
-  check(pscu_subq_update_counter(vcd_toc, 0U, false) == 1U,
+  check(pscu_subq_update_counter(vcd_toc, 0U, false, 0xFFU) == 1U,
         "ordinary filter arms on the same frame");
 
   uint8_t minute_01[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0x01U, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(minute_01, 0U, true) == 1U, "vcd filter: only 0x02 is excluded");
+  check(pscu_subq_update_counter(minute_01, 0U, true, 0xFFU) == 1U,
+        "vcd filter: only 0x02 is excluded");
 
   uint8_t last_marker[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA2U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(last_marker, 0U, true) == 1U, "vcd filter: marker A2 arms");
+  check(pscu_subq_update_counter(last_marker, 0U, true, 0xFFU) == 1U, "vcd filter: marker A2 arms");
 
   uint8_t past_markers[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA3U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(past_markers, 0U, true) == 0U,
+  check(pscu_subq_update_counter(past_markers, 0U, true, 0xFFU) == 0U,
         "vcd filter: POINT A3 does not arm");
 
   uint8_t below_markers[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x9FU, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(below_markers, 0U, true) == 0U,
+  check(pscu_subq_update_counter(below_markers, 0U, true, 0xFFU) == 0U,
         "vcd filter: POINT 9F does not arm");
 
   uint8_t audio_marker[PSCU_SUBQ_FRAME_BYTES] = { 0x01U, 0, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(audio_marker, 0U, true) == 0U,
+  check(pscu_subq_update_counter(audio_marker, 0U, true, 0xFFU) == 0U,
         "vcd filter: audio TOC frame does not arm");
 
   uint8_t spiral[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x98U, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(spiral, 0U, true) == 0U, "vcd filter: no point-01 spiral window");
+  check(pscu_subq_update_counter(spiral, 0U, true, 0xFFU) == 0U,
+        "vcd filter: no point-01 spiral window");
 
   uint8_t mid_point[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x50U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(mid_point, 4U, true) == 5U,
+  check(pscu_subq_update_counter(mid_point, 4U, true, 0xFFU) == 5U,
         "vcd filter: tracking keeps the counter");
 
   uint8_t unframed[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  check(pscu_subq_update_counter(unframed, 5U, true) == 4U, "vcd filter: bad framing decays");
+  check(pscu_subq_update_counter(unframed, 5U, true, 0xFFU) == 4U,
+        "vcd filter: bad framing decays");
 }
 
-static pscu_board_detect_t feed(const uint8_t *samples, uint16_t count) {
-  pscu_board_detect_t state = pscu_board_detect_init();
+static pscu_board_detect_t feed(const uint8_t *samples, uint16_t count, uint8_t needed) {
+  pscu_board_detect_t state = pscu_board_detect_init(needed);
   for (uint16_t i = 0U; i < count; i++) {
     state = pscu_board_detect_step(state, samples[i]);
   }
@@ -166,33 +174,70 @@ static pscu_board_detect_t feed(const uint8_t *samples, uint16_t count) {
 
 static void test_board_mode(void) {
   uint8_t high[8] = { 1U, 1U, 1U, 1U, 1U, 1U, 1U, 1U };
-  check(pscu_board_detect_mode(feed(high, 8U), 3U) == PSCU_BOARD_MODE_GATE,
+  check(pscu_board_detect_mode(feed(high, 8U, 3U)) == PSCU_BOARD_MODE_GATE,
         "static high is legacy gate");
 
   uint8_t osc[6] = { 1U, 0U, 1U, 0U, 1U, 0U };
-  check(pscu_board_detect_mode(feed(osc, 6U), 3U) == PSCU_BOARD_MODE_WFCK,
+  check(pscu_board_detect_mode(feed(osc, 6U, 3U)) == PSCU_BOARD_MODE_WFCK,
         "oscillating is wfck mode");
 
   uint8_t low_run[3] = { 0U, 0U, 0U };
-  check(pscu_board_detect_mode(feed(low_run, 3U), 2U) == PSCU_BOARD_MODE_GATE,
+  check(pscu_board_detect_mode(feed(low_run, 3U, 2U)) == PSCU_BOARD_MODE_GATE,
         "one low pulse is not enough");
 
   uint8_t single_low[1] = { 0U };
-  check(pscu_board_detect_mode(feed(single_low, 1U), 1U) == PSCU_BOARD_MODE_WFCK,
+  check(pscu_board_detect_mode(feed(single_low, 1U, 1U)) == PSCU_BOARD_MODE_WFCK,
         "first low sample counts as one pulse");
 
-  check(pscu_board_detect_mode(feed(high, 8U), 0U) == PSCU_BOARD_MODE_WFCK,
+  check(pscu_board_detect_mode(feed(high, 8U, 0U)) == PSCU_BOARD_MODE_WFCK,
         "zero threshold is wfck");
 }
 
 static void test_board_saturates(void) {
-  pscu_board_detect_t state = pscu_board_detect_init();
+  pscu_board_detect_t state = pscu_board_detect_init(25U);
   for (uint16_t i = 0U; i < 600U; i++) {
     state = pscu_board_detect_step(state, (uint8_t)(i & 1U));
   }
 
   check(state.pulses == 0xFFU, "pulse count saturates at max");
-  check(pscu_board_detect_mode(state, 25U) == PSCU_BOARD_MODE_WFCK, "saturated count is wfck mode");
+  check(pscu_board_detect_mode(state) == PSCU_BOARD_MODE_WFCK, "saturated count is wfck mode");
+}
+
+// Feed count falling edges, each after gap high samples, onto state.
+static pscu_board_detect_t edges(pscu_board_detect_t state, uint8_t count, uint16_t gap) {
+  pscu_board_detect_t next = state;
+  for (uint8_t e = 0U; e < count; e++) {
+    for (uint16_t h = 0U; h < gap; h++) {
+      next = pscu_board_detect_step(next, 1U);
+    }
+    next = pscu_board_detect_step(next, 0U);
+  }
+  return next;
+}
+
+// Only edges that follow each other within the gap bound form a run: a clock
+// passes on exactly the needed run and not one edge sooner, the same number of
+// edges spread out like noise does not, and a run that stops still counts once
+// it was long enough.
+static void test_board_runs(void) {
+  pscu_board_detect_t clock = edges(pscu_board_detect_init(25U), 25U, 30U);
+  check(pscu_board_detect_mode(clock) == PSCU_BOARD_MODE_WFCK, "25 close edges are a carrier");
+  pscu_board_detect_t short_run = edges(pscu_board_detect_init(25U), 24U, 30U);
+  check(pscu_board_detect_mode(short_run) == PSCU_BOARD_MODE_GATE, "24 close edges are not");
+  pscu_board_detect_t at_bound = edges(pscu_board_detect_init(25U), 25U, PSCU_BOARD_EDGE_GAP_MAX);
+  check(at_bound.pulses == 25U, "an edge exactly at the gap bound still joins the run");
+  pscu_board_detect_t spread =
+      edges(pscu_board_detect_init(25U), 25U, (uint16_t)(PSCU_BOARD_EDGE_GAP_MAX + 1U));
+  check(spread.pulses == 1U, "an edge one sample past the bound starts a new run");
+  check(pscu_board_detect_mode(spread) == PSCU_BOARD_MODE_GATE, "spread-out edges are a gate");
+  pscu_board_detect_t paused = edges(clock, 3U, 300U);
+  check((paused.pulses == 1U) && (pscu_board_detect_mode(paused) == PSCU_BOARD_MODE_WFCK),
+        "a carrier that ran long enough and then paused still counts");
+  pscu_board_detect_t idle = edges(pscu_board_detect_init(25U), 0U, 0U);
+  for (uint16_t i = 0U; i < 400U; i++) {
+    idle = pscu_board_detect_step(idle, 1U);
+  }
+  check(idle.since == 0xFFU, "the gap count saturates on a static line");
 }
 
 static void test_inject(void) {
@@ -368,7 +413,8 @@ static void test_program_area(void) {
 static void test_failed_capture(void) {
   uint8_t failed[PSCU_SUBQ_FRAME_BYTES] = { 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU,
                                             0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU };
-  check(pscu_subq_update_counter(failed, 5U, false) == 4U, "a failed capture decays the counter");
+  check(pscu_subq_update_counter(failed, 5U, false, 0xFFU) == 4U,
+        "a failed capture decays the counter");
 }
 
 static void test_confirm(void) {
@@ -402,6 +448,7 @@ int main(void) {
   test_subq_vcd_filter();
   test_board_mode();
   test_board_saturates();
+  test_board_runs();
   test_inject();
   test_stealth();
   test_stealth_gap();

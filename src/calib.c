@@ -29,8 +29,6 @@ static bool pscu_calib_in_range(uint8_t value, uint8_t low, uint8_t high) {
 static bool pscu_calib_valid(pscu_calib_record_t record) {
   uint8_t board = record.bytes[PSCU_CALIB_AT_BOARD];
   bool board_ok = (board <= 1U) || (board == PSCU_CALIB_BOARD_NONE);
-  bool cap_ok =
-      pscu_calib_in_range(record.bytes[PSCU_CALIB_AT_CAP], PSCU_CALIB_CAP_MIN, PSCU_CALIB_CAP_MAX);
   uint8_t trigger = record.bytes[PSCU_CALIB_AT_TRIGGER];
   bool trigger_ok = pscu_calib_in_range(trigger, PSCU_CALIB_TRIGGER_MIN, PSCU_CALIB_TRIGGER_MAX) &&
                     (((uint8_t)(trigger - PSCU_CALIB_TRIGGER_MIN) % PSCU_CALIB_TRIGGER_STEP) == 0U);
@@ -39,13 +37,11 @@ static bool pscu_calib_valid(pscu_calib_record_t record) {
   bool trim_ok = (trim >= -PSCU_TRIM_MAX_OFFSET) && (trim <= PSCU_TRIM_MAX_OFFSET);
   bool magic_ok = record.bytes[PSCU_CALIB_AT_MAGIC] == PSCU_CALIB_MAGIC;
   bool check_ok = record.bytes[PSCU_CALIB_AT_CHECK] == pscu_calib_check(record);
-  return magic_ok && board_ok && cap_ok && trigger_ok && frozen_ok && trim_ok && check_ok;
+  return magic_ok && board_ok && trigger_ok && frozen_ok && trim_ok && check_ok;
 }
 
 static pscu_calib_t pscu_calib_defaults(void) {
-  pscu_calib_t calib = {
-    PSCU_CALIB_BOARD_NONE, PSCU_CALIB_CAP_MAX, PSCU_CALIB_TRIGGER_MIN, false, 0
-  };
+  pscu_calib_t calib = { PSCU_CALIB_BOARD_NONE, PSCU_CALIB_TRIGGER_MIN, false, 0 };
   return calib;
 }
 
@@ -53,7 +49,6 @@ pscu_calib_t pscu_calib_decode(pscu_calib_record_t record) {
   pscu_calib_t calib = pscu_calib_defaults();
   if (pscu_calib_valid(record)) {
     calib.board = record.bytes[PSCU_CALIB_AT_BOARD];
-    calib.cap = record.bytes[PSCU_CALIB_AT_CAP];
     calib.trigger = record.bytes[PSCU_CALIB_AT_TRIGGER];
     calib.frozen = record.bytes[PSCU_CALIB_AT_FROZEN] != 0U;
     calib.trim = (int8_t)record.bytes[PSCU_CALIB_AT_TRIM];
@@ -62,10 +57,9 @@ pscu_calib_t pscu_calib_decode(pscu_calib_record_t record) {
 }
 
 pscu_calib_record_t pscu_calib_encode(pscu_calib_t calib) {
-  pscu_calib_record_t record = { { 0U, 0U, 0U, 0U, 0U, 0U, 0U } };
+  pscu_calib_record_t record = { { 0U, 0U, 0U, 0U, 0U, 0U } };
   record.bytes[PSCU_CALIB_AT_MAGIC] = PSCU_CALIB_MAGIC;
   record.bytes[PSCU_CALIB_AT_BOARD] = calib.board;
-  record.bytes[PSCU_CALIB_AT_CAP] = calib.cap;
   record.bytes[PSCU_CALIB_AT_TRIGGER] = calib.trigger;
   record.bytes[PSCU_CALIB_AT_FROZEN] = calib.frozen ? 1U : 0U;
   record.bytes[PSCU_CALIB_AT_TRIM] = (uint8_t)calib.trim;
@@ -107,23 +101,10 @@ static pscu_calib_t pscu_calib_back_off(pscu_calib_t calib) {
   return next;
 }
 
-// An accepted disc moves the cap toward what it needed, and, while probing,
-// tries the next later start; reaching the bound ends the probe there. A need
-// above the cap raises it at once, since the console has just shown it needs
-// that many. A need below it brings the cap only halfway down, rounding toward
-// the need, so one disc that read quickly does not cut the next disc short;
-// four quick discs in a row still take the full cap to the floor.
-static pscu_calib_t pscu_calib_accepted(pscu_calib_t calib, uint8_t strings) {
-  PSCU_ASSERT(strings > 0U);
-
+// An accepted disc, while probing, tries the next later start; reaching the
+// bound ends the probe there.
+static pscu_calib_t pscu_calib_accepted(pscu_calib_t calib) {
   pscu_calib_t next = calib;
-  uint8_t fit = (strings < PSCU_CALIB_CAP_FITS) ? (uint8_t)(strings + PSCU_CALIB_CAP_MARGIN)
-                                                : PSCU_CALIB_CAP_MAX;
-  // The cap minus the fit, as a byte: the top bit is set exactly when the fit
-  // is the larger, since both are at most PSCU_CALIB_CAP_MAX.
-  uint8_t above = (uint8_t)(calib.cap - fit);
-  bool higher = (above & 0x80U) != 0U;
-  next.cap = higher ? fit : (uint8_t)(fit + (uint8_t)(above / 2U));
   if (!calib.frozen) {
     next.trigger = (calib.trigger < PSCU_CALIB_TRIGGER_MAX)
                        ? (uint8_t)(calib.trigger + PSCU_CALIB_TRIGGER_STEP)
@@ -133,15 +114,11 @@ static pscu_calib_t pscu_calib_accepted(pscu_calib_t calib, uint8_t strings) {
   return next;
 }
 
-// A refusal and a missed window both step the start back; only a refusal also
-// restores the full cap, since a missed window sent no strings to judge it by.
-pscu_calib_t pscu_calib_learn(pscu_calib_t calib, pscu_calib_outcome_t outcome, uint8_t strings) {
-  pscu_calib_t backed = pscu_calib_back_off(calib);
-  backed.cap = (outcome == PSCU_CALIB_REFUSED) ? PSCU_CALIB_CAP_MAX : calib.cap;
+// A refusal and a missed window both step the start back.
+pscu_calib_t pscu_calib_learn(pscu_calib_t calib, pscu_calib_outcome_t outcome) {
   pscu_calib_t next =
-      (outcome == PSCU_CALIB_ACCEPTED) ? pscu_calib_accepted(calib, strings) : backed;
+      (outcome == PSCU_CALIB_ACCEPTED) ? pscu_calib_accepted(calib) : pscu_calib_back_off(calib);
 
-  PSCU_ASSERT(pscu_calib_in_range(next.cap, PSCU_CALIB_CAP_MIN, PSCU_CALIB_CAP_MAX));
   PSCU_ASSERT(pscu_calib_in_range(next.trigger, PSCU_CALIB_TRIGGER_MIN, PSCU_CALIB_TRIGGER_MAX));
   return next;
 }

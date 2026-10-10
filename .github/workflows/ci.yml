@@ -42,9 +42,6 @@ jobs:
       - name: Build other-region variants (compile check)
         run: make REGION=jp size && make REGION=eu size
 
-      - name: Build and check the fixed-timing variant
-        run: make TIMING=fixed size && make TIMING=fixed image_misra
-
       - name: Build and check the SCPH-5903 Video-CD variant
         run: make REGION=jp VCD_FILTER=on image_size image_misra
 

@@ -53,7 +53,6 @@ static pscu_session_t pscu_loop_session_init(void) {
 pscu_loop_t pscu_loop_init(pscu_calib_t calib, pscu_led_t led, bool vcd_filter) {
   pscu_loop_t state;
   state.calib = calib;
-  state.cap = calib.cap;
   state.counter = 0U;
   state.was_gone = false;
   state.vcd_filter = vcd_filter;
@@ -83,11 +82,14 @@ static pscu_session_t pscu_loop_session_fired(pscu_session_t session, uint8_t se
 // also empties the counter, so the next disc's spin-up cannot find the window
 // already open and spend strings before its lead-in. So does a program-area
 // frame: the drive reads there only once it has accepted, and a counter left
-// saturated by a long lead-in would otherwise take some 245 frames, 3.3 s, to
+// at its ceiling by a long lead-in would otherwise take several frames to
 // close the window. Emptied, the window closes at once, and a later lead-in
 // read, such as the anti-mod v2 ReadTOC re-read that needs a fresh string on a
 // copy (tonyhax docs/ap_v2.c), must climb from zero to the start again, as
 // PsNee's counter reset after each string makes it do (PSNee.ino:736).
+// Between those, the counter never climbs more than PSCU_LOOP_COUNTER_HEADROOM
+// past the learned start (pscu/loop.h), so a disc swap closes the window within
+// a few missed passes even when the drive was refused and sat in the lead-in.
 static void pscu_loop_read(pscu_loop_t *next, const pscu_loop_in_t *in, pscu_loop_pass_t *pass) {
   pass->valid = in->captured && pscu_subq_is_valid(in->frame);
   next->presence = pscu_presence_step(next->presence, pass->valid, in->elapsed_ms);
@@ -95,21 +97,24 @@ static void pscu_loop_read(pscu_loop_t *next, const pscu_loop_in_t *in, pscu_loo
   pass->program = pscu_subq_is_program_area(in->frame);
   pass->previous = next->counter;
   bool empties = pass->disc_gone || pass->program;
-  next->counter =
-      empties ? 0U : pscu_subq_update_counter(in->frame, next->counter, next->vcd_filter);
+  uint8_t ceiling = (uint8_t)(next->calib.trigger + PSCU_LOOP_COUNTER_HEADROOM);
+  uint8_t counted = pscu_subq_update_counter(in->frame, next->counter, next->vcd_filter, ceiling);
+  next->counter = empties ? 0U : counted;
 }
 
 // Decide the string. The window is closed below the learned start, open above
 // it, and held while the supply guard keeps strings back; a held burst keeps its
-// count and gap. The cap is taken when an arming starts, so a value learned
-// mid-window, such as the full cap after a refusal, applies from the next disc.
+// count and gap. Every burst may run to the safety cap.
 static void pscu_loop_burst(pscu_loop_t *next, bool supply_ok, pscu_loop_pass_t *pass) {
   pass->reached = pscu_should_inject(next->counter, next->calib.trigger);
   pscu_window_t open = supply_ok ? PSCU_WINDOW_OPEN : PSCU_WINDOW_HELD;
   pscu_window_t window = pass->reached ? open : PSCU_WINDOW_CLOSED;
-  next->cap = (next->stealth.sent == 0U) ? next->calib.cap : next->cap;
-  pscu_stealth_step_t step = pscu_stealth_step(
-      next->stealth, window, pass->program, pass->disc_gone, next->cap, PSCU_STEALTH_GAP_FRAMES);
+  pscu_stealth_step_t step = pscu_stealth_step(next->stealth,
+                                               window,
+                                               pass->program,
+                                               pass->disc_gone,
+                                               PSCU_STEALTH_STRINGS,
+                                               PSCU_STEALTH_GAP_FRAMES);
   next->stealth = step.state;
   pass->fire = step.fire;
   if (step.fire) {
@@ -136,29 +141,32 @@ static pscu_loop_learned_t pscu_loop_watch(pscu_loop_t *next, const pscu_loop_pa
     if (outcome.resolved || pass->disc_gone) {
       next->session.resolved = true;
       out.event = outcome.confirmed ? PSCU_LED_EVENT_ACCEPTED : PSCU_LED_EVENT_REFUSED;
-      out.store = outcome.resolved && !pass->disc_gone;
+      // Inside this branch a session that did not resolve on its own ended with
+      // the disc leaving, so storing whenever the disc is still here is the
+      // same test as resolved and still here.
+      out.store = !pass->disc_gone;
     }
   }
   return out;
 }
 
 // Fold this pass's evidence into the calibration. A session that resolved on
-// its own teaches the cap and the start; a missed window, the counter falling
-// back below the default start while nothing reached the window, teaches the
-// start. Both come after the strings have stopped, so the store the run loop
-// makes never lands inside the injection window.
+// its own, and a missed window, the counter falling back below the default
+// start while nothing reached the window, both teach the start. Both come
+// after the strings have stopped, so the store the run loop makes never lands
+// inside the injection window.
 static pscu_loop_learned_t pscu_loop_learn(pscu_loop_t *next, const pscu_loop_pass_t *pass) {
   pscu_loop_learned_t out = pscu_loop_watch(next, pass);
   bool confirmed = out.event == PSCU_LED_EVENT_ACCEPTED;
   pscu_calib_outcome_t outcome = confirmed ? PSCU_CALIB_ACCEPTED : PSCU_CALIB_REFUSED;
   out.missed = !pass->disc_gone &&
                pscu_calib_missed(next->calib, pass->previous, next->counter, next->since.armed);
-  if (out.store) {
-    next->calib = pscu_calib_learn(next->calib, outcome, next->session.injects);
-  } else if (out.missed) {
-    next->calib = pscu_calib_learn(next->calib, PSCU_CALIB_MISSED, 0U);
+  // One call site: the linked image then holds one copy of the learning, so
+  // every branch of it is reached by some disc rather than duplicated into a
+  // path where part of it can never run.
+  if (out.store || out.missed) {
+    next->calib = pscu_calib_learn(next->calib, out.store ? outcome : PSCU_CALIB_MISSED);
     out.store = true;
-  } else {
   }
   return out;
 }
@@ -216,8 +224,13 @@ pscu_loop_out_t pscu_loop_step(pscu_loop_t *state, const pscu_loop_in_t *in) {
   // Any valid frame times the trim, the lead-in and the program area alike: a
   // frame at single speed is 13.3 ms apart wherever the head is, so play keeps
   // the trim following the RC as the chip warms. Double-speed frames, 6.7 ms
-  // apart, fall outside the trim's accept window and count for nothing.
-  bool timed = settled && pass.valid;
+  // apart, fall outside the trim's accept window and count for nothing. A
+  // frame read while the supply check fails is no sample either: the RC
+  // oscillator's frequency follows VCC (Read: ATtiny25/45/85 datasheet 2586Q,
+  // calibrated RC oscillator frequency against VCC), so a trim learned at a
+  // sagging supply would be stored and replayed at the normal one, as Liss
+  // warned when it calibrated "for 5V" (liss-stealth V1.4 source).
+  bool timed = settled && pass.valid && in->supply_ok;
   pscu_loop_burst(state, in->supply_ok, &pass);
   pscu_loop_learned_t learned = pscu_loop_learn(state, &pass);
   out.led_on = pscu_loop_show(state, in, learned, &pass);
