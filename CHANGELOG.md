@@ -1,3 +1,10 @@
+# [0.14.0](https://github.com/gufranco/openscex-modchip/compare/v0.13.0...v0.14.0) (2026-10-10)
+
+
+### Features
+
+* **hardware:** draw teardrops on every pad joint ([3d56fc1](https://github.com/gufranco/openscex-modchip/commit/3d56fc1af3350b0025e692e6f82854366f1ff87b))
+
 # [0.13.0](https://github.com/gufranco/openscex-modchip/compare/v0.12.0...v0.13.0) (2026-10-10)
 
 
