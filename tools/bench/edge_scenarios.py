@@ -179,6 +179,40 @@ def _supply_hold() -> Timeline:
     return disc(timeline, False)
 
 
+# Lead-in frames whose CRC does not match: one with the CRC bytes zeroed, the
+# read UberNee V1.42 rejects, and one whose low CRC byte alone is wrong, so a
+# chip checking only one of the two bytes would still take it.
+BAD_CRC_ZEROED = (*LEAD_IN[:10], 0, 0)
+BAD_CRC_LOW = (*LEAD_IN[:11], LEAD_IN[11] ^ 1)
+
+
+# A lead-in frame of an audio disc that permits digital copies: control 2, so
+# byte 0 is 0x21. It is framed (TNO 0, CRC intact) yet neither the plain audio
+# form 0x01 nor a data track, so it must not hold the counter up while the
+# console reads the lead-in (src/subq.c, pscu_subq_tracking_hit).
+AUDIO_COPY_LEAD_IN = with_crc((0x21, 0x00, 0xA0, 0, 0, 0, 0, 0, 0, 0))
+
+
+def _supply_low_lead_in() -> Timeline:
+    """The supply is below the guard for the whole climb to the start point:
+    the counter rises through the window while the guard holds every string,
+    then the supply recovers and the same lead-in goes on."""
+    timeline = carrier().set(Signal.VCC_MV, SUPPLY_GOOD_MV).idle(BOOT_NS)
+    timeline.set(Signal.VCC_MV, SUPPLY_LOW_MV).mark(Phase.LEAD_IN).frames(LEAD_IN, 40)
+    timeline.set(Signal.VCC_MV, SUPPLY_GOOD_MV).frames(LEAD_IN, 30)
+    timeline.idle(DRIVE_STOP_NS)
+    return disc(timeline, False)
+
+
+def _bad_crc() -> Timeline:
+    """A lead-in of frames corrupted on the bus, which must never arm a
+    string, then the same lead-in intact and a quick accept."""
+    timeline = carrier().idle(BOOT_NS).mark(Phase.LEAD_IN)
+    timeline.frames(BAD_CRC_ZEROED, 30).frames(BAD_CRC_LOW, 30)
+    timeline.frames(LEAD_IN, QUICK_LEAD_IN_FRAMES)
+    return timeline.mark(Phase.PROGRAM).frames(PROGRAM, QUICK_PLAY_FRAMES)
+
+
 def _trim(scale: float, factory: int | None = None) -> Timeline:
     start = carrier()
     if factory is not None:
@@ -248,6 +282,7 @@ def _frame_kinds() -> Timeline:
         zero_lead,
         zero_play,
         copy_lead,
+        AUDIO_COPY_LEAD_IN,
         audio_point,
     ):
         timeline.frames(frame, 20)
@@ -353,6 +388,16 @@ EDGE_SCENARIOS = (
         "carrier-supply-hold",
         "the supply sags below the guard mid-burst, recovers, and the disc leaves",
         _supply_hold,
+    ),
+    edge(
+        "carrier-supply-low-lead-in",
+        "the supply sits below the guard through the climb to the start, then recovers",
+        _supply_low_lead_in,
+    ),
+    edge(
+        "carrier-bad-crc",
+        "60 lead-in frames failing their CRC, then the intact lead-in and an accept",
+        _bad_crc,
     ),
     edge(
         "carrier-trim-fast",

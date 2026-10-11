@@ -126,6 +126,7 @@ extern int g_strings;
 extern uint32_t g_freq;
 extern uint64_t g_edge_ns;
 extern uint64_t g_frame_period_ns;
+extern int g_seal_frames;
 // Flash byte addresses of two port functions in the loaded image, read from its
 // symbols, so a scenario can time the firmware's own code by its program
 // counter; zero when the image has no such symbol.

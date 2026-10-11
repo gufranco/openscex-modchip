@@ -360,3 +360,57 @@ void scenario_supply_dip(const target_t *t, const char *elf, uint32_t freq) {
       what, sizeof(what), "a supply dip mid-burst keeps the cap (%d strings)", g_strings);
   calib_check(t, g_strings == CALIB_STEALTH_STRINGS, what);
 }
+
+// A store that meets a sagging supply is skipped. Liss V1.4 dropped its EEPROM
+// parameters over "some rare cases of corrupted data"
+// (liss-stealth_v1.4_at90s1200_all.asm, lines 121-122), the classic cause being
+// a write that runs while VCC sinks. Here the strings go out at 3.3 V, then the
+// supply drops to 2.6 V just as the program frames accept the disc: the lesson
+// learned from it, a start one step later, must not reach EEPROM, so the record
+// still holds the seeded start. Without the supply gate in
+// pscu_engine_store_calib the record would read CALIB_TRIGGER + 2.
+void scenario_store_low_supply(const target_t *t, const char *elf, uint32_t freq) {
+  seed_calib(0U, CALIB_TRIGGER, 0U, 0);
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
+                                           0,     0,     0x02U, 0,     0,     0 };
+  clock_until_inject(avr, t, toc);
+  set_supply(avr, LOW_SUPPLY_MV);
+  clock_frames(avr, t, play, CALIB_SETTLE_FRAMES);
+  uint8_t raw[CALIB_BYTES] = { 0 };
+  read_calib(avr, raw);
+
+  calib_check(t, g_strings >= 1, "the disc got its string before the supply sagged");
+  calib_check(t,
+              calib_valid(raw) && (raw[2] == CALIB_TRIGGER) && (raw[3] == 0U),
+              "a session resolved at 2.6 V writes nothing to EEPROM");
+}
+
+// A torn record: power lost between rewriting a value and rewriting the check
+// byte leaves a new trigger and trim under the old record's check byte. The
+// check fails, so the chip must ignore the whole record, apply no trim and
+// start from the defaults, which it writes back as a valid record at boot.
+#define TORN_OLD_TRIGGER 14U
+#define TORN_NEW_TRIGGER 20U
+#define TORN_TRIM (-3)
+
+void scenario_torn_record(const target_t *t, const char *elf, uint32_t freq) {
+  uint8_t torn[CALIB_BYTES] = { CALIB_MAGIC, 0U, TORN_OLD_TRIGGER, 0U, (uint8_t)TORN_TRIM, 0U };
+  torn[5] = calib_check_byte(torn);
+  torn[2] = TORN_NEW_TRIGGER;
+  sim_seed_eeprom(torn, CALIB_BYTES);
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  boot_quiet(avr, t, 0, &ctx);
+  uint8_t raw[CALIB_BYTES] = { 0 };
+  read_calib(avr, raw);
+
+  calib_check(t, osccal(avr) == SIM_OSCCAL_FACTORY, "a torn record applies no trim");
+  calib_check(t,
+              calib_valid(raw) && (raw[2] == CALIB_TRIGGER) && (raw[3] == 0U) && (raw[4] == 0U),
+              "a torn record is replaced by the defaults at boot");
+}

@@ -29,10 +29,14 @@ void scenario_calib_cap(const target_t *t, const char *elf, uint32_t freq);
 void scenario_calib_board(const target_t *t, const char *elf, uint32_t freq);
 void scenario_calib_missed(const target_t *t, const char *elf, uint32_t freq);
 void scenario_calib_jp(const target_t *t, const char *elf, uint32_t freq);
+void scenario_store_low_supply(const target_t *t, const char *elf, uint32_t freq);
+void scenario_torn_record(const target_t *t, const char *elf, uint32_t freq);
 void scenario_trim(const target_t *t, const char *elf, uint32_t freq);
 void scenario_gate(const target_t *t, const char *elf, uint32_t freq, int modern);
 void scenario_string_gap(const target_t *t, const char *elf, uint32_t freq);
 void scenario_gap_check(const target_t *t, const char *elf, uint32_t freq);
+void scenario_bad_crc(const target_t *t, const char *elf, uint32_t freq);
+void scenario_slow_sqck(const target_t *t, const char *elf, uint32_t freq);
 // The final indicator profile against the debug one (tests/sim/sim_profile.c).
 void scenario_profiles(const target_t *t,
                        const char *debug_elf,

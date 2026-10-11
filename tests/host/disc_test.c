@@ -17,13 +17,16 @@
 static pscu_check_fn g_check;
 
 static void test_valid_frames(void) {
-  uint8_t lead_in[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  uint8_t audio[PSCU_SUBQ_FRAME_BYTES] = { 0x01U, 0x01U, 0x01U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t lead_in[PSCU_SUBQ_FRAME_BYTES] = {
+    0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0x64U, 0x49U
+  };
+  uint8_t audio[PSCU_SUBQ_FRAME_BYTES] = { 0x01U, 0x01U, 0x01U, 0, 0, 0, 0, 0, 0, 0, 0x3CU, 0x4AU };
   uint8_t idle[PSCU_SUBQ_FRAME_BYTES] = { 0 };
   uint8_t failed[PSCU_SUBQ_FRAME_BYTES] = { 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU,
                                             0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU };
-  uint8_t mode2[PSCU_SUBQ_FRAME_BYTES] = { 0x42U, 0x00U, 0x00U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-  uint8_t nonzero[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0x01U, 0, 0, 0, 0, 0 };
+  uint8_t mode2[PSCU_SUBQ_FRAME_BYTES] = { 0x42U, 0x00U, 0x00U, 0, 0, 0, 0, 0, 0, 0, 0x53U, 0x6FU };
+  uint8_t nonzero[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0,     0,
+                                             0x01U, 0,     0,     0, 0x12U, 0xFDU };
 
   g_check(pscu_subq_is_valid(lead_in), "disc: a mode 1 lead-in frame is valid");
   g_check(pscu_subq_is_valid(audio), "disc: a mode 1 audio frame is valid");

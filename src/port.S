@@ -20,9 +20,9 @@
 // engine.c: long enough for the inter-frame gap before a burst's first edge (a
 // frame every 13.3 ms at single speed), short enough that a stopped drive fails
 // a capture quickly and the run loop keeps timing the silence that tells it the
-// disc is gone. One wait pass is 7
-// cycles (wdr 1, the skipping sbis or sbic 2, sbiw 2, a taken brne 2).
-#define PSCU_SQCK_WAIT_POLLS ((F_CPU * 30UL) / (1000UL * 7UL))
+// disc is gone. One wait pass is 6
+// cycles (the skipping sbis or sbic 2, sbiw 2, a taken brne 2).
+#define PSCU_SQCK_WAIT_POLLS ((F_CPU * 30UL) / (1000UL * 6UL))
 // A carrier-board bit cell counted in WFCK periods is 30 rising edges, about
 // 4 ms at the 7.3 kHz rate the console runs while it reads the lead-in (Read:
 // PsNee PerformInjectionSequence, "modulated across 30 WFCK edges").
@@ -199,11 +199,17 @@ pscu_port_delay_ms:
 // because the gap the firmware can leave between two edges sets the fastest SQCK
 // it can follow: each wait reacts within one 7-cycle pass and the work between
 // the rising edge and the next falling-edge wait is about a dozen cycles, where
-// the earlier C capture spent over 50. The watchdog is kicked on every pass, so a
-// frame that keeps trickling in can never trip it, and every wait is bounded.
+// the earlier C capture spent over 50. Every wait is bounded, and the watchdog
+// is kicked once, as the frame starts: each edge may take up to 30 ms, so a frame
+// of 96 edges could otherwise hold one pass for nearly 3 s, and the run loop's
+// 8-bit tick, which wraps every 524 ms, would lose time. A frame trickling in
+// more slowly than the ~0.5 s watchdog period, which a floating or noisy SQCK
+// gives and a drive never does (a frame is 13.3 ms), restarts the chip instead,
+// with DATA released and code 5 at the next boot.
 	.global pscu_port_capture_frame
 	.func pscu_port_capture_frame
 pscu_port_capture_frame:
+	wdr
 	movw r26, r24
 30:
 	ldi r21, 8
@@ -212,7 +218,6 @@ pscu_port_capture_frame:
 	ldi r30, lo8(PSCU_SQCK_WAIT_POLLS)
 	ldi r31, hi8(PSCU_SQCK_WAIT_POLLS)
 32:
-	wdr
 	sbis _SFR_IO_ADDR(PSCU_PINREG), PSCU_PIN_SQCK
 	rjmp 33f
 	sbiw r30, 1
@@ -222,7 +227,6 @@ pscu_port_capture_frame:
 	ldi r30, lo8(PSCU_SQCK_WAIT_POLLS)
 	ldi r31, hi8(PSCU_SQCK_WAIT_POLLS)
 34:
-	wdr
 	sbic _SFR_IO_ADDR(PSCU_PINREG), PSCU_PIN_SQCK
 	rjmp 35f
 	sbiw r30, 1

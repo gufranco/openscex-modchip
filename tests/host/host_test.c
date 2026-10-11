@@ -58,56 +58,68 @@ static void test_region(void) {
 }
 
 static void test_subq_counter(void) {
-  uint8_t lead_in[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t lead_in[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0x64U, 0x49U };
   check(pscu_subq_update_counter(lead_in, 0U, false, 0xFFU) == 1U, "lead-in A0 increments");
   check(pscu_subq_update_counter(lead_in, 8U, false, 9U) == 9U, "a hit climbs up to the ceiling");
   check(pscu_subq_update_counter(lead_in, 9U, false, 9U) == 9U, "a hit at the ceiling stays there");
 
-  uint8_t unframed[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t unframed[PSCU_SUBQ_FRAME_BYTES] = {
+    0x41U, 0x01U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0x8FU, 0x6AU
+  };
   check(pscu_subq_update_counter(unframed, 5U, false, 0xFFU) == 4U, "bad framing decays");
 
-  uint8_t marker6[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0, 0, 0, 0x01U, 0, 0, 0, 0, 0 };
+  uint8_t marker6[PSCU_SUBQ_FRAME_BYTES] = {
+    0x41U, 0, 0xA0U, 0, 0, 0, 0x01U, 0, 0, 0, 0x12U, 0xFDU
+  };
   check(pscu_subq_update_counter(marker6, 5U, false, 0xFFU) == 4U,
         "second sync marker nonzero decays");
 
-  uint8_t audio[PSCU_SUBQ_FRAME_BYTES] = { 0x01U, 0, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t audio[PSCU_SUBQ_FRAME_BYTES] = { 0x01U, 0, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0x1FU, 0x1CU };
   check(pscu_subq_update_counter(audio, 3U, false, 0xFFU) == 4U,
         "track 01 keeps counter when synced");
   check(pscu_subq_update_counter(audio, 0U, false, 0xFFU) == 0U, "track 01 does not start sync");
 
-  uint8_t spiral[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x00U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t spiral[PSCU_SUBQ_FRAME_BYTES] = {
+    0x41U, 0, 0x01U, 0x00U, 0, 0, 0, 0, 0, 0, 0xA5U, 0x73U
+  };
   check(pscu_subq_update_counter(spiral, 0U, false, 0xFFU) == 1U, "track 01 spiral start hits");
 
-  uint8_t spiral_miss[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x05U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t spiral_miss[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x05U, 0,     0,
+                                                 0,     0, 0,     0,     0xDCU, 0xD4U };
   check(pscu_subq_update_counter(spiral_miss, 0U, false, 0xFFU) == 0U,
         "track 01 out of window misses");
 
-  uint8_t minute_97[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x97U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t minute_97[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x97U, 0,     0,
+                                               0,     0, 0,     0,     0x20U, 0xB5U };
   check(pscu_subq_update_counter(minute_97, 0U, false, 0xFFU) == 0U,
         "point 01 at minute 97 is before the window");
 
-  uint8_t minute_98[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x98U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t minute_98[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x98U, 0,     0,
+                                               0,     0, 0,     0,     0xAAU, 0x5CU };
   check(pscu_subq_update_counter(minute_98, 0U, false, 0xFFU) == 1U,
         "point 01 at minute 98 opens the window");
 
-  uint8_t minute_99[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x99U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t minute_99[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x99U, 0,     0,
+                                               0,     0, 0,     0,     0x12U, 0x3DU };
   check(pscu_subq_update_counter(minute_99, 0U, false, 0xFFU) == 1U, "point 01 at minute 99 hits");
 
-  uint8_t minute_02[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t minute_02[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x02U, 0,     0,
+                                               0,     0, 0,     0,     0xC5U, 0x90U };
   check(pscu_subq_update_counter(minute_02, 0U, false, 0xFFU) == 1U,
         "point 01 at minute 02 closes the window");
 
-  uint8_t minute_03[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x03U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t minute_03[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x03U, 0,     0,
+                                               0,     0, 0,     0,     0x7DU, 0xF1U };
   check(pscu_subq_update_counter(minute_03, 0U, false, 0xFFU) == 0U,
         "point 01 at minute 03 is past the window");
 
-  uint8_t mid_point[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x50U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t mid_point[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x50U, 0, 0, 0, 0, 0, 0, 0, 0x29U, 0xC4U };
   check(pscu_subq_update_counter(mid_point, 0U, false, 0xFFU) == 0U,
         "data sector mid-point does not start sync");
   check(pscu_subq_update_counter(mid_point, 4U, false, 0xFFU) == 5U,
         "data sector keeps counter when synced");
 
-  uint8_t other[PSCU_SUBQ_FRAME_BYTES] = { 0x00U, 0, 0x50U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t other[PSCU_SUBQ_FRAME_BYTES] = { 0x00U, 0, 0x50U, 0, 0, 0, 0, 0, 0, 0, 0x34U, 0x9BU };
   check(pscu_subq_update_counter(other, 3U, false, 0xFFU) == 2U,
         "non-data non-audio sample decays while synced");
 
@@ -123,43 +135,59 @@ static void test_subq_counter(void) {
 // Each frame below sits one step either side of a bound, so a mutant that widens
 // or narrows the rule fails here.
 static void test_subq_vcd_filter(void) {
-  uint8_t game_toc[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0x00U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t game_toc[PSCU_SUBQ_FRAME_BYTES] = {
+    0x41U, 0, 0xA0U, 0x00U, 0, 0, 0, 0, 0, 0, 0x64U, 0x49U
+  };
   check(pscu_subq_update_counter(game_toc, 0U, true, 0xFFU) == 1U, "vcd filter: game TOC A0 arms");
 
-  uint8_t vcd_toc[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t vcd_toc[PSCU_SUBQ_FRAME_BYTES] = {
+    0x41U, 0, 0xA0U, 0x02U, 0, 0, 0, 0, 0, 0, 0x04U, 0xAAU
+  };
   check(pscu_subq_update_counter(vcd_toc, 0U, true, 0xFFU) == 0U,
         "vcd filter: video CD lead-in does not arm");
   check(pscu_subq_update_counter(vcd_toc, 0U, false, 0xFFU) == 1U,
         "ordinary filter arms on the same frame");
 
-  uint8_t minute_01[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0x01U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t minute_01[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0x01U, 0,     0,
+                                               0,     0, 0,     0,     0xDCU, 0x28U };
   check(pscu_subq_update_counter(minute_01, 0U, true, 0xFFU) == 1U,
         "vcd filter: only 0x02 is excluded");
 
-  uint8_t last_marker[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA2U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t last_marker[PSCU_SUBQ_FRAME_BYTES] = {
+    0x41U, 0, 0xA2U, 0, 0, 0, 0, 0, 0, 0, 0xEBU, 0xEFU
+  };
   check(pscu_subq_update_counter(last_marker, 0U, true, 0xFFU) == 1U, "vcd filter: marker A2 arms");
 
-  uint8_t past_markers[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA3U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t past_markers[PSCU_SUBQ_FRAME_BYTES] = {
+    0x41U, 0, 0xA3U, 0, 0, 0, 0, 0, 0, 0, 0xACU, 0x3CU
+  };
   check(pscu_subq_update_counter(past_markers, 0U, true, 0xFFU) == 0U,
         "vcd filter: POINT A3 does not arm");
 
-  uint8_t below_markers[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x9FU, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t below_markers[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x9FU, 0, 0,     0,
+                                                   0,     0, 0,     0, 0xFBU, 0x57U };
   check(pscu_subq_update_counter(below_markers, 0U, true, 0xFFU) == 0U,
         "vcd filter: POINT 9F does not arm");
 
-  uint8_t audio_marker[PSCU_SUBQ_FRAME_BYTES] = { 0x01U, 0, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t audio_marker[PSCU_SUBQ_FRAME_BYTES] = {
+    0x01U, 0, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0x16U, 0x53U
+  };
   check(pscu_subq_update_counter(audio_marker, 0U, true, 0xFFU) == 0U,
         "vcd filter: audio TOC frame does not arm");
 
-  uint8_t spiral[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x01U, 0x98U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t spiral[PSCU_SUBQ_FRAME_BYTES] = {
+    0x41U, 0, 0x01U, 0x98U, 0, 0, 0, 0, 0, 0, 0xAAU, 0x5CU
+  };
   check(pscu_subq_update_counter(spiral, 0U, true, 0xFFU) == 0U,
         "vcd filter: no point-01 spiral window");
 
-  uint8_t mid_point[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x50U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t mid_point[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0x50U, 0, 0, 0, 0, 0, 0, 0, 0x29U, 0xC4U };
   check(pscu_subq_update_counter(mid_point, 4U, true, 0xFFU) == 5U,
         "vcd filter: tracking keeps the counter");
 
-  uint8_t unframed[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t unframed[PSCU_SUBQ_FRAME_BYTES] = {
+    0x41U, 0x01U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0x8FU, 0x6AU
+  };
   check(pscu_subq_update_counter(unframed, 5U, true, 0xFFU) == 4U,
         "vcd filter: bad framing decays");
 }
@@ -170,6 +198,35 @@ static pscu_board_detect_t feed(const uint8_t *samples, uint16_t count, uint8_t 
     state = pscu_board_detect_step(state, samples[i]);
   }
   return state;
+}
+
+// The Q-channel CRC, checked against values computed outside this firmware
+// (Python's binascii.crc_hqx, the same CCITT polynomial from zero): an audio
+// frame of ADR 1 and nine zero bytes has CRC 0x6F45, stored inverted as 90 BA,
+// and the lead-in frame's CRC is 0x9BB6, stored inverted as 64 49. The check
+// itself is private to subq.c, so it is reached through pscu_subq_is_valid,
+// which also needs ADR 1 and a zero ZERO byte; every frame here has both, so
+// only the CRC decides. Changing a data byte or either CRC byte breaks it, and
+// a frame failing its CRC is neither valid, nor a lead-in hit, nor the program
+// area, whatever its other bytes say.
+static void test_subq_crc(void) {
+  uint8_t audio[PSCU_SUBQ_FRAME_BYTES] = { 0x01U, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x90U, 0xBAU };
+  check(pscu_subq_is_valid(audio), "crc: a sealed audio frame passes");
+  uint8_t lead_in[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0x64U, 0x49U };
+  check(pscu_subq_is_valid(lead_in), "crc: a sealed lead-in frame passes");
+  uint8_t last_data[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0,     0,     0,
+                                               0,     0, 0,     0x01U, 0x64U, 0x49U };
+  check(!pscu_subq_is_valid(last_data), "crc: a change in the tenth data byte fails it");
+  uint8_t high[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0x65U, 0x49U };
+  check(!pscu_subq_is_valid(high), "crc: a wrong high CRC byte fails it");
+  uint8_t low[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0x64U, 0x48U };
+  check(!pscu_subq_is_valid(low), "crc: a wrong low CRC byte fails it");
+  check(pscu_subq_update_counter(low, 3U, false, 0xFFU) == 2U,
+        "crc: a lead-in frame failing its CRC decays the counter");
+  uint8_t program[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0, 0x02U, 0,
+                                             0,     0,     0x02U, 0, 0x00U, 0x00U };
+  check(!pscu_subq_is_program_area(program),
+        "crc: a program frame failing its CRC is not the program area");
 }
 
 static void test_board_mode(void) {
@@ -364,49 +421,52 @@ static void test_stealth_disc_gone(void) {
 }
 
 static void test_program_area(void) {
-  uint8_t data_track2[PSCU_SUBQ_FRAME_BYTES] = {
-    0x41U, 0x02U, 0x01U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0
-  };
+  uint8_t data_track2[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x02U, 0x01U, 0x10U, 0,     0,
+                                                 0,     0,     0,     0,     0x54U, 0x6FU };
   check(pscu_subq_is_program_area(data_track2), "data track 2 is program area");
 
-  uint8_t audio_track2[PSCU_SUBQ_FRAME_BYTES] = {
-    0x01U, 0x02U, 0x01U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0
-  };
+  uint8_t audio_track2[PSCU_SUBQ_FRAME_BYTES] = { 0x01U, 0x02U, 0x01U, 0x10U, 0,     0,
+                                                  0,     0,     0,     0,     0x26U, 0x75U };
   check(pscu_subq_is_program_area(audio_track2), "audio track 2 is program area");
 
-  uint8_t track1[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t track1[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0,     0,
+                                            0,     0,     0,     0,     0x4EU, 0x50U };
   check(pscu_subq_is_program_area(track1), "track 1, the lowest track number, is program area");
 
-  uint8_t track99[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x99U, 0x01U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t track99[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x99U, 0x01U, 0x10U, 0,     0,
+                                             0,     0,     0,     0,     0xBCU, 0x98U };
   check(pscu_subq_is_program_area(track99), "track 99, the highest track number, is program area");
 
-  uint8_t track19[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x19U, 0x01U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t track19[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x19U, 0x01U, 0x10U, 0,     0,
+                                             0,     0,     0,     0,     0x03U, 0x2AU };
   check(pscu_subq_is_program_area(track19), "a BCD low digit of 9 is a valid track");
 
-  uint8_t toc[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t toc[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0x64U, 0x49U };
   check(!pscu_subq_is_program_area(toc), "lead-in TOC marker is not program area");
 
-  uint8_t toc_entry[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0x05U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t toc_entry[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0x05U, 0x10U, 0,     0,
+                                               0,     0,     0,     0,     0x9DU, 0x65U };
   check(!pscu_subq_is_program_area(toc_entry),
         "lead-in TOC entry naming a track is not program area");
 
-  uint8_t lead_out[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0xAAU, 0x01U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t lead_out[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0xAAU, 0x01U, 0x10U, 0,     0,
+                                              0,     0,     0,     0,     0x65U, 0xDEU };
   check(!pscu_subq_is_program_area(lead_out), "lead-out is not program area");
 
-  uint8_t bad_bcd[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x1AU, 0x01U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t bad_bcd[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x1AU, 0x01U, 0x10U, 0,     0,
+                                             0,     0,     0,     0,     0x2EU, 0x6EU };
   check(!pscu_subq_is_program_area(bad_bcd), "a non-BCD track number is not program area");
 
   uint8_t failed[PSCU_SUBQ_FRAME_BYTES] = { 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU,
                                             0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU };
   check(!pscu_subq_is_program_area(failed), "a failed capture is not program area");
 
-  uint8_t noncontent[PSCU_SUBQ_FRAME_BYTES] = {
-    0x00U, 0x02U, 0x01U, 0x10U, 0, 0, 0, 0, 0, 0, 0, 0
-  };
+  uint8_t noncontent[PSCU_SUBQ_FRAME_BYTES] = { 0x00U, 0x02U, 0x01U, 0x10U, 0,     0,
+                                                0,     0,     0,     0,     0x49U, 0x30U };
   check(!pscu_subq_is_program_area(noncontent), "non-content control is not program area");
 
-  uint8_t misframed[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x02U, 0x01U, 0x10U, 0, 0,
-                                               0x01U, 0,     0,     0,     0, 0 };
+  uint8_t misframed[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x02U, 0x01U, 0x10U, 0,     0,
+                                               0x01U, 0,     0,     0,     0x22U, 0xDBU };
   check(!pscu_subq_is_program_area(misframed), "a nonzero ZERO byte is not program area");
 }
 
@@ -446,6 +506,7 @@ int main(void) {
   test_region();
   test_subq_counter();
   test_subq_vcd_filter();
+  test_subq_crc();
   test_board_mode();
   test_board_saturates();
   test_board_runs();

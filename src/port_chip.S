@@ -85,12 +85,14 @@ pscu_port_reset_was_watchdog:
 // meaning any earlier write has finished. An erase-and-write takes 3.4 ms (Read:
 // ATtiny25/45/85 datasheet 2586Q, Table 5-1, EEPM 00, the mode reset
 // leaves selected), so the wait gives up after 10 ms rather than trusting the
-// flag forever; one pass is 6 cycles (wdr 1, the non-skipping sbis 1, sbiw 2, a
-// taken brne 2). The watchdog is kicked inside the wait, which the bound keeps
+// flag forever; one waiting pass is 7 cycles (wdr 1, the sbis that skips the ret
+// while EEPE is still set 2, sbiw 2, a taken brne 2). A wait that gives up lets
+// the next access go ahead anyway; a byte it spoils fails the record's check
+// byte, written last, and the next boot falls back to the defaults (calib.c). The watchdog is kicked inside the wait, which the bound keeps
 // from ever hiding a hang. r26 and r27 are call-clobbered under the avr-gcc ABI.
 // r1 is the compiler's zero register, so the high address byte is cleared by
 // writing it; the record sits below address 256.
-#define PSCU_EEPROM_WAIT_POLLS ((F_CPU * 10UL) / (1000UL * 6UL))
+#define PSCU_EEPROM_WAIT_POLLS ((F_CPU * 10UL) / (1000UL * 7UL))
 
 	.func pscu_port_eeprom_wait
 pscu_port_eeprom_wait:

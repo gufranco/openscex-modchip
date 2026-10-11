@@ -40,6 +40,9 @@ uint32_t g_addr_capture = 0U;
 // When nonzero, frames start this many nanoseconds apart, a console's fixed
 // sector rate; when zero, each frame is followed by FRAME_GAP_CYCLES.
 uint64_t g_frame_period_ns = 0U;
+// When zero, frames go out exactly as a scenario wrote them, so one can feed
+// frames whose CRC does not match; normally every frame is sealed.
+int g_seal_frames = 1;
 
 // EEPROM contents for the next build_avr to load before the firmware starts,
 // since the firmware reads its calibration record within its first cycles.
@@ -227,7 +230,33 @@ uint8_t data_pin(avr_t *avr, const target_t *t) {
   return (uint8_t)((state.port >> t->data) & 1U) & (uint8_t)((state.ddr >> t->data) & 1U);
 }
 
-void clock_frame(avr_t *avr, const target_t *t, const uint8_t *frame) {
+// A disc stores every Q frame's CRC in its last two bytes: CRC-16 CCITT from
+// zero over the first ten, inverted, high byte first. The scenarios write only
+// the bytes they mean, so the console model seals each frame as it clocks it,
+// and the firmware sees what a drive would send.
+static void seal_frame(const uint8_t *frame, uint8_t *sealed) {
+  uint16_t crc = 0U;
+  for (int byte = 0; byte < SUBQ_FRAME_BYTES; byte++) {
+    sealed[byte] = frame[byte];
+  }
+  for (int byte = 0; byte < (SUBQ_FRAME_BYTES - 2); byte++) {
+    crc = (uint16_t)(crc ^ (uint16_t)((uint16_t)frame[byte] << 8U));
+    for (int bit = 0; bit < 8; bit++) {
+      crc = ((crc & 0x8000U) != 0U) ? (uint16_t)((uint16_t)(crc << 1U) ^ 0x1021U)
+                                    : (uint16_t)(crc << 1U);
+    }
+  }
+  crc = (uint16_t)(crc ^ 0xFFFFU);
+  sealed[SUBQ_FRAME_BYTES - 2] = (uint8_t)(crc >> 8U);
+  sealed[SUBQ_FRAME_BYTES - 1] = (uint8_t)(crc & 0xFFU);
+}
+
+void clock_frame(avr_t *avr, const target_t *t, const uint8_t *unsealed) {
+  uint8_t frame[SUBQ_FRAME_BYTES];
+  seal_frame(unsealed, frame);
+  if (g_seal_frames == 0) {
+    (void)memcpy(frame, unsealed, SUBQ_FRAME_BYTES);
+  }
   avr_irq_t *sqck = pin_irq(avr, t, t->sqck);
   avr_irq_t *subq = pin_irq(avr, t, t->subq);
   uint64_t frame_start = avr->cycle;

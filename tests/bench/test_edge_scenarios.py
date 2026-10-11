@@ -14,9 +14,15 @@ import unittest
 from itertools import pairwise
 
 from tools.bench.catalogue import find
-from tools.bench.edge_scenarios import EDGE_SCENARIOS, Record
+from tools.bench.edge_scenarios import (
+    AUDIO_COPY_LEAD_IN,
+    BAD_CRC_LOW,
+    BAD_CRC_ZEROED,
+    EDGE_SCENARIOS,
+    Record,
+)
 from tools.bench.scenarios import Phase
-from tools.bench.timeline import FRAME_NS, Signal
+from tools.bench.timeline import FRAME_NS, Signal, with_crc
 
 
 def signals(name: str) -> list[Signal]:
@@ -118,6 +124,34 @@ class EdgeScenarioTest(unittest.TestCase):
 
         self.assertLess(min(levels), 2750)
         self.assertEqual(levels[-1], 5000)
+
+    def test_the_low_supply_lead_in_starts_below_the_guard(self) -> None:
+        events = find("carrier-supply-low-lead-in").build().events
+
+        levels = [e.value for e in events if e.signal is Signal.VCC_MV]
+
+        self.assertEqual(levels, [5000, 2600, 5000])
+
+    def test_the_bad_crc_frames_fail_their_crc_each_its_own_way(self) -> None:
+        frames = (BAD_CRC_ZEROED, BAD_CRC_LOW)
+
+        sealed = [with_crc(frame[:10]) for frame in frames]
+
+        self.assertNotEqual(sealed[0][10:], BAD_CRC_ZEROED[10:])
+        self.assertEqual(sealed[1][10], BAD_CRC_LOW[10])
+        self.assertNotEqual(sealed[1][11], BAD_CRC_LOW[11])
+
+    def test_the_copy_permitted_audio_lead_in_is_framed_but_neither_kind(
+        self,
+    ) -> None:
+        control, track = AUDIO_COPY_LEAD_IN[0], AUDIO_COPY_LEAD_IN[1]
+
+        sealed = with_crc(AUDIO_COPY_LEAD_IN[:10])
+
+        self.assertEqual(sealed, AUDIO_COPY_LEAD_IN)
+        self.assertEqual(track, 0)
+        self.assertNotEqual(control, 0x01)
+        self.assertNotEqual(control & 0xD0, 0x40)
 
     def test_the_stuck_clock_scenario_holds_sqck_low_mid_frame(self) -> None:
         events = find("sqck-stuck").build().events

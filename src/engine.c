@@ -14,11 +14,18 @@
 #include "pscu/config.h"
 #include "pscu/region.h"
 #include "pscu/subq.h"
+#include "pscu/supply.h"
 #include "pscu/trim.h"
 
-// Samples of WFCK to observe before deciding the board era. Large enough that a
-// live ~7.3 kHz clock produces far more than PSCU_DETECT_PULSES edges.
+// Samples of WFCK to observe before deciding the board era: 10000 samples of
+// the 30-cycle sampling loop are 37.5 ms at 8 MHz, in which a live ~7.3 kHz
+// clock gives about 275 falling edges, far more than PSCU_DETECT_PULSES
+// (Concluded: the loop in the ATtiny85 listing, the figure board_mode.h uses).
 #define PSCU_DETECT_WINDOW ((uint16_t)10000U)
+// The unbroken run of WFCK periods that proves a carrier board: 25, as Mayumi
+// V4 and MultiMode 3 both count before they call a board PU-22 or later (Read:
+// mayumi_v4_12c508a_any.asm line 566, "All 25 periods seen?", and
+// multimode_v3_12c508a_any.asm line 626, "Do all 25 cycles").
 #define PSCU_DETECT_PULSES ((uint8_t)25U)
 #define PSCU_GUARD_WINDOW ((uint16_t)2500U)
 // Settle time before the detect window. The chip powers up with the console, and
@@ -243,12 +250,19 @@ pscu_calib_t pscu_engine_load_calib(void) {
 // writes nothing, and one learned value costs two writes, the value and the
 // check byte. The check byte goes last: power lost before it lands leaves a
 // record whose check fails, which reads as the defaults rather than as a mix.
+// Nothing is written while the supply guard fails: an EEPROM write on a sagging
+// supply is the classic way a record tears, and Liss Stealth V1.4 dropped its
+// EEPROM parameters altogether over "some rare cases of corrupted data"
+// (liss-stealth_v1.4_at90s1200_all.asm, lines 121-122). Skipping a store only
+// delays a lesson: the next store, on a good supply, writes the same record.
 void pscu_engine_store_calib(pscu_calib_t calib) {
-  pscu_calib_record_t record;
-  record = pscu_calib_encode(calib);
-  for (uint8_t at = 0U; at < PSCU_CALIB_BYTES; at++) {
-    if (pscu_port_eeprom_read(at) != record.bytes[at]) {
-      pscu_port_eeprom_write(at, record.bytes[at]);
+  if (pscu_supply_ok(pscu_port_supply_raw())) {
+    pscu_calib_record_t record;
+    record = pscu_calib_encode(calib);
+    for (uint8_t at = 0U; at < PSCU_CALIB_BYTES; at++) {
+      if (pscu_port_eeprom_read(at) != record.bytes[at]) {
+        pscu_port_eeprom_write(at, record.bytes[at]);
+      }
     }
   }
 }

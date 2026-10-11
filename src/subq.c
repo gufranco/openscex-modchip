@@ -8,6 +8,39 @@
 
 #include "pscu/assert.h"
 
+// CRC-16 CCITT over the ten data bytes, from zero, one bit at a time: no table,
+// so it costs a few dozen bytes of flash, and at 8 MHz the 80 shift steps take
+// well under a frame's 13.3 ms. The disc stores the result inverted.
+static uint16_t pscu_subq_crc(const uint8_t *frame) {
+  uint16_t crc = 0U;
+
+  for (uint8_t i = 0U; i < PSCU_SUBQ_DATA_BYTES; i++) {
+    crc = (uint16_t)(crc ^ (uint16_t)((uint16_t)frame[i] << 8U));
+    for (uint8_t bit = 0U; bit < 8U; bit++) {
+      bool top = (uint16_t)(crc & 0x8000U) != 0U;
+      crc = (uint16_t)(crc << 1U);
+      if (top) {
+        crc = (uint16_t)(crc ^ 0x1021U);
+      }
+    }
+  }
+
+  return (uint16_t)(crc ^ 0xFFFFU);
+}
+
+// True when the frame's last two bytes hold the CRC of its first ten: CRC-16
+// CCITT (polynomial 0x1021) from zero, stored inverted, high byte first. Every
+// frame off a disc carries it, so a frame that fails it was corrupted on the
+// bus, or misaligned in the capture, and tells the chip nothing. Read: ECMA-130
+// section 22.3.6, the Q-channel CRC; UberNee V1.42 likewise rejects a read
+// whose CRC bytes are zero. Pure, and host-tested through pscu_subq_is_valid.
+static bool pscu_subq_crc_ok(const uint8_t *frame) {
+  PSCU_ASSERT(frame != NULL);
+
+  uint16_t crc = pscu_subq_crc(frame);
+  return (frame[10] == (uint8_t)(crc >> 8U)) && (frame[11] == (uint8_t)(crc & 0xFFU));
+}
+
 // A SUBQ control byte marks a data sector when its ADR/control nibble pattern
 // is 0x4x with the data bit set. Masking 0xD0 and comparing to 0x40 isolates
 // that pattern while ignoring the copy and pre-emphasis flags.
@@ -100,7 +133,7 @@ bool pscu_subq_is_program_area(const uint8_t *frame) {
   bool bcd_track = (tno >= 0x01U) && (tno <= 0x99U) && ((uint8_t)(tno & 0x0FU) <= 0x09U);
   bool zero_byte = frame[6] == 0x00U;
   bool content = (frame[0] == 0x01U) || pscu_subq_is_data_sector(frame[0]);
-  return bcd_track && zero_byte && content;
+  return bcd_track && zero_byte && content && pscu_subq_crc_ok(frame);
 }
 
 // Mode 1 carries the position data every other test here reads, and fills at
@@ -110,7 +143,7 @@ bool pscu_subq_is_program_area(const uint8_t *frame) {
 bool pscu_subq_is_valid(const uint8_t *frame) {
   PSCU_ASSERT(frame != NULL);
 
-  return ((uint8_t)(frame[0] & 0x0FU) == 0x01U) && (frame[6] == 0x00U);
+  return ((uint8_t)(frame[0] & 0x0FU) == 0x01U) && (frame[6] == 0x00U) && pscu_subq_crc_ok(frame);
 }
 
 uint8_t pscu_subq_update_counter(const uint8_t *frame,
@@ -120,11 +153,12 @@ uint8_t pscu_subq_update_counter(const uint8_t *frame,
   PSCU_ASSERT(frame != NULL);
 
   // frame[1] is TNO, which is 0x00 only in the lead-in, and frame[6] is the
-  // Q-channel ZERO byte. Requiring both accepts only well-formed lead-in frames:
-  // a program-area frame, noise, or a misaligned capture cannot raise the counter.
+  // Q-channel ZERO byte. Requiring both, and the CRC, accepts only well-formed
+  // lead-in frames: a program-area frame, noise, or a misaligned capture cannot
+  // raise the counter.
   // The filter is a parameter rather than a compile-time switch so the host
   // suite drives both rules from one binary; the firmware passes a constant.
-  bool framed = (frame[1] == 0x00U) && (frame[6] == 0x00U);
+  bool framed = (frame[1] == 0x00U) && (frame[6] == 0x00U) && pscu_subq_crc_ok(frame);
   bool lead_in = vcd_filter ? pscu_subq_vcd_lead_in_hit(frame) : pscu_subq_lead_in_hit(frame);
   bool hit = framed && (lead_in || pscu_subq_tracking_hit(frame, counter));
   uint8_t result = counter;

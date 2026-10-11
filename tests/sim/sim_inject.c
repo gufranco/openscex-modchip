@@ -440,6 +440,65 @@ void scenario_string_gap(const target_t *t, const char *elf, uint32_t freq) {
   check((found == 2) && ((starts[1] - ends[0]) >= ms_cycles(GAP_MIN_MS)), label);
 }
 
+// A floating or noisy SQCK can toggle slowly enough to keep every edge wait
+// inside its 30 ms bound while a whole frame takes seconds. The capture kicks
+// the watchdog only once per frame, so such a line restarts the chip within
+// the watchdog period, with DATA released, rather than holding one pass.
+// The trickle lasts 40 edges, 0.8 s: longer than one watchdog period and far
+// short of the 96 edges a frame needs, so the capture can only end by the
+// reset. It then stops with SQCK idle high, because a trickle that went on
+// would restart the chip every half second and the five-blink boot code, about
+// 7 s long, would never get to play. Without the once-per-frame kick the
+// capture just waits, times out on the idle line and no code 5 appears.
+#define SLOW_SQCK_EDGES 40
+#define SLOW_SQCK_EDGE_MS 20U
+#define SLOW_SQCK_CODE_MS 9000U
+
+void scenario_slow_sqck(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+  avr_irq_t *sqck = pin_irq(avr, t, t->sqck);
+  uint64_t started = avr->cycle;
+  for (int edge = 0; edge < SLOW_SQCK_EDGES; edge++) {
+    avr_raise_irq(sqck, (uint8_t)(edge & 1));
+    run_cycles(avr, ms_cycles(SLOW_SQCK_EDGE_MS));
+  }
+  avr_raise_irq(sqck, 1U);
+  char label[96];
+  (void)snprintf(label, sizeof(label), "%s: a slow SQCK leaves DATA released", t->mcu);
+  check(data_ddr(avr, t) == 0U, label);
+  run_cycles(avr, ms_cycles(SLOW_SQCK_CODE_MS));
+  (void)snprintf(label, sizeof(label), "%s: a slow SQCK trips the watchdog, code 5", t->mcu);
+  check(code_after(started) == 5, label);
+}
+
+// A frame corrupted on the bus or misaligned in the capture fails its CRC. A
+// lead-in made only of such frames must never arm a string, however long it
+// runs; the very same frames with their CRC intact arm as usual.
+void scenario_bad_crc(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  g_led_seen = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  boot_quiet(avr, t, 0, &ctx);
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  g_seal_frames = 0;
+  clock_frames(avr, t, toc, GAP_TOC_FRAMES);
+  g_seal_frames = 1;
+  char label[96];
+  (void)snprintf(label, sizeof(label), "%s: a lead-in failing its CRC never arms", t->mcu);
+  check(g_led_seen == 0, label);
+  clock_until_inject(avr, t, toc);
+  uint64_t deadline = avr->cycle + LED_DEADLINE;
+  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+    run_cycles(avr, 2000U);
+  }
+  (void)snprintf(label, sizeof(label), "%s: the same lead-in with its CRC arms", t->mcu);
+  check(g_led_seen != 0, label);
+}
+
 void scenario_families(const target_t *t, const char *elf, uint32_t freq) {
   for (int f = 0; f < FAMILY_COUNT; f++) {
     scenario_inject(t, elf, freq, FAMILIES[f].modern, 1, FAMILIES[f].wfck_hz, FAMILIES[f].name);
