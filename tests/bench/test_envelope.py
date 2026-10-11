@@ -35,6 +35,14 @@ BASE = Metrics(
 )
 
 
+def known(value: int | None) -> int:
+    """A metric BASE sets, unwrapped; a test that needs one BASE leaves unset
+    is wrong, so it fails here rather than doing arithmetic on None."""
+    if value is None:
+        raise AssertionError("BASE leaves this metric unset")
+    return value
+
+
 def verdicts(ours: Metrics, proven: list[Metrics]) -> dict[str, Verdict]:
     return {f.metric: f.verdict for f in check_ours("s", ours, proven)}
 
@@ -88,7 +96,7 @@ class EnvelopeTest(unittest.TestCase):
         self.assertEqual(frames, 2)
 
     def test_a_first_string_within_two_frames_of_the_slowest_meets(self) -> None:
-        late = BASE.first_latency_ns + LATENCY_TOLERANCE_NS
+        late = known(BASE.first_latency_ns) + LATENCY_TOLERANCE_NS
         ours = replace(BASE, first_latency_ns=late)
 
         result = verdicts(ours, [BASE])
@@ -96,7 +104,7 @@ class EnvelopeTest(unittest.TestCase):
         self.assertIs(result["first_latency_ns"], Verdict.MET)
 
     def test_a_first_string_beyond_two_frames_of_the_slowest_breaks(self) -> None:
-        late = BASE.first_latency_ns + LATENCY_TOLERANCE_NS + 1
+        late = known(BASE.first_latency_ns) + LATENCY_TOLERANCE_NS + 1
         ours = replace(BASE, first_latency_ns=late)
 
         result = verdicts(ours, [BASE])
@@ -136,14 +144,16 @@ class EnvelopeTest(unittest.TestCase):
         self.assertIs(result["cell_max_ns"], Verdict.MET)
 
     def test_a_cell_within_one_carrier_period_of_the_range_meets_it(self) -> None:
-        ours = replace(BASE, cell_min_ns=BASE.cell_min_ns - CELL_TOLERANCE_NS)
+        ours = replace(BASE, cell_min_ns=known(BASE.cell_min_ns) - CELL_TOLERANCE_NS)
 
         result = verdicts(ours, [BASE])
 
         self.assertIs(result["cell_min_ns"], Verdict.MET)
 
     def test_a_cell_beyond_one_carrier_period_breaks_the_range(self) -> None:
-        ours = replace(BASE, cell_min_ns=BASE.cell_min_ns - CELL_TOLERANCE_NS - 1)
+        ours = replace(
+            BASE, cell_min_ns=known(BASE.cell_min_ns) - CELL_TOLERANCE_NS - 1
+        )
 
         result = verdicts(ours, [BASE])
 

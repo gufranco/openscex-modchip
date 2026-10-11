@@ -272,10 +272,15 @@ precommit:
 	ruff check
 	ruff format --check
 
+# mypy runs strict on the tools and their tests, so a None reaching arithmetic
+# or a wrong argument type fails the gate before it fails at run time; yamllint
+# holds the workflows and issue forms to .yamllint.yaml.
 analyse: all bench_runners
 	clang-format --dry-run --Werror $(C_FILES)
 	ruff check
 	ruff format --check
+	mypy --strict tools tests
+	yamllint -s .
 	reuse lint
 	$(MAKE) misra
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage run --branch --source=tools -m unittest discover -s tests -t . -p 'test_*.py'

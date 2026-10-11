@@ -4,7 +4,7 @@
 # Dependabot keeps the external surfaces this repository pins current: the
 # GitHub Actions referenced by commit SHA in the workflows, the Docker base image
 # the pinned toolchain is built from, and the hash-locked Python tools installed
-# into that image (docker/requirements-tools.txt: ruff, reuse, coverage).
+# into that image (docker/requirements-tools.txt: ruff, reuse, coverage, mypy, yamllint).
 # Firmware dependencies are vendored in-tree (there is no package manager for
 # the C sources). Updates land as conventional "build(deps)" commits so the
 # release tooling classifies them as non-releasing changes.

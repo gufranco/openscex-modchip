@@ -191,7 +191,9 @@ class PrepareTest(unittest.TestCase):
             json.dumps({"artifacts": [entry]})
         )
 
-    def file_entry(self, root: Path, name: str, text: str, kind: str) -> dict:
+    def file_entry(
+        self, root: Path, name: str, text: str, kind: str
+    ) -> dict[str, object]:
         (root / name).write_text(text)
         return {
             "id": "x",

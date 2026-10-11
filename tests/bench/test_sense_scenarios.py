@@ -6,7 +6,7 @@ openings that walk Mayumi V4 and MM3 through their state machines."""
 
 import unittest
 
-from tools.bench.scenarios import DOUBLE_SPEED, SINGLE_SPEED, Phase
+from tools.bench.scenarios import DOUBLE_SPEED, SINGLE_SPEED, Phase, Scenario
 from tools.bench.sense_scenarios import (
     CARRIER_PATHS,
     GATE_PATHS,
@@ -16,7 +16,7 @@ from tools.bench.sense_scenarios import (
 from tools.bench.timeline import Signal
 
 
-def scenario(name: str):  # noqa: ANN201
+def scenario(name: str) -> Scenario:
     return next(s for s in SENSE_SCENARIOS if s.name == name)
 
 

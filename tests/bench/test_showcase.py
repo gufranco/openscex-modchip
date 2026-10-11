@@ -13,6 +13,7 @@ from tests.bench.test_envelope import BASE
 from tools.bench.catalogue import find
 from tools.bench.chips import by_name as chip
 from tools.bench.manifest import ROOT
+from tools.bench.metrics import Metrics
 from tools.bench.run import Run
 from tools.bench.showcase import (
     END,
@@ -33,8 +34,8 @@ from tools.bench.showcase import (
 )
 
 
-def run(chip_name: str, scenario: str, **metrics: object) -> Run:
-    return Run(chip(chip_name), find(scenario), replace(BASE, **metrics), frozenset())
+def run(chip_name: str, scenario: str, metrics: Metrics = BASE) -> Run:
+    return Run(chip(chip_name), find(scenario), metrics, frozenset())
 
 
 def outcome(results: dict[str, dict[str, Outcome]], name: str, key: str) -> Outcome:
@@ -43,7 +44,9 @@ def outcome(results: dict[str, dict[str, Outcome]], name: str, key: str) -> Outc
 
 class EvaluateTest(unittest.TestCase):
     def test_a_chip_driving_data_in_the_probe_is_detected(self) -> None:
-        runs = [run("psnee-attiny85", "antimod-v1-carrier", probe_strings=5)]
+        runs = [
+            run("psnee-attiny85", "antimod-v1-carrier", replace(BASE, probe_strings=5))
+        ]
 
         results = evaluate(runs)
 
@@ -52,7 +55,7 @@ class EvaluateTest(unittest.TestCase):
         )
 
     def test_a_silent_probe_passes(self) -> None:
-        runs = [run("ours", "antimod-v1-carrier", probe_strings=0)]
+        runs = [run("ours", "antimod-v1-carrier", replace(BASE, probe_strings=0))]
 
         results = evaluate(runs)
 
@@ -60,8 +63,8 @@ class EvaluateTest(unittest.TestCase):
 
     def test_one_failing_board_fails_the_property(self) -> None:
         runs = [
-            run("ours", "antimod-v2-carrier", reread_valid=2),
-            run("ours", "antimod-v2-gate", reread_valid=0),
+            run("ours", "antimod-v2-carrier", replace(BASE, reread_valid=2)),
+            run("ours", "antimod-v2-gate", replace(BASE, reread_valid=0)),
         ]
 
         results = evaluate(runs)
@@ -69,14 +72,18 @@ class EvaluateTest(unittest.TestCase):
         self.assertEqual(outcome(results, "ours", "antimod-v2-reauth"), Outcome.FAILED)
 
     def test_a_chip_built_for_none_of_the_boards_is_not_applicable(self) -> None:
-        runs = [run("mayumi-v4", "antimod-v1-gate-early", probe_strings=9)]
+        runs = [
+            run("mayumi-v4", "antimod-v1-gate-early", replace(BASE, probe_strings=9))
+        ]
 
         results = evaluate(runs)
 
         self.assertEqual(outcome(results, "mayumi-v4", "antimod-v1"), Outcome.NA)
 
     def test_a_chip_made_for_some_of_the_boards_is_judged(self) -> None:
-        runs = [run("onechip-12c508a", "antimod-v1-carrier", probe_strings=1)]
+        runs = [
+            run("onechip-12c508a", "antimod-v1-carrier", replace(BASE, probe_strings=1))
+        ]
 
         results = evaluate(runs)
 
@@ -116,8 +123,8 @@ class EvaluateTest(unittest.TestCase):
 class FailuresTest(unittest.TestCase):
     def test_only_ours_failures_are_listed(self) -> None:
         runs = [
-            run("ours", "antimod-v1-carrier", probe_strings=1),
-            run("psnee-attiny85", "antimod-v1-carrier", probe_strings=1),
+            run("ours", "antimod-v1-carrier", replace(BASE, probe_strings=1)),
+            run("psnee-attiny85", "antimod-v1-carrier", replace(BASE, probe_strings=1)),
         ]
 
         failed = failures(evaluate(runs))
@@ -139,7 +146,11 @@ class TableTest(unittest.TestCase):
         self.results = evaluate(
             [
                 run("ours", "antimod-v1-carrier"),
-                run("psnee-attiny85", "antimod-v1-carrier", probe_strings=1),
+                run(
+                    "psnee-attiny85",
+                    "antimod-v1-carrier",
+                    replace(BASE, probe_strings=1),
+                ),
             ]
         )
 

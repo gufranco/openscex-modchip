@@ -21,7 +21,7 @@ An exclusion only ever excuses an instruction no scenario executed: once a
 scenario reaches it, it counts as executed, so a stale reason can hide nothing.
 """
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -116,7 +116,7 @@ def markers(sources: dict[str, str]) -> dict[Line, str]:
 
 def by_line(
     uncovered: Iterable[int],
-    lines: dict[int, Line | None],
+    lines: Mapping[int, Line | None],
     marked: dict[Line, str],
 ) -> dict[int, str]:
     """Excuse uncovered instructions on marked lines, and those with no source."""
@@ -142,7 +142,7 @@ def _entry_covers(entry: Entry, address: int, line: Line | None) -> bool:
 
 def by_table(
     uncovered: Iterable[int],
-    lines: dict[int, Line | None],
+    lines: Mapping[int, Line | None],
     table: list[Entry],
 ) -> dict[int, str]:
     """Excuse uncovered instructions a committed table names, by line or range."""

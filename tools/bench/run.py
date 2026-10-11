@@ -229,7 +229,7 @@ def _instruction_address(line: str) -> int | None:
 
 def _hex_bytes(path: Path) -> set[int]:
     """Byte addresses an Intel HEX file fills, honouring extended addresses."""
-    addresses = set()
+    addresses: set[int] = set()
     base = 0
     for line in path.read_text().split():
         record = bytes.fromhex(line[1:])

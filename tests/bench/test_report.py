@@ -58,18 +58,18 @@ class CoverageTest(unittest.TestCase):
 
 class RenderTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.run = Run(
+        self.ours = Run(
             by_name("ours"), scenario("carrier-accept"), BASE, frozenset({0})
         )
 
     def test_a_run_appears_as_a_row_with_its_chip_and_scenario(self) -> None:
-        text = render([self.run], {}, [], [])
+        text = render([self.ours], {}, [], [])
 
         self.assertIn("| ours | carrier-accept | yes |", text)
 
     def test_a_row_carries_the_reread_strings_and_the_probe_drive(self) -> None:
         metrics = replace(BASE, reread_valid=3, probe_strings=2)
-        run = replace(self.run, metrics=metrics)
+        run = replace(self.ours, metrics=metrics)
 
         text = render([run], {}, [], [])
 
@@ -80,7 +80,7 @@ class RenderTest(unittest.TestCase):
         mayumi = Run(early_only, scenario("gate-accept-early"), BASE, frozenset())
         carrier = Run(by_name("mayumi-v4"), scenario("no-disc"), BASE, frozenset())
 
-        text = render([self.run, mayumi, carrier], {}, [], [])
+        text = render([self.ours, mayumi, carrier], {}, [], [])
 
         self.assertRegex(text, r"\| ours \| carrier-accept \|.*\| all \|\n")
         self.assertRegex(text, r"\| mayumi-v4 \| gate-accept-early \|.*\| partly \|\n")

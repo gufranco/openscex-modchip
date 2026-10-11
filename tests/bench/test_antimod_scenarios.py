@@ -14,11 +14,12 @@ from tools.bench.scenarios import (
     LATE_GATE_BOARDS,
     SINGLE_SPEED,
     Phase,
+    Scenario,
 )
 from tools.bench.timeline import FRAME_NS, Signal
 
 
-def scenario(name: str):  # noqa: ANN201
+def scenario(name: str) -> Scenario:
     return next(s for s in ANTIMOD_SCENARIOS if s.name == name)
 
 

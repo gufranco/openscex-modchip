@@ -147,16 +147,17 @@ def carrier_trains(changes: list[Change]) -> list[tuple[int, int]]:
     slowest carrier, 7.3 kHz, already holds about 58 edges.
     """
     edges = [c.time_ns for c in changes if c.driven]
-    trains = []
-    first = previous = None
+    trains: list[tuple[int, int]] = []
+    first: int | None = None
+    previous: int | None = None
     for edge in edges:
         if previous is not None and edge - previous < CARRIER_EDGE_NS:
             first = previous if first is None else first
-        elif first is not None:
+        elif first is not None and previous is not None:
             trains.append((first, previous))
             first = None
         previous = edge
-    if first is not None:
+    if first is not None and previous is not None:
         trains.append((first, previous))
     return [
         (start, end + (end - start) // (_edges_in(edges, start, end) - 1))

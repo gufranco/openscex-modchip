@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
+# SPDX-License-Identifier: MIT
+#
+# yamllint's defaults, tuned to this repository: workflow files start with
+# their licence header rather than a "---" marker, GitHub's "on:" key is not a
+# boolean, and lines may run to 120 columns. The issue forms are prose shown
+# to reporters, so their long description lines are left to read naturally.
+extends: default
+
+ignore: |
+  build/
+  docs/
+  specs/
+  .work/
+
+rules:
+  document-start: disable
+  truthy:
+    check-keys: false
+  line-length:
+    max: 120
+    ignore: |
+      .github/ISSUE_TEMPLATE/
