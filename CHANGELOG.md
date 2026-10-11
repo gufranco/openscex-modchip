@@ -1,3 +1,10 @@
+# [0.15.0](https://github.com/gufranco/openscex-modchip/compare/v0.14.0...v0.15.0) (2026-10-11)
+
+
+### Features
+
+* **hardware:** add a RESET pull-up to every board ([9ac3207](https://github.com/gufranco/openscex-modchip/commit/9ac320775b2a286daca930347c85334b17dfb92a))
+
 # [0.14.0](https://github.com/gufranco/openscex-modchip/compare/v0.13.0...v0.14.0) (2026-10-10)
 
 
