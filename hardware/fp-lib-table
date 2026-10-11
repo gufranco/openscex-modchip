@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "openscex")(type "KiCad")(uri "${KIPRJMOD}/openscex.pretty")(options "")(descr "Footprints adjusted to the part datasheets"))
+)

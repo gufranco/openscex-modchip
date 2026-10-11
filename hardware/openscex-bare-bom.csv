@@ -1,4 +1,4 @@
 "References","Qty","Value","Part","Footprint"
-"C1","1","100nF","100 nF ceramic disc, 50 V, 2.5 mm pitch","Capacitor_THT:C_Disc_D3.0mm_W1.6mm_P2.50mm"
-"R1","1","10k","10 kOhm axial resistor, DIN0204, 5.08 mm pitch","Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P5.08mm_Horizontal"
-"U1","1","ATtiny85-20PU","ATtiny85-20PU in a DIP-8 7.62 mm socket","Package_DIP:DIP-8_W7.62mm_Socket"
+"C1","1","100nF","KEMET C315C104K5R5TA, 100 nF 50 V X7R, 2.54 mm","Capacitor_THT:C_Rect_L4.0mm_W2.5mm_P2.50mm"
+"R1","1","10k","Vishay MBA02040C1002FC100, 10 kOhm 1 % 0.4 W, 0204","Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P5.08mm_Horizontal"
+"U1","1","ATtiny85-20PU","Microchip ATTINY85-20PU in a TE 1-2199298-2 DIP-8 socket","Package_DIP:DIP-8_W7.62mm_Socket"
