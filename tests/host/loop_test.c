@@ -27,14 +27,14 @@ static pscu_check_fn g_check;
 // valid but never framed as lead-in, so it decays the counter; a program-area
 // frame, the sign the console accepted; a Video CD lead-in marker, which only
 // the SCPH-5903 filter rejects; and the pattern a failed capture leaves.
-static const uint8_t LEAD_IN[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0,
-                                                        0,     0,     0,     0, 0, 0 };
-static const uint8_t LEAD_OUT[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0xAAU, 0x01U, 0, 0, 0,
-                                                         0,     0,     0,     0, 0, 0 };
+static const uint8_t LEAD_IN[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0,     0,
+                                                        0,     0,     0,     0, 0x64U, 0x49U };
+static const uint8_t LEAD_OUT[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0xAAU, 0x01U, 0, 0,     0,
+                                                         0,     0,     0,     0, 0x52U, 0xA5U };
 static const uint8_t PROGRAM[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
-                                                        0,     0,     0x02U, 0,     0,     0 };
-static const uint8_t VCD[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0x02U, 0, 0,
-                                                    0,     0,     0,     0,     0, 0 };
+                                                        0,     0,     0x02U, 0,     0xA3U, 0x72U };
+static const uint8_t VCD[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0x02U, 0,     0,
+                                                    0,     0,     0,     0,     0x04U, 0xAAU };
 static const uint8_t FAILED[PSCU_SUBQ_FRAME_BYTES] = { 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU,
                                                        0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU };
 
@@ -329,17 +329,26 @@ static void test_rearm_depth(void) {
   g_check(deep.state.stealth.sent == 0U, "loop: the pass reaching the depth ends the burst");
 }
 
-// With a start below the re-arm depth, the burst ends only when the counter
-// has drained to zero.
-static void test_rearm_low_start(void) {
-  uint8_t low = (uint8_t)(PSCU_LOOP_REARM_DEPTH - 3U);
-  step_t fired =
-      pass(feed(fresh(calib_with(low, true)), LEAD_IN, (uint16_t)(low - 1U)).state, LEAD_IN);
-  step_t one = feed(fired.state, FAILED, (uint16_t)(low - 1U));
-  g_check(fired.fire && (one.state.counter == 1U) && (one.state.stealth.sent == 1U),
-          "loop: a low start holds the burst until the counter is empty");
-  g_check(pass(one.state, FAILED).state.stealth.sent == 0U,
-          "loop: and ends it on the pass that empties the counter");
+// A worn drive mixes bad reads into the lead-in; UberNee V1.42 lets the user
+// raise its threshold for that wear (TWEAK_DRIVE) and re-captures a bad read
+// rather than counting it. Here a bad frame decays the counter by one, so a
+// lead-in with two good frames to every bad one still climbs to the start and
+// arms, and one with as many bad frames as good ones cannot: that is the limit,
+// recorded so a change to it is a decision rather than an accident.
+static uint16_t fires_with_noise(uint8_t good_per_bad) {
+  step_t at = { fresh(calib_with(TRIGGER, true)), false, false, false, false, false };
+  uint16_t fires = 0U;
+  for (uint16_t i = 0U; i < 300U; i++) {
+    bool bad = (i % (uint16_t)(good_per_bad + 1U)) == good_per_bad;
+    at = bad ? pass_with(at.state, FAILED, false, true, FRAME_MS) : pass(at.state, LEAD_IN);
+    fires = at.fire ? (uint16_t)(fires + 1U) : fires;
+  }
+  return fires;
+}
+
+static void test_noisy_lead_in(void) {
+  g_check(fires_with_noise(2U) > 0U, "loop: a lead-in with one bad frame in three still arms");
+  g_check(fires_with_noise(1U) == 0U, "loop: one with a bad frame for every good one does not");
 }
 
 // The Video-CD filter is the state's, not the build's, so both rules run here.
@@ -397,7 +406,7 @@ void loop_tests(pscu_check_fn check) {
   test_quick_swap();
   test_dither_keeps_gap_and_cap();
   test_rearm_depth();
-  test_rearm_low_start();
+  test_noisy_lead_in();
   test_vcd_filter();
   test_since();
   test_faults();

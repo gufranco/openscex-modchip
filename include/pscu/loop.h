@@ -50,6 +50,14 @@
 // 1.5 s disc-gone bound. A design choice, Unknown until hardware.
 #define PSCU_LOOP_REARM_DEPTH ((uint8_t)8U)
 
+// The depth must stay under the lowest start the chip can learn: a counter that
+// has drained to zero is then always at least the depth below the start, so the
+// one compare in pscu_loop_burst closes the window and no separate test for an
+// empty counter is needed. A stored start below PSCU_CALIB_TRIGGER_MIN fails
+// the record check and falls back to the default (pscu_calib_decode).
+_Static_assert(PSCU_LOOP_REARM_DEPTH < PSCU_CALIB_TRIGGER_MIN,
+               "the re-arm depth must stay below the lowest learned start");
+
 // One disc's session: how many strings were emitted for it, whether its result
 // has been shown, and the confirmation state that decides which result it is.
 typedef struct {
