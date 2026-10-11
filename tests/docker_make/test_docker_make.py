@@ -3,22 +3,58 @@
 
 """Tests for the container build wrapper.
 
-Docker is never invoked: subprocess is mocked so the tag hashing, the run argv,
-the build-only-when-absent logic, and the exit-code passthrough are checked
-without a daemon.
+The wrapper's own code runs for real. The one stand-in is FakeDocker, which
+plays the docker CLI: the tests themselves run inside the toolchain container,
+where there is no Docker daemon to call. The image tag is hashed from real
+files in a temp copy of the image inputs.
 """
 
+import shutil
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from tools import docker_make
 
 
-class ImageTagTest(unittest.TestCase):
+class FakeDocker:
+    """Records every docker command and answers like the CLI would.
+
+    `present` says whether `docker image inspect` finds the image; `exit_code`
+    is what the final `docker run` returns.
+    """
+
+    def __init__(self, present: bool, exit_code: int = 0) -> None:
+        self.present = present
+        self.exit_code = exit_code
+        self.calls: list[list[str]] = []
+
+    def __call__(
+        self, args: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        self.calls.append(args)
+        if args[:3] == ["docker", "image", "inspect"]:
+            return subprocess.CompletedProcess(args, 0 if self.present else 1)
+        if args[:2] == ["docker", "run"]:
+            return subprocess.CompletedProcess(args, self.exit_code)
+        return subprocess.CompletedProcess(args, 0)
+
+
+class ImageInputsTestCase(unittest.TestCase):
+    def inputs(self) -> Path:
+        """A temp root holding copies of the real image inputs."""
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root)
+        for name in docker_make.IMAGE_INPUTS:
+            (root / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(docker_make.ROOT / name, root / name)
+        return root
+
+
+class ImageTagTest(ImageInputsTestCase):
     def test_tag_is_name_and_twelve_hex_of_input_digest(self) -> None:
-        root = docker_make.ROOT
+        root = self.inputs()
 
         tag = docker_make.image_tag(root)
 
@@ -28,13 +64,14 @@ class ImageTagTest(unittest.TestCase):
         self.assertTrue(all(character in "0123456789abcdef" for character in digest))
 
     def test_tag_changes_when_an_input_changes(self) -> None:
-        root = docker_make.ROOT
-        original = (root / "Dockerfile").read_bytes()
+        root = self.inputs()
+        before = docker_make.image_tag(root)
+        dockerfile = root / "Dockerfile"
+        dockerfile.write_bytes(dockerfile.read_bytes() + b"x")
 
-        with mock.patch.object(Path, "read_bytes", return_value=original + b"x"):
-            changed = docker_make.image_tag(root)
+        after = docker_make.image_tag(root)
 
-        self.assertNotEqual(changed, docker_make.image_tag(root))
+        self.assertNotEqual(after, before)
 
 
 class ToolchainCommandTest(unittest.TestCase):
@@ -51,51 +88,38 @@ class ToolchainCommandTest(unittest.TestCase):
 
 class EnsureImageTest(unittest.TestCase):
     def test_builds_when_image_absent(self) -> None:
-        calls: list[list[str]] = []
+        docker = FakeDocker(present=False)
 
-        def fake_run(
-            args: list[str], **_kwargs: object
-        ) -> subprocess.CompletedProcess[str]:
-            calls.append(args)
-            code = 1 if args[:3] == ["docker", "image", "inspect"] else 0
-            return subprocess.CompletedProcess(args, code)
+        docker_make.ensure_image(Path("/repo"), "img:abc", docker)
 
-        with mock.patch.object(docker_make.subprocess, "run", side_effect=fake_run):
-            docker_make.ensure_image(Path("/repo"), "img:abc")
-
-        self.assertEqual(calls[-1][:3], ["docker", "build", "-t"])
+        self.assertEqual(
+            [call[:3] for call in docker.calls],
+            [["docker", "image", "inspect"], ["docker", "build", "-t"]],
+        )
 
     def test_skips_build_when_image_present(self) -> None:
-        calls: list[list[str]] = []
+        docker = FakeDocker(present=True)
 
-        def fake_run(
-            args: list[str], **_kwargs: object
-        ) -> subprocess.CompletedProcess[str]:
-            calls.append(args)
-            return subprocess.CompletedProcess(args, 0)
+        docker_make.ensure_image(Path("/repo"), "img:abc", docker)
 
-        with mock.patch.object(docker_make.subprocess, "run", side_effect=fake_run):
-            docker_make.ensure_image(Path("/repo"), "img:abc")
-
-        self.assertEqual(len(calls), 1)
-        self.assertEqual(calls[0][:3], ["docker", "image", "inspect"])
+        self.assertEqual(
+            [call[:3] for call in docker.calls], [["docker", "image", "inspect"]]
+        )
 
 
-class MainTest(unittest.TestCase):
-    def test_main_ensures_image_then_runs_targets(self) -> None:
-        with (
-            mock.patch.object(docker_make, "ensure_image") as ensure,
-            mock.patch.object(
-                docker_make.subprocess,
-                "run",
-                return_value=subprocess.CompletedProcess([], 7),
-            ) as run,
-        ):
-            code = docker_make.main(["docker_make.py", "hosttest"])
+class MainTest(ImageInputsTestCase):
+    def test_main_builds_the_image_then_returns_the_make_exit_code(self) -> None:
+        root = self.inputs()
+        docker = FakeDocker(present=False, exit_code=7)
+
+        code = docker_make.main(["docker_make.py", "hosttest"], root, docker)
 
         self.assertEqual(code, 7)
-        ensure.assert_called_once()
-        run.assert_called_once()
+        self.assertEqual(
+            [call[:2] for call in docker.calls],
+            [["docker", "image"], ["docker", "build"], ["docker", "run"]],
+        )
+        self.assertEqual(docker.calls[-1][-2:], ["make", "hosttest"])
 
 
 if __name__ == "__main__":

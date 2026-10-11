@@ -3,19 +3,35 @@
 
 """Tests for the mutation tool.
 
-The pure mutant generation is checked directly; the compile-and-run side is
-driven with a mocked subprocess so these tests need no compiler and the
-file-restore guarantee is checked on a real temp file.
+The pure mutant generation is checked directly. Everything else runs for real
+on a tiny C project written to a temp directory: the real compiler builds it,
+real mutants are applied to its logic file, and its own test either catches
+them or lets them survive. Nothing in the tool is replaced, so a test here
+fails if the tool stops building, mutating, restoring or counting correctly.
 """
 
+import contextlib
+import io
 import shutil
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from tools import mutate
+
+# A one-function logic file with exactly one mutable operator, the ">", so the
+# tool produces exactly one mutant, "gt->ge".
+LOGIC = "int above(int a) { return a > 3; }\n"
+# Checks the boundary, so the a >= 3 mutant makes it fail: the mutant is killed.
+STRONG_TEST = (
+    "int above(int a);\n"
+    "int main(void) { return !((above(3) == 0) && (above(4) == 1)); }\n"
+)
+# Checks only far from the boundary, so the a >= 3 mutant still passes it.
+WEAK_TEST = "int above(int a);\nint main(void) { return !(above(10) == 1); }\n"
+# A test that fails on the unmutated code, so no mutation result means anything.
+FAILING_TEST = "int above(int a);\nint main(void) { return above(10); }\n"
+SUITE = mutate.Suite(("logic.c",), ("test.c",), mutate.CC, ("-std=c17",))
 
 
 class GenerateMutantsTest(unittest.TestCase):
@@ -83,125 +99,133 @@ class GenerateMutantsTest(unittest.TestCase):
         self.assertEqual(sources, ["if (a && b) {}"])
 
 
-class CompileAndRunTest(unittest.TestCase):
-    def test_returns_false_when_compile_fails(self) -> None:
-        with mock.patch.object(
-            mutate.subprocess,
-            "run",
-            return_value=subprocess.CompletedProcess([], 1),
-        ) as run:
-            result = mutate._compile_and_run(Path("/repo"), Path("/tmp/bin"))
-
-        self.assertFalse(result)
-        run.assert_called_once()
-
-    def test_returns_true_when_compile_and_run_pass(self) -> None:
-        outcomes = [
-            subprocess.CompletedProcess([], 0),
-            subprocess.CompletedProcess([], 0),
-        ]
-
-        with mock.patch.object(mutate.subprocess, "run", side_effect=outcomes):
-            result = mutate._compile_and_run(Path("/repo"), Path("/tmp/bin"))
-
-        self.assertTrue(result)
-
-    def test_returns_false_when_run_fails(self) -> None:
-        outcomes = [
-            subprocess.CompletedProcess([], 0),
-            subprocess.CompletedProcess([], 1),
-        ]
-
-        with mock.patch.object(mutate.subprocess, "run", side_effect=outcomes):
-            result = mutate._compile_and_run(Path("/repo"), Path("/tmp/bin"))
-
-        self.assertFalse(result)
+def project(test: str, logic: str = LOGIC) -> Path:
+    """A temp directory holding logic.c and test.c, removed by the caller."""
+    root = Path(tempfile.mkdtemp())
+    (root / "logic.c").write_text(logic)
+    (root / "test.c").write_text(test)
+    return root
 
 
-class MutantKilledTest(unittest.TestCase):
-    def test_restores_original_and_reports_killed(self) -> None:
-        source_file = self._write("int x == y;")
-        mutant = mutate.Mutant("L1 eq->ne col7", "int x != y;")
-
-        with mock.patch.object(mutate, "_compile_and_run", return_value=False):
-            killed = mutate._mutant_killed(
-                source_file.parent, source_file, mutant, source_file.parent / "bin"
-            )
-
-        self.assertTrue(killed)
-        self.assertEqual(source_file.read_text(), "int x == y;")
-
-    def test_surviving_mutant_still_restores_file(self) -> None:
-        source_file = self._write("int y;")
-        mutant = mutate.Mutant("L1", "int z;")
-
-        with mock.patch.object(mutate, "_compile_and_run", return_value=True):
-            killed = mutate._mutant_killed(
-                source_file.parent, source_file, mutant, source_file.parent / "bin"
-            )
-
-        self.assertFalse(killed)
-        self.assertEqual(source_file.read_text(), "int y;")
-
-    def _write(self, text: str) -> Path:
-        directory = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, directory)
-        path = directory / "mutant.c"
-        path.write_text(text)
-        return path
+class ProjectTestCase(unittest.TestCase):
+    def make(self, test: str, logic: str = LOGIC) -> Path:
+        root = project(test, logic)
+        self.addCleanup(shutil.rmtree, root)
+        return root
 
 
-class RunTest(unittest.TestCase):
+class CompileAndRunTest(ProjectTestCase):
+    def test_passing_suite_compiles_and_runs(self) -> None:
+        root = self.make(STRONG_TEST)
+
+        passed = mutate._compile_and_run(root, root / "bin", SUITE)
+
+        self.assertTrue(passed)
+
+    def test_failing_suite_is_reported(self) -> None:
+        root = self.make(FAILING_TEST)
+
+        passed = mutate._compile_and_run(root, root / "bin", SUITE)
+
+        self.assertFalse(passed)
+
+    def test_code_that_does_not_compile_is_reported(self) -> None:
+        root = self.make(STRONG_TEST, "int above(int a) { return a > ; }\n")
+
+        passed = mutate._compile_and_run(root, root / "bin", SUITE)
+
+        self.assertFalse(passed)
+
+
+class MutantKilledTest(ProjectTestCase):
+    def test_killed_mutant_is_reported_and_file_restored(self) -> None:
+        root = self.make(STRONG_TEST)
+        mutant = mutate.generate_mutants(LOGIC)[0]
+
+        killed = mutate._mutant_killed(
+            root, root / "logic.c", mutant, root / "bin", SUITE
+        )
+
+        self.assertEqual((killed, (root / "logic.c").read_text()), (True, LOGIC))
+
+    def test_surviving_mutant_is_reported_and_file_restored(self) -> None:
+        root = self.make(WEAK_TEST)
+        mutant = mutate.generate_mutants(LOGIC)[0]
+
+        killed = mutate._mutant_killed(
+            root, root / "logic.c", mutant, root / "bin", SUITE
+        )
+
+        self.assertEqual((killed, (root / "logic.c").read_text()), (False, LOGIC))
+
+    def test_file_is_restored_when_the_build_raises(self) -> None:
+        root = self.make(STRONG_TEST)
+        mutant = mutate.generate_mutants(LOGIC)[0]
+        broken = mutate.Suite(("logic.c",), ("test.c",), "/nonexistent/cc", ())
+
+        with self.assertRaises(FileNotFoundError):
+            mutate._mutant_killed(root, root / "logic.c", mutant, root / "bin", broken)
+        self.assertEqual((root / "logic.c").read_text(), LOGIC)
+
+
+class RunTest(ProjectTestCase):
     def test_raises_when_baseline_fails(self) -> None:
-        with (
-            mock.patch.object(mutate, "_compile_and_run", return_value=False),
-            self.assertRaises(RuntimeError),
-        ):
-            mutate.run(Path("/repo"))
+        root = self.make(FAILING_TEST)
 
-    def test_counts_killed_and_survivors(self) -> None:
-        mutants = [mutate.Mutant("La", "a"), mutate.Mutant("Lb", "b")]
+        with self.assertRaises(RuntimeError):
+            mutate.run(root, SUITE)
 
-        killed_pattern = [True, False] * len(mutate.LOGIC_FILES)
+    def test_strong_suite_kills_every_mutant(self) -> None:
+        root = self.make(STRONG_TEST)
 
-        with (
-            mock.patch.object(mutate, "_compile_and_run", return_value=True),
-            mock.patch.object(mutate, "generate_mutants", return_value=mutants),
-            mock.patch.object(Path, "read_text", return_value="src"),
-            mock.patch.object(mutate, "_mutant_killed", side_effect=killed_pattern),
-        ):
-            result = mutate.run(mutate.ROOT)
+        result = mutate.run(root, SUITE)
 
-        per_file = 2
-        self.assertEqual(result.total, len(mutate.LOGIC_FILES) * per_file)
-        self.assertEqual(result.killed, len(mutate.LOGIC_FILES))
-        self.assertTrue(all("Lb" in survivor for survivor in result.survivors))
+        self.assertEqual(result, mutate.Result(total=1, killed=1, survivors=()))
+
+    def test_weak_suite_reports_the_survivor(self) -> None:
+        root = self.make(WEAK_TEST)
+
+        result = mutate.run(root, SUITE)
+
+        self.assertEqual(
+            result,
+            mutate.Result(total=1, killed=0, survivors=("logic.c: L1 gt->ge col29",)),
+        )
 
 
-class MainTest(unittest.TestCase):
+class MainTest(ProjectTestCase):
     def test_returns_zero_when_all_killed(self) -> None:
-        result = mutate.Result(total=3, killed=3, survivors=())
+        root = self.make(STRONG_TEST)
+        output = io.StringIO()
 
-        with mock.patch.object(mutate, "run", return_value=result):
-            code = mutate.main(["mutate.py"])
+        with contextlib.redirect_stdout(output):
+            code = mutate.main(["mutate.py"], root, SUITE)
 
-        self.assertEqual(code, 0)
+        self.assertEqual((code, output.getvalue()), (0, "mutation score 1/1 killed\n"))
 
     def test_returns_one_and_prints_survivors(self) -> None:
-        result = mutate.Result(total=3, killed=2, survivors=("src/x.c: L1",))
+        root = self.make(WEAK_TEST)
+        output = io.StringIO()
 
-        with mock.patch.object(mutate, "run", return_value=result):
-            code = mutate.main(["mutate.py"])
+        with contextlib.redirect_stdout(output):
+            code = mutate.main(["mutate.py"], root, SUITE)
 
-        self.assertEqual(code, 1)
+        self.assertEqual(
+            (code, output.getvalue()),
+            (1, "SURVIVED logic.c: L1 gt->ge col29\nmutation score 0/1 killed\n"),
+        )
 
     def test_returns_one_when_no_mutants(self) -> None:
-        result = mutate.Result(total=0, killed=0, survivors=())
+        root = self.make(
+            "int above(int a);\nint main(void) { return above(0); }\n",
+            "int above(int a) { return a; }\n",
+        )
+        output = io.StringIO()
 
-        with mock.patch.object(mutate, "run", return_value=result):
-            code = mutate.main(["mutate.py"])
+        with contextlib.redirect_stdout(output):
+            code = mutate.main(["mutate.py"], root, SUITE)
 
-        self.assertEqual(code, 1)
+        self.assertEqual((code, output.getvalue()), (1, "mutation score 0/0 killed\n"))
 
 
 if __name__ == "__main__":

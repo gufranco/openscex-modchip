@@ -64,6 +64,24 @@ class Mutant:
 
 
 @dataclass(frozen=True)
+class Suite:
+    """What to mutate and how to build the tests that must catch each mutant.
+
+    The firmware's own suite is SUITE; the tests hand in a tiny C project of
+    their own, so the whole tool runs for real, compiler included, with no
+    part of it replaced.
+    """
+
+    logic: tuple[str, ...]
+    tests: tuple[str, ...]
+    cc: str
+    cflags: tuple[str, ...]
+
+
+SUITE = Suite(LOGIC_FILES, TEST_FILES, CC, CFLAGS)
+
+
+@dataclass(frozen=True)
 class Result:
     total: int
     killed: int
@@ -102,16 +120,16 @@ def generate_mutants(source: str) -> list[Mutant]:
     return mutants
 
 
-def _compile_and_run(root: Path, binary: Path) -> bool:
+def _compile_and_run(root: Path, binary: Path, suite: Suite = SUITE) -> bool:
     """Build and run the host suite; True only if it compiles and passes.
 
     A mutant that fails to compile counts as killed (the broken edit was
     caught). The suite runs with cwd in the binary's temp directory so a mutant
     that makes an assert abort drops its core dump there, not in the repo.
     """
-    sources = [str(root / name) for name in (*LOGIC_FILES, *TEST_FILES)]
+    sources = [str(root / name) for name in (*suite.logic, *suite.tests)]
     compiled = subprocess.run(
-        [CC, *CFLAGS, "-o", str(binary), *sources],
+        [suite.cc, *suite.cflags, "-o", str(binary), *sources],
         cwd=root,
         capture_output=True,
         check=False,
@@ -124,7 +142,9 @@ def _compile_and_run(root: Path, binary: Path) -> bool:
     return executed.returncode == 0
 
 
-def _mutant_killed(root: Path, path: Path, mutant: Mutant, binary: Path) -> bool:
+def _mutant_killed(
+    root: Path, path: Path, mutant: Mutant, binary: Path, suite: Suite = SUITE
+) -> bool:
     """Apply one mutant in place, test it, and always restore the file.
 
     Killed means the suite no longer passes. The original is written back in a
@@ -133,12 +153,12 @@ def _mutant_killed(root: Path, path: Path, mutant: Mutant, binary: Path) -> bool
     original = path.read_text()
     try:
         path.write_text(mutant.source)
-        return not _compile_and_run(root, binary)
+        return not _compile_and_run(root, binary, suite)
     finally:
         path.write_text(original)
 
 
-def run(root: Path) -> Result:
+def run(root: Path, suite: Suite = SUITE) -> Result:
     """Mutate every logic file and tally killed versus survivors.
 
     The unmutated suite must pass first, otherwise a "killed" result would be
@@ -147,24 +167,24 @@ def run(root: Path) -> Result:
     """
     with tempfile.TemporaryDirectory() as tmp:
         binary = Path(tmp) / "host_test"
-        if not _compile_and_run(root, binary):
+        if not _compile_and_run(root, binary, suite):
             raise RuntimeError("baseline host suite does not pass; cannot mutate")
         total = 0
         killed = 0
         survivors: list[str] = []
-        for name in LOGIC_FILES:
+        for name in suite.logic:
             path = root / name
             for mutant in generate_mutants(path.read_text()):
                 total += 1
-                if _mutant_killed(root, path, mutant, binary):
+                if _mutant_killed(root, path, mutant, binary, suite):
                     killed += 1
                 else:
                     survivors.append(f"{name}: {mutant.label}")
         return Result(total, killed, tuple(survivors))
 
 
-def main(_argv: list[str]) -> int:
-    result = run(ROOT)
+def main(_argv: list[str], root: Path = ROOT, suite: Suite = SUITE) -> int:
+    result = run(root, suite)
     for survivor in result.survivors:
         print(f"SURVIVED {survivor}")
     print(f"mutation score {result.killed}/{result.total} killed")

@@ -12,12 +12,18 @@ import hashlib
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 IMAGE_INPUTS = ("Dockerfile", "docker/requirements-tools.txt")
 IMAGE_NAME = "openscex-modchip-toolchain"
 TAG_LENGTH = 12
+
+# How the wrapper starts a process. It is subprocess.run in use; the tests pass
+# a stand-in for the docker CLI, which cannot run inside the CI container.
+Runner = Callable[..., subprocess.CompletedProcess[Any]]
 
 
 def image_tag(root: Path) -> str:
@@ -68,20 +74,22 @@ def toolchain_command(
     ]
 
 
-def ensure_image(root: Path, tag: str) -> None:
+def ensure_image(root: Path, tag: str, runner: Runner = subprocess.run) -> None:
     """Build the image only when that exact tag is not already present."""
-    present = subprocess.run(
+    present = runner(
         ["docker", "image", "inspect", tag], capture_output=True, check=False
     )
     if present.returncode != 0:
-        subprocess.run(["docker", "build", "-t", tag, str(root)], check=True)
+        runner(["docker", "build", "-t", tag, str(root)], check=True)
 
 
-def main(arguments: list[str]) -> int:
-    tag = image_tag(ROOT)
-    ensure_image(ROOT, tag)
-    command = toolchain_command(ROOT, tag, (os.getuid(), os.getgid()), arguments[1:])
-    return subprocess.run(command, check=False).returncode
+def main(
+    arguments: list[str], root: Path = ROOT, runner: Runner = subprocess.run
+) -> int:
+    tag = image_tag(root)
+    ensure_image(root, tag, runner)
+    command = toolchain_command(root, tag, (os.getuid(), os.getgid()), arguments[1:])
+    return runner(command, check=False).returncode
 
 
 if __name__ == "__main__":
