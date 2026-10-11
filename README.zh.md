@@ -104,6 +104,8 @@ avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse
 
 任何 ISP 都可以，包括 Arduino as ISP。先写闪存，最后写熔丝。low 熔丝 `0xE2` 选择内部 8 MHz 振荡器、适合缓慢上电的启动延时，且不分频（Read：ATtiny25/45/85 数据手册 2586Q，Table 6-6 与 Table 6-7，CKSEL 0010，SUT 10），因此只用编程器就能在桌面上读取或重新烧录芯片。固件在启动时也会清除时钟预分频器，因此 CKDIV8 熔丝不会让它变慢。重新烧录会擦除校准记录及其振荡器校正，芯片会重新学习。 出处：[Arduino as ISP](https://docs.arduino.cc/built-in-examples/arduino-isp/ArduinoISP/), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf), [src/run.c](src/run.c)。
 
+全新的 ATtiny85 出厂时 CKDIV8 熔丝已编程，因此以 1 MHz 运行；数据手册要求 ISP 时钟的高、低电平各持续超过两个 CPU 周期，所以在写入熔丝之前编程器必须低于 250 kHz。Arduino as ISP 本身就满足；若其他编程器无法与新芯片通信，第一次写入时请用 avrdude 的 `-B` 降速，例如 `-B 8`。熔丝选择 8 MHz 后即可使用默认速度。来源：[ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf), [avrdude manual, -B](https://avrdudes.github.io/avrdude/8.0/avrdude_3.html)。
+
 | 构建 | 熔丝（low / high / extended） | 出处 |
 |:-----|:------------------------------|:--|
 | 内部 8 MHz，带 2.7 V 欠压检测，推荐 | `0xE2` / `0xDD` / `0xFF` | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |

@@ -104,6 +104,8 @@ avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse
 
 ISP は何でも使えます。Arduino as ISP も可。フラッシュを先に、ヒューズを最後に書きます。low ヒューズ `0xE2` は内蔵 8 MHz 発振器、緩やかな電源立ち上がり向けの起動遅延、クロック分周なしを選びます（Read: ATtiny25/45/85 データシート 2586Q、Table 6-6 と Table 6-7、CKSEL 0010、SUT 10）。そのためチップはプログラマだけで机上で読み出しも書き直しもできます。ファームウェアは起動時にクロックプリスケーラもクリアするので、CKDIV8 ヒューズで遅くなることはありません。書き直すとキャリブレーションレコードと発振器の補正も消え、チップが学び直します。 出典: [Arduino as ISP](https://docs.arduino.cc/built-in-examples/arduino-isp/ArduinoISP/), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf), [src/run.c](src/run.c)。
 
+新品の ATtiny85 は CKDIV8 ヒューズがプログラム済みで出荷されるため 1 MHz で動作し、データシートは ISP クロックの High と Low がそれぞれ CPU 2 クロックより長いことを求めるので、ヒューズを書き込むまでライタは 250 kHz 未満にする必要があります。Arduino as ISP はもともとこの範囲です。別のライタで新品のチップが応答しない場合は、最初の書き込みだけ avrdude の `-B`、たとえば `-B 8` で遅くしてください。ヒューズで 8 MHz を選んだ後は標準の速度で書き込めます。出典: [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf), [avrdude manual, -B](https://avrdudes.github.io/avrdude/8.0/avrdude_3.html)。
+
 | ビルド | ヒューズ（low / high / extended） | 出典 |
 |:-------|:----------------------------------|:--|
 | 内蔵 8 MHz、2.7 V のブラウンアウト検出付き、推奨 | `0xE2` / `0xDD` / `0xFF` | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
