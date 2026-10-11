@@ -27,13 +27,28 @@
 // many passes plus one: a lid opened on a disc the console refused, still
 // sitting in the lead-in with its cap spent, stops the frames, and the counter
 // falls below the start in about half a second of failed captures, well before
-// the 1.5 s disc-gone bound, so even a quick swap gets a fresh burst. The
+// the 1.5 s disc-gone bound, and PSCU_LOOP_REARM_DEPTH passes later the next
+// disc is due a fresh burst, so even a quick swap gets one. The
 // headroom still rides out a run of bad frames inside the lead-in, where at
 // least 9 of every 10 frames are mode 1 (pscu/subq.h). Against it, a counter
 // free to reach 255 kept a refused lead-in's window open for 3.3 s of misses.
 // A design choice, Unknown until hardware: no source gives a console figure
 // for how long a swap keeps the drive stopped.
 #define PSCU_LOOP_COUNTER_HEADROOM ((uint8_t)8U)
+
+// How far below the learned start the counter must fall before a burst counts
+// as over and the next opening gets a fresh cap. A dip shallower than this is
+// the same lead-in read: one bad frame takes one step off the counter, so a
+// counter sitting at the start would otherwise close the window on a single
+// miss, reset the cap and the gap, and fire again on the next hit, without
+// bound under a run of alternating hits and misses (AGENTS rule 5). UberNee
+// V1.42 and PsNee V9.0 avoid the same trap by clearing their counter after a
+// string rather than on a miss. Inside the dip the burst is held: no string
+// goes out, and the count and the gap stay where they stood. A swap still
+// re-arms in time: from the headroom above the start to this depth below it is
+// 2 x 8 failed passes, under a second of 60 ms timed-out captures, inside the
+// 1.5 s disc-gone bound. A design choice, Unknown until hardware.
+#define PSCU_LOOP_REARM_DEPTH ((uint8_t)8U)
 
 // One disc's session: how many strings were emitted for it, whether its result
 // has been shown, and the confirmation state that decides which result it is.

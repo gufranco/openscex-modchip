@@ -102,13 +102,20 @@ static void pscu_loop_read(pscu_loop_t *next, const pscu_loop_in_t *in, pscu_loo
   next->counter = empties ? 0U : counted;
 }
 
-// Decide the string. The window is closed below the learned start, open above
-// it, and held while the supply guard keeps strings back; a held burst keeps its
-// count and gap. Every burst may run to the safety cap.
+// Decide the string. The window is open at and above the learned start, and
+// held while the supply guard keeps strings back. Just below the start it is
+// held too, so a counter dipping by a frame or a few keeps its burst, count and
+// gap included; only a counter fallen PSCU_LOOP_REARM_DEPTH below the start, or
+// to zero, closes the window and leaves the next opening a fresh cap. Every
+// burst may run to the safety cap.
 static void pscu_loop_burst(pscu_loop_t *next, bool supply_ok, pscu_loop_pass_t *pass) {
   pass->reached = pscu_should_inject(next->counter, next->calib.trigger);
+  // Widened before the sum so a counter near 255 cannot wrap past the start.
+  uint16_t depth_above = (uint16_t)((uint16_t)next->counter + PSCU_LOOP_REARM_DEPTH);
+  bool rearm = (depth_above <= next->calib.trigger) || (next->counter == 0U);
+  pscu_window_t below = rearm ? PSCU_WINDOW_CLOSED : PSCU_WINDOW_HELD;
   pscu_window_t open = supply_ok ? PSCU_WINDOW_OPEN : PSCU_WINDOW_HELD;
-  pscu_window_t window = pass->reached ? open : PSCU_WINDOW_CLOSED;
+  pscu_window_t window = pass->reached ? open : below;
   pscu_stealth_step_t step = pscu_stealth_step(next->stealth,
                                                window,
                                                pass->program,

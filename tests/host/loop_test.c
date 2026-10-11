@@ -276,12 +276,70 @@ static void test_quick_swap(void) {
     opened = pass_with(opened.state, FAILED, false, true, 60U);
     passes = (uint8_t)(passes + 1U);
   }
-  g_check(passes == (uint8_t)(PSCU_LOOP_COUNTER_HEADROOM + 1U),
-          "loop: a refused disc's window closes within the headroom of failed captures");
+  g_check(passes == (uint8_t)(PSCU_LOOP_COUNTER_HEADROOM + PSCU_LOOP_REARM_DEPTH),
+          "loop: a refused disc re-arms within the headroom and the depth of failed captures");
   g_check(!opened.state.was_gone, "loop: that is well before the disc-gone bound");
-  step_t next_disc = pass(opened.state, LEAD_IN);
+  step_t next_disc = fire_strings(opened, 1U);
   g_check(next_disc.fire && (next_disc.state.stealth.sent == 1U),
           "loop: the next disc's lead-in gets a fresh burst");
+}
+
+// UberNee V1.42 and PsNee V9.0 clear their counter after a string so a miss
+// cannot restart a burst. Here a counter sitting at the start meets a run of
+// alternating misses and hits, which takes it below the start and back on
+// every other frame: the strings must still keep the stealth gap between them
+// and stop at the cap, as on a clean lead-in.
+static void test_dither_keeps_gap_and_cap(void) {
+  step_t at = pass(feed(fresh(calib_with(TRIGGER, true)), LEAD_IN, TRIGGER - 1U).state, LEAD_IN);
+  uint16_t fires = at.fire ? 1U : 0U;
+  uint16_t last = 0U;
+  bool spaced = true;
+  for (uint16_t i = 1U; i <= 400U; i++) {
+    bool miss = (i % 2U) == 1U;
+    at = miss ? pass_with(at.state, FAILED, false, true, FRAME_MS) : pass(at.state, LEAD_IN);
+    if (at.fire) {
+      spaced = spaced && ((uint16_t)(i - last) > PSCU_STEALTH_GAP_FRAMES);
+      last = i;
+      fires = (uint16_t)(fires + 1U);
+    }
+  }
+  g_check(spaced, "loop: a counter dithering at the start keeps the gap between strings");
+  g_check(fires == PSCU_STEALTH_STRINGS, "loop: and stops at the cap, not one string more");
+}
+
+// A dip shallower than the re-arm depth holds the burst; the pass that reaches
+// the depth ends it, so the next opening is a new arming with a fresh cap.
+static void test_rearm_depth(void) {
+  step_t start = { fresh(calib_with(TRIGGER, true)), false, false, false, false, false };
+  step_t dipped = fire_strings(start, 3U);
+  for (uint8_t i = 0U; (i < 40U) && (dipped.state.counter >= TRIGGER); i++) {
+    dipped = pass_with(dipped.state, FAILED, false, true, FRAME_MS);
+  }
+  uint8_t held = dipped.state.stealth.sent;
+  for (uint8_t i = 0U;
+       (i < 40U) && (dipped.state.counter > (uint8_t)(TRIGGER - PSCU_LOOP_REARM_DEPTH + 1U));
+       i++) {
+    dipped = pass_with(dipped.state, FAILED, false, true, FRAME_MS);
+  }
+  g_check((held >= 3U) &&
+              (dipped.state.counter == (uint8_t)(TRIGGER - PSCU_LOOP_REARM_DEPTH + 1U)) &&
+              (dipped.state.stealth.sent == held),
+          "loop: a dip short of the re-arm depth keeps the burst's count");
+  step_t deep = pass_with(dipped.state, FAILED, false, true, FRAME_MS);
+  g_check(deep.state.stealth.sent == 0U, "loop: the pass reaching the depth ends the burst");
+}
+
+// With a start below the re-arm depth, the burst ends only when the counter
+// has drained to zero.
+static void test_rearm_low_start(void) {
+  uint8_t low = (uint8_t)(PSCU_LOOP_REARM_DEPTH - 3U);
+  step_t fired =
+      pass(feed(fresh(calib_with(low, true)), LEAD_IN, (uint16_t)(low - 1U)).state, LEAD_IN);
+  step_t one = feed(fired.state, FAILED, (uint16_t)(low - 1U));
+  g_check(fired.fire && (one.state.counter == 1U) && (one.state.stealth.sent == 1U),
+          "loop: a low start holds the burst until the counter is empty");
+  g_check(pass(one.state, FAILED).state.stealth.sent == 0U,
+          "loop: and ends it on the pass that empties the counter");
 }
 
 // The Video-CD filter is the state's, not the build's, so both rules run here.
@@ -337,6 +395,9 @@ void loop_tests(pscu_check_fn check) {
   test_trim_sample();
   test_whole_cap();
   test_quick_swap();
+  test_dither_keeps_gap_and_cap();
+  test_rearm_depth();
+  test_rearm_low_start();
   test_vcd_filter();
   test_since();
   test_faults();
