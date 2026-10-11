@@ -162,13 +162,13 @@ make bench_ci    # 主机测试台：在同一个模拟主机中对比本固件�
 
 ## 载板
 
-三块可选的载板把芯片装在 DIP-8 插座上，便于取下重新烧录，并在一条边上用六个 4 × 4 mm 焊盘接收主机的导线，间距 6 mm，依次为 WFCK、SQCK、SUBQ、DATA、VCC 和 GND。焊盘位于正面且没有孔，所有元件都是直插件，每块板都是包含原理图、布局和设计规则的 KiCad 10 工程。来源：[hardware](hardware)。
+三块可选的载板把芯片装在 DIP-8 插座上，便于取下重新烧录，并在一条边上用六个 4 × 4 mm 焊盘接收主机的导线，间距 6 mm，依次为 WFCK、SQCK、SUBQ、DATA、VCC 和 GND。焊盘位于正面且没有孔，所有元件都是直插件；芯片内置的上拉对主机噪声太弱，因此每块板都用 10 kΩ 上拉把 RESET 保持为高电平；每块板都是包含原理图、布局和设计规则的 KiCad 10 工程。来源：[hardware](hardware)。
 
 | 板 | 元件 | 尺寸 | 来源 |
 |:--|:--|:--|:--|
 | 载板 | 插座、100 nF 去耦电容、带 10 kΩ RESET 上拉的防呆 ISP 插座，以及指示电路：PB3 驱动一个 2N3904，按两位拨码开关的设置点亮带 1 kΩ 电阻的 LED、驱动蜂鸣器、两者都开或都关；蜂鸣器经 10 Ω 与 100 µF 滤波供电，并联一个 1N4148 | 39.6 × 36.6 mm | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb) |
-| 迷你板 | 插座、100 nF 去耦电容、直接接在 PB3 上带 1 kΩ 电阻的 LED、防呆 ISP 插座 | 35.7 × 25.2 mm | [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [hardware/openscex-mini.kicad_pcb](hardware/openscex-mini.kicad_pcb) |
-| 裸板 | 只有插座和 100 nF 去耦电容 | 35.7 × 21.7 mm | [hardware/openscex-bare.kicad_sch](hardware/openscex-bare.kicad_sch), [hardware/openscex-bare.kicad_pcb](hardware/openscex-bare.kicad_pcb) |
+| 迷你板 | 插座、100 nF 去耦电容、10 kΩ RESET 上拉、直接接在 PB3 上带 1 kΩ 电阻的 LED、防呆 ISP 插座 | 35.7 × 25.2 mm | [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [hardware/openscex-mini.kicad_pcb](hardware/openscex-mini.kicad_pcb) |
+| 裸板 | 只有插座、100 nF 去耦电容和 10 kΩ RESET 上拉 | 35.7 × 21.7 mm | [hardware/openscex-bare.kicad_sch](hardware/openscex-bare.kicad_sch), [hardware/openscex-bare.kicad_pcb](hardware/openscex-bare.kicad_pcb) |
 
 <table>
 <tr><td align="center" width="33%"><a href="assets/boards/carrier-3d.png"><img src="assets/boards/carrier-3d.png" alt="载板, 3D 视图" width="260"></a><br><sub><b>载板</b>, 3D 视图</sub></td><td align="center" width="33%"><a href="assets/boards/carrier-top.png"><img src="assets/boards/carrier-top.png" alt="载板, 正面" width="260"></a><br><sub><b>载板</b>, 正面</sub></td><td align="center" width="33%"><a href="assets/boards/carrier-bottom.png"><img src="assets/boards/carrier-bottom.png" alt="载板, 背面，接地层" width="260"></a><br><sub><b>载板</b>, 背面，接地层</sub></td></tr>

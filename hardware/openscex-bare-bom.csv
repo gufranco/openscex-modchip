@@ -1,3 +1,4 @@
 "References","Qty","Value","Part","Footprint"
 "C1","1","100nF","100 nF ceramic disc, 50 V, 2.5 mm pitch","Capacitor_THT:C_Disc_D3.0mm_W1.6mm_P2.50mm"
+"R1","1","10k","10 kOhm axial resistor, DIN0204, 5.08 mm pitch","Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P5.08mm_Horizontal"
 "U1","1","ATtiny85-20PU","ATtiny85-20PU in a DIP-8 7.62 mm socket","Package_DIP:DIP-8_W7.62mm_Socket"

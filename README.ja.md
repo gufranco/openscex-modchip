@@ -162,13 +162,13 @@ make bench_ci    # コンソールベンチ: 同じ模擬コンソールでこ�
 
 ## キャリア基板
 
-3 種類の任意の基板が、チップを DIP-8 ソケットに保持して書き換え時に取り外せるようにし、コンソールからの配線を一辺に並ぶ 6 個の 4 × 4 mm パッドで受けます。パッドは 6 mm 間隔で、WFCK、SQCK、SUBQ、DATA、VCC、GND の順です。パッドは表面にあり穴はなく、部品はすべてスルーホールで、各基板は回路図、レイアウト、デザインルールを含む KiCad 10 プロジェクトです。出典: [hardware](hardware)。
+3 種類の任意の基板が、チップを DIP-8 ソケットに保持して書き換え時に取り外せるようにし、コンソールからの配線を一辺に並ぶ 6 個の 4 × 4 mm パッドで受けます。パッドは 6 mm 間隔で、WFCK、SQCK、SUBQ、DATA、VCC、GND の順です。パッドは表面にあり穴はなく、部品はすべてスルーホールで、チップ内蔵のプルアップはコンソールのノイズに弱いため、どの基板も 10 kΩ プルアップで RESET を High に保ち、各基板は回路図、レイアウト、デザインルールを含む KiCad 10 プロジェクトです。出典: [hardware](hardware)。
 
 | 基板 | 部品 | 寸法 | 出典 |
 |:--|:--|:--|:--|
 | キャリア | ソケット、100 nF デカップリング、10 kΩ RESET プルアップ付きのキー付き ISP ヘッダ、表示回路: PB3 が 2N3904 を駆動し、2 極 DIP スイッチの設定で 1 kΩ 抵抗付き LED、ブザー、両方、またはどちらも鳴らしません。ブザーは 10 Ω と 100 µF のフィルタから給電され、1N4148 が並列に入ります | 39.6 × 36.6 mm | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb) |
-| ミニ | ソケット、100 nF デカップリング、PB3 に直接つなぐ 1 kΩ 抵抗付き LED、キー付き ISP ヘッダ | 35.7 × 25.2 mm | [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [hardware/openscex-mini.kicad_pcb](hardware/openscex-mini.kicad_pcb) |
-| ベア | ソケットと 100 nF デカップリングのみ | 35.7 × 21.7 mm | [hardware/openscex-bare.kicad_sch](hardware/openscex-bare.kicad_sch), [hardware/openscex-bare.kicad_pcb](hardware/openscex-bare.kicad_pcb) |
+| ミニ | ソケット、100 nF デカップリング、10 kΩ RESET プルアップ、PB3 に直接つなぐ 1 kΩ 抵抗付き LED、キー付き ISP ヘッダ | 35.7 × 25.2 mm | [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [hardware/openscex-mini.kicad_pcb](hardware/openscex-mini.kicad_pcb) |
+| ベア | ソケット、100 nF デカップリング、10 kΩ RESET プルアップのみ | 35.7 × 21.7 mm | [hardware/openscex-bare.kicad_sch](hardware/openscex-bare.kicad_sch), [hardware/openscex-bare.kicad_pcb](hardware/openscex-bare.kicad_pcb) |
 
 <table>
 <tr><td align="center" width="33%"><a href="assets/boards/carrier-3d.png"><img src="assets/boards/carrier-3d.png" alt="キャリア基板, 3D 表示" width="260"></a><br><sub><b>キャリア基板</b>, 3D 表示</sub></td><td align="center" width="33%"><a href="assets/boards/carrier-top.png"><img src="assets/boards/carrier-top.png" alt="キャリア基板, 表面" width="260"></a><br><sub><b>キャリア基板</b>, 表面</sub></td><td align="center" width="33%"><a href="assets/boards/carrier-bottom.png"><img src="assets/boards/carrier-bottom.png" alt="キャリア基板, 裏面、グラウンドプレーン" width="260"></a><br><sub><b>キャリア基板</b>, 裏面、グラウンドプレーン</sub></td></tr>
