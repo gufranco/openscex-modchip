@@ -1,3 +1,15 @@
+# [0.17.0](https://github.com/gufranco/openscex-modchip/compare/v0.16.0...v0.17.0) (2026-10-11)
+
+
+### Bug Fixes
+
+* hold the stealth cap through a counter dip ([85e1ec6](https://github.com/gufranco/openscex-modchip/commit/85e1ec6a4b4c7544760a046a43670a78fb2545e5))
+
+
+### Features
+
+* harden SUBQ input and EEPROM stores ([dd81849](https://github.com/gufranco/openscex-modchip/commit/dd8184940026dc3b04e3f2c813af9c1725a421fc))
+
 # [0.16.0](https://github.com/gufranco/openscex-modchip/compare/v0.15.0...v0.16.0) (2026-10-11)
 
 
