@@ -166,7 +166,7 @@ Three optional boards hold the chip in a DIP-8 socket, so it comes out for refla
 
 | Board | Parts | Size | Source |
 |:--|:--|:--|:--|
-| Carrier | socket, 100 nF decoupling, keyed ISP header with a 10 kΩ RESET pull-up, and the indicator: PB3 switches a 2N3904 that drives the LED with its 1 kΩ resistor, the buzzer, both or neither, as a two-position DIP switch sets; the buzzer runs from a 10 Ω and 100 µF filter with a 1N4148 across it | 39.6 × 36.6 mm | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb) |
+| Carrier | socket, 100 nF decoupling, keyed ISP header with a 10 kΩ RESET pull-up, and the indicator: PB3 switches a 2N3904 that drives the LED with its 1 kΩ resistor, the buzzer, both or neither, as a two-position DIP switch sets; the buzzer runs from a 10 Ω and 100 µF filter with a 1N4148 across it | 35.7 × 43.2 mm | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb) |
 | Mini | socket, 100 nF decoupling, 10 kΩ RESET pull-up, the LED with its 1 kΩ resistor straight on PB3, keyed ISP header | 35.7 × 25.2 mm | [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [hardware/openscex-mini.kicad_pcb](hardware/openscex-mini.kicad_pcb) |
 | Bare | socket, 100 nF decoupling and a 10 kΩ RESET pull-up, nothing else | 35.7 × 21.7 mm | [hardware/openscex-bare.kicad_sch](hardware/openscex-bare.kicad_sch), [hardware/openscex-bare.kicad_pcb](hardware/openscex-bare.kicad_pcb) |
 

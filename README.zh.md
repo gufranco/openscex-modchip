@@ -166,7 +166,7 @@ make bench_ci    # 主机测试台：在同一个模拟主机中对比本固件�
 
 | 板 | 元件 | 尺寸 | 来源 |
 |:--|:--|:--|:--|
-| 载板 | 插座、100 nF 去耦电容、带 10 kΩ RESET 上拉的防呆 ISP 插座，以及指示电路：PB3 驱动一个 2N3904，按两位拨码开关的设置点亮带 1 kΩ 电阻的 LED、驱动蜂鸣器、两者都开或都关；蜂鸣器经 10 Ω 与 100 µF 滤波供电，并联一个 1N4148 | 39.6 × 36.6 mm | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb) |
+| 载板 | 插座、100 nF 去耦电容、带 10 kΩ RESET 上拉的防呆 ISP 插座，以及指示电路：PB3 驱动一个 2N3904，按两位拨码开关的设置点亮带 1 kΩ 电阻的 LED、驱动蜂鸣器、两者都开或都关；蜂鸣器经 10 Ω 与 100 µF 滤波供电，并联一个 1N4148 | 35.7 × 43.2 mm | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb) |
 | 迷你板 | 插座、100 nF 去耦电容、10 kΩ RESET 上拉、直接接在 PB3 上带 1 kΩ 电阻的 LED、防呆 ISP 插座 | 35.7 × 25.2 mm | [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [hardware/openscex-mini.kicad_pcb](hardware/openscex-mini.kicad_pcb) |
 | 裸板 | 只有插座、100 nF 去耦电容和 10 kΩ RESET 上拉 | 35.7 × 21.7 mm | [hardware/openscex-bare.kicad_sch](hardware/openscex-bare.kicad_sch), [hardware/openscex-bare.kicad_pcb](hardware/openscex-bare.kicad_pcb) |
 

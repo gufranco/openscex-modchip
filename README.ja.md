@@ -166,7 +166,7 @@ make bench_ci    # コンソールベンチ: 同じ模擬コンソールでこ�
 
 | 基板 | 部品 | 寸法 | 出典 |
 |:--|:--|:--|:--|
-| キャリア | ソケット、100 nF デカップリング、10 kΩ RESET プルアップ付きのキー付き ISP ヘッダ、表示回路: PB3 が 2N3904 を駆動し、2 極 DIP スイッチの設定で 1 kΩ 抵抗付き LED、ブザー、両方、またはどちらも鳴らしません。ブザーは 10 Ω と 100 µF のフィルタから給電され、1N4148 が並列に入ります | 39.6 × 36.6 mm | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb) |
+| キャリア | ソケット、100 nF デカップリング、10 kΩ RESET プルアップ付きのキー付き ISP ヘッダ、表示回路: PB3 が 2N3904 を駆動し、2 極 DIP スイッチの設定で 1 kΩ 抵抗付き LED、ブザー、両方、またはどちらも鳴らしません。ブザーは 10 Ω と 100 µF のフィルタから給電され、1N4148 が並列に入ります | 35.7 × 43.2 mm | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb) |
 | ミニ | ソケット、100 nF デカップリング、10 kΩ RESET プルアップ、PB3 に直接つなぐ 1 kΩ 抵抗付き LED、キー付き ISP ヘッダ | 35.7 × 25.2 mm | [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [hardware/openscex-mini.kicad_pcb](hardware/openscex-mini.kicad_pcb) |
 | ベア | ソケット、100 nF デカップリング、10 kΩ RESET プルアップのみ | 35.7 × 21.7 mm | [hardware/openscex-bare.kicad_sch](hardware/openscex-bare.kicad_sch), [hardware/openscex-bare.kicad_pcb](hardware/openscex-bare.kicad_pcb) |
 
