@@ -42,8 +42,12 @@ jobs:
       - name: Build other-region variants (compile check)
         run: make REGION=jp size && make REGION=eu size
 
+      # Both profiles of the Video-CD build ship in every release, so both are
+      # size- and MISRA-checked here, not only the debug one.
       - name: Build and check the SCPH-5903 Video-CD variant
-        run: make REGION=jp VCD_FILTER=on image_size image_misra
+        run: >-
+          make REGION=jp VCD_FILTER=on image_size image_misra &&
+          make REGION=jp VCD_FILTER=on PROFILE=final image_size image_misra
 
   # The console bench in a job of its own: it builds the same toolchain image,
   # then plays every scenario to this firmware and to PsNee, and fails on a
