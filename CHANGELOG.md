@@ -1,3 +1,10 @@
+# [0.16.0](https://github.com/gufranco/openscex-modchip/compare/v0.15.0...v0.16.0) (2026-10-11)
+
+
+### Features
+
+* **hardware:** name datasheet-checked parts ([73e6623](https://github.com/gufranco/openscex-modchip/commit/73e662396141e6232e91e2c799fc98f9031444bb))
+
 # [0.15.0](https://github.com/gufranco/openscex-modchip/compare/v0.14.0...v0.15.0) (2026-10-11)
 
 
