@@ -117,7 +117,13 @@ jobs:
       - name: Run semantic-release
         id: semrel
         if: steps.fresh.outputs.current == 'true'
-        uses: cycjimmy/semantic-release-action@1989a0fefc4aea321e07f717680ed8e345925dc1  # v7.1.2
+        # v6.0.0, not v7: v7.1.2 warns on every run that a repository with no
+        # package.json would fail in @semantic-release/npm, without reading
+        # .releaserc.json, whose plugin list leaves that plugin out. Its fix,
+        # skip_npm_plugin, replaces that list and would drop changelog and git.
+        # v6.0.0 runs the same semantic-release 25 on node24 (Read: action.yml
+        # and package.json at b12c8f6 on 2026-10-11).
+        uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90  # v6.0.0
         with:
           # Exact versions: the action installs these from npm at release time
           # with no lockfile, so a range would let a new upstream release change
