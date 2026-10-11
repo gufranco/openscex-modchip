@@ -6,6 +6,33 @@ FROM debian:trixie@sha256:9cc080028c43b27d2074d63a5f9caf7166d731494965616c1a6d28
 ARG CPPCHECK_VERSION=2.22.0
 ARG CPPCHECK_SHA256=d74945deb2d50393430e07596b766f8a779512c7f60dac2a30ea64e059ece57b
 
+# Every Debian package comes from one dated snapshot of the archive, so the
+# packages installed without an explicit version (binutils-avr, gcc, make,
+# cmake and the rest) resolve to the same build on every machine and every
+# rebuild, not to whatever the mirror holds that day. The snapshot of
+# 2026-10-08 holds each pinned version below (Read: its trixie arm64 Packages
+# index on 2026-10-11). Snapshot Release files carry a Valid-Until date long
+# past, hence Check-Valid-Until: no; the archive signature is still checked
+# against the image's Debian keyring. Plain http keeps apt working before
+# ca-certificates is installed; the signature, not the transport, is the trust.
+ARG DEBIAN_SNAPSHOT=20261008T000000Z
+RUN rm -f /etc/apt/sources.list.d/debian.sources \
+ && printf '%s\n' \
+      'Types: deb' \
+      "URIs: http://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}" \
+      'Suites: trixie trixie-updates' \
+      'Components: main' \
+      'Check-Valid-Until: no' \
+      'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' \
+      '' \
+      'Types: deb' \
+      "URIs: http://snapshot.debian.org/archive/debian-security/${DEBIAN_SNAPSHOT}" \
+      'Suites: trixie-security' \
+      'Components: main' \
+      'Check-Valid-Until: no' \
+      'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' \
+      > /etc/apt/sources.list.d/snapshot.sources
+
 # gpsim is pinned to its source release, 0.32.1-2, with any rebuild suffix: the
 # binary rebuild number differs by architecture (+b1 on amd64, +b2 on arm64 in
 # trixie, read with apt-cache madison on 2026-10-08), so an exact pin built on
