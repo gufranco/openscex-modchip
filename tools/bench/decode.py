@@ -3,28 +3,11 @@
 
 """Decode SCEx strings from what one chip did to DATA, whatever its CPU.
 
-A runner reports DATA as changes of two facts: whether the chip drives the pin,
-and the level it drives; the line counts as low only while the chip drives it
-low. Chips send a one in one of two ways: gate mode releases DATA for the whole
-cell, carrier mode mirrors the WFCK carrier, so a one shows as either a
-released stretch or a train of short pulses.
-
-A trace in which DATA ever toggles at carrier speed is decoded in carrier mode,
-else in gate mode, because what "low" means differs. In gate mode a long low
-run can only be a zero: the idle line is released and high. In carrier mode a
-chip may hold DATA low whenever it sends no one, between strings as well as
-for zeros (Mayumi V4 does, measured 2026-10-07), so only the carrier trains are
-unambiguous. A burst whose implied cell is outside 2 to 8 ms, half and double
-the 4 ms every chip aims at, is activity but no string: a long hold or endless
-toggling, which the metrics then count as drive outside strings. Each mode
-frames a string on its unambiguous runs, using the
-SCEx layout (scex.py): every string's first zero is bit 1 and its trailing
-zeros start at bit 42, so in gate mode those two edges span 41 cells; its
-first one is bit 0 and its last one bit 41, so in carrier mode the trains span
-the 42 cells from the start to bit 41. That span gives the cell length and the
-start for any chip and any clock. The gate span ends where the trailing zeros
-start, not where they end, because a chip may keep DATA low long after the
-string: PsNee does for about 63 ms (measured in the bench, 2026-10-08).
+A one is either DATA released for the cell (gate mode) or a train of pulses
+mirroring WFCK (carrier mode); a trace that ever toggles at carrier speed is
+decoded in carrier mode. Strings are framed on the SCEx layout (scex.py), which
+gives each string's cell length and start. A cell outside 2 to 8 ms is no
+string.
 """
 
 from dataclasses import dataclass
@@ -55,9 +38,8 @@ class Change:
 class Decoded:
     """One string as the console would have seen it on DATA.
 
-    cell_spread_ns is the furthest any zero's edge sits from the cell grid the
-    string's own span defines: zero for a clean string, larger for cells of
-    uneven length.
+    cell_spread_ns is the furthest any zero's edge sits from the string's own
+    cell grid: zero for a clean string.
     """
 
     start_ns: int
@@ -88,11 +70,8 @@ def low_runs(changes: list[Change], end_ns: int) -> list[tuple[int, int]]:
 def _bursts(runs: list[tuple[int, int]]) -> list[list[tuple[int, int]]]:
     """Group runs into strings: a gap, or a run, of 40 ms or more ends one.
 
-    The longest high stretch inside a string is five ones, 20 ms, and the
-    longest low stretch is shorter still; strings are at least 67 ms apart
-    (PsNee and Mayumi gaps), so 40 ms splits them cleanly. A run that long can
-    only be a hold after the last bit, so it closes its string, and whatever
-    follows starts the next one even when the line was released only briefly.
+    A string's longest stretch is 20 ms and strings are at least 67 ms apart
+    (PsNee and Mayumi gaps).
     """
     bursts: list[list[tuple[int, int]]] = []
     for run in runs:
@@ -138,13 +117,8 @@ def _decode_gate(burst: list[tuple[int, int]]) -> Decoded | None:
 def carrier_trains(changes: list[Change]) -> list[tuple[int, int]]:
     """Return the stretches where DATA toggles at carrier speed.
 
-    A train is a run of driven level changes each within 200 us of the last,
-    three times a 7.3 kHz carrier's half period and far below a 4 ms bit cell.
-    It ends half a period after its last edge, where the cell itself ends.
-    A train needs at least four edges, two carrier periods: a single short
-    pulse is a glitch, such as the 2 us high Mayumi V4 drives before a long
-    low (measured in the bench, 2026-10-08), while one cell of ones at the
-    slowest carrier, 7.3 kHz, already holds about 58 edges.
+    A train is at least four driven edges, each within 200 us of the last,
+    three half periods of a 7.3 kHz carrier. Fewer edges are a glitch.
     """
     edges = [c.time_ns for c in changes if c.driven]
     trains: list[tuple[int, int]] = []

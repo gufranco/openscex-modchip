@@ -2,12 +2,9 @@
 # SPDX-License-Identifier: MIT
 """Every carrier board ships what a builder needs to order and assemble it.
 
-A board in hardware/ is a KiCad project, named by its .kicad_pro file. Next to
-it there must be a bill of materials, hardware/<board>-bom.csv, and a Gerber
-and drill archive, hardware/fab/<board>-gerbers.zip, because the READMEs link
-both. The bill of materials is checked against the schematic it came from: a
-part added to the schematic and missed in the export, or a stale export left
-after a part was removed, fails here before a builder orders the wrong set.
+Each KiCad project in hardware/ needs hardware/<board>-bom.csv and
+hardware/fab/<board>-gerbers.zip, which the READMEs link, and its BOM must
+match its schematic.
 """
 
 import csv
@@ -19,8 +16,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 HARDWARE = ROOT / "hardware"
 
-# A placed symbol in a schematic starts with "(symbol (lib_id"; the library
-# copies under lib_symbols start with "(symbol \"" instead and are skipped.
+# A placed symbol starts with "(symbol (lib_id"; library copies under
+# lib_symbols do not.
 PLACED = re.compile(r"\(symbol \(lib_id ")
 IN_BOM = re.compile(r"\(in_bom (yes|no)\)")
 REFERENCE = re.compile(r'\(property "Reference" "([^"]+)"')

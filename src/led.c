@@ -8,25 +8,16 @@
 
 #include "pscu/assert.h"
 
-// The stages below update one display state through a pointer rather than
-// taking and returning it by value. On the ATtiny85 a structure passed by value
-// is copied, and once the state grew the profile and the told mask it no longer
-// fit the argument registers, so every helper call copied it through the stack:
-// the image overflowed its flash by about 1.5 KB (Verified: avr-ld, 2026-10-09).
-// The public step still takes and returns the state by value, so it remains a
-// function of its inputs; only its insides work in place.
+// Helpers update the state through a pointer: by-value copies of this struct
+// do not fit the flash. The public step stays by value.
 
-// A flash pattern is count flashes of on_ms, each followed by a gap, then a
-// pause before it repeats. Phase is folded into one cycle, then split into
-// flash slots: lit for the first on_ms of a slot that belongs to a flash. Pure
-// arithmetic on elapsed time, so the pattern never needs a delay to draw.
+// A pattern is count flashes of on_ms, each followed by a gap, then a pause.
 static uint32_t pscu_led_cycle_ms(uint32_t count, uint32_t on_ms, uint32_t pause_ms) {
   return (count * (on_ms + PSCU_LED_GAP_MS)) + pause_ms;
 }
 
-// Every cycle is under 65536 ms, the longest being code 7 with the final
-// backoff, 37 s, so once the phase is folded into one cycle the slot arithmetic
-// runs in 16 bits, which the ATtiny85 divides far more cheaply than 32.
+// Every cycle is under 65536 ms (the longest is 37 s), so the slot arithmetic
+// runs in 16 bits.
 static bool pscu_led_flash_lit(uint32_t count,
                                uint32_t on_ms,
                                uint32_t pause_ms,
@@ -56,14 +47,13 @@ static bool pscu_led_final(pscu_led_profile_t profile) {
   return profile == PSCU_LED_PROFILE_FINAL;
 }
 
-// One bit per code in the told mask; codes run 1 to 7, so the mask fits a byte.
+// One bit per code in the told mask.
 static uint8_t pscu_led_bit(uint8_t code) {
   return (uint8_t)(1U << code);
 }
 
-// How each profile draws a code. The final profile shows an accepted disc as a
-// single chirp rather than one long flash, and spaces a low-supply code by the
-// backoff; everything else is the long flash with the 2 s pause.
+// Final shows an accepted disc as a chirp and spaces the supply code by the
+// backoff.
 static uint32_t pscu_led_code_on_ms(bool final, uint8_t code) {
   bool chirp = final && (code == PSCU_LED_CODE_ACCEPTED);
   return chirp ? PSCU_LED_CHIRP_MS : PSCU_LED_LONG_MS;
@@ -74,26 +64,20 @@ static uint32_t pscu_led_code_pause_ms(bool final, uint8_t code) {
   return backoff ? PSCU_LED_SUPPLY_BACKOFF_MS : PSCU_LED_PAUSE_MS;
 }
 
-// How many times a disc result plays before the display goes dark: three in
-// debug; in final one chirp for an accepted disc and code 2 twice.
+// How many times a disc result plays before the display goes dark.
 static uint32_t pscu_led_result_repeats(bool final, uint8_t code) {
   bool accepted = code == PSCU_LED_CODE_ACCEPTED;
   uint32_t final_repeats = accepted ? 1U : PSCU_LED_FINAL_REFUSED_REPEATS;
   return final ? final_repeats : PSCU_LED_RESULT_REPEATS;
 }
 
-// The board blinks: 300 ms in debug, a chirp in final.
 static uint32_t pscu_led_board_on_ms(bool final) {
   return final ? PSCU_LED_CHIRP_MS : PSCU_LED_SHORT_MS;
 }
 
-// An event always wins: a region string takes the LED for injection, a resolved
-// session shows its result. Without one, a live fault takes over the waiting,
-// injecting or dark display, or replaces a different code; when the fault
-// clears, a live code drops back to the heartbeat. The boot blinks and the
-// replay are left to finish, so they always read cleanly. A fault the final
-// profile has already told for this disc is not shown again; the debug profile
-// never marks one told.
+// An event always wins. Otherwise a live fault takes over any stage but the
+// boot patterns, unless already told, and a cleared fault returns to the
+// heartbeat.
 static void pscu_led_apply(pscu_led_t *state, pscu_led_event_t event, uint8_t fault) {
   bool idle = (state->stage == PSCU_LED_WAIT) || (state->stage == PSCU_LED_INJECT) ||
               (state->stage == PSCU_LED_DARK);
@@ -114,11 +98,8 @@ static void pscu_led_apply(pscu_led_t *state, pscu_led_event_t event, uint8_t fa
   }
 }
 
-// Stages that end on their own: the boot blinks after one pass, the replay after
-// one cycle, a disc result after its repeats. A finished result goes dark, which
-// is what keeps the LED off during play. In the final profile a live fault other
-// than a low supply also ends after one cycle: it is marked told and the display
-// goes quiet, though the fault may still hold.
+// End the stages that time out. A finished result goes dark for play. In final,
+// a live fault other than the supply plays once and is marked told.
 static void pscu_led_advance(pscu_led_t *state) {
   bool final = pscu_led_final(state->profile);
   uint32_t short_done = pscu_led_cycle_ms(state->board, pscu_led_board_on_ms(final), 0U);
@@ -144,13 +125,9 @@ static void pscu_led_advance(pscu_led_t *state) {
   }
 }
 
-// The waiting heartbeat blips at the end of each period, so the first blip comes
-// a full period after the display starts waiting rather than right away; the
-// final profile waits in silence. The dark stage shows only a debug tick. The
-// three flash patterns pick their count and timings first and are drawn by one
-// call, so the cycle arithmetic is generated once rather than per stage. A
-// stage with no pattern keeps a count of zero, which is never lit, and the 2 s
-// pause, so its cycle is never zero and the call needs no guard.
+// The heartbeat blips at the end of each period; final waits in silence. All
+// patterns share one draw call; a stage without one keeps count 0 and the 2 s
+// pause, so the cycle is never zero.
 static bool pscu_led_lit(const pscu_led_t *state) {
   bool final = pscu_led_final(state->profile);
   bool beat = (state->phase_ms % PSCU_LED_BEAT_PERIOD_MS) >=
@@ -189,8 +166,7 @@ pscu_led_t pscu_led_disc_arrived(pscu_led_t state) {
   return next;
 }
 
-// A tick restarts the dark stage with code 1, which pscu_led_lit reads as lit
-// for the first PSCU_LED_TICK_MS of the phase.
+// A tick restarts the dark stage with code 1.
 pscu_led_t pscu_led_note(pscu_led_t state) {
   pscu_led_t next = state;
   if (!pscu_led_final(state.profile) && (state.stage == PSCU_LED_DARK)) {
@@ -205,14 +181,11 @@ pscu_led_step_t pscu_led_step(pscu_led_t state,
                               uint32_t elapsed_ms) {
   PSCU_ASSERT(fault <= PSCU_LED_CODE_SUPPLY);
 
-  // Saturating add: unsigned addition wraps, so a sum below the old phase means
-  // it overflowed and the phase pins at the maximum instead of restarting the
-  // pattern. A zero step leaves the sum equal to the old phase, never pinned.
+  // Saturating add.
   pscu_led_step_t out;
   out.state = state;
   uint32_t sum = state.phase_ms + elapsed_ms;
-  // coverage: unreachable: the saturated branch needs one LED stage to last
-  // 2^32 ms, 49.7 days; the console bench runs minutes.
+  // coverage: unreachable: saturating needs one stage to last 49.7 days.
   out.state.phase_ms = (sum < state.phase_ms) ? 0xFFFFFFFFUL : sum;
   pscu_led_apply(&out.state, event, fault);
   pscu_led_advance(&out.state);

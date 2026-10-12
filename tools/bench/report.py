@@ -4,15 +4,8 @@
 """The bench report: what each chip did, how ours sits in the envelope, and
 how much of each firmware the scenarios reached.
 
-Coverage is instruction coverage: the share of the image's instructions that
-executed in at least one scenario. The uncovered addresses are listed as
-ranges so each can be read against a disassembly and given a reason, such as
-a branch only another region's build takes, a path behind a console signal
-this bench does not model, or code the image carries but never calls. A gap
-without a reason is the bench's to-do list, not a number to round away.
-
-The report is Markdown, written for a person reading it next to the
-disassembly; the layout is free to change, the facts it carries are not.
+Coverage is instruction coverage; uncovered addresses are listed as ranges to
+read against a disassembly.
 """
 
 import math
@@ -71,11 +64,8 @@ def coverage(
 ) -> Coverage:
     """Merge every scenario's executed set and measure it against the image.
 
-    Execution outside the image, such as the PIC reset vector's calibration
-    word at the top of memory when the image leaves it to the factory, is not
-    an instruction of the image and is not counted. An excused instruction
-    that no scenario ran is counted under its reason; one a scenario did run
-    is just executed. The rest are the uncovered ranges.
+    Execution outside the image, such as a PIC calibration word, is not
+    counted. An excused instruction that ran counts as executed.
     """
     reach = account(addresses, frozenset().union(*executed), excused or {})
     reasons = Counter(reach.excluded.values())
@@ -150,8 +140,8 @@ def _findings(findings: list[Finding]) -> list[str]:
 
 
 def _floor_tenth(percent: float) -> str:
-    """A percent to one decimal, rounded down: 3801 of 3802 instructions is
-    99.97, and rounding to nearest would print the 100.0 it has not earned."""
+    """A percent to one decimal, rounded down, so 99.97 never prints as
+    100.0."""
     return f"{math.floor(percent * 10) / 10:.1f}"
 
 

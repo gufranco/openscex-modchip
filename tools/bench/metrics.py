@@ -3,13 +3,9 @@
 
 """What one chip did in one scenario, as numbers the console would care about.
 
-Strings are attributed to the console phase in which they start: the phase
-segments run from one mark to the next (scenarios.py). A string counts as
-accepted only if it is the expected region and ends before the console reaches
-the program area, because a real console reads the region during the lead-in
-and moves on. Drive time outside strings is the stealth figure: every
-nanosecond DATA is driven while no string is being sent is something a
-detector could see.
+Strings belong to the phase they start in. A string is accepted only if it is
+the expected region and ends before the program area. Drive time outside
+strings is what a detector could see.
 """
 
 from dataclasses import dataclass
@@ -55,12 +51,9 @@ def _segment(start_ns: int, phases: dict[Phase, int]) -> Phase | None:
     return current
 
 
-# A gate board's chip holds the gate for a whole string, so it is set before
-# the first bit and released after the last; the decoder dates a string from
-# its first and last DATA edges. Gate drive is judged against each string
-# widened by one 4 ms bit cell (PsNee V9.0 PSNee.ino:587 and :603, the cell a
-# string is clocked in) on either side: the set-up and release that frame a
-# string are part of sending it, while a gate held between strings is not.
+# Gate drive is judged against each string widened by one 4 ms bit cell on each
+# side (PsNee V9.0 PSNee.ino:587 and :603), which covers the gate's set-up and
+# release.
 GATE_MARGIN_NS = 4_000_000
 
 

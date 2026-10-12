@@ -11,68 +11,36 @@
 #include "pscu/inject.h"
 #include "pscu/led.h"
 
-// Every decision one pass of the run loop makes, as a pure function of the
-// pass's inputs and the loop state, so the host suite and mutation testing
-// cover the wiring between the modules and not only the modules. The run loop
-// keeps only what touches the chip: capturing the frame, reading the timer and
-// the supply, injecting, writing EEPROM and OSCCAL, and lighting the LED.
+// Every decision of one run-loop pass, as a pure function so the host suite
+// covers the wiring between modules. run.c keeps only the hardware calls.
 
-// The trim samples only a disc that has been spinning for a second, so the
-// frame rate of a drive still spinning up after a swap never skews a batch. A
-// design choice: the drive locks its speed before it reads the lead-in.
+// The trim ignores the first second of a disc, while the drive spins up.
 #define PSCU_LOOP_TRIM_SETTLE_MS ((uint32_t)1000U)
 
-// How far past the learned start the SUBQ counter may climb. Every missed pass
-// takes one step off it, so after a disc swap the window closes within this
-// many passes plus one: a lid opened on a disc the console refused, still
-// sitting in the lead-in with its cap spent, stops the frames, and the counter
-// falls below the start in about half a second of failed captures, well before
-// the 1.5 s disc-gone bound, and PSCU_LOOP_REARM_DEPTH passes later the next
-// disc is due a fresh burst, so even a quick swap gets one. The
-// headroom still rides out a run of bad frames inside the lead-in, where at
-// least 9 of every 10 frames are mode 1 (pscu/subq.h). Against it, a counter
-// free to reach 255 kept a refused lead-in's window open for 3.3 s of misses.
-// A design choice, Unknown until hardware: no source gives a console figure
-// for how long a swap keeps the drive stopped.
+// How far past the learned start the SUBQ counter may climb. Bounds how long
+// the window stays open once frames stop: 8 misses, about 0.5 s.
 #define PSCU_LOOP_COUNTER_HEADROOM ((uint8_t)8U)
 
-// How far below the learned start the counter must fall before a burst counts
-// as over and the next opening gets a fresh cap. A dip shallower than this is
-// the same lead-in read: one bad frame takes one step off the counter, so a
-// counter sitting at the start would otherwise close the window on a single
-// miss, reset the cap and the gap, and fire again on the next hit, without
-// bound under a run of alternating hits and misses (AGENTS rule 5). UberNee
-// V1.42 and PsNee V9.0 avoid the same trap by clearing their counter after a
-// string rather than on a miss. Inside the dip the burst is held: no string
-// goes out, and the count and the gap stay where they stood. A swap still
-// re-arms in time: from the headroom above the start to this depth below it is
-// 2 x 8 failed passes, under a second of 60 ms timed-out captures, inside the
-// 1.5 s disc-gone bound. A design choice, Unknown until hardware.
+// How far below the learned start the counter must fall before the next
+// opening gets a fresh cap. A shallower dip holds the burst, so alternating
+// hits and misses cannot refire it.
 #define PSCU_LOOP_REARM_DEPTH ((uint8_t)8U)
 
-// The depth must stay under the lowest start the chip can learn: a counter that
-// has drained to zero is then always at least the depth below the start, so the
-// one compare in pscu_loop_burst closes the window and no separate test for an
-// empty counter is needed. A stored start below PSCU_CALIB_TRIGGER_MIN fails
-// the record check and falls back to the default (pscu_calib_decode).
+// Keeps a drained counter at least the depth below any start, so
+// pscu_loop_burst needs no separate empty-counter test.
 _Static_assert(PSCU_LOOP_REARM_DEPTH < PSCU_CALIB_TRIGGER_MIN,
                "the re-arm depth must stay below the lowest learned start");
 
-// One disc's session: how many strings were emitted for it, whether its result
-// has been shown, and the confirmation state that decides which result it is.
+// One disc's session: strings sent, whether its result was shown, and the
+// confirmation state.
 typedef struct {
   uint8_t injects;
   bool resolved;
   pscu_confirm_t confirm;
 } pscu_session_t;
 
-// Time and evidence since this disc arrived (or since boot): how long, whether
-// any valid frame arrived, and whether the region-check window was reached or
-// the console accepted. A window the supply guard kept shut still counts as
-// reached: the console did run its check, and the chip held back for its own
-// supply, so the disc is neither a missed window that should move the trigger
-// nor a disc with no check. The LED's region-check fault and the missed-window
-// test are judged on it.
+// Since this disc arrived: elapsed ms, whether a valid frame came, and whether
+// the window was reached. A window held by the supply guard counts as reached.
 typedef struct {
   uint32_t ms;
   bool framed;
@@ -80,8 +48,6 @@ typedef struct {
 } pscu_since_disc_t;
 
 // The loop's state between passes.
-// vcd_filter selects the SCPH-5903 lead-in rule; the firmware fixes it at build
-// time and the host suite drives both values.
 typedef struct {
   pscu_calib_t calib;
   uint8_t counter;
@@ -94,9 +60,7 @@ typedef struct {
   pscu_led_t led;
 } pscu_loop_t;
 
-// One pass's inputs: the frame as captured (filled with a failed pattern when
-// the capture failed), whether the capture succeeded, whether the supply reads
-// good, and the milliseconds since the last pass.
+// One pass's inputs.
 typedef struct {
   const uint8_t *frame;
   bool captured;
@@ -104,11 +68,8 @@ typedef struct {
   uint32_t elapsed_ms;
 } pscu_loop_in_t;
 
-// One pass's decisions; the step updates the loop state itself. fire asks for one region string
-// now; store asks for the calibration in state to be written; trim_sample says this frame may time
-// the oscillator; quiet says the window is not reached, so no arming is under way, since a closed
-// window always empties the burst, and a trim may be stored; led_on is the LED level for the rest
-// of the pass.
+// One pass's decisions. store: write the calibration. trim_sample: this frame
+// may time the oscillator. quiet: outside the window, so a trim may be stored.
 typedef struct {
   bool fire;
   bool store;
@@ -119,11 +80,7 @@ typedef struct {
 
 pscu_loop_t pscu_loop_init(pscu_calib_t calib, pscu_led_t led, bool vcd_filter);
 
-// Decide one pass and move the state to the next one, in place (see src/loop.c
-// for why). The order inside matches the bus: the frame first moves the
-// presence and the counter, the counter opens or holds the window, the stealth
-// state machine decides a string, the session and the calibration learn from
-// the result, and the LED shows it.
+// Decide one pass and advance the state in place (see src/loop.c).
 pscu_loop_out_t pscu_loop_step(pscu_loop_t *state, const pscu_loop_in_t *in);
 
 #endif

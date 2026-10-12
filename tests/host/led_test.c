@@ -9,9 +9,8 @@
 #include "pscu/led.h"
 #include "pscu/supply.h"
 
-// Host tests for the status LED and the supply guard behind code 7. The display
-// is pure arithmetic on elapsed time, so each stage is driven to the
-// millisecond either side of where it must change.
+// Host tests for the status LED and the supply guard, each stage driven to the
+// millisecond either side of a change.
 
 static pscu_check_fn g_check;
 
@@ -23,8 +22,8 @@ static void test_led_boot(void) {
   pscu_led_t gate = pscu_led_init(1U, 0U, PSCU_LED_PROFILE_DEBUG);
   g_check(led_after(gate, 0U).on, "led: board blink lit at start");
   g_check(!led_after(gate, 310U).on, "led: board blink gap is dark");
-  // Boundaries: a flash lasts exactly its on time, and a pass that took no
-  // measurable time must not move the pattern, let alone pin it at the end.
+  // A flash lasts exactly its on time, and a zero-length pass must not move
+  // the pattern.
   g_check(!led_after(gate, 300U).on, "led: a blink is dark from its 300th ms");
   pscu_led_step_t still = led_after(gate, 0U);
   g_check((still.state.phase_ms == 0U) && (still.state.stage == PSCU_LED_BOARD),
@@ -153,8 +152,8 @@ static void test_led_fault_rules(void) {
           "fault: no frames since this disc is not a region-check fault");
 }
 
-// A low supply outranks every other fault: with the chip out of its rating no
-// other reading can be trusted, and it is the one an installer must fix first.
+// A low supply outranks every other fault: out of its rating, no other reading
+// can be trusted.
 static void test_led_supply_fault(void) {
   g_check(pscu_led_fault(true, true, 0U, 0U, true, true) == PSCU_LED_CODE_SUPPLY,
           "fault: a low supply shows code 7 on a healthy disc");
@@ -174,9 +173,8 @@ static void test_led_supply_fault(void) {
           "led: 7 is the highest code the display accepts");
 }
 
-// The final profile, driven to the millisecond either side of each change. A
-// chirp is PSCU_LED_CHIRP_MS long; a code cycle is its flashes, each with its
-// 300 ms gap, then the pause.
+// The final profile. A chirp is PSCU_LED_CHIRP_MS long; a code cycle is its
+// flashes, each with a 300 ms gap, then the pause.
 static pscu_led_t final_waiting(void) {
   return led_after(pscu_led_init(1U, 0U, PSCU_LED_PROFILE_FINAL), 360U).state;
 }
@@ -246,8 +244,7 @@ static void test_led_final_faults(void) {
           "final: code 7 is never marked told");
 }
 
-// The debug tick: noted only on the dark display of the debug profile, lit for
-// PSCU_LED_TICK_MS of elapsed time, then gone.
+// The debug tick: shown only on the dark debug display, for PSCU_LED_TICK_MS.
 static void test_led_ticks(void) {
   pscu_led_t accepted =
       pscu_led_step(led_after(pscu_led_init(1U, 0U, PSCU_LED_PROFILE_DEBUG), 600U).state,
@@ -271,9 +268,9 @@ static void test_led_ticks(void) {
   g_check(!led_after(pscu_led_note(final_dark), 0U).on, "tick: the final profile never ticks");
 }
 
-// The supply reading is the 1.1 V bandgap against VCC, raw = 1024 x 1.1 / VCC,
-// so each bound is checked one step either side: 409 is 2754 mV, the last
-// reading at or above 2.75 V, and 188 is 5991 mV, the first under 6 V.
+// The supply reading is the 1.1 V bandgap against VCC, raw = 1024 x 1.1 / VCC:
+// 409 is 2754 mV, the last at or above 2.75 V; 188 is 5991 mV, the first
+// under 6 V.
 static void test_supply(void) {
   g_check(pscu_supply_ok(409U), "supply: 2.754 V is enough");
   g_check(!pscu_supply_ok(410U), "supply: 2.747 V is too low");

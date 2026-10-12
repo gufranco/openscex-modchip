@@ -3,11 +3,8 @@
 
 """The three SCEx region strings, as the bits a chip clocks onto DATA.
 
-Each string is six bytes sent least significant bit first, of which the first
-44 bits are used; only the fifth byte differs by region. Read: kalymos PsNee
-V9.0, PSNee.ino:577-581 and :603-605. The firmware's own table lives in C; the
-bench derives the bits from the bytes so the two can be checked against each
-other rather than copied.
+Six bytes sent LSB first, 44 bits used; only the fifth byte differs by region
+(PsNee V9.0, PSNee.ino:577-581 and :603-605).
 """
 
 from enum import StrEnum

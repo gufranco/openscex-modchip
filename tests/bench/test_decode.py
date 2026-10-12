@@ -1,13 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Tests for decoding SCEx strings from any chip's DATA trace.
-
-Traces are synthesized from the bit strings in both forms a chip may use: gate
-mode, where a zero holds DATA low and a one releases it, and carrier mode,
-where a one mirrors the WFCK carrier. The decoder must recover the region, the
-start and the bit cell from either, with no per-chip tuning.
-"""
+"""Tests for decoding SCEx strings from synthesized gate-mode and carrier-mode
+DATA traces."""
 
 import unittest
 

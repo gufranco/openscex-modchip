@@ -3,26 +3,10 @@
 
 name: Release
 
-# A release is cut only from a commit whose CI run passed. This workflow starts
-# when the CI workflow completes for a push to main, does nothing unless that run
-# succeeded, and then checks that main still points at that commit; if a newer
-# commit has landed, that commit's own CI run will release it instead.
-#
-# semantic-release owns versioning. It reads the conventional-commit history
-# since the last tag and decides whether a release is due: feat -> minor,
-# fix -> patch, BREAKING CHANGE -> major, everything else (ci, build, chore,
-# docs, style, test, refactor) cuts nothing. When a release is due it writes
-# CHANGELOG.md, commits it with [skip ci], tags, and creates the GitHub release
-# with generated notes. The per-console SCEx images are then built in the pinned
-# toolchain, hashed into SHA256SUMS, and attached with the LICENSE; every one of
-# those files gets a build-provenance attestation.
-#
-# Recovery: semantic-release pushes the CHANGELOG commit and the tag before it
-# creates the GitHub release, so a GitHub-side failure in between strands a tag
-# with no release and no images, and the [skip ci] CHANGELOG commit never starts
-# another run. Running this workflow by hand with that tag builds the images from
-# the tag, creates the release from the tag's CHANGELOG section if it is missing,
-# and attests and attaches the images exactly as a normal release does.
+# Releases a main commit whose CI passed, if main still points at it.
+# semantic-release versions from commit subjects (feat minor, fix patch,
+# BREAKING CHANGE major); the images are then built, hashed and attested.
+# To recover a tag that has no GitHub release, run it by hand with that tag.
 on:
   workflow_run:
     workflows: [CI]
@@ -35,8 +19,6 @@ on:
         required: true
         type: string
 
-# Nothing is granted at the workflow level; the one job asks for exactly what it
-# uses below.
 permissions: {}
 
 concurrency:
@@ -50,17 +32,15 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-26.04
-    # contents: the CHANGELOG commit, the tag and the release assets. issues and
-    # pull-requests: semantic-release's GitHub plugin labels what a release
-    # ships. id-token and attestations: the build-provenance attestation.
+    # contents: commit, tag and assets. issues, pull-requests: release labels.
+    # id-token, attestations: build provenance.
     permissions:
       contents: write
       issues: write
       pull-requests: write
       id-token: write
       attestations: write
-    # The slowest of the last 10 green runs took 243 s, building and attesting
-    # the images included; 20 minutes is the backstop for a hung step.
+    # Backstop: the slowest of the last 10 green runs took 243 s.
     timeout-minutes: 20
     steps:
       - name: Checkout main, or the tag being recovered
@@ -68,9 +48,7 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || 'main' }}
           fetch-depth: 0
-          # The write token must not stay in .git/config while the repository
-          # is mounted into the build container; semantic-release pushes with
-          # GITHUB_TOKEN from its own environment instead.
+          # Keeps the token out of .git/config, which the build container sees.
           persist-credentials: false
 
       - name: Recover a stranded tag
@@ -117,17 +95,11 @@ jobs:
       - name: Run semantic-release
         id: semrel
         if: steps.fresh.outputs.current == 'true'
-        # v6.0.0, not v7: v7.1.2 warns on every run that a repository with no
-        # package.json would fail in @semantic-release/npm, without reading
-        # .releaserc.json, whose plugin list leaves that plugin out. Its fix,
-        # skip_npm_plugin, replaces that list and would drop changelog and git.
-        # v6.0.0 runs the same semantic-release 25 on node24 (Read: action.yml
-        # and package.json at b12c8f6 on 2026-10-11).
+        # Held at v6.0.0: v7 warns about the npm plugin on every run, and its
+        # skip_npm_plugin option would also drop changelog and git.
         uses: cycjimmy/semantic-release-action@b12c8f6015dc215fe37bc154d4ad456dd3833c90  # v6.0.0
         with:
-          # Exact versions: the action installs these from npm at release time
-          # with no lockfile, so a range would let a new upstream release change
-          # how this repository is versioned without a commit here.
+          # Exact versions, since the action installs them with no lockfile.
           semantic_version: 25.0.9
           extra_plugins: |
             @semantic-release/changelog@7.0.0
@@ -157,8 +129,6 @@ jobs:
         if: steps.semrel.outputs.new_release_published == 'true' || steps.recover.outputs.tag != ''
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
         with:
-          # Every published file gets a provenance attestation, the checksum list
-          # and the licence included, not only the images.
           subject-path: |
             release-artifacts/*.hex
             release-artifacts/SHA256SUMS

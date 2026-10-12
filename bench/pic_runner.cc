@@ -6,18 +6,14 @@
 // Usage: pic_runner <image.hex> <processor> <clock_hz> <timeline> <trace_out>
 //                   <coverage_out> <duration_ns> <pin_map>
 //
-// It plays a console timeline (tools/bench/timeline.py) into one PIC image and
-// writes what the chip did to its output pins, plus every program address it
-// executed. The pin map names package pins, for example
-// "wfck=5,lid=7,reset=4,sense=3,data=6,gate=5"; a leading '!' inverts a line
-// whose polarity is the console's opposite. gpsim counts instruction cycles,
-// four clocks each on these cores, so times convert with 4e9 / clock_hz.
+// Plays a console timeline (tools/bench/timeline.py) into one PIC image and
+// records its output pins and every program address executed. Pin map example:
+// "wfck=5,lid=7,reset=4,sense=3,data=6,gate=5"; a leading '!' inverts a line.
+// One instruction cycle is four clocks.
 //
-// Three gpsim behaviours shaped this file (measured 2026-10-07): step_one() never advances the
-// cycle counter, step(1) does; a pin's putState(), setDrivenState() and forceDrivenState() do not
-// reach the GPIO register the firmware reads, a stimulus on the pin's node
-// does; and the 12-bit cores' TRIS is not a loggable register, so the output
-// direction is read from the pin itself after every instruction.
+// gpsim quirks: only step(1) advances the cycle counter; inputs must be driven
+// through the pin's node; 12-bit TRIS is not loggable, so direction is read
+// from the pin.
 
 #include <gpsim/gpsim_time.h>
 #include <gpsim/interface.h>
@@ -40,9 +36,8 @@
 
 namespace {
 
-// A console line driving one input pin through the pin's node, the path gpsim
-// propagates to the port register. The 50 ohm source overrides any internal
-// pull-up, like a real console output would.
+// A console line driving one input pin through its node. The 50 ohm source
+// overrides any internal pull-up.
 class Drive : public stimulus {
  public:
   explicit Drive(const char *name) : stimulus(name) {
@@ -133,14 +128,9 @@ int main(int argc, char **argv) {
   }
   cpu->set_frequency(clock_hz);
 
-  // A real part leaves the factory with its oscillator calibration in the last
-  // program word: a MOVLW on the 12C508 (DS40139, section 7.2.5, executed as
-  // the reset vector) and a RETLW on the 12F629 (DS41190, section 9.2.5.1,
-  // reached by CALL 0x3FF). An image dumped from source leaves that word
-  // erased, all ones, which on the 12F629 is no return at all, so the program
-  // calls it and never comes back. The word is filled with the centre value,
-  // 0x80, only when the image left it erased, so an image that carries its own
-  // word runs unchanged.
+  // Fill an erased oscillator calibration word with 0x80, as a real part ships
+  // one: MOVLW on the 12C508 (DS40139, 7.2.5), RETLW on the 12F629 (DS41190,
+  // 9.2.5.1).
   const unsigned int last = cpu->program_memory_size() - 1U;
   const std::string processor = argv[2];
   const unsigned int erased = processor == "p12f629" ? 0x3FFFU : 0xFFFU;
@@ -148,20 +138,15 @@ int main(int argc, char **argv) {
   if (cpu->get_program_memory_at_address(last) == erased) {
     cpu->init_program_memory(last, factory);
   }
-  // The 16C5x starts from the last program word, its reset vector (PIC16C5X
-  // data sheet DS30453, reset and program memory map); gpsim's 16C54 model
-  // starts from 0x000, which runs a program's first routine before its start
-  // code has set OPTION. The reset address is set to the part's own and the
-  // core reset once, so the run begins where the silicon does.
+  // The 16C5x resets to its last program word (DS30453); gpsim's 16C54 starts
+  // at 0x000, so set the reset address and reset once.
   if (processor == "p16c54") {
     cpu->pc->set_reset_address(last);
     cpu->reset(POR_RESET);
   }
 
-  // Every input line gets its own node and source. Lines start at the
-  // console's idle levels: WFCK high (the gate's resting state), lid closed,
-  // reset released and the sense line high, which is XLAT's idle level; a
-  // scenario that wires it to the SPEED level sets it at time zero.
+  // One node and source per input, starting at the console's idle levels: WFCK
+  // high, lid closed, reset released, sense high.
   std::map<std::string, Drive *> drives;
   const char *inputs[] = { "sqck", "subq", "wfck", "lid", "reset", "sense" };
   for (const char *name : inputs) {
@@ -206,12 +191,8 @@ int main(int argc, char **argv) {
       outputs.push_back({ name, cpu->get_pin(found->second.pin), -1, -1 });
     }
   }
-  // Whether each console line is pulled up: an input whose weak pull-up gpsim
-  // reports enabled, which these PICs switch with OPTION's /GPPU bit and, on
-  // the 12F629, the WPU register (Read: the 12C508A and 12F629 datasheets,
-  // GPIO and OPTION); a pin with no pull-up circuit reports none. Written as
-  // pull-<name>, sampled every PULL_SAMPLE_STEPS
-  // instructions as in the AVR runner, since a pull-up holds once written.
+  // Trace each console input whose weak pull-up is on as pull-<name>, sampled
+  // every PULL_SAMPLE_STEPS instructions as in the AVR runner.
   struct Pull {
     std::string name;
     IOPIN *pin;
@@ -226,8 +207,7 @@ int main(int argc, char **argv) {
   constexpr unsigned PULL_SAMPLE_STEPS = 256U;
   unsigned long long pic_steps = 0U;
 
-  // The step bound is the duration in instruction cycles plus a margin; a
-  // two-cycle instruction only makes the loop end sooner, never later.
+  // Step bound: the duration in instruction cycles plus a margin.
   const unsigned long long max_steps =
       static_cast<unsigned long long>(duration_ns / ns_per_cycle) + 1024ULL;
   std::set<unsigned int> executed;
@@ -247,14 +227,11 @@ int main(int argc, char **argv) {
         wfck = event.value != 0;
         drive_line("wfck", wfck);
       } else if (event.signal == "power_cycle") {
-        // Switching the console off and on: a power-on reset. The calibration
-        // word placed at load stays in program memory, as a real part keeps it.
+        // Power-on reset; the calibration word stays in program memory.
         cpu->reset(POR_RESET);
       } else if (event.signal == "vcc_mv" || event.signal == "eeprom_byte" ||
                  event.signal == "osccal_factory") {
-        // The supply level, the AVR record seed and the AVR factory OSCCAL have
-        // no counterpart here: gpsim models no supply on these parts, and
-        // Mayumi V4 and MM3 keep no EEPROM record.
+        // AVR-only events; ignored here.
       } else {
         drive_line(event.signal, event.value != 0);
       }

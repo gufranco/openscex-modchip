@@ -1,13 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 // SPDX-License-Identifier: MIT
 
-// Hardware layer, chip half: the registers that concern the ATtiny85 itself
-// rather than the console's signals. The reset cause, the oscillator
-// calibration, the supply measurement and the EEPROM that holds the
-// calibration record. Split from port.S, which keeps the signals, so neither
-// file grows past what one reading can hold; both sit behind the same C
-// prototypes in include/port/port.h, and C never includes avr/io for the reason
-// port.S gives.
+// Hardware layer for the chip itself: reset cause, OSCCAL, supply measurement
+// and EEPROM. port.S holds the console's signals.
 
 #include <avr/io.h>
 
@@ -15,11 +10,8 @@
 
 	.text
 
-// The oscillator calibration register. Hardware loads the factory value into it
-// at every reset, so reading it at boot gives the factory value; writing it
-// retunes the internal 8 MHz oscillator at once. The caller moves it one step at
-// a time, as the datasheet asks (ATtiny25/45/85 datasheet 2586Q, OSCCAL: change
-// in small steps, a cycle-to-cycle variation over 2 percent is unpredictable).
+// OSCCAL holds the factory value after reset. The caller changes it one step at
+// a time (datasheet 2586Q, OSCCAL).
 	.global pscu_port_osccal_read
 	.func pscu_port_osccal_read
 pscu_port_osccal_read:
@@ -34,13 +26,9 @@ pscu_port_osccal_write:
 	ret
 	.endfunc
 
-// One supply reading: start a conversion of the bandgap against VCC and wait
-// for it, bounded. A conversion takes 13 ADC clocks, 25 for the first after the
-// ADC is enabled, at most 1600 CPU cycles at CK/64 (Read: the same datasheet);
-// the wait gives up after 1024 passes of 7 cycles, about 900 us, and then
-// returns 0, a reading the caller treats as implausible. ADCL is read first,
-// which locks ADCH until it is read, as the datasheet requires for a 10-bit
-// result. r26 and r27 are call-clobbered under the avr-gcc ABI.
+// Convert the bandgap against VCC. A conversion is at most 1600 cycles (25 ADC
+// clocks at CK/64); give up after 1024 passes of 7 cycles and return 0. ADCL is
+// read first, as the datasheet requires.
 	.global pscu_port_supply_raw
 	.func pscu_port_supply_raw
 pscu_port_supply_raw:
@@ -53,8 +41,7 @@ pscu_port_supply_raw:
 	rjmp 17f
 	sbiw r26, 1
 	brne 16b
-// coverage: unreachable block: only a conversion that never ends, a faulty ADC,
-// gets here; simavr's ADC, like a working one, always finishes.
+// coverage: unreachable block: only a faulty ADC never finishes.
 	ldi r24, 0
 	ldi r25, 0
 	ret
@@ -65,12 +52,8 @@ pscu_port_supply_raw:
 	ret
 	.endfunc
 
-// Report whether the last reset came from the watchdog, and clear the reset
-// flags so the next reset reports its own cause. A watchdog reset means a pass
-// hung, most likely a WFCK carrier that stopped mid-injection, and the LED shows
-// it once at the next boot. Clearing WDRF also lifts the hardware override that
-// forces WDE on; the watchdog stays enabled because pscu_port_init set WDE
-// itself. r1 is the compiler's zero register.
+// Return whether the last reset came from the watchdog and clear the reset
+// flags. The watchdog stays on because pscu_port_init set WDE. r1 is zero.
 	.global pscu_port_reset_was_watchdog
 	.func pscu_port_reset_was_watchdog
 pscu_port_reset_was_watchdog:
@@ -80,18 +63,9 @@ pscu_port_reset_was_watchdog:
 	ret
 	.endfunc
 
-// EEPROM primitives for the calibration record. The EEPROM is reached through
-// EECR, EEDR and EEAR. Before touching it, each call waits for EEPE to clear,
-// meaning any earlier write has finished. An erase-and-write takes 3.4 ms (Read:
-// ATtiny25/45/85 datasheet 2586Q, Table 5-1, EEPM 00, the mode reset
-// leaves selected), so the wait gives up after 10 ms rather than trusting the
-// flag forever; one waiting pass is 7 cycles (wdr 1, the sbis that skips the ret
-// while EEPE is still set 2, sbiw 2, a taken brne 2). A wait that gives up lets
-// the next access go ahead anyway; a byte it spoils fails the record's check
-// byte, written last, and the next boot falls back to the defaults (calib.c). The watchdog is kicked inside the wait, which the bound keeps
-// from ever hiding a hang. r26 and r27 are call-clobbered under the avr-gcc ABI.
-// r1 is the compiler's zero register, so the high address byte is cleared by
-// writing it; the record sits below address 256.
+// Wait for EEPE to clear, up to 10 ms; a write takes 3.4 ms (datasheet 2586Q,
+// Table 5-1). One pass is 7 cycles (wdr 1, sbis 2, sbiw 2, brne 2). A spoiled
+// byte fails the record's check byte.
 #define PSCU_EEPROM_WAIT_POLLS ((F_CPU * 10UL) / (1000UL * 7UL))
 
 	.func pscu_port_eeprom_wait
@@ -102,8 +76,7 @@ pscu_port_eeprom_wait:
 	wdr
 	sbis _SFR_IO_ADDR(EECR), EEPE
 	ret
-// coverage: unreachable block: simavr completes an EEPROM write at once, so
-// EEPE is always clear here; on the chip a byte takes 3.4 ms and this loop runs.
+// coverage: unreachable block: simavr finishes EEPROM writes at once.
 	sbiw r26, 1
 	brne 15b
 	ret
@@ -120,12 +93,8 @@ pscu_port_eeprom_read:
 	ret
 	.endfunc
 
-// Write sets the address and data, then performs the AVR timed sequence: set
-// EEMPE, then set EEPE within four cycles. Two back-to-back sbi instructions are
-// two cycles each, so the second lands inside the window. The firmware never
-// enables interrupts, so nothing can break the sequence apart. The call returns
-// as soon as the write has started; the hardware finishes it in the background,
-// and the next EEPROM call waits for it.
+// Set EEMPE, then EEPE within four cycles; interrupts are never enabled. Returns
+// once the write has started.
 	.global pscu_port_eeprom_write
 	.func pscu_port_eeprom_write
 pscu_port_eeprom_write:

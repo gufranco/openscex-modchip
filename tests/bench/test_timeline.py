@@ -1,12 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Tests for the console timeline the runners play into a chip.
-
-The SUBQ encoding must match the simulator harness bit for bit (least
-significant bit first, SUBQ set before SQCK falls, one frame every 1/75 s), or
-ours would behave differently in the bench than in tests/sim.
-"""
+"""Tests for the console timeline; its SUBQ encoding must match
+tests/sim/harness.c bit for bit."""
 
 import unittest
 

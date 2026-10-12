@@ -8,10 +8,7 @@
 
 #include "pscu/assert.h"
 
-// The check byte folds every data byte into the seed. A single changed byte
-// always changes it, and a torn write that leaves old and new bytes mixed
-// changes it unless the differences cancel, so a damaged record is caught
-// rather than trusted.
+// XOR of the data bytes with the seed; catches any single changed byte.
 static uint8_t pscu_calib_check(pscu_calib_record_t record) {
   uint8_t check = PSCU_CALIB_SEED;
   for (uint8_t at = 0U; at < PSCU_CALIB_AT_CHECK; at++) {
@@ -24,8 +21,7 @@ static bool pscu_calib_in_range(uint8_t value, uint8_t low, uint8_t high) {
   return (value >= low) && (value <= high);
 }
 
-// Every field must hold a value this firmware could have written; anything else
-// is a different firmware's data or a corrupted cell, and is not trusted.
+// Every field must hold a value this firmware could have written.
 static bool pscu_calib_valid(pscu_calib_record_t record) {
   uint8_t board = record.bytes[PSCU_CALIB_AT_BOARD];
   bool board_ok = (board <= 1U) || (board == PSCU_CALIB_BOARD_NONE);
@@ -88,10 +84,7 @@ pscu_board_mode_t pscu_calib_stored_board(pscu_calib_t stored) {
   return (stored.board == 1U) ? PSCU_BOARD_MODE_WFCK : PSCU_BOARD_MODE_GATE;
 }
 
-// Step the start back to the last value that worked and stop probing. Repeated
-// failures keep stepping back, down to the default, which is where the chip
-// started before it learned anything. The trigger sits on the step grid, so one
-// step back from anything above the default never passes below it.
+// Step the start back one step, never below the default, and stop probing.
 static pscu_calib_t pscu_calib_back_off(pscu_calib_t calib) {
   pscu_calib_t next = calib;
   next.trigger = (calib.trigger > PSCU_CALIB_TRIGGER_MIN)
@@ -101,8 +94,7 @@ static pscu_calib_t pscu_calib_back_off(pscu_calib_t calib) {
   return next;
 }
 
-// An accepted disc, while probing, tries the next later start; reaching the
-// bound ends the probe there.
+// While probing, an accepted disc tries the next later start, up to the bound.
 static pscu_calib_t pscu_calib_accepted(pscu_calib_t calib) {
   pscu_calib_t next = calib;
   if (!calib.frozen) {

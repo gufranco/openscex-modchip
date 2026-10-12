@@ -1,12 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Tests for the chip catalogue the bench runs.
-
-Every chip must name a firmware the bench can find or build, and the
-third-party ones must be listed in the artifact manifest, so a chip cannot be
-added without stating where its bytes come from.
-"""
+"""Tests for the chip catalogue: every firmware can be found or built, and
+third-party ones are in the manifest."""
 
 import unittest
 

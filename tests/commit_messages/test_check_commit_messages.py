@@ -3,12 +3,9 @@
 
 """Tests for the conventional-commit subject check CI runs on every push.
 
-Each case builds a throwaway repository with real commits and runs the shell
-script against it, because the defects worth catching live in how the script
-asks git for the range, not in the subject pattern alone. A push event hands
-the script the branch's old tip as the base; after a force push that tip is not
-an ancestor of the new head and is usually not even fetched, which once made
-git exit 128 and turned CI red until the next push.
+Each case runs the script on a throwaway repository with real commits, since
+the risk is in the git range, such as a force-pushed base that is no ancestor
+of the new head.
 """
 
 import subprocess

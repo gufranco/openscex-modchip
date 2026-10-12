@@ -5,34 +5,21 @@ PYTHON ?= python3
 BUILD := build
 NAME := openscex-modchip
 
-# The ATtiny85 is the only target: with no clock and no lid wire, its five free
-# pins carry the four SCEx signals and the LED, and PB5 stays RESET.
+# The only target: five pins for the four signals and the LED; PB5 stays RESET.
 MCU := attiny85
 FLASH_BYTES := 8192
-# The image must leave this much flash free, so the build fails while there is
-# still room to fix a release, rather than at the linker once nothing fits. 256
-# bytes is a design choice: about one small feature or several bug fixes, and
-# 3 percent of the part. Flash use is text plus the data initializers, which the
-# startup code copies from flash.
+# Flash the image must leave free (text plus data), so the build fails while a
+# fix still fits. 256 bytes is 3 percent of the part.
 FLASH_RESERVE := 256
 FLASH_BUDGET := $(shell expr $(FLASH_BYTES) - $(FLASH_RESERVE))
 
-# The chip runs from its internal 8 MHz RC oscillator (CKSEL 0010, low fuse
-# 0xE2), so it needs no clock wire and can be reprogrammed off the console. The
-# factory calibration is guaranteed to +-10 percent and user calibration reaches
-# +-1 percent (Read: ATtiny25/45/85 datasheet 2586Q, Table 21-2); the
-# firmware trims OSCCAL against the SUBQ frame rate, which the console's crystal
-# sets. PsNee ships on the same factory-calibrated internal oscillator. The
-# standard ATtiny85 runs 0-10 MHz from 2.7 V (Read: the same datasheet, speed
-# grade; only the V part reaches down to 1.8 V), so the documented fuses enable
-# brown-out detection at 2.7 V, which holds the chip in reset below its rating.
+# Internal 8 MHz RC oscillator (CKSEL 0010, low fuse 0xE2), trimmed in firmware
+# against the SUBQ frame rate. The documented fuses set brown-out at 2.7 V, the
+# chip's minimum for 8 MHz (datasheet 2586Q, speed grade).
 F_CPU := 8000000UL
 
-# Video-CD filter for the SCPH-5903, the Asian dual-interface model that also
-# plays Video CDs. on narrows the lead-in match to the TOC markers A0..A2 and
-# rejects the Video-CD lead-in pattern, so a Video CD never draws a region
-# string; off (default) is the filter every other console uses. Read: PsNee V9.0
-# PSNee.ino:471-502, its SCPH_5903 variant.
+# Video CD filter for the SCPH-5903: on keeps a Video CD from drawing a region
+# string (PsNee V9.0 PSNee.ino:471-502). Off by default.
 VCD_FILTER ?= off
 ifeq ($(VCD_FILTER),on)
 VCD_DEF := -DPSCU_VCD_FILTER=1
@@ -44,12 +31,9 @@ else
 $(error unknown VCD_FILTER '$(VCD_FILTER)'; use off or on)
 endif
 
-# Indicator profile on PB3, which drives an LED or an active piezo buzzer.
-# debug (default) shows every stage, each region string and every fault code
-# while it holds, plus a tick during play when the chip learns something; final
-# chirps at power-on and when a disc is accepted, and shows each fault once.
-# Only the pin changes: what is sent on DATA, and when, is the same in both.
-# See include/pscu/led.h.
+# Indicator profile on PB3 (LED or active buzzer): debug (default) shows
+# everything, final chirps at power-on and on acceptance and shows each fault
+# once. DATA is the same in both. See include/pscu/led.h.
 PROFILE ?= debug
 ifeq ($(PROFILE),final)
 PROFILE_DEF := -DPSCU_PROFILE_FINAL=1
@@ -61,8 +45,7 @@ else
 $(error unknown PROFILE '$(PROFILE)'; use debug or final)
 endif
 
-# Region the chip emulates. The build is region-specific so the firmware emits
-# only the console's own region string. us is the default and carries no tag.
+# Region string the chip emits. us is the default and carries no tag.
 REGION ?= us
 ifeq ($(REGION),jp)
 REGION_DEF := -DPSCU_REGION_JP
@@ -75,10 +58,8 @@ REGION_DEF :=
 REGION_TAG :=
 endif
 
-# Each region, filter and profile build differs in generated code, so their
-# objects must never share a directory; VARIANT keeps them separate. An empty
-# VARIANT (America, no filter, debug profile) keeps the plain artifact name
-# the sim uses.
+# Separate object directories per region, filter and profile. The default
+# build has an empty VARIANT and the plain artifact name the sim uses.
 VARIANT := $(REGION_TAG)$(VCD_TAG)$(PROFILE_TAG)
 
 CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate format \
@@ -89,8 +70,8 @@ CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate f
 clean:
 	rm -rf $(BUILD)
 
-# Point git at the versioned hooks in .githooks: the commit-msg hook checks the
-# subject with the CI script, and the pre-commit hook runs `make precommit`.
+# Use the versioned hooks in .githooks: commit-msg checks the subject,
+# pre-commit runs `make precommit`.
 hooks:
 	git config core.hooksPath .githooks
 
@@ -137,12 +118,8 @@ RELEASE_ELF := $(RELEASE)/$(NAME)-$(MCU)$(VARIANT).elf
 RELEASE_HEX := $(RELEASE)/$(NAME)-$(MCU)$(VARIANT).hex
 RELEASE_OBJECTS := $(patsubst src/%,$(RELEASE)/%.o,$(FIRMWARE_C) $(FIRMWARE_S))
 
-# -g adds a line table to the ELF and leaves the code alone: GCC generates the
-# same instructions with and without it, so the flash image and the .hex are
-# byte-identical (checked 2026-10-08). The console bench reads that table to
-# map each instruction to its source line, which is where the reasons for
-# code no console input reaches are kept. The link step needs it too, since
-# link-time optimisation generates the code there.
+# -g adds a line table without changing the code; the bench uses it to map
+# addresses to source lines. The link step needs it too, because of LTO.
 AVR_DEBUG := -g
 AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(VCD_DEF) $(PROFILE_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
 	$(WARNINGS) -fno-common -ffunction-sections -fdata-sections $(AVR_DEBUG)
@@ -162,8 +139,7 @@ all: image
 
 image: $(RELEASE_HEX)
 
-# Objects also depend on this Makefile: the build knobs live here as -D flags,
-# so changing one must rebuild the objects rather than link stale ones.
+# Objects depend on this Makefile, since the build knobs are -D flags here.
 $(RELEASE)/%.c.o: src/%.c $(FIRMWARE_H) Makefile
 	@mkdir -p $(@D)
 	$(AVR_CC) $(AVR_CFLAGS) -c -o $@ $<
@@ -209,10 +185,8 @@ $(SIM_TEST): $(SIM_TEST_C) $(SIM_TEST_H) all
 	@mkdir -p $(@D)
 	$(HOST_CC) $(SIM_CFLAGS) -o $@ $(SIM_TEST_C) $(SIM_LIBS)
 
-# The console bench's runners (tools/bench): one plays a console timeline into
-# an AVR image on simavr, the other into a PIC image on gpsim's library, and
-# both write the chip's output pins and the addresses it executed. Library
-# headers come in as system includes so their own warnings stay out of -Werror.
+# The bench runners: AVR images on simavr, PIC images on gpsim. Library headers
+# are system includes so their warnings stay out of -Werror.
 BENCH_PIC := $(BUILD)/bench/pic_runner
 BENCH_AVR := $(BUILD)/bench/avr_runner
 BENCH_CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -Werror \
@@ -229,32 +203,23 @@ $(BENCH_AVR): bench/avr_runner.c tests/sim/sim_t85.h
 
 bench_runners: $(BENCH_PIC) $(BENCH_AVR)
 
-# The bench itself. `bench` puts every chip through every scenario; a chip
-# whose firmware is not on this machine is skipped with how to obtain it, so
-# it runs anywhere and is complete only where the unlicensed images were
-# placed by hand (artifacts.manifest.json). `bench_ci` is the part any machine
-# can reproduce: ours against PsNee, fetched at its pinned commit and built
-# here. UberNee is fetched and built the same way but runs only in the full
-# bench: it is recorded, never evidence, and its 16 MHz serial-debug build
-# simulates at about a fifth of real time, which CI does not need to pay. Either fails when ours leaves the field-proven envelope.
+# `bench` runs every chip through every scenario, skipping images not on this
+# machine (artifacts.manifest.json). `bench_ci` runs ours against PsNee, built
+# from its pinned commit. Both fail when ours leaves the field-proven envelope.
 bench: all bench_runners
 	$(PYTHON) -m tools.bench.cli
 
 bench_ci: all bench_runners
 	$(PYTHON) -m tools.bench.cli --chips ours,psnee-attiny85,psnee-atmega328p
 
-# Copies the showcase results of the last full `make bench` into the tree and
-# regenerates the comparison table in the three READMEs from them. Run it only
-# after a full bench with every image present, or the table loses its columns.
+# Copy the last full bench's showcase results and regenerate the README
+# tables. Run only after a full bench with every image present.
 showcase:
 	$(PYTHON) -m tools.bench.showcase build/bench/showcase.json
 
-# The simulator runs the firmware at the nominal 8 MHz it is built for; the
-# oscillator trim scenarios model a fast or slow RC by running the console side
-# at a different rate. simavr does not change speed when OSCCAL is written, so
-# the trim is checked for direction, bounds and persistence, not its effect. The
-# SCPH-5903 Video-CD image and the final-profile image are the optional third
-# and fourth arguments.
+# simavr ignores OSCCAL, so trim scenarios vary the console's rate instead and
+# check direction, bounds and persistence. The Video CD and final-profile
+# images are the optional third and fourth arguments.
 simtest: $(SIM_TEST)
 	$(MAKE) --no-print-directory REGION=jp VCD_FILTER=on image
 	$(MAKE) --no-print-directory PROFILE=final image
@@ -265,16 +230,12 @@ test: hosttest simtest
 format:
 	clang-format -i $(C_FILES)
 
-# The quick front of analyse, for the pre-commit hook: formatting and Python
-# lint only, no build.
+# Formatting and Python lint only, for the pre-commit hook.
 precommit:
 	clang-format --dry-run --Werror $(C_FILES)
 	ruff check
 	ruff format --check
 
-# mypy runs strict on the tools and their tests, so a None reaching arithmetic
-# or a wrong argument type fails the gate before it fails at run time; yamllint
-# holds the workflows and issue forms to .yamllint.yaml.
 analyse: all bench_runners
 	clang-format --dry-run --Werror $(C_FILES)
 	ruff check
@@ -286,7 +247,7 @@ analyse: all bench_runners
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage run --branch --source=tools -m unittest discover -s tests -t . -p 'test_*.py'
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage report -m
 
-# MISRA covers both profiles, since each compiles different code paths.
+# MISRA covers both profiles, which compile different code.
 misra: image_misra
 	$(MAKE) --no-print-directory PROFILE=final image_misra
 

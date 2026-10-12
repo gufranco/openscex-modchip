@@ -9,10 +9,8 @@
 #include "pscu/inject.h"
 #include "pscu/subq.h"
 
-// Host tests for knowing a disc is there without a lid wire. A swap must read as
-// gone only after a real stretch of silence, and a valid frame must end that
-// stretch at once, or the chip either stays latched silent for the next disc or
-// re-arms during an anti-mod reread of the same one.
+// Host tests for disc presence without a lid wire: gone only after a real
+// stretch of silence, and a valid frame ends that stretch at once.
 
 static pscu_check_fn g_check;
 

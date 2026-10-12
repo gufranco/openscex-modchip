@@ -1,13 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Tests for the container build wrapper.
-
-The wrapper's own code runs for real. The one stand-in is FakeDocker, which
-plays the docker CLI: the tests themselves run inside the toolchain container,
-where there is no Docker daemon to call. The image tag is hashed from real
-files in a temp copy of the image inputs.
-"""
+"""Tests for the container build wrapper. FakeDocker stands in for the docker
+CLI, which is unavailable inside the toolchain container."""
 
 import shutil
 import subprocess
@@ -19,11 +14,8 @@ from tools import docker_make
 
 
 class FakeDocker:
-    """Records every docker command and answers like the CLI would.
-
-    `present` says whether `docker image inspect` finds the image; `exit_code`
-    is what the final `docker run` returns.
-    """
+    """Records every docker command and answers like the CLI would: `present`
+    is whether the image exists, `exit_code` what `docker run` returns."""
 
     def __init__(self, present: bool, exit_code: int = 0) -> None:
         self.present = present

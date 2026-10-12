@@ -1,12 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Tests for the bench report: coverage per chip and the rendered tables.
-
-The rendered text is checked for the facts it must carry, a chip's row, a
-skip reason, a failed rule, rather than byte for byte, so the layout can
-change without rewriting every test.
-"""
+"""Tests for the bench report, checked for the facts it carries, not its
+layout."""
 
 import unittest
 from dataclasses import replace

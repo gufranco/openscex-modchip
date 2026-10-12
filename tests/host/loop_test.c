@@ -12,21 +12,18 @@
 #include "pscu/loop.h"
 #include "pscu/subq.h"
 
-// Host tests for the run loop's per-pass decisions: how the modules are wired
-// together, which no module test can see. Each case drives whole passes with
-// the frames a console produces, so a wrong wire shows up as a wrong string, a
-// wrong store or a wrong LED code. A pass is one 13 ms frame unless a case needs
-// a longer stretch, such as the silence of a disc swap.
+// Host tests for the run loop: how the modules are wired together. Each case
+// drives whole passes with console frames; a pass is one 13 ms frame unless a
+// case needs longer.
 
 static pscu_check_fn g_check;
 
 #define FRAME_MS 13U
 #define TRIGGER 10U
 
-// A lead-in TOC marker, the frame the region check reads; a lead-out frame,
-// valid but never framed as lead-in, so it decays the counter; a program-area
-// frame, the sign the console accepted; a Video CD lead-in marker, which only
-// the SCPH-5903 filter rejects; and the pattern a failed capture leaves.
+// A lead-in TOC marker; a lead-out frame, which decays the counter; a
+// program-area frame, the sign of acceptance; a Video CD lead-in marker; and
+// the pattern a failed capture leaves.
 static const uint8_t LEAD_IN[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0,     0,
                                                         0,     0,     0,     0, 0x64U, 0x49U };
 static const uint8_t LEAD_OUT[PSCU_SUBQ_FRAME_BYTES] = { 0x41U, 0xAAU, 0x01U, 0, 0,     0,
@@ -53,8 +50,7 @@ static pscu_loop_t fresh(pscu_calib_t calib) {
   return pscu_loop_init(calib, waiting_led(), false);
 }
 
-// One pass's decisions together with the state it leaves, so each case can
-// chain passes and read both without keeping a separate state variable.
+// One pass's decisions together with the state it leaves.
 typedef struct {
   pscu_loop_t state;
   bool fire;
@@ -96,8 +92,8 @@ static void test_init(void) {
           "loop: init starts with no session and no strings");
 }
 
-// The window opens on the frame that brings the counter to the start point, and
-// not one frame before; until then the chip is quiet and may store a trim.
+// The window opens on the frame that brings the counter to the start point,
+// not one frame before.
 static void test_fire_at_trigger(void) {
   step_t before = feed(fresh(calib_with(TRIGGER, false)), LEAD_IN, TRIGGER - 1U);
   g_check(!before.fire && before.quiet && (before.state.counter == TRIGGER - 1U),
@@ -144,16 +140,15 @@ static void test_accepted(void) {
   g_check(!after.store && (after.state.calib.trigger == accepted.state.calib.trigger),
           "loop: a resolved session learns once");
 
-  // The drive reads the program area only once it has accepted, so a program
-  // frame empties the counter and closes the window at once; a later lead-in
-  // re-read, as the anti-mod v2 ReadTOC is, climbs from zero and is served.
+  // A program frame empties the counter and closes the window; a later lead-in
+  // re-read, such as the anti-mod v2 ReadTOC, climbs from zero and is served.
   g_check(accepted.state.counter == 0U, "loop: a program-area frame empties the counter");
   step_t reread = feed(after.state, LEAD_IN, (uint16_t)(TRIGGER + PSCU_CALIB_TRIGGER_STEP));
   g_check(reread.fire, "loop: a lead-in re-read after play is served again");
 }
 
 // With no program area, the session resolves as refused after the bounded
-// wait, counted from the last string, and not one frame sooner.
+// wait from the last string, not one frame sooner.
 static void test_refused(void) {
   step_t fired = feed(fresh(calib_with(12U, false)), LEAD_IN, 12U);
   step_t waiting = feed(fired.state, LEAD_OUT, PSCU_CONFIRM_FRAMES - 1U);
@@ -167,7 +162,7 @@ static void test_refused(void) {
 }
 
 // A disc leaving after a string resolves its session at once without teaching
-// the calibration, and the next disc starts from nothing.
+// the calibration.
 static void test_disc_gone(void) {
   step_t fired = feed(fresh(calib_with(TRIGGER, false)), LEAD_IN, TRIGGER);
   step_t gone = pass_with(fired.state, FAILED, false, true, PSCU_DISC_GONE_MS);
@@ -189,9 +184,8 @@ static void test_disc_gone(void) {
           "loop: a pause short of the bound keeps the disc and its session");
 }
 
-// The counter falling back below the default start while nothing reached the
-// window is a missed window: the start steps back and code 2 shows. A window
-// the supply held shut is not a miss.
+// The counter falling below the default start before the window opened is a
+// miss: the start steps back and code 2 shows. A supply-held window is not.
 static void test_missed(void) {
   step_t climbed = feed(fresh(calib_with(12U, false)), LEAD_IN, 11U);
   step_t at_default = pass(climbed.state, LEAD_OUT);
@@ -208,8 +202,8 @@ static void test_missed(void) {
           "loop: a window the supply held shut is not a miss");
 }
 
-// The trim times only consecutive lead-in frames from a disc spinning for a
-// second, and only frames that were really captured.
+// The trim times only consecutive, captured lead-in frames from a disc that has
+// spun for a second.
 static void test_trim_sample(void) {
   pscu_loop_t start = fresh(calib_with(TRIGGER, false));
   g_check(!pass(start, LEAD_IN).trim_sample, "loop: no trim sample while the disc settles");
@@ -225,9 +219,7 @@ static void test_trim_sample(void) {
   g_check(!pass_with(settled.state, LEAD_IN, true, false, FRAME_MS).trim_sample,
           "loop: a frame read while the supply check fails is no sample");
 
-  // The string blocks the loop for 176 ms, so the next frame's stamp would time
-  // the tail of the string, not a frame period; the pass that fires is no
-  // sample, which leaves the next one without a partner.
+  // The string blocks the loop for 176 ms, so the pass that fires is no sample.
   step_t climbing = settled;
   for (uint8_t i = 0U; (i < (uint8_t)(TRIGGER + 2U)) && !climbing.fire; i++) {
     climbing = pass(climbing.state, LEAD_IN);
@@ -247,9 +239,7 @@ static step_t fire_strings(step_t from, uint8_t count) {
   return out;
 }
 
-// Every arming may send the whole stealth cap: nothing learned shortens it, so
-// a disc that reads worse than the last one, a swapped disc 2 above all, never
-// runs out of strings; and not one string more.
+// Every arming may send the whole stealth cap, and not one string more.
 static void test_whole_cap(void) {
   step_t start = { fresh(calib_with(TRIGGER, true)), false, false, false, false, false };
   step_t all = fire_strings(start, PSCU_STEALTH_STRINGS);
@@ -260,10 +250,8 @@ static void test_whole_cap(void) {
           "loop: and not one string more in that arming");
 }
 
-// The counter never climbs past the start plus the headroom, so a disc the
-// console refused, still in the lead-in with its cap spent, closes its window
-// within a few failed captures once the lid opens, and the next disc gets a
-// fresh burst long before the disc-gone bound.
+// The counter never climbs past the start plus the headroom, so after a swap
+// the window closes within a few failed captures.
 static void test_quick_swap(void) {
   step_t start = { fresh(calib_with(TRIGGER, true)), false, false, false, false, false };
   step_t spent = fire_strings(start, PSCU_STEALTH_STRINGS);
@@ -284,11 +272,9 @@ static void test_quick_swap(void) {
           "loop: the next disc's lead-in gets a fresh burst");
 }
 
-// UberNee V1.42 and PsNee V9.0 clear their counter after a string so a miss
-// cannot restart a burst. Here a counter sitting at the start meets a run of
-// alternating misses and hits, which takes it below the start and back on
-// every other frame: the strings must still keep the stealth gap between them
-// and stop at the cap, as on a clean lead-in.
+// A counter dithering around the start on alternating misses and hits must
+// still keep the stealth gap and stop at the cap. UberNee V1.42 and PsNee V9.0
+// clear their counter after a string for the same reason.
 static void test_dither_keeps_gap_and_cap(void) {
   step_t at = pass(feed(fresh(calib_with(TRIGGER, true)), LEAD_IN, TRIGGER - 1U).state, LEAD_IN);
   uint16_t fires = at.fire ? 1U : 0U;
@@ -329,12 +315,9 @@ static void test_rearm_depth(void) {
   g_check(deep.state.stealth.sent == 0U, "loop: the pass reaching the depth ends the burst");
 }
 
-// A worn drive mixes bad reads into the lead-in; UberNee V1.42 lets the user
-// raise its threshold for that wear (TWEAK_DRIVE) and re-captures a bad read
-// rather than counting it. Here a bad frame decays the counter by one, so a
-// lead-in with two good frames to every bad one still climbs to the start and
-// arms, and one with as many bad frames as good ones cannot: that is the limit,
-// recorded so a change to it is a decision rather than an accident.
+// A bad frame decays the counter by one, so a lead-in with two good frames per
+// bad one still arms and one with equal counts does not. UberNee V1.42 makes
+// this threshold user-tunable (TWEAK_DRIVE).
 static uint16_t fires_with_noise(uint8_t good_per_bad) {
   step_t at = { fresh(calib_with(TRIGGER, true)), false, false, false, false, false };
   uint16_t fires = 0U;

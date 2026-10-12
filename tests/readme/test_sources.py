@@ -1,13 +1,10 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Every claim in the three READMEs links to where it comes from (AGENTS
-rule 16).
+"""Every claim in the three READMEs links to its source (AGENTS rule 15).
 
-A claim is any table row past a table's header, any list item and any
-paragraph line outside code blocks, HTML blocks and headings. Each must carry
-a Markdown link or an HTML href. The check reads the files as published, so a
-row added without its source fails here before it reaches a reader.
+A claim is a table row past the header, a list item, or a paragraph line
+outside code, HTML and headings; each needs a Markdown link or an href.
 """
 
 import re

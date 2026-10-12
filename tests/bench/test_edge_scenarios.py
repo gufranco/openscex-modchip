@@ -1,14 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Tests for the edge scenarios: the console situations that reach the code
-the plain accept, reread and swap scenarios never do, and the catalogue that
-joins both sets.
-
-Each scenario is checked for the input that makes it worth running, a power
-cycle, a seeded record, a slow console, rather than for its exact timeline, so
-the timings can be tuned without rewriting the tests.
-"""
+"""Tests for the edge scenarios and the catalogue. Each scenario is checked for
+the input that makes it worth running, not its exact timeline."""
 
 import unittest
 from itertools import pairwise

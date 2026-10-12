@@ -16,12 +16,9 @@
 #include "pscu/subq.h"
 #include "trim_test.h"
 
-// Host tests for the pure logic layer, run with assertions on. SUBQ frames
-// below follow the Q-channel byte layout: [0] control (0x4x = data sector, 0x01
-// = audio), [1] TNO (0x00 in the lead-in, a BCD track number in the program
-// area, 0xAA in the lead-out), [2] POINT in the lead-in or INDEX in the program
-// area, [3] the running minute in BCD, [6] the ZERO byte. Only the bytes that
-// matter to a given case are set; the rest stay zero.
+// Host tests for the pure logic layer, run with assertions on. SUBQ frame bytes:
+// [0] control (0x4x data, 0x01 audio), [1] TNO (0x00 lead-in, 0xAA lead-out),
+// [2] POINT or INDEX, [3] running minute in BCD, [6] ZERO. Unused bytes are zero.
 
 static int g_checks = 0;
 static int g_failures = 0;
@@ -129,11 +126,9 @@ static void test_subq_counter(void) {
   check(pscu_subq_update_counter(lead_in, 0xFFU, false, 0xFFU) == 0xFFU, "counter clamps at max");
 }
 
-// The SCPH-5903 Video-CD filter, read from PsNee V9.0's SCPH_5903 variant: only
-// the data-sector TOC markers A0..A2 arm, a marker whose frame[3] is 0x02 (the
-// Video CD lead-in pattern) does not, and the point-01 spiral window is gone.
-// Each frame below sits one step either side of a bound, so a mutant that widens
-// or narrows the rule fails here.
+// The SCPH-5903 Video-CD filter (PsNee V9.0): only TOC markers A0..A2 arm, a
+// marker with 0x02 in frame[3] does not, and the point-01 window is gone. Each
+// frame sits one step either side of a bound.
 static void test_subq_vcd_filter(void) {
   uint8_t game_toc[PSCU_SUBQ_FRAME_BYTES] = {
     0x41U, 0, 0xA0U, 0x00U, 0, 0, 0, 0, 0, 0, 0x64U, 0x49U
@@ -200,15 +195,9 @@ static pscu_board_detect_t feed(const uint8_t *samples, uint16_t count, uint8_t 
   return state;
 }
 
-// The Q-channel CRC, checked against values computed outside this firmware
-// (Python's binascii.crc_hqx, the same CCITT polynomial from zero): an audio
-// frame of ADR 1 and nine zero bytes has CRC 0x6F45, stored inverted as 90 BA,
-// and the lead-in frame's CRC is 0x9BB6, stored inverted as 64 49. The check
-// itself is private to subq.c, so it is reached through pscu_subq_is_valid,
-// which also needs ADR 1 and a zero ZERO byte; every frame here has both, so
-// only the CRC decides. Changing a data byte or either CRC byte breaks it, and
-// a frame failing its CRC is neither valid, nor a lead-in hit, nor the program
-// area, whatever its other bytes say.
+// The Q-channel CRC against values from Python's binascii.crc_hqx: an ADR 1
+// audio frame of zeros has CRC 0x6F45, stored inverted as 90 BA; the lead-in
+// frame's is 0x9BB6, stored as 64 49. Reached through pscu_subq_is_valid.
 static void test_subq_crc(void) {
   uint8_t audio[PSCU_SUBQ_FRAME_BYTES] = { 0x01U, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x90U, 0xBAU };
   check(pscu_subq_is_valid(audio), "crc: a sealed audio frame passes");
@@ -272,10 +261,8 @@ static pscu_board_detect_t edges(pscu_board_detect_t state, uint8_t count, uint1
   return next;
 }
 
-// Only edges that follow each other within the gap bound form a run: a clock
-// passes on exactly the needed run and not one edge sooner, the same number of
-// edges spread out like noise does not, and a run that stops still counts once
-// it was long enough.
+// Only edges within the gap bound of each other form a run: a clock passes on
+// exactly the needed run, spread-out noise does not.
 static void test_board_runs(void) {
   pscu_board_detect_t clock = edges(pscu_board_detect_init(25U), 25U, 30U);
   check(pscu_board_detect_mode(clock) == PSCU_BOARD_MODE_WFCK, "25 close edges are a carrier");
@@ -327,9 +314,8 @@ static void test_stealth(void) {
   check(again.fire, "re-fires on the next window while the console has not accepted");
 }
 
-// Strings are spaced: after one, gap frames in the window pass with no string,
-// and the next frame sends again. Leaving the window clears the wait, so the next
-// disc's first string is never held back by the last disc's gap.
+// Strings are spaced by gap frames. Leaving the window clears the wait, so the
+// next disc's first string is never held back.
 static void test_stealth_gap(void) {
   pscu_stealth_step_t first =
       pscu_stealth_step(pscu_stealth_init(), PSCU_WINDOW_OPEN, false, false, 16U, 2U);
@@ -351,9 +337,8 @@ static void test_stealth_gap(void) {
   check(back.fire, "a new window sends at once");
 }
 
-// A held window is the supply guard keeping strings back inside the window: the
-// burst must keep its count and its gap, so the cap is never restarted on the
-// same disc, and must carry on from where it stood once the window opens again.
+// A supply-held window keeps the burst's count and gap, so the cap never
+// restarts on the same disc.
 static void test_stealth_held(void) {
   pscu_stealth_step_t first =
       pscu_stealth_step(pscu_stealth_init(), PSCU_WINDOW_OPEN, false, false, 2U, 1U);
@@ -391,10 +376,8 @@ static void test_stealth_disc_gone(void) {
   check(!reread.fire && reread.state.accepted,
         "a later lead-in read of the same disc stays silent");
 
-  // The program area drains the SUBQ counter and closes the window, which ends
-  // the acceptance: the anti-mod v2 check re-reads the lead-in with ReadTOC,
-  // clearing the drive's licensed status, and a copy then needs a fresh string
-  // (tonyhax docs/ap_v2.c). The next opening of the window is armed again.
+  // The program area closes the window and ends the acceptance; the anti-mod v2
+  // ReadTOC then needs a fresh string on a copy (tonyhax docs/ap_v2.c).
   pscu_stealth_step_t closed_out =
       pscu_stealth_step(reread.state, PSCU_WINDOW_CLOSED, false, false, 16U, 0U);
   check(!closed_out.state.accepted, "leaving the window ends the acceptance");

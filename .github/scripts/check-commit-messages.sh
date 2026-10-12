@@ -5,10 +5,7 @@
 # Conventional-commit subject check, shared by CI and the commit-msg hook.
 #   check-commit-messages.sh <base-sha> <head-sha>   every commit in base..head
 #   check-commit-messages.sh --message-file <file>   one message, as git hooks pass it
-# Merge commits are skipped (their subject is generated), and so are commits
-# written by bots whose subject format this project does not choose
-# (Dependabot, and the semantic-release changelog commit, which carries a
-# version number and is pushed with [skip ci]).
+# Merge commits and Dependabot and semantic-release commits are skipped.
 
 set -eu
 
@@ -49,10 +46,7 @@ fi
 
 base=$1
 head=$2
-# A new branch has no old tip, and a force push leaves an old tip that is not
-# an ancestor of the new head and is often not even fetched, so git would walk
-# the whole rewritten history or stop with an unknown revision. Neither has a
-# range of new commits to walk, so only the head commit is checked.
+# A new branch or a force push has no usable base, so check only the head.
 if [ "${base}" = "${zero_sha}" ] || ! git merge-base --is-ancestor "${base}" "${head}" 2>/dev/null; then
         range=$(git rev-list --no-merges --max-count=1 "${head}")
 else

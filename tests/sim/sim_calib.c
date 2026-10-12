@@ -12,10 +12,8 @@
 
 // Calibration scenarios: what the chip learns per console, across boots.
 
-// Per-console calibration, read and seeded through simavr's EEPROM. The record
-// layout mirrors include/pscu/calib.h: magic, board, trigger, frozen, trim,
-// check, where check folds the five bytes into a fixed seed. A seed is handed to
-// the harness before build_avr, which loads it before the firmware starts.
+// The EEPROM record, laid out as in include/pscu/calib.h: magic, board,
+// trigger, frozen, trim, check.
 #define CALIB_BYTES 6
 #define CALIB_MAGIC 0xC8U
 #define CALIB_SEED 0x5AU
@@ -52,9 +50,8 @@ static void calib_check(const target_t *t, int ok, const char *what) {
   check(ok, label);
 }
 
-// Disc 1 is accepted after a few strings, so the chip probes one step later.
-// Disc 2 never reaches the program area: it still gets the whole stealth cap,
-// whatever disc 1 needed, and the refusal steps the start back, frozen.
+// Disc 1 is accepted, so the start moves one step later. Disc 2 is refused: it
+// still gets the whole stealth cap, and the start steps back, frozen.
 void scenario_calib_cap(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
@@ -83,9 +80,8 @@ void scenario_calib_cap(const target_t *t, const char *elf, uint32_t freq) {
       t, (raw[2] == CALIB_TRIGGER) && (raw[3] == 1U), "a refusal steps the start back, frozen");
 }
 
-// A record stored on a carrier board meets a gate board: the chip moved or its
-// WFCK wire is intermittent. The boot replays code 7 and the learned values
-// restart from the defaults under the new board.
+// A record from a carrier board meets a gate board: the boot shows code 6 and
+// the learned values restart from the defaults.
 void scenario_calib_board(const target_t *t, const char *elf, uint32_t freq) {
   seed_calib(1U, 14U, 1U, 0);
   avr_t *avr = build_avr(t, elf, freq);
@@ -101,10 +97,8 @@ void scenario_calib_board(const target_t *t, const char *elf, uint32_t freq) {
               "a board change restarts the learned values");
 }
 
-// A learned start at the bound meets a disc whose lead-in read ends before the
-// counter gets there: no string is ever sent. The chip reads it as a missed
-// window, shows code 2 and steps the start back, frozen, so the next disc gets
-// its string.
+// The lead-in read ends before the counter reaches the learned start: code 2,
+// and the start steps back, frozen.
 #define MISSED_TOC_FRAMES 20
 #define MISSED_DECAY_FRAMES 40
 
@@ -129,9 +123,8 @@ void scenario_calib_missed(const target_t *t, const char *elf, uint32_t freq) {
               "a missed window steps the start back, frozen");
 }
 
-// A Japanese build never probes the start point: PsNee warns against a trigger
-// above 11 on Japanese models. An accepted disc freezes the probe at the
-// default trigger.
+// A Japanese build never probes the start point; PsNee warns against a trigger
+// above 11 on Japanese models.
 void scenario_calib_jp(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
@@ -149,31 +142,21 @@ void scenario_calib_jp(const target_t *t, const char *elf, uint32_t freq) {
               "a Japanese build keeps the default start");
 }
 
-// The oscillator trim. simavr runs the chip at whatever rate the harness names,
-// and the firmware believes 8 MHz, so naming 5 percent more models an RC that
-// runs 5 percent fast: 75 Hz frames then span more Timer1 ticks than nominal.
-// The disc is accepted first, then the long lead-in reread that follows, like
-// an anti-mod check's, is served and then yields frame samples; the trim must
-// step OSCCAL the right way, and store it once the window has closed. simavr does not change speed
-// on an OSCCAL write, so this checks direction, the stored value and the boot replay, not the
-// frequency.
+// The oscillator trim. Running the sim 5 percent faster than the 8 MHz the
+// firmware assumes models a fast RC. simavr ignores OSCCAL writes, so this
+// checks the step direction, the stored value and the boot replay.
 #define TRIM_TOC_FRAMES 200
-// Enough silent frames for the counter, filled by the lead-in read, to drain
-// below the trigger so the window closes and the trim can be stored.
+// Silent frames to drain the counter so the window closes and the trim is
+// stored.
 #define TRIM_DECAY_FRAMES 260
 
 static uint8_t osccal(avr_t *avr) {
   return avr->data[SIM_OSCCAL_ADDR];
 }
 
-// Every OSCCAL write the firmware makes, watched for the datasheet's rule that
-// the clock must not change by more than 2 percent from one cycle to the next
-// (ATtiny25/45/85 datasheet 2586Q, OSCCAL register description). The firmware
-// keeps it by writing a multi-notch step one notch at a time, so the watch
-// records the largest change any single write made, and the longest run of
-// writes that landed within one pass, which shows a batch did ask for more
-// than one notch. Writes in one pass sit a few dozen cycles apart; passes sit
-// a frame, about 100000 cycles, apart.
+// Every OSCCAL write must change the clock by at most 2 percent (datasheet
+// 2586Q, OSCCAL), so the firmware steps one notch per write. Writes in one
+// pass sit a few dozen cycles apart; passes sit about 100000 cycles apart.
 #define TRIM_SAME_PASS_CYCLES 1000U
 
 typedef struct {
@@ -184,8 +167,7 @@ typedef struct {
   avr_cycle_count_t last_cycle;
 } osccal_watch_t;
 
-// simavr hands a hooked write to this callback instead of storing it, so the
-// callback stores the value itself after measuring the change.
+// simavr hands a hooked write to this callback instead of storing it.
 static void osccal_write(struct avr_t *avr, avr_io_addr_t addr, uint8_t v, void *param) {
   osccal_watch_t *watch = (osccal_watch_t *)param;
   int change = (int)v - (int)avr->data[addr];
@@ -216,9 +198,7 @@ static void trim_case(const target_t *t, const char *elf, uint32_t freq, int per
   const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
   const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
                                            0,     0,     0x02U, 0,     0,     0 };
-  // Every frame of this case comes at the disc's own 75 Hz: the trim samples
-  // play frames as well as lead-in ones, so frames clocked faster than a real
-  // disc would read as an RC running slow.
+  // Frames at the disc's real 75 Hz: faster frames would read as a slow RC.
   g_frame_period_ns = SIM_SECTOR_NS;
   clock_until_inject(avr, t, toc);
   clock_frames(avr, t, play, CALIB_SETTLE_FRAMES);
@@ -240,9 +220,8 @@ static void trim_case(const target_t *t, const char *elf, uint32_t freq, int per
   } else {
     calib_check(t, (moved == 0) && (stored == 0), "a nominal RC leaves OSCCAL alone");
   }
-  // simavr keeps its speed whatever OSCCAL holds, so a 5 percent RC stays 5
-  // percent off and every batch asks for the largest step: each such step must
-  // still reach the register one notch per write.
+  // The sim's speed never follows OSCCAL, so every batch asks for the largest
+  // step, and each must still land one notch per write.
   if (percent != 0) {
     unsigned walked = (unsigned)((moved < 0) ? -moved : moved);
     (void)snprintf(what,
@@ -268,15 +247,9 @@ void scenario_trim(const target_t *t, const char *elf, uint32_t freq) {
       t, osccal(avr) == (uint8_t)(SIM_OSCCAL_FACTORY - 3U), "the stored trim is applied at boot");
 }
 
-// The supply guard. simavr models the bandgap channel against the supply it is
-// given (Verified: a probe read 225 at 5 V, 341 at 3.3 V and 401 at 2.8 V). A
-// chip run at 2.6 V, under the limit, must send no string through a whole
-// lead-in that reaches its start point, show code 7, and leave the stored
-// record as it was: the console did run its check, so the empty window is not a
-// miss that should move the start back. Raised to 3.3 V on the same run, the
-// next lead-in must be injected, since the guard holds no state of its own.
-// One code-7 cycle lasts 9 s and the watch can start anywhere in one, so 20 s
-// always holds a whole one.
+// The supply guard. simavr's bandgap reads 225 at 5 V, 341 at 3.3 V and 401 at
+// 2.8 V. At 2.6 V no string goes out, the LED shows code 7 and the record is
+// unchanged; back at 3.3 V the next lead-in is injected.
 #define LOW_SUPPLY_MV 2600U
 #define GOOD_SUPPLY_MV 3300U
 #define SUPPLY_TRIGGER 12U
@@ -328,12 +301,8 @@ void scenario_supply(const target_t *t, const char *elf, uint32_t freq) {
   calib_check(t, good >= 1, "injects once the supply is back at 3.3 V");
 }
 
-// A single dip of the supply inside a burst must hold the burst, not end it: the
-// count and the session carry on, so the disc gets the stealth cap and no more,
-// where a restarted burst would send it twice. The start point is seeded
-// frozen so it stays put. Five frames at 2.6 V land between two strings, then
-// the supply is back at 3.3 V for a lead-in far longer than the rest of the
-// burst.
+// A brief supply dip inside a burst holds the burst rather than ending it, so
+// the disc gets the stealth cap once, not twice.
 #define DIP_BEFORE_FRAMES 40
 #define DIP_FRAMES 5
 #define DIP_AFTER_FRAMES 400
@@ -361,14 +330,9 @@ void scenario_supply_dip(const target_t *t, const char *elf, uint32_t freq) {
   calib_check(t, g_strings == CALIB_STEALTH_STRINGS, what);
 }
 
-// A store that meets a sagging supply is skipped. Liss V1.4 dropped its EEPROM
-// parameters over "some rare cases of corrupted data"
-// (liss-stealth_v1.4_at90s1200_all.asm, lines 121-122), the classic cause being
-// a write that runs while VCC sinks. Here the strings go out at 3.3 V, then the
-// supply drops to 2.6 V just as the program frames accept the disc: the lesson
-// learned from it, a start one step later, must not reach EEPROM, so the record
-// still holds the seeded start. Without the supply gate in
-// pscu_engine_store_calib the record would read CALIB_TRIGGER + 2.
+// A store during a supply sag is skipped, the classic cause of a corrupt EEPROM
+// (Liss V1.4, liss-stealth_v1.4_at90s1200_all.asm:121-122). The record must
+// keep the seeded start.
 void scenario_store_low_supply(const target_t *t, const char *elf, uint32_t freq) {
   seed_calib(0U, CALIB_TRIGGER, 0U, 0);
   avr_t *avr = build_avr(t, elf, freq);
@@ -390,10 +354,8 @@ void scenario_store_low_supply(const target_t *t, const char *elf, uint32_t freq
               "a session resolved at 2.6 V writes nothing to EEPROM");
 }
 
-// A torn record: power lost between rewriting a value and rewriting the check
-// byte leaves a new trigger and trim under the old record's check byte. The
-// check fails, so the chip must ignore the whole record, apply no trim and
-// start from the defaults, which it writes back as a valid record at boot.
+// A torn record, a new trigger and trim under the old check byte, is ignored:
+// no trim, defaults, and a valid record written back at boot.
 #define TORN_OLD_TRIGGER 14U
 #define TORN_NEW_TRIGGER 20U
 #define TORN_TRIM (-3)

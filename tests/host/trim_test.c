@@ -8,12 +8,9 @@
 
 #include "pscu/trim.h"
 
-// Host tests for the oscillator trim. The logic is independent of the tick
-// rate, so these tests use a fine reference, 104 ticks per frame, a window of 83
-// to 124 and 6666 ticks over a batch, which gives a 66-tick dead band and room to
-// test each boundary on both sides; the firmware passes its own coarser one.
-// Every boundary is tested on both sides, since a trim that steps the wrong way
-// or one step too far skews every legacy-board bit after it.
+// Host tests for the oscillator trim. They use a fine reference, 104 ticks per
+// frame, a window of 83 to 124 and 6666 ticks per batch, so each boundary can be
+// tested on both sides; the firmware passes its own.
 
 #define BATCH PSCU_TRIM_FRAMES
 #define EXPECTED 6666U
@@ -26,9 +23,8 @@ static pscu_trim_ref_t ref(void) {
   return r;
 }
 
-// Feed a batch whose ticks sum to total, spread evenly so every sample stays
-// inside the window: each carries total / BATCH, and the first total % BATCH
-// carry one more. The last step's result is returned.
+// Feed a batch whose ticks sum to total, spread evenly inside the window, and
+// return the last step's result.
 static pscu_trim_step_t batch_of(uint32_t total) {
   pscu_trim_t state = pscu_trim_init();
   pscu_trim_step_t step = { state, 0 };
@@ -46,9 +42,8 @@ static void test_verdicts(void) {
   g_check(batch_of(EXPECTED - BAND).adjust == 0, "trim: the bottom of the dead band holds still");
   g_check(batch_of(EXPECTED - BAND - 1U).adjust == 1, "trim: a slow oscillator steps up");
 
-  // Past the dead band the step grows with the error, one notch per dead band
-  // of error, up to PSCU_TRIM_MAX_STEP, so a chip far off converges in a few
-  // batches rather than one notch per batch.
+  // Past the dead band the step grows by one notch per band of error, up to
+  // PSCU_TRIM_MAX_STEP.
   g_check(batch_of(EXPECTED + (2U * BAND)).adjust == -1,
           "trim: two bands of error step one notch, leaving one band");
   g_check(batch_of(EXPECTED + (2U * BAND) + 1U).adjust == -2,
@@ -98,21 +93,17 @@ static void test_apply(void) {
   g_check(pscu_trim_apply(0xFDU, 0xFFU, 1) == 0xFFU, "trim: no step above 255");
   g_check(pscu_trim_apply(0xFDU, 0xFEU, 1) == 0xFFU, "trim: a step up to 255 is allowed");
 
-  // A multi-notch step moves as far as it is allowed and stops at the first
-  // bound it meets, the offset limit or the CAL7 edge, rather than being
-  // refused whole and leaving the chip where it was.
+  // A multi-notch step stops at the first bound it meets, the offset limit or
+  // the CAL7 edge, rather than being refused whole.
   g_check(pscu_trim_apply(0x50U, 0x50U, -3) == 0x4DU, "trim: a three-notch step moves three");
   g_check(pscu_trim_apply(0x50U, 0x5EU, 4) == 0x60U, "trim: a step stops at the offset bound");
   g_check(pscu_trim_apply(0x7DU, 0x7CU, 4) == 0x7FU, "trim: a step stops below the range bit");
   g_check(pscu_trim_apply(0x82U, 0x81U, -4) == 0x80U, "trim: a step stops above the range bit");
 }
 
-// A chip whose RC is off by error_ppm, where each OSCCAL notch moves the
-// frequency by notch_ppm: each batch measures ticks in proportion to the
-// running frequency, and the trim steps until it holds still. Returns the
-// batches taken, or 0 when it never settles within the limit. The datasheet
-// gives the notch only as a curve (ATtiny25/45/85, calibrated RC oscillator
-// frequency against OSCCAL), so the tests span half to twice the nominal.
+// A chip whose RC is off by error_ppm, at notch_ppm per OSCCAL notch, trimmed
+// until it holds still. Returns the batches taken, or 0 if it never settles.
+// The datasheet gives the notch only as a curve, so tests span half to double.
 #define MODEL_BATCHES 12U
 #define PPM 1000000L
 

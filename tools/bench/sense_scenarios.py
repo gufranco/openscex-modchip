@@ -1,16 +1,12 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""The scenarios that walk a chip with a sense line through its state machine.
+"""Scenarios that walk a chip with a sense line through its state machine.
 
-Mayumi V4 and MM3 read a console signal on GP4, the SPEED line on gate boards
-and the XLAT strobe on carrier boards, and also watch the lid and a reset
-button. Their code is a state machine timed in windows of 130 ms to 2.8 s,
-with a reset or lid exit inside every loop. These scenarios are built from
-that code, read in the commented MM3 12F629 port, so each branch is taken by
-a deliberate sequence of SPEED spells, reset presses and lid openings. Every
-chip plays them, so the envelope still compares like with like; a chip with
-no sense line, reset or lid input meets them as ordinary discs.
+Mayumi V4 and MM3 read SPEED or XLAT on GP4 and watch the lid and a reset
+button. Each branch of their state machine, as the commented MM3 12F629 port
+lays it out, is taken by a sequence of SPEED spells, reset presses and lid
+openings. Chips without these inputs meet them as ordinary discs.
 """
 
 from collections.abc import Callable
@@ -36,10 +32,8 @@ from tools.bench.scenarios import (
 )
 from tools.bench.timeline import FRAME_NS, LEAD_IN, PROGRAM, Signal, Timeline
 
-# SPEED spells, low then high in milliseconds, one on each side of every
-# window Mayumi V4's gate-board path times GP4 against (130 ms, 250 ms, 750
-# ms, 1.5 s, 2.75 s and 2.8 s of quiet, read from the MM3 12F629 port's
-# LAB_15B..LAB_1C8), so each branch of that state machine is taken.
+# SPEED spells, low then high in ms, one on each side of every window Mayumi
+# V4's gate-board path times (MM3 12F629 port, LAB_15B..LAB_1C8).
 SPEED_SPELLS_MS = (
     (50, 300),
     (200, 300),
@@ -49,8 +43,7 @@ SPEED_SPELLS_MS = (
     (3500, 300),
     (5000, 3000),
 )
-# Holding reset longer than Mayumi V4's 2 s boot check (10 passes of 200 ms)
-# steps its mode; four holds walk through modes 2, 3, 4 and back to 1.
+# Longer than Mayumi V4's 2 s boot check, so each hold steps its mode.
 RESET_HOLD_NS = 3_000 * MS
 RESET_HOLDS = 4
 LID_OPEN_NS = 2 * SECOND_NS
@@ -58,13 +51,9 @@ LONG_PLAY_FRAMES = 30 * 75
 RESET_TAP_MS = 300
 LID_TAP_MS = 500
 # Paths through the gate-board state machine of Mayumi V4 and MM3, one per
-# power cycle, each a series of (action, milliseconds) after an ordinary disc.
-# Read from the MM3 12F629 port: a low of 0.75 to 2.25 s then a high reaches
-# LAB_15B with VAR_14 still set; a low under 130 ms there takes LAB_18D; a high
-# of 2.8 s clears VAR_13; a reset tap or a lid opening inside a timed loop
-# takes that loop's exit. The low spells place a tap or lid inside each loop:
-# LAB_190 for its first 750 ms, LAB_1A3 to 2.25 s, LAB_1B5 to 5 s, then the
-# burst of three.
+# power cycle, each a series of (action, ms) after an ordinary disc. The low
+# spells put a reset tap or lid opening inside each timed loop (MM3 12F629
+# port, LAB_15B to LAB_1B5).
 GATE_PATHS = (
     (
         ("low", 1000),
@@ -142,11 +131,8 @@ GATE_PATHS = (
     ),
     (("boot_lid", 3000),),
 )
-# The same for the carrier-board path: its 34 strings, the 24 after a lid
-# closes, and its endless gated phase, each met by a reset tap and a lid; a
-# reset while it waits for the lid to close; and drive pauses, which stop the
-# XLAT strobes, landing at different points of a gated string, where its
-# stealth checks abort it.
+# The carrier-board path: its string phases, each met by a reset tap and a lid;
+# a reset while waiting for the lid; and drive pauses landing in a gated string.
 PAUSE_STEPS = tuple(
     step for offset in range(8) for step in (("pause", 20), ("play", 37 * offset + 200))
 )
@@ -210,8 +196,7 @@ def _path_step(timeline: Timeline, action: str, ms: int) -> None:
 
 
 def _boot_tap(timeline: Timeline, after_ms: int) -> None:
-    """A reset tap after_ms into a boot, in the waits a chip with a reset
-    button runs right after power-on and after detecting the board."""
+    """A reset tap after_ms into a boot."""
     timeline.idle(after_ms * MS).set(Signal.RESET, 0).idle(RESET_TAP_MS * MS)
     timeline.set(Signal.RESET, 1).idle(BOOT_NS)
 
@@ -248,9 +233,8 @@ def _hold_reset(timeline: Timeline, frame: tuple[int, ...]) -> Timeline:
 
 
 def _reset_modes(on_carrier: bool) -> Timeline:
-    """Reset held at power-on, then during the first lead-in's strings, then
-    twice more, stepping a chip with a reset-button mode switch through every
-    mode; each mode then meets a disc."""
+    """Reset held at power-on, in the first lead-in and twice more, stepping a
+    reset-button chip through every mode; each mode then meets a disc."""
     start = carrier() if on_carrier else Timeline().set(Signal.SENSE, SINGLE_SPEED)
     timeline = start.set(Signal.RESET, 0).idle(RESET_HOLD_NS).set(Signal.RESET, 1)
     timeline.idle(BOOT_NS).mark(Phase.LEAD_IN).frames(LEAD_IN, 40)

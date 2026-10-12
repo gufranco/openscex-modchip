@@ -1,12 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Tests for the SCEx bit strings the bench decodes against.
-
-The expected strings are the ones the simulator harness has checked against
-the firmware since the first release (tests/sim/harness.c), so the bench and
-the harness agree on what a correct string is.
-"""
+"""Tests for the SCEx bit strings, which must match tests/sim/harness.c."""
 
 import unittest
 

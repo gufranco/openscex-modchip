@@ -4,14 +4,9 @@
 #ifndef PSCU_PORT_REGISTERS_H
 #define PSCU_PORT_REGISTERS_H
 
-// Board profile: the one place that maps logical signals to the ATtiny85's
-// registers and pins, so the rest of the firmware names signals, not bits. The
-// whole design fits the 8-pin part now that it needs no clock and no lid wire:
-// the four SCEx signals and the LED sit on PORTB in PsNee's tested ATtiny85
-// order (SQCK, SUBQ, DATA, LED, WFCK), read from its MCU.h, so PsNee wiring
-// guides match this chip pin for pin. PB5 stays RESET, so the chip remains
-// ISP-programmable. PORT_INIT is the boot value of PORTB: every pin is in use,
-// so no pull-up is needed and the LED starts off.
+// Maps signals to ATtiny85 pins, in PsNee's order (PsNee MCU.h) so its wiring
+// guides apply. PB5 stays RESET for ISP. PORT_INIT is PORTB at boot: no
+// pull-ups, LED off.
 #if defined(__AVR_ATtiny85__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny25__)
 
 #define PSCU_PORT PORTB

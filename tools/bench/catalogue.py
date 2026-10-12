@@ -1,9 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Every scenario the bench runs, in one place: the plain console situations,
-the edge cases that reach what those leave dark, the sense-line walks, and
-the anti-mod checks games run."""
+"""Every scenario the bench runs, in one place."""
 
 from tools.bench.antimod_scenarios import ANTIMOD_SCENARIOS
 from tools.bench.edge_scenarios import EDGE_SCENARIOS

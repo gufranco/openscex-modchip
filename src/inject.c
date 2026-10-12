@@ -5,9 +5,6 @@
 
 #include "pscu/assert.h"
 
-// The window is open once the leaky SUBQ counter has reached the trigger,
-// meaning the console has settled into reading the lead-in and is about to
-// perform the region check.
 bool pscu_should_inject(uint8_t counter, uint8_t trigger) {
   PSCU_ASSERT(trigger > 0U);
 
@@ -35,26 +32,14 @@ pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state,
   out.state = state;
   out.fire = false;
 
-  // A gone disc: emit nothing and drop both the count and the acceptance, so the
-  // next disc finds the chip re-armed. With a disc present, a program-area frame
-  // proves the console accepted the string, and the chip stays silent for the
-  // rest of that window, mid-burst included. Out of the window the count and
-  // the acceptance reset: the program area has drained the SUBQ counter, so the
-  // next opening is a new lead-in read, such as the ReadTOC re-read of the
-  // anti-mod v2 check, which clears the drive's licensed status and needs a
-  // fresh string on a copy (tonyhax docs/ap_v2.c, aprip readme). Inside the
-  // window the chip emits until the safety cap, so it never drives the bus
-  // without bound. Between two strings it lets gap frames pass, as PsNee and
-  // Mayumi V4 do. A held window freezes the burst where it stands, gap
-  // included.
+  // Leaving the window resets the state, so a later lead-in read, such as the
+  // anti-mod v2 ReadTOC re-read, gets a fresh burst (tonyhax docs/ap_v2.c).
   if (disc_gone) {
     out.state = pscu_stealth_init();
   } else {
     if (program) {
-      // coverage: unreachable: in the firmware a program-area frame meets an
-      // open window only if the caller keeps the counter up; pscu_loop_read
-      // empties it on that frame, so the window is always closed here. The
-      // latch stays for this function's own contract, held by the host tests.
+      // coverage: unreachable: pscu_loop_read empties the counter on a
+      // program-area frame, so the window is always closed here.
       out.state.accepted = true;
     }
     if (window == PSCU_WINDOW_CLOSED) {
@@ -85,10 +70,6 @@ pscu_confirm_t pscu_confirm_init(void) {
   return state;
 }
 
-// Resolve as confirmed the moment the program area appears; otherwise let a
-// bounded idle wait expire and resolve as unconfirmed. Keeping this pure means
-// the run loop just records whatever verdict the frames produced, with no timing
-// logic of its own.
 pscu_confirm_step_t pscu_confirm_step(pscu_confirm_t state,
                                       bool idle,
                                       bool program,
@@ -101,10 +82,7 @@ pscu_confirm_step_t pscu_confirm_step(pscu_confirm_t state,
   if (program) {
     out.state.program_seen = true;
   }
-  // A string restarts the wait, so the bounded wait runs only after the last
-  // string of a burst: with strings spaced by the stealth gap, counting the gap
-  // frames would resolve a session as refused while strings were still going
-  // out, and a late acceptance would then be lost.
+  // A string restarts the wait, so it times only from the last string.
   if (!idle) {
     out.state.waited = 0U;
   } else if (out.state.waited < 0xFFU) {
@@ -130,8 +108,7 @@ pscu_presence_t pscu_presence_init(void) {
 pscu_presence_t pscu_presence_step(pscu_presence_t state, bool valid, uint32_t elapsed_ms) {
   pscu_presence_t next = state;
   uint32_t sum = state.quiet_ms + elapsed_ms;
-  // coverage: unreachable: the saturated branch needs 2^32 ms, 49.7 days, of
-  // quiet; the console bench runs minutes.
+  // coverage: unreachable: saturating needs 49.7 days of quiet.
   next.quiet_ms = valid ? 0U : ((sum < state.quiet_ms) ? 0xFFFFFFFFUL : sum);
   next.seen = state.seen || valid;
   return next;

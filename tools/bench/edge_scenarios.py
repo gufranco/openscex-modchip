@@ -1,26 +1,12 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""The console situations that reach what the plain scenarios never do.
+"""Console situations the plain scenarios never reach.
 
-The accept, reread and swap scenarios exercise a chip the way a working
-console does. Instruction coverage then shows what they leave dark: in this
-firmware, a console that moves to the program area right after it accepts,
-a second boot onto what the first one stored, a chip moved to another board,
-a WFCK carrier that stalls mid-string, a supply that sags, a console whose
-clock runs off, a stored record that is damaged or at its limits, and SUBQ
-frames of every kind the decoder sorts. Each scenario here is one of those
-situations, played to every chip, so the field-proven chips meet it too and
-the envelope still compares like with like.
-
-Phases come from the timeline's own marks, so a scenario's judge points sit
-exactly where its builder put them. A power cycle marks the swap point, and
-the second boot's lead-in and program area are its second marks.
-
-The stored records follow this firmware's layout (include/pscu/calib.h): a
-magic byte 0xC8, board, trigger, frozen flag, trim offset, then a check byte,
-0x5A exclusive-ored with the five before it. Other chips ignore
-the EEPROM bytes; they read no such record.
+Program area right after acceptance, a second boot onto a stored record, a
+chip moved to another board, a stalled carrier, a sagging supply, an off-rate
+clock, damaged or limit records, and every SUBQ frame kind. Each is played to
+every chip. Records follow include/pscu/calib.h; other chips ignore EEPROM.
 """
 
 from collections.abc import Callable
@@ -57,8 +43,8 @@ BOARD_CARRIER = 1
 QUICK_LEAD_IN_FRAMES = 2 * 75
 FULL_BURST_LEAD_IN_FRAMES = 270
 QUICK_PLAY_FRAMES = 4 * 75
-# Past the 64 idle frames the chip waits for the program area before it
-# resolves a session as refused (include/pscu/run.h, PSCU_CONFIRM_FRAMES).
+# Frames the chip waits for the program area before resolving a session as
+# refused (include/pscu/run.h, PSCU_CONFIRM_FRAMES).
 REFUSED_LEAD_OUT_FRAMES = 90
 RESULT_PLAY_FRAMES = 17 * 75
 DRIVE_STOP_NS = 3 * SECOND_NS
@@ -70,19 +56,14 @@ CAL7_FACTORY = 0x7F
 SILENCE = (0,) * 12
 FAST_CONSOLE = 0.95
 SLOW_CONSOLE = 1.05
-# Frames at 70 percent of the period span about 4.6 Timer1 ticks, under the
-# trim's 5-tick floor (run.c PSCU_TRIM_LOW, 80 percent), so every sample is
-# refused: a console or a glitch that fast must never move OSCCAL.
+# At 70 percent of the period a frame spans about 4.6 Timer1 ticks, under the
+# trim's 5-tick floor (run.c PSCU_TRIM_LOW), so OSCCAL must not move.
 OFF_WINDOW_CONSOLE = 0.7
-# The re-read after acceptance is served again, up to the 16-string cap with
-# 5 frames between strings; each string blocks capture for 176 ms, so the burst
-# spans about 300 frames. 700 frames leave the trim the 64 consecutive samples
-# a verdict needs once the burst is over.
+# The served re-read burst spans about 300 frames; 700 leave the trim the 64
+# consecutive samples a verdict needs.
 TRIM_REREAD_FRAMES = 700
-# The debug indicator ticks when OSCCAL moves on its dark display, which comes
-# only once a disc's result has played, 9 s in the debug profile (include/pscu/
-# led.h). The console plays at its nominal rate for 10 s, then 4 s slow: the
-# trim needs 64 consecutive frames, about 0.9 s, to judge a batch.
+# The debug tick shows only once the result has played, 9 s in the debug
+# profile (include/pscu/led.h): 10 s at nominal rate, then 4 s slow.
 RESULT_SHOWN_FRAMES = 10 * 75
 SLOW_PLAY_FRAMES = 4 * 75
 STUCK_AFTER_BYTES = 6
@@ -93,8 +74,7 @@ LATE_CARRIER_NS = 4_000 * MS
 
 @dataclass(frozen=True, slots=True)
 class Record:
-    """A calibration record as this firmware stores it; check None means the
-    correct check byte, any other value a damaged one."""
+    """A calibration record; check None means the correct check byte."""
 
     board: int
     trigger: int
@@ -130,8 +110,7 @@ def disc(
     play: int = QUICK_PLAY_FRAMES,
     lead_in: int = QUICK_LEAD_IN_FRAMES,
 ) -> Timeline:
-    """A disc a console accepts at once: a short lead-in, then the program
-    area, as a console that moves on the moment the check passes."""
+    """A disc accepted at once: a short lead-in, then the program area."""
     lead, program = (
         (Phase.LEAD_IN, Phase.PROGRAM)
         if first
@@ -162,8 +141,7 @@ def _board_change() -> Timeline:
 
 
 def _watchdog() -> Timeline:
-    """The carrier stalls for 1 s just as the first string starts, while the
-    drive keeps reading: SUBQ frames go on, only WFCK stops."""
+    """WFCK stalls for 1 s as the first string starts; SUBQ frames go on."""
     timeline = carrier().idle(BOOT_NS).mark(Phase.LEAD_IN).frames(LEAD_IN, 12)
     timeline.set(Signal.WFCK_HALF_NS, 0).set(Signal.WFCK, 1).frames(LEAD_IN, 75)
     timeline.set(Signal.WFCK_HALF_NS, HALF_7K3_NS).frames(LEAD_IN, QUICK_LEAD_IN_FRAMES)
@@ -179,24 +157,21 @@ def _supply_hold() -> Timeline:
     return disc(timeline, False)
 
 
-# Lead-in frames whose CRC does not match: one with the CRC bytes zeroed, the
-# read UberNee V1.42 rejects, and one whose low CRC byte alone is wrong, so a
-# chip checking only one of the two bytes would still take it.
+# Lead-in frames with a bad CRC: both CRC bytes zeroed, as UberNee V1.42
+# rejects, and only the low byte wrong.
 BAD_CRC_ZEROED = (*LEAD_IN[:10], 0, 0)
 BAD_CRC_LOW = (*LEAD_IN[:11], LEAD_IN[11] ^ 1)
 
 
-# A lead-in frame of an audio disc that permits digital copies: control 2, so
-# byte 0 is 0x21. It is framed (TNO 0, CRC intact) yet neither the plain audio
-# form 0x01 nor a data track, so it must not hold the counter up while the
-# console reads the lead-in (src/subq.c, pscu_subq_tracking_hit).
+# An audio lead-in frame with the digital-copy bit, control 0x21: framed but
+# neither plain audio nor data, so it must not hold the counter up
+# (src/subq.c, pscu_subq_tracking_hit).
 AUDIO_COPY_LEAD_IN = with_crc((0x21, 0x00, 0xA0, 0, 0, 0, 0, 0, 0, 0))
 
 
 def _supply_low_lead_in() -> Timeline:
-    """The supply is below the guard for the whole climb to the start point:
-    the counter rises through the window while the guard holds every string,
-    then the supply recovers and the same lead-in goes on."""
+    """The supply stays below the guard through the climb to the start point,
+    then recovers while the lead-in goes on."""
     timeline = carrier().set(Signal.VCC_MV, SUPPLY_GOOD_MV).idle(BOOT_NS)
     timeline.set(Signal.VCC_MV, SUPPLY_LOW_MV).mark(Phase.LEAD_IN).frames(LEAD_IN, 40)
     timeline.set(Signal.VCC_MV, SUPPLY_GOOD_MV).frames(LEAD_IN, 30)
@@ -205,8 +180,8 @@ def _supply_low_lead_in() -> Timeline:
 
 
 def _bad_crc() -> Timeline:
-    """A lead-in of frames corrupted on the bus, which must never arm a
-    string, then the same lead-in intact and a quick accept."""
+    """A lead-in of corrupted frames, which must never arm a string, then the
+    same lead-in intact and a quick accept."""
     timeline = carrier().idle(BOOT_NS).mark(Phase.LEAD_IN)
     timeline.frames(BAD_CRC_ZEROED, 30).frames(BAD_CRC_LOW, 30)
     timeline.frames(LEAD_IN, QUICK_LEAD_IN_FRAMES)
@@ -238,11 +213,8 @@ def _trim_replay() -> Timeline:
 
 
 def _carrier_starts_late() -> Timeline:
-    """WFCK sits low for 4 s after power-on before the carrier starts, as on
-    a board whose CD DSP starts after the chip does: long enough that a chip
-    which waits 2 s before looking at WFCK still finds it low, so it takes the
-    board for a gate. The carrier then stalls for 1 s in the first string, a
-    watchdog reset on a board recorded as a gate, before the disc is read."""
+    """WFCK stays low for 4 s after power-on, so the chip takes the board for
+    a gate; the carrier then stalls for 1 s in the first string."""
     timeline = Timeline(strobes_per_frame=STROBES_PER_FRAME).set(Signal.WFCK, 0)
     timeline.idle(LATE_CARRIER_NS).set(Signal.WFCK_HALF_NS, HALF_7K3_NS)
     timeline.idle(BOOT_NS).mark(Phase.LEAD_IN).frames(LEAD_IN, 12)
@@ -264,9 +236,8 @@ def _frame_kinds() -> Timeline:
     other_control = with_crc((0x02, 0x01, 0x01, 0, 0x02, 0, 0, 0, 0x02, 0))
     zero_lead = with_crc((0x41, 0x00, 0xA0, 0, 0, 0, 0x05, 0, 0, 0))
     zero_play = with_crc((0x41, 0x01, 0x01, 0, 0x02, 0, 0x05, 0, 0x02, 0))
-    # Control 0x61 is a data track with the digital-copy bit set, which some
-    # pressings carry, and an audio track's POINT 01 entry is the third lead-in
-    # form UberNee tests for (its sketch, _hysteresis).
+    # Control 0x61 is a data track with the digital-copy bit; an audio track's
+    # POINT 01 entry is the third lead-in form UberNee checks (_hysteresis).
     copy_lead = with_crc((0x61, 0x00, 0xA0, 0, 0, 0, 0, 0, 0, 0))
     audio_point = with_crc((0x01, 0x00, 0x01, 0x50, 0, 0, 0, 0, 0, 0))
     timeline = carrier().idle(BOOT_NS).mark(Phase.LEAD_IN).frames(early, 2)
@@ -291,10 +262,8 @@ def _frame_kinds() -> Timeline:
 
 
 def _stored_records() -> Timeline:
-    """Seven boots onto damaged records, the last of which runs a disc on the
-    defaults it falls back to, so the judged disc is one every chip meets on
-    equal terms; then boots onto a probe at its upper limit, a frozen probe,
-    and a probe moved past the default that misses its window."""
+    """Boots onto seven damaged records, then onto a probe at its upper limit,
+    a frozen probe, and a probe past the default that misses its window."""
     damaged = [
         Record(BOARD_CARRIER, 10, 0, 0, check=0),
         Record(BOARD_CARRIER, 10, 0, 0, magic=0x11),
@@ -350,9 +319,7 @@ def edge(
     drives: str | None = None,
 ) -> Scenario:
     """A scenario whose phases and length come from a dry build of its
-    timeline, one that keeps the marks and the length but no events; the
-    runner builds it for real when it plays it. It reaches code and is
-    never judged against the envelope (see Scenario)."""
+    timeline; it reaches code and is never judged against the envelope."""
     with dry_run():
         timeline = build()
     phases = {Phase(mark): at for mark, at in timeline.marks.items()}

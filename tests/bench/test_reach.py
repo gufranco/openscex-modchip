@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Tests for sorting a chip's unexecuted instructions into the ones no console
-input can reach, each with its reason, and the ones still owed a scenario."""
+"""Tests for sorting a chip's unexecuted instructions into unreachable, with a
+reason, and still owed a scenario."""
 
 import unittest
 

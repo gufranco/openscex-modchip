@@ -13,19 +13,13 @@ pscu_trim_t pscu_trim_init(void) {
   return state;
 }
 
-// More ticks than nominal means the RC counted faster than real time, so it
-// runs fast and OSCCAL must come down; fewer means it runs slow. Inside the dead
-// band the trim holds still, so a chip within 1 percent never dithers. Past it
-// the step is one notch per dead band of error, at most PSCU_TRIM_MAX_STEP.
+// More ticks than nominal means the RC runs fast, so OSCCAL comes down. One
+// notch per dead band of error, at most PSCU_TRIM_MAX_STEP.
 static int8_t pscu_trim_verdict(uint32_t ticks, uint32_t expected) {
   uint32_t band_ticks = expected / PSCU_TRIM_DEADBAND_DIVISOR;
   int32_t band = (int32_t)band_ticks;
   int32_t error = (int32_t)ticks - (int32_t)expected;
-  // Each pass that finds the error still outside the dead band asks for one
-  // more notch and takes one band off the error, at most PSCU_TRIM_MAX_STEP
-  // passes: the step is what a one-percent notch would need to bring the error
-  // inside the band, with no division in the image. A batch sums a few hundred
-  // ticks, so the signed difference is small.
+  // Subtract one band per pass instead of dividing.
   int8_t size = 0;
   for (uint8_t pass = 0U; pass < (uint8_t)PSCU_TRIM_MAX_STEP; pass++) {
     if (error > band) {
@@ -61,10 +55,8 @@ pscu_trim_step_t pscu_trim_step(pscu_trim_t state,
   return out;
 }
 
-// Whether OSCCAL may hold a value: within PSCU_TRIM_MAX_OFFSET of factory and
-// in the factory's CAL7 half of the register. A notch below 0 or above 255
-// wraps to the far end, which is always the other half or far past the offset
-// bound, so the two checks refuse it with no separate overflow test.
+// Within PSCU_TRIM_MAX_OFFSET of factory and in the same CAL7 half. A wrapped
+// value fails these checks too, so no overflow test is needed.
 static bool pscu_trim_allowed(uint8_t factory, uint8_t value) {
   int16_t offset = (int16_t)((int16_t)value - (int16_t)factory);
   bool same_range = ((uint8_t)(value ^ factory) & PSCU_TRIM_RANGE_BIT) == 0U;
@@ -76,9 +68,7 @@ static bool pscu_trim_allowed(uint8_t factory, uint8_t value) {
 uint8_t pscu_trim_apply(uint8_t factory, uint8_t current, int8_t adjust) {
   PSCU_ASSERT((adjust >= -PSCU_TRIM_MAX_STEP) && (adjust <= PSCU_TRIM_MAX_STEP));
 
-  // The move is walked one notch at a time and stops at the first notch that
-  // would leave the allowed values, so a large step stops at whichever bound
-  // it meets first. The direction is the sign bit of the step's byte.
+  // Walk one notch at a time and stop at the first one not allowed.
   uint8_t raw = (uint8_t)adjust;
   bool down = (raw & PSCU_TRIM_RANGE_BIT) != 0U;
   uint8_t notches = down ? (uint8_t)(0U - raw) : raw;

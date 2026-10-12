@@ -3,13 +3,9 @@
 
 """Third-party firmware the bench may run, identified by the bytes alone.
 
-`artifacts.manifest.json` lists every image and source the bench uses that is
-not this project's: where it is expected on disk or which commit to fetch, its
-SHA-256 or git tree id, its licence and whether it may be redistributed. The
-images themselves are never committed (AGENTS rule 12); the manifest says which
-bytes are acceptable, so a renamed or edited file is refused rather than
-silently compared. A missing or different file is skipped with a message
-naming the file, the expected and actual hashes, and how to obtain it.
+`artifacts.manifest.json` gives each image or source its location or commit,
+its SHA-256 or git tree id, and its licence. A missing or different file is
+skipped with a message saying how to obtain it.
 """
 
 import hashlib
@@ -32,9 +28,8 @@ class Status(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Artifact:
-    """One manifest entry. File entries carry path and sha256; git sources
-    carry url, commit and tree. A PIC source may carry assembler defines, and
-    a sketch source the path of its sketch in the repository."""
+    """One manifest entry: file entries carry path and sha256, git sources url,
+    commit and tree; optional assembler defines and sketch path."""
 
     id: str
     kind: str

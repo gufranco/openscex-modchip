@@ -6,17 +6,9 @@
     python3 -m tools.bench.cli [--chips a,b] [--scenarios x,y] [--out FILE]
                                [--workdir DIR]
 
-Every selected chip is prepared, a chip that cannot be is skipped with its
-reason, and each ready chip plays every selected scenario. Ours is then held
-against the field-proven chips that ran the same scenario, and the report is
-written as Markdown. The exit status is 1 when any envelope rule fails or
-when ours has an instruction no scenario executed and no reason excuses, or
-fails a showcase property, 2 on a bad argument, else 0; a run where nothing
-could be compared still exits 0, and the report says every rule is unchecked
-rather than passed. Coverage and the showcase are judged only when every
-scenario runs: a run of a chosen few is expected to leave code uncovered and
-properties unexercised. The showcase results are written as showcase.json
-next to the report.
+Exit status 1 when an envelope rule fails, or, on a run of every scenario,
+when ours has unexcused uncovered code or fails a showcase property; 2 on a
+bad argument; else 0. The report is Markdown, with showcase.json beside it.
 """
 
 import argparse
@@ -67,9 +59,7 @@ def select(given: str | None, known: list[str]) -> list[str]:
 def evidence(runs: list[Run], scenario: Scenario) -> list[Metrics]:
     """The field-proven runs of one scenario that may bound ours.
 
-    A chip counts only when it is made for every board the scenario stands
-    for: a chip that was never meant for a PU-7 says nothing about what a
-    PU-7 accepts, whatever it did in the simulation.
+    A chip counts only when it is made for every board the scenario stands for.
     """
     return [
         r.metrics
@@ -90,10 +80,8 @@ def judge(runs: list[Run]) -> list[Finding]:
 
 
 def applies(chip: Chip, scenario: Scenario) -> bool:
-    """Whether a chip runs a scenario. A scenario that exists to drive one
-    line, such as the sense-line walks of Mayumi V4 and MM3, is skipped by a
-    third-party chip that has no such line, where it would only burn time;
-    ours runs every scenario, since every instruction of it must be reached."""
+    """Whether a chip runs a scenario. A third-party chip skips a scenario
+    built for a line it does not have; ours runs every scenario."""
     return (
         chip.name == OURS
         or scenario.drives is None
@@ -102,12 +90,8 @@ def applies(chip: Chip, scenario: Scenario) -> bool:
 
 
 def _run_all(root: Path, chip: Chip, scenarios: list[str], workdir: Path) -> list[Run]:
-    """One chip through every scenario, the runs side by side.
-
-    Each run is its own simulator process writing its own files, so they share
-    nothing and can run at once; the pool is bounded by the machine's cores.
-    The results keep the scenarios' order.
-    """
+    """One chip through every scenario, run in parallel up to the core count,
+    results in the scenarios' order."""
     jobs = os.cpu_count() or 1
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         chosen = [
@@ -146,12 +130,8 @@ def verdict(findings: list[Finding]) -> int:
 
 
 def reached(coverages: list[Coverage]) -> int:
-    """Fail the run when this firmware has an instruction no scenario reaches
-    and no reason excuses.
-
-    Only ours is held to it: a third-party image's gaps are reported, since
-    its code is not this project's to change, but they never fail the run.
-    """
+    """Fail the run when ours has an instruction no scenario reaches and no
+    reason excuses. Third-party gaps are only reported."""
     left = [c for c in coverages if c.chip == OURS and c.uncovered]
     for result in left:
         spans = ", ".join(f"{low:#x}-{high:#x}" for low, high in result.uncovered)

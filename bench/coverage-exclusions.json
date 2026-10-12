@@ -2,131 +2,131 @@
   "psnee-v9": [
     {
       "line": "PSNee.ino:597",
-      "reason": "the region loop's second and third passes run only in the universal build, injectSCEx 3; the bench builds SCPH_xxx1, one region, which breaks after the first"
+      "reason": "The region loop's later passes, run only by the three-region build."
     },
     {
       "line": "PSNee.ino:599",
-      "reason": "the universal build's choice of region by loop index; SCPH_xxx1 always takes its one region"
+      "reason": "The per-pass region choice, made only by the three-region build."
     },
     {
       "line": "PSNee.ino:652",
-      "reason": "the WFCK release after the region loop ends on its own, which only the universal build does; SCPH_xxx1 releases WFCK before its break"
+      "reason": "The WFCK release after the full loop, reached only by the three-region build."
     },
     {
       "line": "delay.h:174",
-      "reason": "the universal build's 90 ms pause between regions, avr-libc's _delay_ms inlined at PSNee.ino:648; every other delay in the sketch runs"
+      "reason": "The 90 ms pause between regions, which only the three-region build runs."
     }
   ],
   "mayumi-v4-12c508a-usa": [
     {
       "start": "0x008",
       "end": "0x00f",
-      "reason": "the ROM tag 'Mayumi04', retlw data that no code calls"
+      "reason": "The ROM tag 'Mayumi04', retlw data no code calls."
     }
   ],
   "mm3-12c508a-usa": [
     {
       "start": "0x008",
       "end": "0x015",
-      "reason": "the ROM tag 'Multimode3.00 ', retlw data that no code calls"
+      "reason": "The ROM tag 'Multimode3.00 ', retlw data no code calls."
     }
   ],
   "old-crow-12c508": [
     {
       "start": "0x009",
       "end": "0x00c",
-      "reason": "the branches taken when GP3, pin 4, reads low: it is the timing input of the 5-wire install, which the 4-wire install the bench models leaves unconnected, so it reads high (the source's own pin diagram and steps 1 to 4)"
+      "reason": "Branches for GP3 low, a 5-wire input the modelled 4-wire install leaves high."
     }
   ],
   "ubernee-v142": [
     {
       "file": "HardwareSerial.cpp",
-      "reason": "Arduino AVR core 1.8.8 serial code the sketch's debug output never reaches: receive, peek and availability calls nothing makes, the baud setup for 57600 or very slow rates that Serial.begin(115200) skips, and the interrupts-off waits of flush and write, which the sketch calls only with interrupts on"
+      "reason": "Arduino core serial receive, baud and interrupts-off paths the sketch never uses."
     },
     {
       "file": "HardwareSerial0.cpp",
-      "reason": "Arduino AVR core 1.8.8: the UART receive interrupt and the serialEvent hook; nothing drives the chip's RX pin and the sketch defines no serialEvent"
+      "reason": "Arduino core UART receive interrupt and serialEvent hook; nothing drives RX."
     },
     {
       "file": "HardwareSerial_private.h",
-      "reason": "Arduino AVR core 1.8.8: the receive-complete handler; nothing drives the chip's RX pin"
+      "reason": "Arduino core receive-complete handler; nothing drives RX."
     },
     {
       "file": "Print.cpp",
-      "reason": "Arduino AVR core 1.8.8: Print overloads the sketch never calls"
+      "reason": "Arduino core Print overloads the sketch never calls."
     },
     {
       "file": "Print.h",
-      "reason": "Arduino AVR core 1.8.8: a Print overload the sketch never calls"
+      "reason": "An Arduino core Print overload the sketch never calls."
     },
     {
       "file": "Tone.cpp",
-      "reason": "Arduino AVR core 1.8.8: tone() support and its timer interrupt, linked in through turnOffPWM; the sketch plays no tone"
+      "reason": "Arduino core tone() support, linked through turnOffPWM but never used."
     },
     {
       "file": "WInterrupts.c",
-      "reason": "Arduino AVR core 1.8.8: external interrupt stubs; the sketch attaches no interrupt"
+      "reason": "Arduino core external interrupt stubs; the sketch attaches none."
     },
     {
       "file": "wiring_digital.c",
-      "reason": "Arduino AVR core 1.8.8: pinMode, digitalWrite and turnOffPWM cases for pins and timers the sketch never passes; it drives its own pins through the port registers"
+      "reason": "Arduino core pin and timer cases the sketch never passes."
     }
   ],
   "onechip-12c508a-pal": [
     {
       "start": "0x008",
       "end": "0x015",
-      "reason": "the ROM tag 'ONEchip V1.00 ', retlw data that no code calls"
+      "reason": "The ROM tag 'ONEchip V1.00 ', retlw data no code calls."
     },
     {
       "start": "0x055",
       "end": "0x059",
-      "reason": "a branch on GP0 reading high: OneChip has no source and its PM-41 wiring is published only as a diagram image, so GP0's console point is not established; the bench holds it low, the level its string path waits for"
+      "reason": "A branch on GP0 high; the bench holds GP0 low, as the string path expects."
     },
     {
       "start": "0x06b",
       "end": "0x06b",
-      "reason": "a branch on GP5 reading low: GP5's console point is not established (no source, wiring only in a diagram image); the bench leaves it high, which keeps the flag GP5 low would clear"
+      "reason": "A branch on GP5 low; the bench leaves GP5 high."
     },
     {
       "start": "0x084",
       "end": "0x087",
-      "reason": "a branch on GP5 reading low: GP5's console point is not established (no source, wiring only in a diagram image); the bench leaves it high, which keeps the flag GP5 low would clear"
+      "reason": "A branch on GP5 low; the bench leaves GP5 high."
     },
     {
       "start": "0x09c",
       "end": "0x09e",
-      "reason": "a branch on GP5 reading low: GP5's console point is not established (no source, wiring only in a diagram image); the bench leaves it high, which keeps the flag GP5 low would clear"
+      "reason": "A branch on GP5 low; the bench leaves GP5 high."
     },
     {
       "start": "0x0a4",
       "end": "0x0a6",
-      "reason": "a branch on GP5 reading low: GP5's console point is not established (no source, wiring only in a diagram image); the bench leaves it high, which keeps the flag GP5 low would clear"
+      "reason": "A branch on GP5 low; the bench leaves GP5 high."
     },
     {
       "start": "0x0aa",
       "end": "0x0ac",
-      "reason": "a branch on GP5 reading low: GP5's console point is not established (no source, wiring only in a diagram image); the bench leaves it high, which keeps the flag GP5 low would clear"
+      "reason": "A branch on GP5 low; the bench leaves GP5 high."
     },
     {
       "start": "0x0bc",
       "end": "0x0cc",
-      "reason": "a branch on GP0 reading high: OneChip has no source and its PM-41 wiring is published only as a diagram image, so GP0's console point is not established; the bench holds it low, the level its string path waits for"
+      "reason": "A branch on GP0 high; the bench holds GP0 low, as the string path expects."
     },
     {
       "start": "0x0e8",
       "end": "0x0e8",
-      "reason": "a branch on GP0 reading high: OneChip has no source and its PM-41 wiring is published only as a diagram image, so GP0's console point is not established; the bench holds it low, the level its string path waits for"
+      "reason": "A branch on GP0 high; the bench holds GP0 low, as the string path expects."
     },
     {
       "start": "0x0f8",
       "end": "0x0f8",
-      "reason": "the boot wait for BIOS address line A18 on GP3, OneChip's 'fire now' signal (UberNee's OneChip analysis, PAL_PSOne_OneChip_Analysis); the bench does not model the BIOS bus and holds the line high, so the wait never loops"
+      "reason": "The boot wait for BIOS line A18 on GP3, which the bench holds high."
     },
     {
       "start": "0x100",
       "end": "0x100",
-      "reason": "the boot wait for BIOS address line A18 on GP3, OneChip's 'fire now' signal (UberNee's OneChip analysis, PAL_PSOne_OneChip_Analysis); the bench does not model the BIOS bus and holds the line high, so the wait never loops"
+      "reason": "The boot wait for BIOS line A18 on GP3, which the bench holds high."
     }
   ]
 }

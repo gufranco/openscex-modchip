@@ -7,21 +7,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// The status LED as a diagnostic channel. One LED, one colour, so meaning is
-// carried by how many flashes and how long each lasts, the way laptop power LEDs
-// report POST errors as counted blinks. The run loop feeds this pure state
-// machine the time elapsed and what happened; it answers whether the LED is lit.
-// Nothing here waits: patterns advance with the hardware timer while the loop
-// keeps reading SUBQ, so the LED can never delay or gate a feature (AGENTS.md
-// rule 7), and with no LED fitted nothing else changes.
+// The status LED: codes are counted flashes. The run loop passes elapsed time
+// and events; this answers whether the LED is lit. Nothing here waits, so the
+// LED never delays a feature.
 
-// Result and fault codes, each shown as that many long flashes; 7 is the
-// highest. The LED keeps no history: a code is about now, except the two boot
-// codes. Code 5 comes from the reset-cause flag; code 6 from comparing the
-// detected board with the one the calibration record stored, which changes when
-// the chip moves to another console or its WFCK wire is intermittent. Code 7 is
-// a live fault: the supply measures under 2.75 V, or the measurement failed, and
-// no string is sent while it holds.
+// Result and fault codes, shown as that many long flashes. 5 and 6 are boot
+// codes; 7 holds while the supply is low and no string is sent.
 #define PSCU_LED_CODE_ACCEPTED ((uint8_t)1U)
 #define PSCU_LED_CODE_REFUSED ((uint8_t)2U)
 #define PSCU_LED_CODE_NO_SQCK ((uint8_t)3U)
@@ -30,12 +21,8 @@
 #define PSCU_LED_CODE_BOARD_CHANGED ((uint8_t)6U)
 #define PSCU_LED_CODE_SUPPLY ((uint8_t)7U)
 
-// Flash timings in milliseconds. Every pattern length is kept apart from the
-// length of a region string, 90 to 181 ms depending on the board and WFCK rate,
-// so a string flash is never mistaken for a code: board blinks are 300 ms, code
-// flashes 700 ms, and the waiting heartbeat a 40 ms blip every 2 s. A code
-// repeats after a 2 s pause, three times for a disc result, so it can be counted
-// without a stopwatch, and then the LED goes dark for play.
+// Flash timings in ms, chosen to differ from a string's 90 to 181 ms flash. A
+// disc result repeats three times, then the LED goes dark.
 #define PSCU_LED_SHORT_MS ((uint32_t)300U)
 #define PSCU_LED_LONG_MS ((uint32_t)700U)
 #define PSCU_LED_GAP_MS ((uint32_t)300U)
@@ -44,45 +31,25 @@
 #define PSCU_LED_BEAT_PERIOD_MS ((uint32_t)2000U)
 #define PSCU_LED_RESULT_REPEATS ((uint32_t)3U)
 
-// Fault thresholds. No valid SUBQ frame at all for 5 s after power-on points at
-// the SQCK, SUBQ or power wiring, or at a console with no disc in; once any
-// frame has arrived, silence just means no disc and is not a fault. Valid
-// frames that never show a region check for 20 s since this disc arrived point
-// at the SUBQ wiring, or at a disc with no data lead-in such as an audio CD.
-// Both are Concluded: a console reads the lead-in within a few seconds of
-// spin-up.
+// Fault thresholds, chosen. Code 3: no valid frame 5 s after power-on (wiring
+// or no disc). Code 4: frames but no region check 20 s after a disc arrives.
 #define PSCU_LED_NO_SQCK_MS ((uint32_t)5000U)
-// Code 3 is an install check: it shows for three of its cycles, 15 s, and then
-// gives way to the heartbeat, so a console left on with no disc does not flash
-// a fault for ever.
+// Code 3 stops after 15 s, so an idle console does not flash forever.
 #define PSCU_LED_NO_SQCK_UNTIL_MS ((uint32_t)20000U)
 #define PSCU_LED_NO_CHECK_MS ((uint32_t)20000U)
 
-// Two profiles for the same pin, picked at build time (Makefile PROFILE). PB3
-// drives either an LED through its resistor or an active piezo buzzer, which
-// beeps whenever the pin is high, so the profile, not the part, decides how much
-// is said. Debug says everything above and adds a tick during play; final says
-// only what a player needs to hear: a chirp at power-on, a chirp when a disc is
-// accepted, and each fault once.
+// Build-time profile for PB3 (LED or active buzzer). Debug shows everything;
+// final chirps at power-on and on an accepted disc, and reports each fault once.
 typedef enum { PSCU_LED_PROFILE_DEBUG = 0, PSCU_LED_PROFILE_FINAL = 1 } pscu_led_profile_t;
 
-// Final-profile timings. A chirp is short enough to read as "fine" next to the
-// 700 ms fault flashes, and long enough for a piezo to sound: the buzzer's
-// datasheet gives no rise time, and 60 ms is many cycles of its 3.5 kHz tone
-// (Read: PUI Audio AI-3035-TWT-3V-R datasheet). A refused disc's code 2 plays
-// twice instead of three times. A low supply, the one fault that stops the chip
-// sending, repeats while it holds, but 30 s apart rather than 2 s, so a buzzer
-// reports it without drowning the room. All four are design choices.
+// Final-profile timings. 60 ms is many cycles of the buzzer's 3.5 kHz tone (PUI
+// AI-3035-TWT-3V-R datasheet). A low supply repeats every 30 s.
 #define PSCU_LED_CHIRP_MS ((uint32_t)60U)
 #define PSCU_LED_FINAL_REFUSED_REPEATS ((uint32_t)2U)
 #define PSCU_LED_SUPPLY_BACKOFF_MS ((uint32_t)30000U)
 
-// Debug-profile tick: a 40 ms pulse during play each time OSCCAL moves or the
-// calibration record is written, so the learning that happens after a disc is
-// accepted can be watched. Shown only once the result has finished, in the dark
-// stage, so a tick never lands inside a code, a string flash or the window before
-// the first string, where it could be miscounted. 40 ms matches the heartbeat
-// blip, well clear of a string's 90 to 181 ms.
+// Debug tick when OSCCAL moves or the record is written. Shown only in the dark
+// stage, so it never lands inside a code or a string flash.
 #define PSCU_LED_TICK_MS ((uint32_t)40U)
 
 typedef enum {
@@ -94,8 +61,7 @@ typedef enum {
   PSCU_LED_DARK = 5
 } pscu_led_stage_t;
 
-// What happened this pass, from the run loop: a region string was sent, or the
-// disc's session resolved as accepted or refused.
+// What happened this pass.
 typedef enum {
   PSCU_LED_EVENT_NONE = 0,
   PSCU_LED_EVENT_FIRED = 1,
@@ -103,14 +69,9 @@ typedef enum {
   PSCU_LED_EVENT_REFUSED = 3
 } pscu_led_event_t;
 
-// stage is where the display is; code the number of long flashes it shows in a
-// code stage; live marks a fault code that repeats for as long as the fault
-// holds; board the 1 or 2 short boot blinks; replay a code shown once at boot,
-// 6 after a watchdog reset, 7 after a board change, 0 otherwise; phase_ms the
-// time spent in the current stage; profile the build's profile; told the live
-// faults the final profile has already shown for this disc, one bit per code.
-// In the dark stage code is 1 while a debug tick shows, timed by phase_ms like
-// any other pattern, and 0 otherwise, so the tick needs no field of its own.
+// live: a fault code that repeats while it holds. replay: a boot code, or 0.
+// told: faults the final profile already showed for this disc, a bit per code.
+// In the dark stage code is 1 while a debug tick shows.
 typedef struct {
   pscu_led_stage_t stage;
   uint8_t code;
@@ -127,22 +88,15 @@ typedef struct {
   bool on;
 } pscu_led_step_t;
 
-// Start the display after board detection: board short blinks (1 for a static
-// gate, 2 for a WFCK carrier), then the boot code once if any, then the waiting
-// heartbeat, in the given profile.
+// Start after board detection: 1 blink for a gate or 2 for a carrier, the boot
+// code if any, then the heartbeat.
 pscu_led_t pscu_led_init(uint8_t board_blinks, uint8_t replay_code, pscu_led_profile_t profile);
 
-// A new disc has arrived: a result still showing belonged to the last one, so
-// the display drops back to the heartbeat, as it does from a string or the dark
-// stage. The result stays up until then, so a refused disc's code 2 remains
-// readable while the console idles after it. Boot blinks, the boot replay, a
-// live fault and the heartbeat itself are left alone. The new disc may report
-// each fault again, so the final profile forgets which ones it has told.
+// A new disc arrived: drop a shown result back to the heartbeat and forget
+// which faults were told. Boot patterns and live faults are left alone.
 pscu_led_t pscu_led_disc_arrived(pscu_led_t state);
 
-// Something was learned during play: OSCCAL moved or the calibration was
-// written. The debug profile starts a tick if the display is dark; otherwise,
-// and always in the final profile, nothing changes.
+// OSCCAL moved or the record was written: start a debug tick if dark.
 pscu_led_t pscu_led_note(pscu_led_t state);
 
 // Advance by elapsed_ms, apply this pass's event and the live fault (0 for
@@ -152,11 +106,8 @@ pscu_led_step_t pscu_led_step(pscu_led_t state,
                               uint8_t fault,
                               uint32_t elapsed_ms);
 
-// The live fault, if any, most urgent first: the supply is low or unmeasurable
-// (supply_low true); no valid frame since power-on, from PSCU_LED_NO_SQCK_MS to
-// PSCU_LED_NO_SQCK_UNTIL_MS (seen false, quiet_ms the time since power-on); or
-// valid frames but no region check since this disc arrived (framed true, armed
-// false, since_ms the time since the disc arrived, or since power-on).
+// The live fault, most urgent first: low supply, no valid frame since power-on,
+// or frames but no region check since this disc arrived. 0 for none.
 uint8_t pscu_led_fault(
     bool supply_low, bool seen, uint32_t quiet_ms, uint32_t since_ms, bool framed, bool armed);
 

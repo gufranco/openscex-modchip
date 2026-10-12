@@ -12,20 +12,14 @@
 // Disc-handling scenarios: multi-disc swaps, disc presence without a lid wire,
 // and every LED stage from the boot light to the live fault codes.
 
-// A multi-disc game, end to end. Each phase counts region strings by LED rises.
-// The first program-area frame must stop the burst. A table-of-contents re-read
-// of the same disc after play, as the anti-mod v2 check's ReadTOC does, clears
-// the drive's licensed status, so it must be served again, under the same cap,
-// and play after it must stay silent. Every swap, seen as SUBQ going silent
-// past the disc-gone bound, must re-arm the chip so the next disc is injected.
-// The harness clocks a frame about every 12 ms, and the firmware may miss frames
-// while an injection blocks, so phase lengths sit well past the trigger.
+// A multi-disc game. The first program-area frame stops the burst; a TOC
+// re-read, as the anti-mod v2 check does, is served again under the same cap;
+// a swap re-arms the chip for the next disc.
 #define MD_TOC_FRAMES 40
 #define MD_PLAY_FRAMES 30
 #define MD_REREAD_FRAMES 520
-// Settle frames let a string already in flight when the TOC phase ends finish
-// before strings are counted again: a string lasts 177 ms, about 15 harness
-// frames, and is counted when it ends.
+// Frames to let a string in flight finish before counting resumes: a string
+// lasts 177 ms, about 15 frames.
 #define MD_SETTLE_FRAMES 20
 // The per-arming cap, PSCU_STEALTH_STRINGS in include/pscu/config.h.
 #define MD_CAP 16
@@ -74,10 +68,7 @@ void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq) {
 }
 
 // Without a lid wire, a swap is a stretch with no valid SUBQ frame. A pause
-// shorter than the 1.5 s bound, as a seek or a brief stall on the same disc
-// gives, keeps the disc and its session (host loop tests), and a lead-in read
-// after it is served like any later lead-in read of the same disc. A swap past
-// the bound re-arms, which the multi-disc scenario covers.
+// under the 1.5 s bound keeps the disc and its session.
 #define SHORT_PAUSE_MS 800U
 
 void scenario_disc_presence(const target_t *t, const char *elf, uint32_t freq) {
@@ -100,9 +91,8 @@ void scenario_disc_presence(const target_t *t, const char *elf, uint32_t freq) {
                  reread);
   check((g_led_seen != 0) && (reread >= 1), label);
 
-  // A long reread leaves the counter high. After a swap, the next disc's first
-  // frames are not lead-in, as a drive spinning up and seeking gives; with the
-  // counter emptied by the swap they must not open the window.
+  // After a swap the next disc's first frames are not lead-in; with the counter
+  // emptied they must not open the window.
   const uint8_t lead_out[SUBQ_FRAME_BYTES] = { 0x41U, 0xAAU, 0x01U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   clock_frames(avr, t, toc, MD_REREAD_FRAMES);
   swap_disc(avr);
@@ -115,10 +105,8 @@ void scenario_disc_presence(const target_t *t, const char *elf, uint32_t freq) {
   check(spin_up == 0, label);
 }
 
-// The boot light: at power-on the LED must come on, stay on through the WFCK
-// settle and detect wait, and go off before the first frame is read, so an
-// installer sees power, clock and firmware are alive without a disc. It must
-// also never stay on: after the wait it is dark until a region string is sent.
+// The boot light: on at power-on, through the settle and detect wait, and off
+// before the first frame is read.
 static uint64_t g_boot_on = 0;
 static uint64_t g_boot_off = 0;
 
@@ -138,9 +126,8 @@ void scenario_boot_light(const target_t *t, const char *elf, uint32_t freq) {
   wfck_ctx_t ctx = { NULL, 1U, 0U };
   g_boot_on = 0U;
   g_boot_off = 0U;
-  // build_avr already ran the firmware through its port init, and the boot light
-  // comes on within those first cycles, so read the LED level now as well as
-  // watching for the later edges.
+  // The boot light comes on during the port init build_avr already ran, so
+  // read the LED level now.
   avr_ioport_state_t state;
   (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE((uint32_t)t->port), &state);
   if (((state.port >> t->led) & 1U) != 0U) {
@@ -178,10 +165,8 @@ void board_blinks_case(const target_t *t, const char *elf, uint32_t freq, int mo
   check(blinks == ((modern != 0) ? 2 : 1), label);
 }
 
-// The live faults: no valid SUBQ frame at all for 5 s after power-on is code 3
-// (SQCK, SUBQ or power wiring, or no disc); valid frames that never show a
-// region check for 20 s are code 4, here an audio CD, whose lead-in frames are
-// valid but never data, so the counter never rises.
+// Live faults: no valid SUBQ frame for 5 s is code 3; valid frames without a
+// region check for 20 s, here an audio CD, are code 4.
 #define NO_CHECK_FRAMES 2200
 
 void faults_case(const target_t *t, const char *elf, uint32_t freq) {

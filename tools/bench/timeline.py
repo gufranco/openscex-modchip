@@ -3,14 +3,10 @@
 
 """The console's side of the wires, as a timeline of signal changes.
 
-A runner reads one change per line, `<time_ns> <signal> <value>`, and applies
-it to the chip's input pins at that simulated time. SUBQ frames follow the
-simulator harness exactly (tests/sim/harness.c, clock_frame): twelve bytes,
-least significant bit first, SUBQ set and then SQCK pulsed low and high with
-EDGE_NS per half, and a new frame every 1/75 s, the single-speed subcode rate.
-The WFCK carrier is not listed edge by edge; a `wfck_half_ns` change tells the
-runner to toggle WFCK at that half period from then on (0 stops it), which
-keeps a 10 s scenario to a few hundred thousand lines.
+A runner reads one `<time_ns> <signal> <value>` change per line. SUBQ frames
+match tests/sim/harness.c: twelve bytes LSB first, one frame per 1/75 s. WFCK
+is not listed edge by edge; a `wfck_half_ns` change sets its half period, 0
+stops it.
 """
 
 import binascii
@@ -21,28 +17,22 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 EDGE_NS = 14_170
-# Whether timelines built now keep their events. A dry build only moves the
-# cursor and records marks, which is all a scenario needs to know its phases
-# and length; the longest scenario holds millions of events, so building it
-# for real only when a runner plays it keeps memory to one at a time.
+# Whether timelines built now keep their events. A dry build only records
+# marks and length, so only the timeline being played is held in memory.
 _RECORDING: ContextVar[bool] = ContextVar("recording", default=True)
 FRAME_NS = 1_000_000_000 // 75
 FRAME_BYTES = 12
 
 
 def with_crc(data: tuple[int, ...]) -> tuple[int, ...]:
-    """Append the SUBQ CRC: CRC-16-CCITT from zero over the ten bytes, stored
-    inverted and most significant byte first (psx-spx cdromformat.md,
-    Subchannel Q and adjust_crc_16_ccitt). A disc always carries it, and a
-    chip that checks it, as UberNee rejects a read whose CRC bytes are zero,
-    must see a real one; crc_hqx is the same CCITT polynomial from zero."""
+    """Append the SUBQ CRC: CRC-16-CCITT from zero over the ten bytes, inverted,
+    high byte first (psx-spx cdromformat.md, Subchannel Q)."""
     crc = binascii.crc_hqx(bytes(data), 0) ^ 0xFFFF
     return (*data, crc >> 8, crc & 0xFF)
 
 
-# The first ten bytes are the fields the chips read: ADR/control, track, the
-# point or index, and the zero byte; the lead-in's addresses are left zero,
-# which no chip here reads. Bytes ten and eleven are the CRC over them.
+# Bytes 0 to 9 are the fields the chips read, addresses left zero; bytes 10 and
+# 11 are the CRC.
 LEAD_IN = with_crc((0x41, 0x00, 0xA0, 0, 0, 0, 0, 0, 0, 0))
 PROGRAM = with_crc((0x41, 0x01, 0x01, 0x00, 0x02, 0, 0, 0, 0x02, 0))
 LEAD_OUT = with_crc((0x41, 0xAA, 0x01, 0, 0, 0, 0, 0, 0, 0))
@@ -79,17 +69,9 @@ class Event:
 class Timeline:
     """Builds a scenario's signal changes in time order.
 
-    The sense line is the console signal Mayumi and MM3 watch on GP4, which
-    the install guides wire to a different point per board. strobes_per_frame
-    models it as the mechacon's command strobe, XLAT, on the boards where it
-    is wired there: that many low pulses of strobe_width_ns spread over each
-    frame the drive reads. Their real cadence is Unknown, so scenarios set
-    it; 0 sends no strobes, and a scenario may instead drive the line as a
-    level with set().
-
-    frame_ns is the time from one frame's start to the next: 1/75 s for a
-    console on time, longer or shorter for one whose clock runs slow or fast,
-    which is what the chip's oscillator trim is measured against.
+    strobes_per_frame models the sense line Mayumi and MM3 watch as XLAT: that
+    many low pulses of strobe_width_ns per frame; 0 sends none. frame_ns is the
+    frame period, 1/75 s on time, off-nominal to test the oscillator trim.
     """
 
     strobes_per_frame: int = 0

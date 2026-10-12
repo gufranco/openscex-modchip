@@ -12,23 +12,13 @@
 #include "pscu/run.h"
 #include "pscu/trim.h"
 
-// Per-console calibration. Every console reads the region string a little
-// differently, and how far into the lead-in it looks is what the chip measures
-// on each disc and keeps in EEPROM, so on later discs it starts later, which is
-// less time with DATA driven. How many strings a disc gets is not learned: a
-// learned cap let a disc that read worse than the last one, a swapped disc 2
-// above all, run out of strings, so every arming may send the whole stealth
-// cap, and the console's own acceptance, the program area, ends the burst.
-// Nothing here is a mode or a user setting (AGENTS.md rule 7): every value is a measurement of this
-// console, and every value only ever falls back toward the fixed defaults, so a lost or torn record
-// costs stealth, never a disc.
+// Per-console calibration kept in EEPROM: how late in the lead-in this console
+// still accepts a string, so later discs start later and drive DATA for less
+// time. Every value is a measurement; a lost record falls back to the defaults.
 
-// The record lives at EEPROM address 0, six bytes in this order. The magic
-// marks a record this firmware wrote, and changes with the layout, so a record
-// from an older layout reads as defaults; an erased chip reads 0xFF everywhere
-// and so starts from the defaults too. The check byte is the XOR of the bytes
-// before it with a fixed seed, so a write cut short by power-off, which leaves
-// some bytes new and some old, almost always fails the check.
+// Record layout at EEPROM address 0. The magic changes with the layout. The
+// check byte is the XOR of the bytes before it with a seed, so a torn write
+// almost always fails it.
 #define PSCU_CALIB_BYTES ((uint8_t)6U)
 #define PSCU_CALIB_MAGIC ((uint8_t)0xC8U)
 #define PSCU_CALIB_SEED ((uint8_t)0x5AU)
@@ -39,25 +29,13 @@
 #define PSCU_CALIB_AT_TRIM ((uint8_t)4U)
 #define PSCU_CALIB_AT_CHECK ((uint8_t)5U)
 
-// A board byte that names no board: the state of a fresh chip, which has never
-// detected one, so the first boot can never report a board change.
+// Board byte of a fresh chip; the first boot never reports a board change.
 #define PSCU_CALIB_BOARD_NONE ((uint8_t)0xFFU)
 
-// Start point. The window opens when the leaky SUBQ counter reaches the trigger,
-// one step per lead-in frame, so each step is one frame later, 13.3 ms at the
-// 75 Hz subcode rate (Read: Red Book, 75 sectors per second). Each accepted disc
-// probes two frames later, up to twenty frames, 0.27 s, past the default; the
-// bound keeps the start well inside a lead-in read that lasts seconds
-// (Concluded: the TOC repeats through the whole lead-in). A refusal or a missed
-// window steps back and freezes the probe, so the chip settles on the latest
-// start this console has accepted. Step and bound are design choices, Unknown
-// until hardware. The trigger only ever moves in whole steps from the default
-// and the bound sits on that grid, so a stored trigger off the grid is corrupt.
-// A Japanese build does not probe at all: PsNee warns that a trigger above 11 on
-// Japanese models causes problems with anti-mod discs (Read: PsNee V9.0
-// PSNee.ino:44-51), and the first step from the default of 10 already lands on
-// 12. The bound then equals the default, so the first accepted disc freezes the
-// probe where it started.
+// Start-point probe: each accepted disc moves the trigger two frames later, up
+// to 20 frames (0.27 s at 75 Hz, Red Book); a refusal or miss steps back and
+// freezes it. Japan does not probe: a trigger above 11 breaks anti-mod discs
+// there (PsNee V9.0 PSNee.ino:44-51).
 #define PSCU_CALIB_TRIGGER_MIN PSCU_INJECT_TRIGGER
 #define PSCU_CALIB_TRIGGER_STEP ((uint8_t)2U)
 #if defined(PSCU_REGION_JP)
@@ -67,10 +45,8 @@
 #endif
 #define PSCU_CALIB_TRIGGER_MAX ((uint8_t)(PSCU_INJECT_TRIGGER + PSCU_CALIB_PROBE_FRAMES))
 
-// board is the detected board (0 static gate, 1 WFCK carrier, or NONE),
-// trigger the counter value that opens the window, frozen whether
-// the start-point probe has stopped, and trim the OSCCAL steps from the factory
-// value that bring the oscillator to 8 MHz, stored as a two's-complement byte.
+// board: 0 gate, 1 carrier, or NONE. trigger: counter value that opens the
+// window. frozen: the probe has stopped. trim: OSCCAL steps from factory.
 typedef struct {
   uint8_t board;
   uint8_t trigger;
@@ -83,46 +59,34 @@ typedef struct {
   uint8_t bytes[PSCU_CALIB_BYTES];
 } pscu_calib_record_t;
 
-// How a disc's session ended, as far as calibration cares: accepted, refused
-// after the strings ran out or the window closed, or
-// the window missed entirely because the learned start came too late. A session
-// ended by the disc leaving teaches nothing and is never passed in.
+// How a disc's session ended: accepted, refused, or the window was missed
+// because the learned start came too late.
 typedef enum {
   PSCU_CALIB_ACCEPTED = 0,
   PSCU_CALIB_REFUSED = 1,
   PSCU_CALIB_MISSED = 2
 } pscu_calib_outcome_t;
 
-// The boot step's result: the calibration to run with, and whether the detected
-// board differs from the stored one, which is LED code 7.
+// The calibration to run with, and whether the board differs from the stored
+// one.
 typedef struct {
   pscu_calib_t calib;
   bool board_changed;
 } pscu_calib_boot_t;
 
-// Read a stored record; anything without the magic, with an out-of-range value,
-// or failing the check byte reads as the fixed defaults: no board, the default
-// trigger, probing.
+// Decode a record; a bad magic, range or check byte reads as the defaults.
 pscu_calib_t pscu_calib_decode(pscu_calib_record_t record);
 
 // Build the record for a calibration, check byte included.
 pscu_calib_record_t pscu_calib_encode(pscu_calib_t calib);
 
-// Fold the board detected at this boot into the stored calibration. A different
-// board means the chip moved to another console or its WFCK wire is
-// intermittent; either way the learned start describes something else, so it
-// restarts from the defaults under the new board. The trim describes the
-// chip's own oscillator, not the console, so it is kept.
+// Fold this boot's board into the stored calibration. A different board resets
+// the learned start; the trim belongs to the chip, so it is kept.
 pscu_calib_boot_t pscu_calib_boot(pscu_calib_t stored, uint8_t board);
 
-// Whether this boot keeps the board recorded at the last one instead of
-// detecting it again. A watchdog reset comes mid-session on the console the
-// chip booted on, and the usual cause, a WFCK carrier that stalled
-// mid-string, may still hold when the chip restarts: detection would read the
-// stalled carrier as a static gate and the chip would then drive WFCK against
-// the CD DSP that outputs it. A power-on boot always detects, so a chip moved
-// to another console learns its board; with no board recorded there is nothing
-// to keep.
+// Whether to reuse the recorded board instead of detecting it. True after a
+// watchdog reset: a stalled carrier would read as a gate, and the chip would
+// then drive WFCK against the CD DSP. Power-on always detects.
 bool pscu_calib_keeps_board(pscu_calib_t stored, bool watchdog);
 
 // The board mode a valid record names.
@@ -131,10 +95,9 @@ pscu_board_mode_t pscu_calib_stored_board(pscu_calib_t stored);
 // Learn from one resolved session.
 pscu_calib_t pscu_calib_learn(pscu_calib_t calib, pscu_calib_outcome_t outcome);
 
-// Whether the window was missed on this pass: the counter had reached the
-// default trigger and has now fallen back below it, the learned start is later
-// than the default, and since this disc arrived no string was sent and no
-// program area was seen. That disc needed a string the late start never sent.
+// Whether the window was missed: the counter rose past the default trigger and
+// fell back, the learned start is later than the default, and no string or
+// program area came since this disc arrived.
 bool pscu_calib_missed(pscu_calib_t calib, uint8_t previous, uint8_t counter, bool armed);
 
 #endif

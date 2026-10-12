@@ -3,27 +3,10 @@
 
 """The showcase: named properties every chip is judged on, side by side.
 
-The envelope asks whether ours stays inside what the field-proven chips do.
-The showcase asks the other question: what a console, a game or a fault
-does to each chip, and which chips come through. Each property names the
-mechanism it models and where that comes from, and holds for a chip only if
-it holds in every scenario of it that stands for at least one board the chip
-is built for: OneChip, made for the PM-41 pair alone, is judged in the
-carrier-board scenarios those boards share with the PU-22 and PU-23. A chip
-built for none of the boards, or not run, is not applicable rather than
-failed.
-
-Ours must hold every property, and a full bench run fails when it does not;
-the other chips' outcomes are reported, never gating. The results are written
-to a JSON file, and the comparison tables in the three READMEs are generated
-from that file between two markers, so a table can never claim more than the
-bench measured. The tables come from a simulation against the bench's console
-model, which the READMEs say next to them.
-
-The words the READMEs show, each property's title and mechanism and the word
-for each outcome, live in TEXT, one entry per README language, read the first
-time a table is written. Keeping them as data keeps each language's own
-punctuation, which a linter rightly flags as ambiguous inside source code.
+A property holds for a chip only if it holds in every scenario standing for a
+board the chip is built for; a chip built for none is not applicable. Ours must
+hold every property. Results go to a JSON file, from which the README tables
+are generated between markers. The README wording per language lives in TEXT.
 """
 
 import argparse
@@ -42,8 +25,7 @@ from tools.bench.run import Run
 START = "<!-- showcase:start -->"
 END = "<!-- showcase:end -->"
 OURS = "ours"
-# The README names this firmware by the project's name, as its other
-# comparison table does; every other chip keeps its bench name.
+# The README names this firmware by the project's name.
 OURS_SHOWN = "openscex"
 RESULTS = "bench/showcase-results.json"
 TEXT = Path(__file__).resolve().parents[2] / "bench" / "showcase-text.json"
@@ -60,9 +42,8 @@ class Outcome(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Property:
-    """A behaviour judged over named scenarios, with the sources of the
-    mechanism it models as (label, link) pairs; its title and mechanism in
-    each language are in TEXT under its key."""
+    """A behaviour judged over named scenarios, with its sources as (label,
+    link) pairs; its text per language is in TEXT under its key."""
 
     key: str
     sources: tuple[tuple[str, str], ...]
@@ -72,9 +53,8 @@ class Property:
 
 @dataclass(frozen=True, slots=True)
 class Words:
-    """TEXT as read: per language, the column heading, the word before a
-    source, the sentence stop and the colon the language writes, the word for
-    each outcome, and each property's title and mechanism."""
+    """TEXT as read: per language, the table's words and each property's title
+    and mechanism."""
 
     heading: dict[str, str]
     source: dict[str, str]

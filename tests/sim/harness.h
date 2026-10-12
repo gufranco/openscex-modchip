@@ -10,53 +10,36 @@
 #include "sim_irq.h"
 #include "sim_t85.h"
 
-// A software PlayStation, just enough to exercise the firmware end to end in
-// simavr: it drives the console-side pins (SQCK, SUBQ, WFCK) and watches the
-// firmware-side pins (DATA, LED), then decodes the injected bitstream and
-// checks it equals the expected region word. A disc swap is a stretch with no
-// SUBQ frame, as a drive that stops for the lid produces. The console side is
-// timed in real time, converted to CPU cycles at the rate the simulated chip runs, so the same
-// console drives a nominal 8 MHz chip or one whose RC runs fast or slow.
+// A minimal PlayStation for simavr: it drives SQCK, SUBQ and WFCK, watches DATA
+// and the LED, and decodes the injected word. Console timing is in real time,
+// converted to cycles at the simulated clock, so a fast or slow RC can be run.
 
 #define SUBQ_FRAME_BYTES 12
 #define SUBQ_BITS 8
 // Half-period of the SQCK clock we fake while shifting a SUBQ frame: 14.2 us.
 #define EDGE_NS 14170ULL
-// A fast SQCK the firmware must still follow: 4.7 us per half period. The
-// assembly capture followed down to about 2.8 us at 4.2336 MHz; the earlier C
-// capture failed below about 13 us, so this frame rate pins the margin.
+// A fast SQCK the firmware must still follow: 4.7 us per half period.
 #define FAST_EDGE_NS 4720ULL
-// Idle-high SQCK gap after each frame. A console clocks one frame per sector at
-// 75 Hz, so bursts are separated by most of ~13.3 ms; the firmware resyncs on a
-// gap of at least 1 ms, and 9.4 ms sits clearly inside the real gap.
+// Idle-high SQCK after each frame: 9.4 ms, inside the ~13.3 ms of a 75 Hz
+// sector and above the firmware's 1 ms resync gap.
 #define FRAME_GAP_CYCLES ns_cycles(9450000ULL)
-// Time to let the firmware's boot complete before the first frame: the 300 ms
-// WFCK settle and the 10000-sample window under the boot light (about 0.4 s),
-// then the board blinks, at most two 300 ms flashes with their gaps (1.2 s).
-// 1.7 s covers both with margin.
+// Boot time before the first frame: the 300 ms WFCK settle, the ~0.4 s detect
+// window and up to two 300 ms board blinks.
 #define DETECT_CYCLES ns_cycles(1700000000ULL)
-// A carrier that starts this long after power-on (283 ms) is still inside the
-// 300 ms settle time, so it must be detected as a carrier board.
+// A carrier that starts 283 ms after power-on, inside the 300 ms settle time.
 #define LATE_CARRIER_CYCLES ns_cycles(283000000ULL)
 #define TRIGGER_FRAMES 10
-// The chip syncs to SUBQ by waiting for the idle gap before a frame, so a frame
-// that starts while it is still qualifying the gap is skipped, as on a console,
-// which streams frames without end. The harness sends a fixed number, so it
-// allows a few spare lead-in frames and stops the moment injection starts.
+// A frame that starts while the chip is still qualifying the idle gap is
+// skipped, so the harness allows a few spare lead-in frames.
 #define TRIGGER_SPARE_FRAMES 3
 #define SCEX_BITS 44
-// One SCEx bit cell is 4 ms, so a quarter of a thousandth of the clock rate in
-// cycles. The decoder samples at this spacing from the LED edge that marks
-// injection start.
+// One 4 ms SCEx bit cell, in cycles.
 #define BIT_CYCLES(freq) ((uint64_t)(freq) / 250U)
-// WFCK carrier the modern-board model oscillates at: ~7.3 kHz during init, and
-// ~14.6 kHz during a 2x data read. The band between them is the real variation
-// the carrier-mirror injection timing must tolerate, so both ends are tested.
+// WFCK frequencies: ~7.3 kHz during init and ~14.6 kHz during a 2x read; both
+// ends of the band are tested.
 #define WFCK_HZ 7300UL
 #define WFCK_READ_HZ 14600UL
-// The adaptive build times a modern bit cell as this many WFCK periods (Read,
-// PsNee), so the decoder derives the modern bit length from the carrier period
-// instead of a fixed cycle count. Legacy bits stay the fixed MCU-delay length.
+// A carrier bit cell is this many WFCK periods (PsNee).
 #define WFCK_PERIODS_PER_BIT 30UL
 // How long to wait for an expected string to start: 236 ms.
 #define LED_DEADLINE ns_cycles(236000000ULL)
@@ -71,38 +54,26 @@ typedef struct {
   uint8_t wfck;
 } target_t;
 
-// The America (SCEA) word as the 44 DATA levels the firmware should emit,
-// LSB-first. This is the default build's single configured region, so it is
-// the only word the firmware emits; the decoder reconstructs it and compares. A
-// correct decode on both board models proves the encoder and the bit timing.
+// The America (SCEA) word as the 44 DATA levels the firmware emits, LSB first.
 extern const char SCEA_BITS[SCEX_BITS + 1];
 
-// The Japan (SCEI) word, which the SCPH-5903 Video-CD build emits: that console
-// is NTSC-J, so its image is built with REGION=jp.
+// The Japan (SCEI) word, emitted by the SCPH-5903 Video-CD build.
 extern const char SCEI_BITS[SCEX_BITS + 1];
 
-// Every LED pulse the firmware draws, as rise cycle and length. A region string
-// lights the LED for 90 to 181 ms, every status pattern for longer or shorter, so
-// a pulse of 80 to 200 ms that starts after boot counts as one string.
+// Every LED pulse as rise cycle and length. A string lights the LED for 90 to
+// 181 ms, so a pulse of 80 to 200 ms after boot counts as one.
 #define MAX_PULSES 512
 
-// The stack pointer, SPL at data address 0x5D and SPH at 0x5E (Read: ATtiny25/45/85
-// datasheet 2586Q, register summary, 0x3D (0x5D) and 0x3E (0x5E)). The ATtiny85
-// has 512 bytes of SRAM, no heap, and no other RAM user than the static data the
-// linker places at its bottom, so the stack can grow down only as far as the end
-// of that data. The harness watches the stack pointer on every instruction and
-// requires the lowest it reaches to stay this many bytes above the data: the
-// worst case measured across the whole suite left 229 bytes (2026-10-07), so 96
-// still catches a change that eats most of the margin, before it corrupts data.
+// The stack pointer, SPL at 0x5D and SPH at 0x5E (datasheet 2586Q, register
+// summary). The lowest stack must stay SIM_STACK_MARGIN bytes above the static
+// data; the measured worst case leaves 229.
 #define SIM_SPL_ADDR 0x5DU
 #define SIM_SPH_ADDR 0x5EU
 #define SIM_STACK_MARGIN 96
 // The 75 Hz single-speed sector rate a console reads the lead-in at.
 #define SIM_SECTOR_NS 13333333ULL
 
-// How long a swap leaves SUBQ silent: 2 s, the drive stopped while the lid is
-// open, beyond the firmware's 1.5 s disc-gone bound and shorter than a person
-// takes to change a disc.
+// How long a swap leaves SUBQ silent: 2 s, past the 1.5 s disc-gone bound.
 #define MD_SWAP_CYCLES ns_cycles(2000000000ULL)
 
 typedef struct {
@@ -111,9 +82,7 @@ typedef struct {
   uint32_t half;
 } wfck_ctx_t;
 
-// Harness state shared by every scenario: the check tally, the first LED rise
-// after boot that marks a string, every LED pulse, the string count, the clock
-// the image runs at, and the SQCK half-period frames are clocked with.
+// Harness state shared by every scenario.
 extern int g_checks;
 extern int g_failures;
 extern int g_led_seen;
@@ -127,9 +96,8 @@ extern uint32_t g_freq;
 extern uint64_t g_edge_ns;
 extern uint64_t g_frame_period_ns;
 extern int g_seal_frames;
-// Flash byte addresses of two port functions in the loaded image, read from its
-// symbols, so a scenario can time the firmware's own code by its program
-// counter; zero when the image has no such symbol.
+// Flash addresses of two port functions, read from the image's symbols so a
+// scenario can time firmware code; zero when absent.
 extern uint32_t g_addr_read_sqck;
 extern uint32_t g_addr_capture;
 
@@ -154,10 +122,9 @@ void swap_disc(avr_t *avr);
 void boot_quiet(avr_t *avr, const target_t *t, int modern, wfck_ctx_t *ctx);
 void decode_region(avr_t *avr, const target_t *t, int modern, uint64_t bit_cycles, char *out);
 
-// The process exit status for the run: 0 when every check passed.
-// Check that the stack never came within SIM_STACK_MARGIN bytes of the static
-// data in any scenario run so far.
+// Check that the stack never came within SIM_STACK_MARGIN bytes of the data.
 void check_stack(void);
+// The process exit status for the run: 0 when every check passed.
 int sim_report(void);
 
 // Load these bytes into EEPROM at the next build_avr, before the firmware runs.

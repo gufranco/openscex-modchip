@@ -3,35 +3,18 @@
 
 """Third-party firmware the bench builds from what its authors published.
 
-Some chips exist only as source, some only as an image in a form a runner
-cannot load, and one needs a framework to build. Each is turned into the
-exact file its runner reads, under build/bench, from inputs whose bytes the
-manifest pins:
+Each input is pinned by the manifest and turned into the file its runner reads,
+under build/bench:
 
-- a PIC assembly source is assembled with gpasm. Old Crow's 1997 source was
-  written for MPASM and names its oscillator fuse _INT_OSC, which gputils'
-  p12c508.inc calls _IntRC_OSC; the manifest gives that name as a define, so
-  the published file is assembled unedited;
-- an AVR Intel HEX image becomes an ELF, the only form simavr loads. modavr's
-  image starts with an extended segment record that avr-objcopy refuses, so
-  the records are laid out here into a flat image first, gaps erased to 0xFF
-  as an unprogrammed flash reads, and that image is wrapped;
-- an AVR assembly source in Atmel's own syntax is assembled with avra, the
-  open-source assembler for that syntax, against the part definition file its
-  .include names (avra ships Atmel's, 1200def.inc among them), and the HEX it
-  writes is wrapped the same way. Liss's 1999 AT90S1200 source names its part
-  with .device and then includes 1200def.inc, which wavrasm accepted; avra's
-  copy of that file declares the device itself and avra refuses a second
-  declaration, so the copy assembled here, under the work directory, turns the
-  source's own .device line into a comment. The part file's declaration still
-  holds every instruction to the AT90S1200's set;
-- UberNee is an Arduino sketch. Both it and the Arduino AVR core are fetched
-  at pinned commits, their git tree ids checked, and built as the Arduino IDE
-  would for an ATmega328P at 16 MHz. Two configuration lines are changed in a
-  copy, as its author asks a builder to: the region, to the USA string every
-  chip here sends, and the LGT8F328P switch, off, because simavr models the
-  ATmega328P the sketch also supports, not the LGT8F328P. UBERNEE_EDITS lists
-  both, and a sketch missing either line is refused rather than built.
+- a PIC assembly source is assembled with gpasm; Old Crow's _INT_OSC fuse name
+  is passed as a define, so the source stays unedited;
+- an AVR Intel HEX image is laid out flat, gaps 0xFF, and wrapped in an ELF
+  for simavr;
+- an Atmel-syntax AVR source is assembled with avra; Liss's .device line is
+  commented out in a copy, since avra's 1200def.inc already declares the part;
+- UberNee and the Arduino AVR core are fetched at pinned commits and built for
+  an ATmega328P at 16 MHz, with the two edits in UBERNEE_EDITS: region USA and
+  the LGT8F328P switch off.
 """
 
 import re
@@ -50,9 +33,8 @@ LINEAR_SHIFT = 16
 
 # Where Debian's avra package installs the Atmel part definition files.
 AVRA_INCLUDES = "/usr/share/avra"
-# A source's own .device directive, at the start of a line in any case. Only
-# spaces and tabs may lead it: \s would also cross the form feed and line
-# break before the directive in Liss's file and comment out the wrong line.
+# A source's own .device directive. Only spaces and tabs may lead it: \s would
+# cross the form feed before the directive in Liss's file.
 DEVICE_LINE = re.compile(r"^([ \t]*\.device\b)", re.IGNORECASE | re.MULTILINE)
 ARDUINO_CORE = "arduino-core-avr"
 UBERNEE_EDITS = (
@@ -138,8 +120,7 @@ def avr_elf(root: Path, artifact: Artifact, chip: Chip, workdir: Path) -> None:
 def assemble_avr(
     root: Path, artifact: Artifact, chip: Chip, workdir: Path
 ) -> str | None:
-    """Assemble an Atmel-syntax AVR source with avra into the chip's ELF;
-    None, or avra's error."""
+    """Assemble an Atmel-syntax AVR source with avra; None, or avra's error."""
     source = workdir / f"{chip.name}.asm"
     text = (root / str(artifact.path)).read_text(encoding="latin-1")
     source.write_text(DEVICE_LINE.sub(r";\1", text), encoding="latin-1")

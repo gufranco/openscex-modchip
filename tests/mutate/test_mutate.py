@@ -1,14 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Tests for the mutation tool.
-
-The pure mutant generation is checked directly. Everything else runs for real
-on a tiny C project written to a temp directory: the real compiler builds it,
-real mutants are applied to its logic file, and its own test either catches
-them or lets them survive. Nothing in the tool is replaced, so a test here
-fails if the tool stops building, mutating, restoring or counting correctly.
-"""
+"""Tests for the mutation tool, run for real on a tiny C project in a temp
+directory."""
 
 import contextlib
 import io
@@ -19,8 +13,7 @@ from pathlib import Path
 
 from tools import mutate
 
-# A one-function logic file with exactly one mutable operator, the ">", so the
-# tool produces exactly one mutant, "gt->ge".
+# One mutable operator, so exactly one mutant, "gt->ge".
 LOGIC = "int above(int a) { return a > 3; }\n"
 # Checks the boundary, so the a >= 3 mutant makes it fail: the mutant is killed.
 STRONG_TEST = (
@@ -29,7 +22,7 @@ STRONG_TEST = (
 )
 # Checks only far from the boundary, so the a >= 3 mutant still passes it.
 WEAK_TEST = "int above(int a);\nint main(void) { return !(above(10) == 1); }\n"
-# A test that fails on the unmutated code, so no mutation result means anything.
+# Fails on the unmutated code.
 FAILING_TEST = "int above(int a);\nint main(void) { return above(10); }\n"
 SUITE = mutate.Suite(("logic.c",), ("test.c",), mutate.CC, ("-std=c17",))
 

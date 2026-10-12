@@ -19,10 +19,8 @@ jobs:
   gates:
     name: Build and verify
     runs-on: ubuntu-26.04
-    # Backstop, not a budget: the slowest of the last 15 green runs took 259 s,
-    # toolchain image build included, so 20 minutes leaves room for a cold
-    # runner and a slow registry while still ending a hung job long before
-    # GitHub's 6-hour default.
+    # Backstop: the slowest of the last 15 green runs took 259 s, image build
+    # included.
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -42,24 +40,19 @@ jobs:
       - name: Build other-region variants (compile check)
         run: make REGION=jp size && make REGION=eu size
 
-      # Both profiles of the Video-CD build ship in every release, so both are
-      # size- and MISRA-checked here, not only the debug one.
+      # Both Video CD profiles ship, so both are checked.
       - name: Build and check the SCPH-5903 Video-CD variant
         run: >-
           make REGION=jp VCD_FILTER=on image_size image_misra &&
           make REGION=jp VCD_FILTER=on PROFILE=final image_size image_misra
 
-  # The console bench in a job of its own: it builds the same toolchain image,
-  # then plays every scenario to this firmware and to PsNee, and fails on a
-  # broken envelope rule, a showcase property ours fails, or code of ours
-  # neither executed nor excused.
+  # Every scenario against this firmware and PsNee. Fails on a broken envelope
+  # rule, a failed showcase property, or unexcused unexecuted code.
   bench:
     name: Console bench
     runs-on: ubuntu-26.04
-    # Backstop from one measured run: the job took 22 min 44 s for three chips
-    # and 27 scenarios (run 37847092399, 2026-10-08). The same chips with 33
-    # scenarios, PsNee now skipping the sense-line walks, scale that to about
-    # 28 minutes; 60 is that doubled with margin.
+    # Backstop: one run took 22 min 44 s for 27 scenarios, about 28 min for 33;
+    # doubled with margin.
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -70,10 +63,8 @@ jobs:
       - name: Console bench against PsNee
         run: make bench_ci
 
-  # Runs on pull requests and on pushes to main, because releases are versioned
-  # from these subjects and most changes land on main directly. Dependabot's own
-  # pull requests are skipped; its commits are also skipped by author when they
-  # are merged.
+  # Releases are versioned from these subjects, so pushes to main are checked
+  # too. Dependabot is skipped.
   commit-messages:
     name: Commit messages
     if: github.actor != 'dependabot[bot]'

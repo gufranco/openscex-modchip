@@ -36,8 +36,7 @@ BASE = Metrics(
 
 
 def known(value: int | None) -> int:
-    """A metric BASE sets, unwrapped; a test that needs one BASE leaves unset
-    is wrong, so it fails here rather than doing arithmetic on None."""
+    """A metric BASE sets, unwrapped; fails if BASE leaves it unset."""
     if value is None:
         raise AssertionError("BASE leaves this metric unset")
     return value

@@ -8,10 +8,8 @@
 
 #include "pscu/calib.h"
 
-// Host tests for the calibration record and the learning rules. Each boundary
-// is tested on both sides, because a learned value that lands one step off is
-// exactly the kind of fault no console would ever report: the chip would just
-// be a little less stealthy, or a disc would fail once.
+// Host tests for the calibration record and the learning rules, each boundary
+// on both sides.
 
 #define MIN_T PSCU_CALIB_TRIGGER_MIN
 #define MAX_T PSCU_CALIB_TRIGGER_MAX
@@ -19,8 +17,7 @@
 
 static pscu_check_fn g_check;
 
-// The defaults are what an erased chip reads as, so the tests take them from
-// there rather than from a function the firmware has no other use for.
+// The defaults are what an erased chip decodes to.
 static pscu_calib_t defaults(void) {
   pscu_calib_record_t erased = { { 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU } };
   return pscu_calib_decode(erased);
@@ -36,8 +33,8 @@ static bool same(pscu_calib_t a, pscu_calib_t b) {
          (a.trim == b.trim);
 }
 
-// Encode never validates, so it builds records holding any field value; decoding
-// them shows which values the reader accepts.
+// Encode never validates, so it can build any record; decoding shows what the
+// reader accepts.
 static bool accepted_record(pscu_calib_t calib) {
   return same(pscu_calib_decode(pscu_calib_encode(calib)), calib);
 }
@@ -92,8 +89,8 @@ static pscu_calib_t trimmed(pscu_calib_t calib, int8_t trim) {
   return next;
 }
 
-// The trim is a two's-complement byte held to the trim module's bound on both
-// sides, and it describes the chip, so a board change keeps it.
+// The trim is a two's-complement byte within the trim bound; it describes the
+// chip, so a board change keeps it.
 static void test_record_trim(void) {
   pscu_calib_t base = make(0U, MIN_T, false);
   g_check(accepted_record(trimmed(base, PSCU_TRIM_MAX_OFFSET)), "calib: the largest trim is valid");

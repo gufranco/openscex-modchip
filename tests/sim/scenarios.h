@@ -8,8 +8,7 @@
 
 #include "harness.h"
 
-// Every scenario boots a fresh simulated chip, drives one behaviour end to
-// end and records its checks through the harness.
+// Each scenario boots a fresh simulated chip and drives one behaviour.
 void scenario_families(const target_t *t, const char *elf, uint32_t freq);
 void result_case(const target_t *t, const char *elf, uint32_t freq, int program);
 void scenario_resync(const target_t *t, const char *elf, uint32_t freq);

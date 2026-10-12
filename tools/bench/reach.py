@@ -3,22 +3,9 @@
 
 """Which of a chip's unexecuted instructions no console input can reach.
 
-Instruction coverage counts what the scenarios executed. What they did not
-splits two ways: code a scenario could still reach, which is the bench's
-to-do list, and code nothing on the console's wires can reach, which needs a
-reason instead of a scenario. This module does that split.
-
-A reason comes from one of three places. In this firmware it is a marker
-comment, MARKER followed by the reason, on the line above the statement; the
-bench maps each instruction to its source line through the image's debug
-information, so the reason sits next to the code it excuses and moves with it.
-Instructions with no source line in this repository are avr-libc's start-up
-and exit code, excused once with RUNTIME_REASON. A third-party image cannot
-carry markers, so its reasons live in a committed table, each entry a source
-line of its own source or an address range of the image.
-
-An exclusion only ever excuses an instruction no scenario executed: once a
-scenario reaches it, it counts as executed, so a stale reason can hide nothing.
+Reasons come from MARKER comments in this firmware's source, RUNTIME_REASON for
+avr-libc start-up code, or a committed table for third-party images. A reason
+only excuses an instruction no scenario executed.
 """
 
 from collections.abc import Iterable, Mapping
@@ -39,11 +26,8 @@ Line = tuple[str, int]
 
 @dataclass(frozen=True, slots=True)
 class Entry:
-    """One table exclusion: a source line `file:line`, an address range from
-    start to end inclusive, or a whole source file by name, and why nothing
-    reaches it. A file entry is for framework code a third-party build links
-    in, such as the Arduino core's serial receive paths, never for a chip's
-    own program."""
+    """One table exclusion: a `file:line`, an inclusive address range, or a
+    whole file of framework code, and why nothing reaches it."""
 
     line: str | None
     start: int | None
@@ -75,8 +59,7 @@ def _is_code(text: str) -> bool:
 
 
 def _comment_text(line: str) -> str:
-    """A comment line's words, without its comment leader; only ever called
-    on a line _is_code has already found to be a comment."""
+    """A comment line's words, without its comment leader."""
     stripped = line.strip()
     leader = next(start for start in COMMENT_STARTS if stripped.startswith(start))
     return stripped[len(leader) :].strip()
@@ -103,10 +86,8 @@ def _marked_in(path: str, text: str) -> dict[Line, str]:
 def markers(sources: dict[str, str]) -> dict[Line, str]:
     """Each marked code line, as (file, line number), with its reason.
 
-    MARKER names the first line after it that holds code; comment lines in
-    between continue the reason, so a reason can run over several lines.
-    BLOCK_MARKER names every code line after it up to the next blank line, for
-    a stretch of assembly no input reaches, such as a timeout's return path.
+    MARKER names the next code line, and comment lines between continue the
+    reason. BLOCK_MARKER names every code line up to the next blank line.
     """
     found: dict[Line, str] = {}
     for path, text in sources.items():

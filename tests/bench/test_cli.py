@@ -1,11 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Tests for the bench command line.
-
-The end-to-end test runs ours through two short scenarios in the real runner,
-so it needs the pinned toolchain; the argument tests need nothing.
-"""
+"""Tests for the bench command line; the end-to-end test needs the pinned
+toolchain."""
 
 import contextlib
 import io

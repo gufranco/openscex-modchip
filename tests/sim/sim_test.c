@@ -8,13 +8,7 @@
 #include "harness.h"
 #include "scenarios.h"
 
-// A software PlayStation, just enough to exercise the firmware end to end in
-// simavr: it drives the console-side pins (SQCK, SUBQ, WFCK) and watches the
-// firmware-side pins (DATA, LED), then decodes the injected bitstream and
-// checks it equals the expected region word. A disc swap is a stretch with no
-// SUBQ frame, as a drive that stops for the lid produces. The console side is
-// timed in real time, converted to CPU cycles at the rate the simulated chip
-// runs.
+// The simulator suite's entry point.
 
 int main(int argc, char *argv[]) {
   if (argc < 3) {
@@ -24,10 +18,8 @@ int main(int argc, char *argv[]) {
   const char *elf = argv[1];
   uint32_t freq = (uint32_t)strtoul(argv[2], NULL, 10);
 
-  // The SCEx signals and the LED sit on the ATtiny85's PORTB. The image is driven through
-  // the whole board-family matrix plus a non-TOC negative, so both board models
-  // and both ends of the WFCK carrier band are verified, then through every
-  // behaviour scenario.
+  // The SCEx signals and the LED sit on PORTB. The image runs the board-family
+  // matrix, then every behaviour scenario.
   target_t t85 = { "attiny85", 'B', 0U, 1U, 2U, 3U, 4U };
 
   scenario_families(&t85, elf, freq);

@@ -10,21 +10,15 @@
 #include "sim_avr.h"
 #include "sim_io.h"
 
-// What simavr's ATtiny85 model lacks and every simulated run of an ATtiny85
-// image needs, shared by the console harness and the bench's AVR runner so the
-// two cannot drift apart.
+// What simavr's ATtiny85 model lacks, shared by the console harness and the
+// bench's AVR runner.
 
-// OSCCAL, the oscillator calibration register, at data address 0x51 (Read:
-// ATtiny25/45/85 datasheet 2586Q, register summary, 0x31 (0x51)). simavr does not
-// load a factory value, so a mid-range one is preset for the firmware to read
-// as factory at boot; writes to it do not change simavr's speed.
+// OSCCAL at data address 0x51 (datasheet 2586Q, register summary). simavr has
+// no factory value, so a mid-range one is preset; writes do not change speed.
 #define SIM_OSCCAL_ADDR 0x51U
-// Timer1 on the ATtiny85: TCCR1 at 0x50 and TCNT1 at 0x4F (Read: ATtiny25/45/85
-// datasheet 2586Q, register summary). simavr's ATtiny85 model does not run this
-// timer at any prescaler (measured: TCNT1 held one value through 100000 cycles
-// for every CS setting), so TCNT1 reads are answered from the cycle count and
-// the prescaler TCCR1 selects, as the datasheet describes for the synchronous
-// clocking mode: CK divided by 2^(CS - 1).
+// Timer1: TCCR1 at 0x50, TCNT1 at 0x4F (datasheet 2586Q, register summary).
+// simavr does not run it, so TCNT1 reads are computed from the cycle count:
+// CK divided by 2^(CS - 1).
 #define SIM_TCCR1_ADDR 0x50U
 #define SIM_TCNT1_ADDR 0x4FU
 #define SIM_OSCCAL_FACTORY 0x50U
@@ -42,9 +36,8 @@ static inline uint8_t sim_t85_tcnt1_read(struct avr_t *avr, avr_io_addr_t addr, 
   return count;
 }
 
-// Preset OSCCAL and take over the TCNT1 read slot. simavr already hooks that
-// address with a timer model that never counts, and refuses a second hook, so
-// the read slot is replaced outright.
+// Preset OSCCAL and replace the TCNT1 read slot; simavr refuses a second hook
+// on that address.
 static inline void sim_t85_install(avr_t *avr) {
   avr->data[SIM_OSCCAL_ADDR] = SIM_OSCCAL_FACTORY;
   avr->io[AVR_DATA_TO_IO(SIM_TCNT1_ADDR)].r.c = sim_t85_tcnt1_read;

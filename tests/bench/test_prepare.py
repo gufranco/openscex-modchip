@@ -1,13 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Tests for preparing third-party firmware the bench builds itself: PIC
-sources assembled with gpasm, an Atmel-syntax AVR source assembled with avra,
-an AVR image converted to an ELF, and UberNee built against a pinned Arduino
-core.
-
-The build tests run the pinned toolchain on small fixtures in local git
-repositories, so they need the toolchain image and no network.
+"""Tests for preparing third-party firmware: gpasm, avra, HEX to ELF, and
+UberNee against a pinned Arduino core. Needs the toolchain image, no network.
 """
 
 import subprocess
@@ -39,9 +34,8 @@ start\tgoto start
 
 AVR_HEX = ":0400000000C0FFCF6E\n:00000001FF\n"
 
-# The smallest Atmel-syntax source that exercises what Liss's file needs: a
-# .device line after a form feed, as Liss's file has it, a part definition file
-# found on avra's include path, a .def alias and a macro taking an argument.
+# The smallest source with what Liss's file needs: a .device line after a form
+# feed, a part file on avra's include path, a .def alias and a macro.
 AVR_SOURCE = """\
 \f
 .device AT90S1200

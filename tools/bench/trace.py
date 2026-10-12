@@ -3,12 +3,8 @@
 
 """A runner's trace, read back into per-pin changes.
 
-Both runners write `<time_ns> <output> <driven> <level>` whenever an output
-changes, and one final `<time_ns> end 0 0` line at the end of the run. DATA
-and the gate (the WFCK pin when the chip drives it) are what the console sees;
-any other output, such as the LED on ours, is ignored here. A `pull-<line>`
-line says whether that console line is held by the chip's internal pull-up,
-`<time_ns> pull-<line> <pulled> <pulled>`, and is kept per line.
+Each line is `<time_ns> <output> <driven> <level>`; the last is
+`<time_ns> end 0 0`. Only DATA, the gate and `pull-<line>` states are kept.
 """
 
 from dataclasses import dataclass, field

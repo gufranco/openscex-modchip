@@ -7,26 +7,21 @@
 #include "scenarios.h"
 #include "sim_cycle_timers.h"
 
-// The two indicator profiles (include/pscu/led.h), run as whole console
-// sessions. The final image must be quiet where a player would hear it, and
-// both images must put the same thing on DATA at the same time, since the
-// profile is only meant to change PB3.
+// The two indicator profiles (include/pscu/led.h). The final image must stay
+// quiet, and both images must drive DATA identically.
 
-// DATA is sampled every 0.1 ms, far finer than its 4 ms bit cells, and each
-// change of its state is kept: driven or released (DDR), and the level driven.
+// DATA is sampled every 0.1 ms, and each change of direction or level is kept.
 #define PROFILE_SAMPLE_NS 100000ULL
 #define PROFILE_TRACE_MAX 4096
 
-// One session: lead-in frames to arm the window, then program-area frames, as
-// result_case drives an accepted disc, and two quiet seconds after.
+// One session: lead-in frames, program-area frames, then two quiet seconds.
 #define PROFILE_TOC_FRAMES 12
 #define PROFILE_PLAY_FRAMES 600
 #define PROFILE_TAIL_MS 2000U
 
-// The debug image does a little more work around each string, lighting and
-// clearing the pin, so its edges may move by a few microseconds. Within a
-// string the edges must keep their spacing to half a millisecond, an eighth of
-// a cell, and a string may start up to one frame, 13.3 ms, apart.
+// The debug image does a little more around each string, so edges may shift.
+// Within a string, spacing must hold to 0.5 ms; a string may start up to one
+// frame, 13.3 ms, apart.
 #define PROFILE_EDGE_TOLERANCE_NS 500000ULL
 #define PROFILE_START_TOLERANCE_NS 14000000ULL
 
@@ -35,9 +30,8 @@
 #define PROFILE_CHIRP_MAX_MS 80U
 #define PROFILE_LONG_MIN_MS 600U
 
-// An audio CD: framed audio frames with no lead-in, for 32 s. Code 4 is due 20
-// s after the disc arrives and takes 6 s to show; the debug profile would show
-// it again at 26 s and 32 s, the final profile must not.
+// An audio CD for 32 s. Code 4 is due at 20 s; the debug profile repeats it at
+// 26 s and 32 s, the final profile must not.
 #define PROFILE_AUDIO_FRAMES 2400
 #define PROFILE_NO_CHECK_FLASHES 4
 
@@ -71,10 +65,8 @@ static const uint8_t PROFILE_PLAY[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x0
 static const uint8_t PROFILE_AUDIO[SUBQ_FRAME_BYTES] = { 0x01U, 0x00U, 0x02U, 0, 0, 0,
                                                          0,     0,     0,     0, 0, 0 };
 
-// A legacy-board session, so a one is DATA released and a zero DATA driven low
-// with no carrier to alias against the sampling. The LED is not watched here:
-// the harness stops clocking a frame when the LED marks a string, which would
-// give the two images different scripts.
+// A legacy-board session, so DATA has no carrier to alias against. The LED is
+// not watched, so both images get the same script.
 static void accepted_session(const target_t *t,
                              const char *elf,
                              uint32_t freq,

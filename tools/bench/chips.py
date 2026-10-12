@@ -3,22 +3,11 @@
 
 """The chips the bench runs, and what each needs from the console.
 
-A chip is a firmware image, the simulator and CPU it runs on, its clock, and
-the pins it uses, named the way its runner expects: package pin numbers for
-PIC (pin 2 GP5 through pin 7 GP0 on the 8-pin parts), port bits for AVR. Every
-pin map is Read from the chip's own source or binary, cited per entry. All
-images are the USA build, so every chip sends the same SCEA string and the
-comparison is like for like.
-
-field_proven marks the chips real consoles have accepted for years. Their
-behaviour is the envelope ours is checked against; ours is not in it. The
-other chips are recorded only: their results are reported and judged by the
-showcase, never used to widen the envelope. Old Crow sends strings for as
-long as it is powered, so as evidence it would let ours send anything. boards
-lists the mainboards each chip is made for, from its own guide, so a chip is
-never held up as evidence for a board it does not support. region is the
-string the image sends; OneChip exists only as a PAL image and Liss's source
-spells out SCEE, so those two are measured against the European string.
+A chip is a firmware image, its simulator and CPU, its clock, and its pins:
+package pin numbers for PIC, port bits for AVR, each cited from the chip's own
+source or binary. field_proven chips define the envelope ours is checked
+against; the others are only reported. boards lists the mainboards each chip's
+guide supports. OneChip and Liss send SCEE; every other image sends SCEA.
 """
 
 from dataclasses import dataclass
@@ -54,37 +43,24 @@ class Chip:
 
 _MAYUMI_PINS = "wfck=5,lid=7,reset=4,sense=3,data=6,gate=5"
 
-# Every board from the PU-7 to the PM-41(2): this firmware's targets (README),
-# PsNee's (its README), and MM3's, whose internal oscillator bought PU-7 and
-# PU-8 support, imperfect there, per the consolemods.org PS1 modchip wiki and
-# the psdevwiki modchip page, which relay forum reports (Concluded). Mayumi V4
-# starts at the PU-18: the PU-7, PU-8 and PU-16 are "not compatible with
-# Mayumi v4" (quade.co Mayumi V4 guide, Read).
+# Every board from the PU-7 to the PM-41(2): ours (README), PsNee (its README)
+# and MM3 (consolemods.org, psdevwiki). Mayumi V4 starts at the PU-18 (quade.co
+# Mayumi V4 guide).
 _EVERY_BOARD = frozenset(Board)
 _PU18_ON = frozenset(Board) - {Board.PU_7, Board.PU_8}
-# Old Crow and modavr hold the gate low from 850 ms after power-on to the end:
-# a static-gate install, which the PU-22 and later boards replaced with a
-# carrier the chip must not hold (Concluded from their sources, which never
-# release the gate pin). OneChip is made for the PAL PSone, PM-41 and
-# PM-41(2) only (quade.co ONEchip guide, Read).
+# Old Crow and modavr never release the gate, so they suit only static-gate
+# boards. OneChip is made for the PM-41 and PM-41(2) only (quade.co ONEchip
+# guide).
 _PSONE = frozenset({Board.PM_41, Board.PM_41_2})
 
-# Hans Liss's AT90S1200 chip, version 1.4 (1999), assembled from its source with
-# avra. simavr has no AT90S1200, so it runs on the ATtiny2313, Atmel's
-# pin-compatible successor of the AT90S line: PORTB, PORTD, their DDR and PIN
-# registers sit at the same I/O addresses (1200def.inc and the ATtiny2313
-# datasheet, Read), and the source never touches the stack pointer, which the
-# ATtiny2313 resets to the top of its RAM. The clock is 4 MHz, Concluded from
-# the source: its header names a 2 MHz resonator, but the delay constants it
-# loads, 254 and 253, give one millisecond at about 4.07 MHz through a 16-cycle
-# inner loop (DOJUMP 5, eight NOPs, DEC and BRNE), and only then is each bit the
-# 4 ms its sendbyte comment states. It is a timed chip like Old Crow, gating the
-# drive with its blanking pin, so it is made for the static-gate boards; its
-# PU-22 "software jumper" (pins 8 and 9) is not modelled and stays unwired.
+# Hans Liss's AT90S1200 chip, V1.4 (1999), run on the pin-compatible ATtiny2313
+# (1200def.inc, ATtiny2313 datasheet). 4 MHz: its delay constants give 1 ms per
+# loop and 4 ms bits only at about 4.07 MHz, though its header names 2 MHz. A
+# static-gate chip; its PU-22 jumper on pins 8 and 9 stays unwired.
 _LISS_ORIGIN = (
     "Liss V1.4 source assembled with avra, run on the pin-compatible "
     "ATtiny2313; PD0 lid (high while open), PD1 reset (low while pressed), "
-    "PD2 blanking, PD3 DATA (its source, PORT D definitions); 4 MHz Concluded "
+    "PD2 blanking, PD3 DATA (its source, PORT D definitions); 4 MHz "
     "from its delay constants; sends SCEE only"
 )
 
@@ -194,7 +170,7 @@ CHIPS = (
         "port of his Z8 chip, published image; 6-wire: RB1, pin 7, DATA, RB2, "
         "pin 8, the gate, MCLR wired to the console and held released here, "
         "since gpsim drives no stimulus on MCLR; XT oscillator fed on OSC1, "
-        "taken as the 4 MHz of the early boards' mechacon clock (Concluded)",
+        "taken as the 4 MHz of the early boards' mechacon clock",
         boards=GATE_BOARDS,
     ),
     Chip(
@@ -246,7 +222,7 @@ CHIPS = (
         firmware="docs/research/sources/onechip_v1.00_12c508a_eur.hex",
         artifact="onechip-12c508a-pal",
         field_proven=False,
-        origin="ONEchip V1.00 PAL image, no source; pins Concluded from its "
+        origin="ONEchip V1.00 PAL image, no source; pins from its "
         "disassembly: GP1 DATA, GP2 WFCK copied onto DATA, GP0 starts the "
         "strings when low, GP3 waited high at boot (the BIOS side, held high "
         "here); internal 4 MHz RC (configuration word 0xFEA)",

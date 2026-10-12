@@ -9,9 +9,8 @@
 #include "scenarios.h"
 #include "sim_cycle_timers.h"
 
-// Injection scenarios: every board family decodes the right word, results,
-// resync after a partial burst, a late or stalled carrier, a fast SQCK, the VCD
-// build, the gate line on legacy boards and the gap between strings.
+// Injection scenarios: decoding per board family, resync, carrier timing, the
+// VCD build, the gate line and the gap between strings.
 
 static void scenario_inject(const target_t *t,
                             const char *elf,
@@ -27,9 +26,8 @@ static void scenario_inject(const target_t *t,
   avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
   boot_quiet(avr, t, modern, &ctx);
 
-  // A lead-in frame that must arm injection (control 0x41 = data sector,
-  // track 0xA0 = TOC) versus an ordinary audio frame that must not (control
-  // 0x01, track 0x02). frame[1] and frame[6] are zero so both parse as framed.
+  // A TOC lead-in frame that arms injection (control 0x41, track 0xA0) and an
+  // audio frame that must not (control 0x01, track 0x02).
   uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   uint8_t audio[SUBQ_FRAME_BYTES] = { 0x01U, 0x00U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   clock_until_inject(avr, t, (trigger != 0) ? toc : audio);
@@ -39,9 +37,8 @@ static void scenario_inject(const target_t *t,
     run_cycles(avr, 2000U);
   }
 
-  // A legacy bit is a fixed MCU-delay cell; an adaptive modern bit is
-  // WFCK_PERIODS_PER_BIT carrier periods, so its length scales with the carrier
-  // frequency and the decoder must measure it from wfck_hz, not a constant.
+  // A legacy bit is a fixed delay; a carrier bit is WFCK_PERIODS_PER_BIT
+  // periods, so its length follows wfck_hz.
   uint64_t bit_cycles =
       (modern != 0) ? ((uint64_t)WFCK_PERIODS_PER_BIT * freq / wfck_hz) : BIT_CYCLES(freq);
   const char *tag = family;
@@ -64,11 +61,8 @@ static void scenario_inject(const target_t *t,
   }
 }
 
-// The LED reports each disc's result after its check: one long flash repeated
-// for a disc the console accepted, two for one it never accepted, each code
-// three times and then dark. A legacy board is driven with TOC frames to arm
-// injection, then with program-area frames (accepted) or framed silence until
-// the confirmation wait expires (refused).
+// The LED result code after a disc's check: one long flash for an accepted
+// disc, two for a refused one, each shown three times.
 #define RESULT_TOC_FRAMES 12
 #define RESULT_AFTER_FRAMES 120
 
@@ -98,12 +92,8 @@ void result_case(const target_t *t, const char *elf, uint32_t freq, int program)
   check((g_led_seen != 0) && (code_after(mark) == expected), label);
 }
 
-// A capture that starts inside a burst must not stay misaligned. Present a
-// partial burst first, as a console already mid-sector would at the moment the
-// firmware starts listening, then ordinary TOC frames. Without resync every
-// later capture straddles two frames by the partial's length, nothing ever
-// parses as framed, and injection never fires; with it the firmware loses at
-// most one frame, realigns on the next inter-frame gap, and injects.
+// A capture that starts mid-burst must realign on the next inter-frame gap and
+// still inject.
 #define PARTIAL_BURST_BITS 37
 #define RESYNC_FRAMES (TRIGGER_FRAMES + 3)
 
@@ -143,11 +133,8 @@ void scenario_resync(const target_t *t, const char *elf, uint32_t freq) {
   check(g_led_seen != 0, label);
 }
 
-// A carrier board whose WFCK starts oscillating after the chip has powered up
-// must still be detected as a carrier board. The oscillation starts 150 ms after
-// power-on: a detect window taken immediately would see a static line, choose the
-// legacy gate, and send every logic one as high-Z instead of the carrier mirror,
-// so the modern decode would fail. The settle delay lets the carrier start first.
+// WFCK starting 283 ms after power-on must still be detected as a carrier; the
+// settle delay before detection covers it.
 void scenario_late_carrier(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
@@ -181,11 +168,9 @@ void scenario_late_carrier(const target_t *t, const char *elf, uint32_t freq) {
   }
 }
 
-// A carrier that starts only after boot detection has finished, as on a console
-// whose WFCK comes up late, is detected as a gate. Holding the gate low would
-// then fight the console's clock, so before the string the firmware watches
-// WFCK again, finds the carrier and injects by mirroring. The direction of the
-// WFCK pin is watched for the whole run: it must never become an output.
+// A carrier that starts after boot detection is first seen as a gate; the
+// firmware re-checks WFCK before the string and mirrors instead. WFCK must
+// never become an output.
 static int g_wfck_driven = 0;
 static uint8_t g_wfck_bit = 0U;
 
@@ -229,12 +214,9 @@ void scenario_carrier_after_boot(const target_t *t, const char *elf, uint32_t fr
   check(g_wfck_driven == 0, label);
 }
 
-// A carrier that stops mid-injection must not leave DATA driven. The adaptive
-// bit cell counts WFCK rising edges and kicks the watchdog only on a counted
-// edge, so when the carrier stalls the watchdog expires and resets the chip,
-// which returns DATA to high-Z. Stop the carrier about 25 ms into an injection
-// (a few bit cells in, while DATA is driven) and check it is released within
-// the next 0.75 s, comfortably past the ~0.5 s watchdog timeout.
+// A carrier that stalls mid-string must not leave DATA driven: the bit cell
+// kicks the watchdog only on WFCK edges, so the reset releases DATA within
+// about 0.5 s.
 #define STALL_AFTER_CYCLES ns_cycles(47000000ULL)
 #define STALL_WAIT_CYCLES ns_cycles(1417000000ULL)
 #define STALL_TOC_FRAMES 150
@@ -279,10 +261,8 @@ void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
   (void)snprintf(label, sizeof(label), "stall %s: the next boot shows watchdog code 5", tag);
   check(code_after(rebooted) == 5, label);
 
-  // The carrier is still stalled after the reset, which a fresh detection would
-  // read as a static gate; the chip must keep the carrier board it booted on
-  // and never drive WFCK, an output of the CD DSP on this board, through a
-  // whole lead-in.
+  // After the reset the carrier is still stalled; the chip must keep the board
+  // it booted on and never drive WFCK, a CD DSP output here.
   int wfck_driven = 0;
   for (int i = 0; i < STALL_TOC_FRAMES; i++) {
     clock_frame(avr, t, toc);
@@ -292,11 +272,8 @@ void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
   check(wfck_driven == 0, label);
 }
 
-// The board-family matrix. The firmware has no per-family code path, only the
-// legacy static gate and the live WFCK carrier, so each family collapses to one
-// of those with its carrier frequency. Distinct behaviours only, no duplicate
-// runs: the two carrier rows differ by the init and read frequencies that bound
-// the WFCK band.
+// The board-family matrix. The firmware only knows the static gate and the
+// live carrier, so each family reduces to one of them and a carrier frequency.
 typedef struct {
   const char *name;
   int modern;
@@ -310,10 +287,8 @@ static const board_family_t FAMILIES[] = {
 };
 #define FAMILY_COUNT ((int)(sizeof(FAMILIES) / sizeof(FAMILIES[0])))
 
-// Boot one legacy-board image, clock copies of one lead-in frame until a string
-// starts or the spare frames run out, and report whether the LED marked an
-// injection; when it did and an expected word is given, decode DATA and compare
-// it. Each call is a fresh power-on, so one frame kind is judged on its own.
+// Boot a legacy-board image, clock one lead-in frame until a string starts or
+// the frames run out, and decode DATA when an expected word is given.
 static void vcd_case(
     const char *elf, uint32_t freq, const uint8_t *frame, const char *expect, const char *what) {
   target_t t85 = { "attiny85", 'B', 0U, 1U, 2U, 3U, 4U };
@@ -344,11 +319,8 @@ static void vcd_case(
   }
 }
 
-// The SCPH-5903 build (REGION=jp VCD_FILTER=on) must still unlock a game, whose
-// lead-in carries the TOC markers, and must stay silent on a Video CD, whose
-// lead-in marker carries 0x02 in frame[3]. The point-01 spiral frame that arms
-// the ordinary build must not arm this one either. Read: PsNee V9.0 SCPH_5903
-// FilterSUBQSamples, PSNee.ino:471-502.
+// The SCPH-5903 build must unlock a game and stay silent on a Video CD, whose
+// lead-in has 0x02 in frame[3] (PsNee V9.0, PSNee.ino:471-502).
 void scenario_vcd(const char *elf, uint32_t freq) {
   const uint8_t game[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0x00U, 0, 0, 0, 0, 0, 0, 0, 0 };
   const uint8_t vcd[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -358,20 +330,16 @@ void scenario_vcd(const char *elf, uint32_t freq) {
   vcd_case(elf, freq, spiral, NULL, "point-01 spiral does not inject");
 }
 
-// The console's real SQCK rate is not documented anywhere this project cites,
-// so the capture has to keep a wide margin. Drive a whole injection on a legacy
-// board with frames clocked at FAST_EDGE_NS and require the region word to
-// decode, then restore the normal rate for the scenarios that follow.
+// The real SQCK rate is unknown: a whole injection must still decode with
+// frames clocked at FAST_EDGE_NS.
 void scenario_fast_sqck(const target_t *t, const char *elf, uint32_t freq) {
   g_edge_ns = FAST_EDGE_NS;
   scenario_inject(t, elf, freq, 0, 1, WFCK_HZ, "fast SQCK, 4.7 us half period");
   g_edge_ns = EDGE_NS;
 }
 
-// The gate line. On a gate board the chip holds WFCK low for the whole string
-// and releases it with DATA, as PsNee and Mayumi V4 do; on a carrier board WFCK
-// is the console's clock and the chip never drives it. Sampled 80 ms into the
-// string, then 30 ms after its 177 ms end.
+// On a gate board the chip holds WFCK low for the whole string, as PsNee and
+// Mayumi V4 do; on a carrier board it never drives WFCK.
 static uint8_t wfck_driven_low(avr_t *avr, const target_t *t) {
   avr_ioport_state_t state;
   (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE((uint32_t)t->port), &state);
@@ -408,11 +376,8 @@ void scenario_gate(const target_t *t, const char *elf, uint32_t freq, int modern
   check(after == 0U, label);
 }
 
-// Strings are spaced by the stealth gap, five frames, not sent back to back:
-// the quiet time between the first two strings must exceed four frame periods,
-// against about 5 ms before the gap existed.
-// Long enough for the first string, the gap and the whole second string, which
-// is counted only when it ends.
+// Strings are spaced by the stealth gap: the quiet time between the first two
+// must exceed four frame periods.
 #define GAP_TOC_FRAMES 80
 #define GAP_MIN_MS 45U
 
@@ -440,16 +405,9 @@ void scenario_string_gap(const target_t *t, const char *elf, uint32_t freq) {
   check((found == 2) && ((starts[1] - ends[0]) >= ms_cycles(GAP_MIN_MS)), label);
 }
 
-// A floating or noisy SQCK can toggle slowly enough to keep every edge wait
-// inside its 30 ms bound while a whole frame takes seconds. The capture kicks
-// the watchdog only once per frame, so such a line restarts the chip within
-// the watchdog period, with DATA released, rather than holding one pass.
-// The trickle lasts 40 edges, 0.8 s: longer than one watchdog period and far
-// short of the 96 edges a frame needs, so the capture can only end by the
-// reset. It then stops with SQCK idle high, because a trickle that went on
-// would restart the chip every half second and the five-blink boot code, about
-// 7 s long, would never get to play. Without the once-per-frame kick the
-// capture just waits, times out on the idle line and no code 5 appears.
+// A slow, noisy SQCK can keep every edge wait within its 30 ms bound while a
+// frame takes seconds. The capture kicks the watchdog once per frame, so the
+// chip resets with DATA released. 40 edges, 0.8 s, exceed one watchdog period.
 #define SLOW_SQCK_EDGES 40
 #define SLOW_SQCK_EDGE_MS 20U
 #define SLOW_SQCK_CODE_MS 9000U
@@ -474,9 +432,8 @@ void scenario_slow_sqck(const target_t *t, const char *elf, uint32_t freq) {
   check(code_after(started) == 5, label);
 }
 
-// A frame corrupted on the bus or misaligned in the capture fails its CRC. A
-// lead-in made only of such frames must never arm a string, however long it
-// runs; the very same frames with their CRC intact arm as usual.
+// A lead-in of frames with a bad CRC must never arm a string; the same frames
+// with a good CRC do.
 void scenario_bad_crc(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
@@ -506,13 +463,9 @@ void scenario_families(const target_t *t, const char *elf, uint32_t freq) {
   scenario_inject(t, elf, freq, 0, 0, WFCK_HZ, "legacy non-TOC negative");
 }
 
-// The gap check before each capture must last one millisecond of continuous idle
-// SQCK, PsNee's resync gap, and no more: on a silent pass every extra
-// microsecond is time in which a disc's first frame can begin unseen and go
-// uncounted (traced with the console bench, 2026-10-08). Its poll count is
-// derived from the cost of one poll, so this times the check in the built image
-// rather than trusting that cost: from the first SQCK read after a silent
-// capture begins to the next capture's entry, by the program counter.
+// The gap check before each capture must last 1 ms of idle SQCK (PsNee's resync
+// gap) and no more, or a disc's first frame can go unseen. Timed in the built
+// image by the program counter.
 #define GAP_CHECK_MIN_NS 1000000ULL
 #define GAP_CHECK_MAX_NS 1050000ULL
 #define GAP_CHECK_LIMIT_MS 200U

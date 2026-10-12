@@ -1,39 +1,24 @@
 // SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 // SPDX-License-Identifier: MIT
 
-// Hardware layer, signal half. Every register touch in the whole firmware lives
-// here or in port_chip.S, behind the C prototypes in include/port/port.h. This
-// file holds the console's signals: the port, the SUBQ capture, injection and
-// the timer; port_chip.S holds the chip's own housekeeping. The C layers never include avr/io,
-// because avr-libc reaches registers through casts MISRA forbids; isolating
-// them in assembly keeps the C MISRA-clean and keeps the timing explicit.
+// Hardware layer for the console's signals: port, SUBQ capture, injection and
+// timer. Registers live only in assembly, since avr-libc's register casts break
+// MISRA; port_chip.S holds the chip's housekeeping.
 
 #include <avr/io.h>
 
 #include "port/registers.h"
 
-// Busy-loop iteration counts, derived from F_CPU, the internal 8 MHz oscillator,
-// which the run loop trims against the console's SUBQ frame rate. The delay
-// inner loop is 4 cycles.
+// Delay loop iterations per millisecond, from F_CPU; the inner loop is 4 cycles.
 #define PSCU_DELAY_1MS_ITERS (F_CPU / 4000UL)
-// A SUBQ edge wait gives up after 30 ms, the same bound as the idle wait in
-// engine.c: long enough for the inter-frame gap before a burst's first edge (a
-// frame every 13.3 ms at single speed), short enough that a stopped drive fails
-// a capture quickly and the run loop keeps timing the silence that tells it the
-// disc is gone. One wait pass is 6
-// cycles (the skipping sbis or sbic 2, sbiw 2, a taken brne 2).
+// SUBQ edge wait timeout, 30 ms as in engine.c. One pass is 6 cycles (skipping
+// sbis or sbic 2, sbiw 2, taken brne 2).
 #define PSCU_SQCK_WAIT_POLLS ((F_CPU * 30UL) / (1000UL * 6UL))
-// A carrier-board bit cell counted in WFCK periods is 30 rising edges, about
-// 4 ms at the 7.3 kHz rate the console runs while it reads the lead-in (Read:
-// PsNee PerformInjectionSequence, "modulated across 30 WFCK edges").
+// Carrier-board bit cell: 30 WFCK rising edges, about 4 ms at 7.3 kHz (PsNee
+// PerformInjectionSequence).
 #define PSCU_WFCK_PERIODS_PER_BIT 30
 
-// Shift a PINREG snapshot already in <reg> right by <count> bit positions, then
-// mask to <mask>, bringing one pin to bit 0 or onto the DATA bit position. This
-// is the single idiom the WFCK read and mirror paths repeat six times; the macro
-// expands to the identical lsr/andi stream, so the emitted machine code is byte
-// for byte unchanged while the call sites read as one named operation. The count
-// is a build-time pin distance from registers.h, so it follows the board profile.
+// Shift a PINREG snapshot in <reg> right by <count>, then mask to <mask>.
 .macro pscu_shr_mask reg, count, mask
 	.rept \count
 	lsr \reg
@@ -43,24 +28,9 @@
 
 	.text
 
-// Bring the chip up. Writing 0x80 then 0x00 to CLKPR within four cycles is the
-// AVR timed sequence that clears the clock prescaler, so the core runs at the
-// full 8 MHz regardless of the factory CKDIV8 fuse. PB3, the LED or buzzer
-// pin, is the only output at boot. The ADC is switched on to read the 1.1 V bandgap against VCC, which is
-// how the chip measures its own supply: REFS 000 makes VCC the reference and
-// MUX 1100 selects the bandgap (Read: ATtiny25/45/85 datasheet 2586Q, ADC input
-// channel and voltage reference selections), and CK/64 gives the 125 kHz the
-// datasheet asks for (50 to 200 kHz for full resolution). Switching it on here
-// leaves the bandgap well over its start-up time before the first reading,
-// which comes after board detection. Timer1 starts free-running at the clock
-// divided by 16384, its slowest synchronous setting (Read: ATtiny25/45/85
-// datasheet 2586Q, Table 12-5, CS13:0 = 1111), as the time base for the LED and
-// the oscillator trim; it drives no pin and raises no interrupt. The two writes
-// to the watchdog register are its own timed sequence: the first arms the
-// change, the second enables the watchdog at a ~0.5 s timeout (WDP2|WDP0), so
-// any hang longer than one loop pass resets the chip instead of wedging it. The
-// watchdog runs from its own 128 kHz oscillator, so its timeout does not depend
-// on the main clock or its trim.
+// Clear the clock prescaler (8 MHz whatever CKDIV8 says), make PB3 the only
+// output, start the ADC on the bandgap against VCC at CK/64 (125 kHz), Timer1
+// at clk/16384 (datasheet 2586Q, Table 12-5), and the watchdog at about 0.5 s.
 
 	.global pscu_port_init
 	.func pscu_port_init
@@ -94,9 +64,7 @@ pscu_port_watchdog_reset:
 	ret
 	.endfunc
 
-// The three input reads each return the masked pin bit, not a clean 0/1, so the
-// C side only ever compares them against zero. Masking in hardware here avoids
-// a separate shift and keeps the read a single `in`.
+// Input reads return the masked pin bit, not 0 or 1.
 	.global pscu_port_read_sqck
 	.func pscu_port_read_sqck
 pscu_port_read_sqck:
@@ -113,10 +81,8 @@ pscu_port_read_wfck:
 	ret
 	.endfunc
 
-// DATA is open-collector-style: a logic zero is an active low (clear PORT, then
-// set DDR to output), a logic one is high-Z (clear DDR back to input and clear
-// PORT so no pull-up drives it). Clearing PORT before setting DDR on the drive
-// path avoids a momentary high glitch on the bus.
+// DATA is open-drain style: low or high-Z. PORT is cleared before DDR is set, so
+// the line never glitches high.
 	.global pscu_port_data_drive_low
 	.func pscu_port_data_drive_low
 pscu_port_data_drive_low:
@@ -133,13 +99,8 @@ pscu_port_data_release:
 	ret
 	.endfunc
 
-// The gate on PU-18 and PU-20 boards. There WFCK is a static level rather than
-// a carrier, and the chip holds it low for the whole region string, then
-// releases it, as both long-deployed chips do: PsNee drives it as an output low
-// around every legacy string (Read: PsNee V9.0 PSNee.ino:593-595 and :652-655),
-// and Mayumi V4 makes its gate pin an output on legacy boards (Read: its binary).
-// Same drive order as DATA: PORT cleared before DDR is set, so the line never
-// glitches high. A carrier board never calls these; its WFCK stays an input.
+// The WFCK gate on legacy boards, held low for each string (PsNee V9.0
+// PSNee.ino:593-595 and :652-655). Same drive order as DATA.
 	.global pscu_port_gate_drive_low
 	.func pscu_port_gate_drive_low
 pscu_port_gate_drive_low:
@@ -170,9 +131,7 @@ pscu_port_led_off:
 	ret
 	.endfunc
 
-// Blocking millisecond delay. r24:r25 is the millisecond count from the caller;
-// the inner loop burns PSCU_DELAY_1MS_ITERS to spend one millisecond, kicking
-// the watchdog once per millisecond so a long injection never trips the reset.
+// Busy-wait r25:r24 milliseconds, kicking the watchdog each millisecond.
 	.global pscu_port_delay_ms
 	.func pscu_port_delay_ms
 pscu_port_delay_ms:
@@ -191,21 +150,9 @@ pscu_port_delay_ms:
 	ret
 	.endfunc
 
-// Clock in r22 bytes of SUBQ into the buffer at r25:r24, least significant bit
-// first, sampling SUBQ right after each SQCK rising edge, as PsNee does. The caller
-// has already waited for the idle gap, so the first falling edge starts the frame.
-// Returns 1 in r24 for a whole frame, 0 the moment any edge wait times out, and
-// the caller then discards the partial frame. The whole frame lives in assembly
-// because the gap the firmware can leave between two edges sets the fastest SQCK
-// it can follow: each wait reacts within one 7-cycle pass and the work between
-// the rising edge and the next falling-edge wait is about a dozen cycles, where
-// the earlier C capture spent over 50. Every wait is bounded, and the watchdog
-// is kicked once, as the frame starts: each edge may take up to 30 ms, so a frame
-// of 96 edges could otherwise hold one pass for nearly 3 s, and the run loop's
-// 8-bit tick, which wraps every 524 ms, would lose time. A frame trickling in
-// more slowly than the ~0.5 s watchdog period, which a floating or noisy SQCK
-// gives and a drive never does (a frame is 13.3 ms), restarts the chip instead,
-// with DATA released and code 5 at the next boot.
+// Clock r22 SUBQ bytes into r25:r24, LSB first, sampling after each SQCK rising
+// edge. Returns 1 for a whole frame, 0 on any edge timeout. In assembly to follow
+// a fast SQCK. The watchdog is kicked once, so a frame slower than 0.5 s resets.
 	.global pscu_port_capture_frame
 	.func pscu_port_capture_frame
 pscu_port_capture_frame:
@@ -248,13 +195,7 @@ pscu_port_capture_frame:
 	ret
 	.endfunc
 
-// A free-running clock for the status LED and the oscillator trim. The
-// ATtiny85's Timer1 is 8-bit: at the clock divided by 16384 it ticks every
-// 2.048 ms at 8 MHz and wraps every 524 ms, longer than any pass of the run loop
-// (a region string is 176 ms, a failed capture about 60 ms, the EEPROM store
-// about 24 ms), so the difference of two readings is always the time between
-// them. The LED patterns are drawn from this count, so they never cost a
-// delay.
+// Timer1: one tick per 2.048 ms, wrapping every 524 ms, longer than any pass.
 	.global pscu_port_ticks
 	.func pscu_port_ticks
 pscu_port_ticks:
@@ -262,21 +203,11 @@ pscu_port_ticks:
 	ret
 	.endfunc
 
-// WFCK-counted injection timing. On a modern board the WFCK line is a live carrier,
-// so instead of timing a bit cell with an MCU delay, which drifts with the RC
-// oscillator, these routines count whole WFCK periods. A bit cell is
-// PSCU_WFCK_PERIODS_PER_BIT rising edges, so the cell length tracks the console
-// clock exactly and is immune to MCU frequency error. r18 holds the previous
-// WFCK level so only a low-to-high transition counts. The watchdog is kicked
-// only when a rising edge is counted, never on an idle pass: if the carrier
-// stalls (lid opened mid-injection, mechacon halt), no edge arrives, the watchdog
-// expires after about 0.5 s and resets the chip, and the reset returns DATA and
-// every other pin to high-Z. Kicking it on every pass would instead hold DATA
-// driven until power-off. wdr leaves the status flags alone, so it can sit
-// between the counting subi and its breq.
+// Bit cells timed by counting WFCK rising edges; r18 holds the last level. The
+// watchdog is kicked only on an edge, so a stalled carrier resets the chip and
+// releases DATA. wdr keeps the flags, so it can sit between subi and breq.
 
-// Hold for one bit cell without touching DATA; the caller has already driven it
-// low, so this is the zero-bit cell on a modern board.
+// Zero-bit cell: wait without touching DATA, which the caller drove low.
 	.func pscu_port_wfck_wait_periods
 pscu_port_wfck_wait_periods:
 	cpi r24, 0
@@ -302,9 +233,7 @@ pscu_port_wfck_wait_periods:
 	ret
 	.endfunc
 
-// Drive DATA as a copy of the WFCK carrier for one bit cell, the one-bit cell on
-// a modern board. Each pass mirrors the current WFCK level onto DATA and counts
-// the period, so the mirrored carrier and the cell length share the same clock.
+// One-bit cell: copy WFCK onto DATA while counting periods.
 	.func pscu_port_wfck_mirror_periods
 pscu_port_wfck_mirror_periods:
 	cpi r24, 0
@@ -337,9 +266,7 @@ pscu_port_wfck_mirror_periods:
 	ret
 	.endfunc
 
-// One modern-board bit cell, timed by counting WFCK periods, so the cell
-// follows the console's own clock at single and double speed alike. Each is a
-// tail call, so the wrapper adds no return overhead.
+// Public bit-cell entry points, as tail calls.
 	.global pscu_port_bit_hold_low
 	.func pscu_port_bit_hold_low
 pscu_port_bit_hold_low:

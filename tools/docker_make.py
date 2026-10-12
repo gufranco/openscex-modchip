@@ -1,12 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Run a make target inside the pinned toolchain container.
-
-Every build, check and test runs in the pinned Docker image so results are
-identical on any machine and in CI; only flashing with avrdude runs on the
-host. This wrapper builds the image on demand and forwards the make target.
-"""
+"""Run a make target inside the pinned toolchain container."""
 
 import hashlib
 import os
@@ -21,18 +16,13 @@ IMAGE_INPUTS = ("Dockerfile", "docker/requirements-tools.txt")
 IMAGE_NAME = "openscex-modchip-toolchain"
 TAG_LENGTH = 12
 
-# How the wrapper starts a process. It is subprocess.run in use; the tests pass
-# a stand-in for the docker CLI, which cannot run inside the CI container.
+# How the wrapper starts a process: subprocess.run, or a stand-in in tests.
 Runner = Callable[..., subprocess.CompletedProcess[Any]]
 
 
 def image_tag(root: Path) -> str:
-    """Name the image by a hash of its inputs.
-
-    Tagging with the digest of the Dockerfile and the pinned requirements means
-    any change to the toolchain yields a new tag, so a stale image is never
-    reused and the rebuild is automatic.
-    """
+    """Name the image by a hash of the Dockerfile and pinned requirements, so a
+    toolchain change always gets a new tag."""
     digest = hashlib.sha256()
     for name in IMAGE_INPUTS:
         digest.update((root / name).read_bytes())
@@ -44,10 +34,8 @@ def toolchain_command(
 ) -> list[str]:
     """Build the `docker run` argv that runs `make <targets>` in the image.
 
-    The container runs as the host uid/gid so build artifacts stay owned by the
-    user, HOME is /tmp because the container user has no home, and the git
-    safe.directory env vars stop git refusing the bind-mounted /src as
-    dubiously owned when a check shells out to git.
+    Runs as the host uid/gid so artifacts stay the user's; HOME is /tmp, and the
+    safe.directory env vars let git accept the bind-mounted /src.
     """
     uid, gid = user
     return [

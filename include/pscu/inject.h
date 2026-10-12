@@ -9,33 +9,21 @@
 
 // Injection policy, kept pure so it is fully host-tested.
 
-// The chip is "in the region-check window" once the leaky SUBQ counter has
-// built up to the trigger, meaning the console is reading the lead-in.
+// True once the SUBQ counter reaches the trigger: the console is reading the
+// lead-in.
 bool pscu_should_inject(uint8_t counter, uint8_t trigger);
 
-// Stealth state: how many region strings have been emitted since the window
-// was last entered, and whether the console has accepted the string in this
-// window. After acceptance the console reads the program area, where a string
-// is exactly what an anti-mod probe counts (psx-spx, 19h,04h and 19h,05h), so
-// the chip stays silent. The window closing ends the acceptance: a later
-// lead-in read is a new check, as the anti-mod v2 ReadTOC re-read is, which
-// clears the drive's licensed status (aprip readme, tonyhax docs/ap_v2.c).
-// The disc leaving, seen as a stretch with no valid SUBQ frame, also resets
-// everything. wait counts the frames still to pass before the
-// next string may start, so strings are spaced the way a disc and the
-// long-deployed chips space them rather than sent back to back.
+// Strings sent in this window, whether the console accepted one, and frames to
+// wait before the next. After acceptance the chip stays silent: anti-mod code
+// counts strings in the program area (psx-spx, 19h,04h and 19h,05h).
 typedef struct {
   uint8_t sent;
   bool accepted;
   uint8_t wait;
 } pscu_stealth_t;
 
-// Where the region-check window stands on this frame. HELD is inside the
-// window while the chip may not send, as when the supply guard holds strings
-// back. A held burst keeps its count and its gap, so a brief low supply reading
-// neither restarts the cap, which would let one disc receive the cap twice, nor
-// starts a new session that would teach the calibration from half a burst; the
-// next frame back in the open window continues the same burst.
+// The window on this frame. HELD is inside the window but not allowed to send,
+// e.g. under the supply guard; the burst keeps its count and gap.
 typedef enum { PSCU_WINDOW_CLOSED = 0, PSCU_WINDOW_OPEN = 1, PSCU_WINDOW_HELD = 2 } pscu_window_t;
 
 // One step of the stealth state machine plus whether to inject right now.
@@ -46,16 +34,9 @@ typedef struct {
 
 pscu_stealth_t pscu_stealth_init(void);
 
-// Decide, for the current frame, whether to emit one region string. While the
-// disc is gone the chip emits nothing and forgets it, so the next disc finds the
-// chip re-armed. With a disc present, a program-area frame shows the console
-// accepted the string and silences the chip at once, mid-burst included, for
-// the rest of that window. Inside the window the chip emits up to max_strings
-// and then falls silent, and outside the window it emits nothing and resets
-// both the count and the acceptance, so the next lead-in read is served
-// again. A held window
-// emits nothing and changes nothing. After each string the next waits gap open
-// window frames; each call is one frame.
+// Decide, per frame, whether to emit one string: up to max_strings per window,
+// gap frames apart, none after a program-area frame. Leaving the window or
+// losing the disc resets the state; a held window changes nothing.
 pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state,
                                       pscu_window_t window,
                                       bool program,
@@ -63,31 +44,22 @@ pscu_stealth_step_t pscu_stealth_step(pscu_stealth_t state,
                                       uint8_t max_strings,
                                       uint8_t gap);
 
-// Closed-loop confirmation state: how many idle frames have passed since
-// injection while waiting for the program area, and whether it was seen.
+// Idle frames since injection, and whether the program area was seen.
 typedef struct {
   uint8_t waited;
   bool program_seen;
 } pscu_confirm_t;
 
-// One confirmation step: the advanced state, whether the outcome is resolved
-// (time to record the session), and whether it resolved as confirmed.
+// The next state, whether the session is resolved, and whether it was
+// confirmed.
 typedef struct {
   pscu_confirm_t state;
   bool resolved;
   bool confirmed;
 } pscu_confirm_step_t;
 
-// Disc presence, inferred from SUBQ alone. Opening the lid stops the drive, so
-// valid frames stop (Concluded: the lid switch halts the spindle, and a stopped
-// disc yields no mode 1 frame). quiet_ms counts the time since the last valid
-// frame and seen says one has arrived since power-on. A stretch of
-// PSCU_DISC_GONE_MS without one means the disc is gone. A lead-in reread or a
-// seek on a spinning disc keeps producing valid frames, so it never reads as a
-// swap; a game that stops the drive for longer than this does, and the chip
-// then re-arms as PsNee always does. 1.5 s is a design choice, Unknown until
-// hardware: longer than any seek on a spinning disc, shorter than a person
-// takes to open the lid, swap the disc and close it.
+// No valid SUBQ frame for this long means the disc is gone: opening the lid
+// stops the spindle. Longer than a seek, shorter than a disc swap (chosen).
 #define PSCU_DISC_GONE_MS ((uint32_t)1500U)
 
 typedef struct {
@@ -97,8 +69,7 @@ typedef struct {
 
 pscu_presence_t pscu_presence_init(void);
 
-// Fold one pass in: valid says this pass captured a valid frame, elapsed_ms the
-// time since the last pass. The quiet time saturates rather than wrapping.
+// Fold one pass in. The quiet time saturates.
 pscu_presence_t pscu_presence_step(pscu_presence_t state, bool valid, uint32_t elapsed_ms);
 
 // Whether the disc counts as gone: no valid frame for PSCU_DISC_GONE_MS.
@@ -106,10 +77,8 @@ bool pscu_presence_gone(pscu_presence_t state);
 
 pscu_confirm_t pscu_confirm_init(void);
 
-// Fold one post-injection frame into the confirmation state. Seeing the program
-// area resolves as confirmed; otherwise each idle frame advances a bounded wait
-// that resolves as unconfirmed once it reaches timeout. Pure and host-tested, so
-// the run loop records the session exactly once with the right verdict.
+// Fold one post-injection frame in. The program area resolves as confirmed;
+// timeout idle frames resolve as unconfirmed.
 pscu_confirm_step_t pscu_confirm_step(pscu_confirm_t state,
                                       bool idle,
                                       bool program,

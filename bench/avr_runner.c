@@ -6,25 +6,13 @@
 // Usage: avr_runner <image.elf> <mcu> <clock_hz> <timeline> <trace_out>
 //                   <coverage_out> <duration_ns> <pin_map>
 //
-// It plays a console timeline (tools/bench/timeline.py) into one AVR image and
-// writes what the chip did to its output pins, plus every flash address it
-// executed. The pin map names port bits, for example
+// Plays a console timeline (tools/bench/timeline.py) into one AVR image and
+// records its output pins and every flash address executed. Pin map example:
 // "sqck=B0,subq=B1,wfck=B4,data=B2,gate=B4"; a leading '!' inverts a line.
-// Outputs are sampled from the port registers after every instruction. simavr's
-// pin and direction notifications are not enough: a release that clears DDR
-// while the PORT bit is already 0 raises neither (seen 2026-10-07: our DATA
-// read as driven low through every gap between strings).
-// An ATtiny85 image gets the Timer1 and OSCCAL fixes the console harness uses
-// (tests/sim/sim_t85.h), shared so the bench and the harness run ours alike.
-// A `power_cycle` event models switching the console off and on: the core is
-// reset with its EEPROM kept, as the chip's EEPROM survives power loss, so a
-// scenario can boot a second time onto what the first boot stored. An
-// `eeprom_byte` event writes one EEPROM byte, its value the address times 256
-// plus the byte, so a scenario can start from a record a console would have
-// left, as the console harness seeds it (tests/sim/sim_calib.c). An
-// `osccal_factory` event sets the factory OSCCAL value an ATtiny85 boots with,
-// kept across power cycles, for a part calibrated near the CAL7 range boundary;
-// otherwise the harness's mid-range 0x50 applies.
+// Outputs are read from the port registers after every instruction, since
+// simavr raises no notification when DDR clears with PORT already 0.
+// Events: power_cycle resets the core and keeps EEPROM; eeprom_byte writes
+// address * 256 + byte; osccal_factory sets the boot OSCCAL (default 0x50).
 
 #include <stdint.h>
 #include <stdio.h>
@@ -48,9 +36,8 @@ typedef struct {
   long value;
 } event_t;
 
-// One named line of the pin map, with the level the console last drove on it,
-// so a power cycle can put each console input back where the console holds it;
-// outputs keep 0 here and are never driven.
+// One pin-map line and the level the console last drove on it, restored after a
+// power cycle.
 typedef struct {
   char name[NAME_LEN];
   char port;
@@ -121,12 +108,8 @@ static void eeprom_byte(avr_t *avr, long packed) {
   avr_ioctl(avr, AVR_IOCTL_EEPROM_SET, &desc);
 }
 
-// Power-on sets PORF, bit 0 of MCUSR, which sits at I/O address 0x34, data
-// address 0x54, on the ATtiny13, the ATtiny85 and the ATmega328P alike (Read:
-// each datasheet's MCUSR description and register summary). simavr's cores
-// leave it clear, and modavr halts at reset unless some reset cause is set, as
-// the silicon always has one; so the runner sets it at power-on, and only
-// there: a watchdog reset inside a run leaves PORF as the chip left it.
+// Set PORF (MCUSR bit 0, data address 0x54 on these parts) at power-on, as the
+// silicon does; simavr leaves it clear.
 #define MCUSR_DATA_ADDR 0x54U
 #define MCUSR_PORF 0x01U
 
@@ -134,9 +117,8 @@ static void power_on_flag(avr_t *avr) {
   avr->data[MCUSR_DATA_ADDR] = (uint8_t)(avr->data[MCUSR_DATA_ADDR] | MCUSR_PORF);
 }
 
-// Switch the chip off and on. avr_reset clears the core and the I/O registers,
-// so the ATtiny85 fixes are installed again and every console input is driven
-// back to its last level; the EEPROM array is left as it was.
+// Power-cycle the chip: reset, reinstall the ATtiny85 fixes and restore the
+// console inputs. EEPROM is kept.
 static void power_cycle(avr_t *avr, const char *mcu) {
   avr_reset(avr);
   power_on_flag(avr);
@@ -174,14 +156,9 @@ static void sample(output_t *out) {
   }
 }
 
-// Whether each console line is pulled up: an input, DDR bit clear, with its
-// PORT bit set, which on these AVRs enables the internal pull-up (Read: each
-// datasheet's port description). A pulled line loads the console's own signal
-// and is what a chip that "floats all I/O pins" never does, so the trace
-// carries it as pull-<name>. The LED is not a console line and is left out.
-// Sampled every PULL_SAMPLE_STEPS instructions, 32 us at 8 MHz: a pull-up is
-// set by a register write that then holds for milliseconds or more, so the
-// coarse sampling keeps the run fast and misses nothing the metric uses.
+// Trace each console input whose pull-up is on (DDR clear, PORT set) as
+// pull-<name>. Sampled every PULL_SAMPLE_STEPS instructions, since a pull-up
+// holds once written.
 #define PULL_SAMPLE_STEPS 256U
 
 static int g_pulled[MAX_LINES];

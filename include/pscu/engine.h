@@ -10,11 +10,8 @@
 #include "pscu/board_mode.h"
 #include "pscu/calib.h"
 
-// The platform layer: the operations the run loop drives on real pins. Detect
-// the board era once; capture one SUBQ frame into a 12-byte buffer, starting on
-// a frame boundary, filling the buffer with 0xFF and returning false when no
-// frame could be captured; and inject the one configured region word using the method the
-// detected board needs.
+// The platform layer the run loop drives on real pins. A failed capture fills
+// the 12-byte buffer with 0xFF and returns false.
 pscu_board_mode_t pscu_engine_detect_board(bool lamp);
 
 // Re-check a board taken for a static gate just before a string: if WFCK is a
@@ -29,12 +26,11 @@ void pscu_engine_inject(pscu_board_mode_t board, bool lamp);
 // defaults.
 pscu_calib_t pscu_engine_load_calib(void);
 
-// Store a calibration, writing only the bytes that differ from what is already
-// in EEPROM, so an unchanged value costs no write and no wear.
+// Store a calibration, writing only the bytes that differ from EEPROM.
 void pscu_engine_store_calib(pscu_calib_t calib);
 
-// Move OSCCAL from the factory value to the stored trim, one step at a time,
-// and return the factory value the run loop's later trims are bounded by.
+// Step OSCCAL from the factory value to the stored trim; returns the factory
+// value that bounds later trims.
 uint8_t pscu_engine_apply_trim(int8_t trim);
 
 #endif

@@ -1,12 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Tests for verifying third-party firmware against the artifact manifest.
-
-The bench never trusts a file by its name: the SHA-256 of the exact bytes
-decides, and a missing or different file must say what the user has and what
-to do, never just "hash mismatch".
-"""
+"""Tests for verifying third-party firmware against the artifact manifest by
+SHA-256."""
 
 import hashlib
 import json

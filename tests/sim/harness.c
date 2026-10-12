@@ -29,23 +29,20 @@ int g_strings = 0;
 uint32_t g_freq = 8000000U;
 // The SQCK half-period the harness clocks frames with, normally EDGE_NS.
 uint64_t g_edge_ns = EDGE_NS;
-// The data address the static data ends at in the image now running, read from
-// its ELF symbols, and the fewest free bytes of RAM any run has left between
-// the stack and that data.
+// The end of the static data in the running image, and the fewest free bytes
+// any run has left between it and the stack.
 static uint32_t g_ram_floor = 0U;
 static int64_t g_min_free = INT64_MAX;
 // Where two port functions sit in the loaded image (see harness.h).
 uint32_t g_addr_read_sqck = 0U;
 uint32_t g_addr_capture = 0U;
-// When nonzero, frames start this many nanoseconds apart, a console's fixed
-// sector rate; when zero, each frame is followed by FRAME_GAP_CYCLES.
+// When nonzero, frames start this many nanoseconds apart; when zero, each frame
+// is followed by FRAME_GAP_CYCLES.
 uint64_t g_frame_period_ns = 0U;
-// When zero, frames go out exactly as a scenario wrote them, so one can feed
-// frames whose CRC does not match; normally every frame is sealed.
+// When zero, frames go out unsealed, so a scenario can send a bad CRC.
 int g_seal_frames = 1;
 
-// EEPROM contents for the next build_avr to load before the firmware starts,
-// since the firmware reads its calibration record within its first cycles.
+// EEPROM contents for the next build_avr to load before the firmware starts.
 #define SIM_SEED_MAX 16U
 static uint8_t g_seed[SIM_SEED_MAX];
 static uint8_t g_seed_len = 0U;
@@ -72,10 +69,8 @@ uint64_t ns_cycles(uint64_t ns) {
   return ((uint64_t)g_freq * ns) / 1000000000ULL;
 }
 
-// The first LED rise after boot marks the first region string, which the
-// scenarios that decode or interrupt a string start from; nothing else lights
-// the LED that early after boot. Every pulse is also recorded, and one whose
-// length matches a region string is counted as one.
+// The first LED rise after boot marks the first region string. Pulses as long
+// as a string are counted as strings.
 void on_led(struct avr_irq_t *irq, uint32_t value, void *param) {
   avr_t *avr = param;
   (void)irq;
@@ -96,19 +91,17 @@ void on_led(struct avr_irq_t *irq, uint32_t value, void *param) {
     g_pulse_len[g_pulses] = len;
     g_pulses++;
   }
-  // A string lights the LED for 90 to 181 ms. The 40 ms heartbeat blip can
-  // stretch by one loop pass, about 31 ms when no frame arrives, so it stays
-  // under about 75 ms; 80 ms separates the two.
+  // A string lasts 90 to 181 ms; the 40 ms heartbeat, stretched by one loop
+  // pass, stays under 75 ms.
   if ((g_rise >= DETECT_CYCLES) && (len >= ms_cycles(80U)) && (len <= ms_cycles(200U))) {
     g_strings++;
   }
   g_rise = 0U;
 }
 
-// Count the first group of pulses at or after `from` whose length lies in
-// [min_ms, max_ms], a group ending where the next such pulse starts more than
-// 1.5 s after the previous one. A code is that many long flashes one second
-// apart, then a 2 s pause, so this reads one repetition of a code.
+// Count the first group of pulses at or after `from` with a length in
+// [min_ms, max_ms]; a gap over 1.5 s ends the group. Reads one repetition of
+// an LED code.
 int pulse_group(uint64_t from, uint32_t min_ms, uint32_t max_ms) {
   int count = 0;
   uint64_t last = 0U;
@@ -158,14 +151,12 @@ avr_irq_t *pin_irq(avr_t *avr, const target_t *t, uint8_t pin) {
   return avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ((uint32_t)t->port), pin);
 }
 
-// The firmware's port init runs within its first cycles; letting it run before
-// the scenario starts keeps every scenario's pins in their post-init state.
+// Let the firmware's port init run before the scenario starts.
 #define PORT_INIT_CYCLES 2000U
 
-// The end of the static data, the highest of the linker's __data_end and
-// __bss_end symbols. Data addresses carry the 0x800000 offset avr-ld uses for
-// the data space, which is masked off. An image with neither symbol is refused
-// with a floor at the top of RAM, so the stack check fails rather than passing.
+// The end of the static data: the higher of __data_end and __bss_end, without
+// avr-ld's 0x800000 data offset. With neither symbol the floor is the top of
+// RAM, so the stack check fails.
 static uint32_t ram_floor(const elf_firmware_t *firmware) {
   uint32_t floor = 0U;
   int found = 0;
@@ -230,10 +221,8 @@ uint8_t data_pin(avr_t *avr, const target_t *t) {
   return (uint8_t)((state.port >> t->data) & 1U) & (uint8_t)((state.ddr >> t->data) & 1U);
 }
 
-// A disc stores every Q frame's CRC in its last two bytes: CRC-16 CCITT from
-// zero over the first ten, inverted, high byte first. The scenarios write only
-// the bytes they mean, so the console model seals each frame as it clocks it,
-// and the firmware sees what a drive would send.
+// Append the Q frame's CRC: CRC-16 CCITT from zero over the first ten bytes,
+// inverted, high byte first.
 static void seal_frame(const uint8_t *frame, uint8_t *sealed) {
   uint16_t crc = 0U;
   for (int byte = 0; byte < SUBQ_FRAME_BYTES; byte++) {
@@ -260,12 +249,8 @@ void clock_frame(avr_t *avr, const target_t *t, const uint8_t *unsealed) {
   avr_irq_t *sqck = pin_irq(avr, t, t->sqck);
   avr_irq_t *subq = pin_irq(avr, t, t->subq);
   uint64_t frame_start = avr->cycle;
-  // An injection can start while a frame is being clocked: before each string on
-  // a gate board the firmware watches WFCK again for a few milliseconds, so the
-  // string may begin after the next frame has started. The console keeps
-  // clocking SUBQ then, and the chip ignores it, but the decoder samples DATA
-  // forward from the LED edge, so the rest of the frame is dropped the moment the
-  // LED marks a string; clocking it to the end would run past the first cells.
+  // A string can start mid-frame on a gate board. The decoder samples DATA
+  // from the LED edge, so the rest of the frame is dropped once the LED lights.
   int led_before = g_led_seen;
   for (int byte = 0; (byte < SUBQ_FRAME_BYTES) && !((g_led_seen != 0) && (led_before == 0));
        byte++) {
@@ -277,8 +262,7 @@ void clock_frame(avr_t *avr, const target_t *t, const uint8_t *unsealed) {
       run_cycles(avr, ns_cycles(g_edge_ns));
     }
   }
-  // Idle the clock for the inter-frame gap, but stop early the moment the LED
-  // marks the start of an injection inside it, for the same reason.
+  // Idle for the inter-frame gap, stopping early if a string starts.
   uint64_t paced = frame_start + ns_cycles(g_frame_period_ns);
   uint64_t gap_end = (g_frame_period_ns != 0U) ? paced : (avr->cycle + FRAME_GAP_CYCLES);
   while ((avr->cycle < gap_end) && !((g_led_seen != 0) && (led_before == 0))) {
@@ -286,10 +270,8 @@ void clock_frame(avr_t *avr, const target_t *t, const uint8_t *unsealed) {
   }
 }
 
-// Clock lead-in frames until the first string starts, with the spare frames
-// TRIGGER_SPARE_FRAMES allows, and stop there so no frame overlaps the string.
-// A frame that would not arm injection is clocked the full count, which only
-// makes a negative case stricter.
+// Clock lead-in frames until the first string starts, plus the spare frames,
+// and stop there so no frame overlaps the string.
 void clock_until_inject(avr_t *avr, const target_t *t, const uint8_t *frame) {
   for (int i = 0; (i < (TRIGGER_FRAMES + TRIGGER_SPARE_FRAMES)) && (g_led_seen == 0); i++) {
     clock_frame(avr, t, frame);
@@ -308,21 +290,16 @@ void boot_quiet(avr_t *avr, const target_t *t, int modern, wfck_ctx_t *ctx) {
   run_cycles(avr, DETECT_CYCLES);
 }
 
-// Reconstruct the 44-bit word the firmware drove, reading DATA once per bit
-// cell starting from the LED injection marker. The two board models encode a
-// logic one differently, so each is decoded on its own terms: on a modern
-// board a one is DATA mirroring the WFCK carrier, seen as the pin going high
-// somewhere mid-cell (sampled across s = 3..7 tenths); on a legacy board a one
-// is high-Z, seen as DATA left as an input (DDR clear), a zero as driven low.
+// Rebuild the 44-bit word from DATA, one sample per bit cell from the LED
+// marker. On a carrier board a one is DATA mirroring WFCK; on a legacy board a
+// one is high-Z (DDR clear) and a zero is driven low.
 void decode_region(avr_t *avr, const target_t *t, int modern, uint64_t bit_cycles, char *out) {
   for (int k = 0; k < SCEX_BITS; k++) {
     uint64_t base = g_led_cycle + ((uint64_t)k * bit_cycles);
     uint8_t bit;
     if (modern != 0) {
-      // A modern one is DATA mirroring the WFCK carrier, so it oscillates
-      // within the cell. Sampling only a few points can alias onto the low
-      // phase and misread it; step finely across the central 40 percent of the
-      // cell and treat any high as a one, which always catches the carrier.
+      // A carrier one oscillates within the cell, so sample finely across the
+      // central 40 percent and treat any high as a one.
       uint8_t any_high = 0U;
       uint64_t lo = base + ((3U * bit_cycles) / 10U);
       uint64_t hi = base + ((7U * bit_cycles) / 10U);

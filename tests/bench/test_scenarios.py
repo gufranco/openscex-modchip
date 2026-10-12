@@ -1,11 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Tests for the scenario catalogue every chip runs.
-
-Each scenario must be deterministic, end after its declared duration, and mark
-the console phases the metrics judge against, in order.
-"""
+"""Tests for the scenario catalogue: deterministic, bounded, phases in order."""
 
 import unittest
 

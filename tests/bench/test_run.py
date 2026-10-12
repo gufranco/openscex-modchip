@@ -3,11 +3,9 @@
 
 """Integration tests for running chips through scenarios.
 
-These run the real runners on real firmware inside the pinned toolchain: ours
-as built by `make all`, and a small PIC program of this project's own,
-assembled here with gpasm, so no third-party firmware is needed. PsNee's
-fetch-and-build path is exercised on a throwaway local git repository holding a
-minimal sketch, which keeps the test offline while checking the tree-id guard.
+They run the real runners on ours and on a small PIC fixture, so no
+third-party firmware is needed. PsNee's build path runs on a local git
+repository, offline.
 """
 
 import hashlib
@@ -41,8 +39,7 @@ from tools.bench.run import (
 )
 from tools.bench.scenarios import by_name as scenario
 
-# A 12F629 program that drives GP1 (package pin 6, DATA in the pin maps) low
-# and high forever with no delay: plenty of DATA activity, never a string.
+# A 12F629 program that toggles GP1, DATA, forever: activity, never a string.
 FIXTURE_ASM = """
     list p=12f629
     include "p12f629.inc"

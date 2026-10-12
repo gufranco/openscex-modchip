@@ -1,11 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-"""Tests for the per-run metrics the report and the envelope compare.
-
-Strings are synthesized in gate mode at chosen times, so each metric can be
-checked against the console phase it is judged by.
-"""
+"""Tests for the per-run metrics, on gate-mode strings at chosen times."""
 
 import unittest
 

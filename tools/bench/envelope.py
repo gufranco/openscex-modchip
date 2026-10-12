@@ -3,34 +3,15 @@
 
 """Ours against the envelope of the chips real consoles have accepted.
 
-For each scenario, the field-proven chips' metrics bound what a console has
-been seen to accept. Each rule says which way ours may leave that bound and
-why, and the rules were set before ours was measured, so they cannot have been
-fitted to it:
+Per scenario, the field-proven chips' metrics bound ours:
 
-- acceptance: ours must accept wherever any field-proven chip accepts;
-- bit cell: within the range they produce, the timing a mechacon has accepted,
-  give or take one period of the fastest WFCK carrier, 14.6 kHz or 68.5 us:
-  the mechanism clocks DATA on WFCK, so it cannot tell two cells apart that
-  differ by less, and two chips counting the same carrier land a fraction of
-  a period apart from where each samples its first edge. A chip that sent no
-  string has no cell and meets the rule; whether it should have sent one is
-  the acceptance rule's question;
-- first string: no later than the slowest of them, or it may miss the check,
-  give or take two SUBQ frames, 26.7 ms. One is sampling phase: chips start
-  on a count of lead-in frames, so where in a frame each lands differs. The
-  other is a frame ours can miss: between two captures with no disc it spends
-  about 1.4 ms on bookkeeping and the 1 ms gap check PsNee also uses, and a
-  disc's first frame that begins in that slice goes uncounted, so at 3 of 80
-  arrival phases ours starts a frame later (traced with the bench,
-  2026-10-08). PsNee waits on SQCK without a bound and never misses;
-  ours bounds every wait by design;
-- everything a detector could see (strings sent, drive time outside strings):
-  at most the most they do. Fewer is always allowed; being quieter is the
-  point of ours, so the envelope never forbids it.
+- acceptance: ours accepts wherever any of them does;
+- bit cell: within their range, give or take one 14.6 kHz WFCK period, 68.5 us;
+- first string: no later than the slowest, give or take two SUBQ frames,
+  26.7 ms, for sampling phase and a frame ours can miss between captures;
+- strings sent and drive outside strings: at most their maximum.
 
-A rule with no field-proven value to compare, because those chips sent nothing
-measurable or were skipped, is unchecked, never passed.
+A rule with nothing to compare against is unchecked, never passed.
 """
 
 from collections.abc import Callable

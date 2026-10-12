@@ -3,33 +3,15 @@
 
 """The anti-modchip checks games run, as console timelines.
 
-The SCEx string lives only in the lead-in (psx-spx, cdromdrive.md, 19h,04h).
-A game that wants to know whether a modchip is fitted seeks into the program
-area, where an original disc carries no string, resets the CD controller's
-SCEx counters with 19h,04h, waits, and reads them back with 19h,05h; any
-nonzero count, even a partial "Sxxx", means a chip is sending (psx-spx,
-cdromformat.md, the anti-modchip sequence, Read). That probe is the PROBE
-window here: whatever a chip drives on DATA inside it is what the game sees.
+A game seeks into the program area, resets the SCEx counters with 19h,04h and
+reads them with 19h,05h; any count means a chip is sending (psx-spx
+cdromformat.md). That is the PROBE window. APv1 is the probe alone. APv2 first
+re-reads the lead-in with ReadTOC and needs a full string there (tonyhax
+docs/ap_v2.c, aprip readme): the REREAD window.
 
-The first version (APv1, PoPoRoGue and other Japanese titles, per aprip) is
-the probe alone. The second (APv2, Dino Crisis onwards, every region) first
-runs ReadTOC, which resets the drive's licensed-disc status, then GetID,
-which fails on an unlicensed disc unless a full string arrives during that
-lead-in re-read, and only then seeks to the middle of the data track for the
-probe (tonyhax docs/ap_v2.c, decompiled, and aprip readme, Read; the probe
-after the seek is Concluded from the operations the decompilation lists).
-So the second version needs a chip that sends in the re-read and is silent
-in the probe: the REREAD and PROBE windows here.
-
-Timing choices, none measured on a console (Unknown): the re-read lasts the
-4 s the core re-read scenario uses, the seek 1 s, and the probe 2 s, the
-upper end of the "wait 1-2 seconds" psx-spx gives for counter results. The
-probe plays CD-DA, which runs at single speed (psx-spx, Setmode bit 7 clear),
-so on a static-gate board the SPEED line Mayumi V4 and MM3 sense is low
-there, as it is during the lead-in.
-
-These scenarios are judged by the showcase properties, never against the
-envelope: their point is a check the field-proven chips may fail.
+Durations are not measured: re-read 4 s, seek 1 s, probe 2 s (psx-spx: "wait
+1-2 seconds"). The probe plays CD-DA at single speed, so SPEED is low.
+Judged by the showcase only.
 """
 
 from collections.abc import Callable
@@ -57,8 +39,8 @@ TAIL_FRAMES = 75
 
 
 def _speed(timeline: Timeline, on_carrier: bool, level: int) -> Timeline:
-    """Set the SPEED level a gate board's chip senses; a carrier board's
-    sense line is the command strobe, which the frames already pulse."""
+    """Set the SPEED level a gate board's chip senses; carrier boards need
+    nothing, as the frames pulse XLAT."""
     return timeline if on_carrier else timeline.set(Signal.SENSE, level)
 
 

@@ -6,13 +6,11 @@
 
 #include <stdint.h>
 
-// The region-check window is considered open once the leaky SUBQ counter has
-// built up to this many hits, which filters boot noise before the chip emits.
+// SUBQ counter value that opens the region-check window; filters boot noise.
 #define PSCU_INJECT_TRIGGER ((uint8_t)10U)
 
-// After injecting, the run loop watches this many frames for the program area
-// before giving up and recording the session as unconfirmed. Seeing the program
-// area earlier records it as confirmed and logs immediately.
+// Frames watched for the program area after injecting before the session is
+// recorded as unconfirmed.
 #define PSCU_CONFIRM_FRAMES ((uint8_t)64U)
 
 // The firmware entry loop; never returns.

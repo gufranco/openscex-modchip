@@ -3,14 +3,8 @@
 
 """Run chips through scenarios: prepare each firmware, play, measure.
 
-Preparing a chip means making sure its exact bytes are there: ours is built by
-`make all`, a third-party image must match its manifest hash, and PsNee is
-fetched at its pinned commit, its git tree id checked, and built here with
-avr-g++. A chip whose firmware cannot be prepared is skipped with the reason,
-so a machine without the unlicensed images still runs everything else.
-
-Every runner call is bounded by a timeout, and the runners themselves stop
-after a fixed number of instruction steps.
+A chip whose firmware cannot be prepared is skipped with the reason. Every
+runner call has a timeout and a step limit.
 """
 
 import json
@@ -43,10 +37,8 @@ PSNEE_PRELUDE = (
     "#include <util/delay.h>\n#include <stdint.h>\n"
 )
 # A run's backstop: a fixed allowance plus a share per simulated second. The
-# slowest chip measured, UberNee on the ATmega328P at 16 MHz with its serial
-# debug output on, took 107 s of wall time for 21 s simulated, 5.1 s per
-# simulated second alone on one core (2026-10-08); runs share the cores, so
-# the share is that doubled. Ours took 9 s for the same 21 s.
+# slowest chip, UberNee at 16 MHz with serial debug on, takes 5.1 s per
+# simulated second alone on one core; the share doubles that.
 RUN_TIMEOUT_S = 600
 RUN_TIMEOUT_PER_SIM_S = 10
 NANOSECONDS_PER_SECOND = 1_000_000_000
@@ -75,13 +67,8 @@ def _git(args: list[str], cwd: Path) -> str:
 def build_psnee(root: Path, artifact: Artifact, workdir: Path) -> str | None:
     """Fetch PsNee at its pinned commit and build it for every target.
 
-    Returns None on success, else why it could not be built. The tree id is
-    checked after checkout, so a rewritten history at the same commit id, or a
-    local edit, is refused rather than built. The sketch is included by its
-    absolute path because the compiler resolves a quoted include against the
-    wrapper's own folder, which breaks any relative work directory. It is
-    built with -g, which changes no code, so its instructions map to sketch
-    lines for the coverage report.
+    Returns None on success, else the reason. The tree id is checked after
+    checkout. Built with -g so instructions map to sketch lines.
     """
     source = workdir / "psnee-src"
     if not source.is_dir():
@@ -196,14 +183,11 @@ def run(root: Path, chip: Chip, scenario: Scenario, workdir: Path) -> Run:
 
 
 def program_addresses(root: Path, chip: Chip) -> frozenset[int]:
-    """Where each instruction of the image starts, the denominator of coverage.
+    """Where each instruction of the image starts, the coverage denominator.
 
-    The addresses are in the unit the runner writes coverage in, so the two
-    sets compare directly. A PIC instruction is one word, so it is every
-    program word the image fills, by word address; the configuration word
-    sits above program memory and is left out. An AVR image is disassembled,
-    since its instructions take one or two words, and each instruction's
-    first byte address is kept.
+    A PIC instruction is one word, so every filled program word counts, without
+    the configuration word. An AVR image is disassembled and each instruction's
+    first byte address kept.
     """
     path = root / chip.firmware
     if chip.simulator is Simulator.PIC:
@@ -221,11 +205,7 @@ def program_addresses(root: Path, chip: Chip) -> frozenset[int]:
 
 
 def _instruction_address(line: str) -> int | None:
-    """The address of an avr-objdump instruction line, else None.
-
-    Instruction lines are an indented hex address, a colon and a tab; labels
-    and section headers are not indented, so they never match.
-    """
+    """The address of an avr-objdump instruction line, else None."""
     address, colon, _ = line.partition(":\t")
     if not colon or not line.startswith(" "):
         return None
@@ -254,13 +234,8 @@ def parse_lines(
 ) -> dict[int, Line | None]:
     """Pair each address with the source line avr-addr2line printed for it.
 
-    A file in this repository becomes its path from the root, so a marker in
-    it applies; a line in any other file with debug information, a sketch
-    fetched elsewhere or an avr-libc header inlined into it, keeps only its
-    file name, for the exclusion table to name. Code with no line at all,
-    avr-libc's and libgcc's precompiled objects, has none here. A line number
-    the compiler lost inside the tree is 0, so it is never taken for library
-    code.
+    Files in this repository keep their path from the root; other files keep
+    only their name. Precompiled library code has no line.
     """
     lines: dict[int, Line | None] = {}
     for address, printed in zip(addresses, text, strict=True):
@@ -317,11 +292,8 @@ def _markers(root: Path) -> dict[Line, str]:
 def excuse(root: Path, chip: Chip, uncovered: frozenset[int]) -> dict[int, str]:
     """The uncovered instructions no console input can reach, with reasons.
 
-    Ours carries its reasons as marker comments in its own source; a
-    third-party image takes them from the committed table under its artifact
-    id. An AVR image is mapped to source lines through its debug information,
-    which also excuses avr-libc's start-up code; a PIC image is matched by
-    address only.
+    Ours carries marker comments in its source; a third-party image uses the
+    committed table under its artifact id. A PIC image matches by address only.
     """
     table = load_exclusions(root).get(chip.artifact or chip.name, [])
     ordered = sorted(uncovered)
