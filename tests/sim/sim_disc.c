@@ -10,7 +10,7 @@
 #include "sim_cycle_timers.h"
 
 // Disc-handling scenarios: multi-disc swaps, disc presence without a lid wire,
-// and every LED stage from the boot light to the live fault codes.
+// and every indicator stage from the boot light to the live fault codes.
 
 // A multi-disc game. The first program-area frame stops the burst; a TOC
 // re-read, as the anti-mod v2 check does, is served again under the same cap;
@@ -32,9 +32,9 @@ static void md_check(const target_t *t, int ok, const char *what, int strings) {
 void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
-  g_led_seen = 0;
-  g_led_cycle = 0;
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  g_indicator_seen = 0;
+  g_indicator_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
 
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -77,7 +77,7 @@ void scenario_disc_presence(const target_t *t, const char *elf, uint32_t freq) {
                                            0,     0,     0x02U, 0,     0,     0 };
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
   clock_until_inject(avr, t, toc);
   clock_frames(avr, t, play, MD_SETTLE_FRAMES + MD_PLAY_FRAMES);
@@ -89,7 +89,7 @@ void scenario_disc_presence(const target_t *t, const char *elf, uint32_t freq) {
                  "disc %s: a lead-in read after a short pause is served (%d strings)",
                  t->mcu,
                  reread);
-  check((g_led_seen != 0) && (reread >= 1), label);
+  check((g_indicator_seen != 0) && (reread >= 1), label);
 
   // After a swap the next disc's first frames are not lead-in; with the counter
   // emptied they must not open the window.
@@ -127,13 +127,13 @@ void scenario_boot_light(const target_t *t, const char *elf, uint32_t freq) {
   g_boot_on = 0U;
   g_boot_off = 0U;
   // The boot light comes on during the port init build_avr already ran, so
-  // read the LED level now.
+  // read the indicator level now.
   avr_ioport_state_t state;
   (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE((uint32_t)t->port), &state);
-  if (((state.port >> t->led) & 1U) != 0U) {
+  if (((state.port >> t->indicator) & 1U) != 0U) {
     g_boot_on = avr->cycle;
   }
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_boot_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_boot_led, avr);
   boot_quiet(avr, t, 0, &ctx);
 
   uint64_t lit = g_boot_off - g_boot_on;
@@ -152,7 +152,7 @@ void scenario_boot_light(const target_t *t, const char *elf, uint32_t freq) {
 void board_blinks_case(const target_t *t, const char *elf, uint32_t freq, int modern) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, modern, &ctx);
   int blinks = pulse_group(0U, 250U, 350U);
   char label[96];
@@ -172,20 +172,20 @@ void board_blinks_case(const target_t *t, const char *elf, uint32_t freq, int mo
 void faults_case(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
   run_cycles(avr, ms_cycles(10000U));
   char label[96];
-  (void)snprintf(label, sizeof(label), "led %s: no SUBQ shows code 3", t->mcu);
+  (void)snprintf(label, sizeof(label), "indicator %s: no SUBQ shows code 3", t->mcu);
   check(code_after(DETECT_CYCLES) == 3, label);
 
   avr_t *quiet = build_avr(t, elf, freq);
-  avr_irq_register_notify(pin_irq(quiet, t, t->led), on_led, quiet);
+  avr_irq_register_notify(pin_irq(quiet, t, t->indicator), on_indicator, quiet);
   boot_quiet(quiet, t, 0, &ctx);
   const uint8_t audio_lead_in[SUBQ_FRAME_BYTES] = {
     0x01U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0
   };
   clock_frames(quiet, t, audio_lead_in, NO_CHECK_FRAMES);
-  (void)snprintf(label, sizeof(label), "led %s: an audio CD shows code 4", t->mcu);
+  (void)snprintf(label, sizeof(label), "indicator %s: an audio CD shows code 4", t->mcu);
   check(code_after(DETECT_CYCLES) == 4, label);
 }

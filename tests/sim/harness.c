@@ -12,15 +12,15 @@
 #include "sim_elf.h"
 
 // The console model every scenario drives: the frame clock, the WFCK
-// carrier and the LED recorder, plus the DATA decoder.
+// carrier and the indicator recorder, plus the DATA decoder.
 
 const char SCEA_BITS[SCEX_BITS + 1] = "10011010100100111101001010111010010111110100";
 const char SCEI_BITS[SCEX_BITS + 1] = "10011010100100111101001010111010010110110100";
 
 int g_checks = 0;
 int g_failures = 0;
-int g_led_seen = 0;
-uint64_t g_led_cycle = 0;
+int g_indicator_seen = 0;
+uint64_t g_indicator_cycle = 0;
 uint64_t g_pulse_rise[MAX_PULSES];
 uint64_t g_pulse_len[MAX_PULSES];
 int g_pulses = 0;
@@ -69,16 +69,16 @@ uint64_t ns_cycles(uint64_t ns) {
   return ((uint64_t)g_freq * ns) / 1000000000ULL;
 }
 
-// The first LED rise after boot marks the first region string. Pulses as long
+// The first indicator rise after boot marks the first region string. Pulses as long
 // as a string are counted as strings.
-void on_led(struct avr_irq_t *irq, uint32_t value, void *param) {
+void on_indicator(struct avr_irq_t *irq, uint32_t value, void *param) {
   avr_t *avr = param;
   (void)irq;
   if (value != 0U) {
     g_rise = avr->cycle;
-    if ((avr->cycle >= DETECT_CYCLES) && (g_led_seen == 0)) {
-      g_led_seen = 1;
-      g_led_cycle = avr->cycle;
+    if ((avr->cycle >= DETECT_CYCLES) && (g_indicator_seen == 0)) {
+      g_indicator_seen = 1;
+      g_indicator_cycle = avr->cycle;
     }
     return;
   }
@@ -101,7 +101,7 @@ void on_led(struct avr_irq_t *irq, uint32_t value, void *param) {
 
 // Count the first group of pulses at or after `from` with a length in
 // [min_ms, max_ms]; a gap over 1.5 s ends the group. Reads one repetition of
-// an LED code.
+// an indicator code.
 int pulse_group(uint64_t from, uint32_t min_ms, uint32_t max_ms) {
   int count = 0;
   uint64_t last = 0U;
@@ -200,8 +200,8 @@ avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
   }
   avr->frequency = freq;
   g_freq = freq;
-  g_led_seen = 0;
-  g_led_cycle = 0U;
+  g_indicator_seen = 0;
+  g_indicator_cycle = 0U;
   g_pulses = 0;
   g_rise = 0U;
   g_strings = 0;
@@ -250,11 +250,13 @@ void clock_frame(avr_t *avr, const target_t *t, const uint8_t *unsealed) {
   avr_irq_t *subq = pin_irq(avr, t, t->subq);
   uint64_t frame_start = avr->cycle;
   // A string can start mid-frame on a gate board. The decoder samples DATA
-  // from the LED edge, so the rest of the frame is dropped once the LED lights.
-  int led_before = g_led_seen;
-  for (int byte = 0; (byte < SUBQ_FRAME_BYTES) && !((g_led_seen != 0) && (led_before == 0));
+  // from the indicator edge, so the rest of the frame is dropped once the indicator lights.
+  int indicator_before = g_indicator_seen;
+  for (int byte = 0;
+       (byte < SUBQ_FRAME_BYTES) && !((g_indicator_seen != 0) && (indicator_before == 0));
        byte++) {
-    for (int bit = 0; (bit < SUBQ_BITS) && !((g_led_seen != 0) && (led_before == 0)); bit++) {
+    for (int bit = 0; (bit < SUBQ_BITS) && !((g_indicator_seen != 0) && (indicator_before == 0));
+         bit++) {
       avr_raise_irq(subq, (uint8_t)((frame[byte] >> bit) & 1U));
       avr_raise_irq(sqck, 0U);
       run_cycles(avr, ns_cycles(g_edge_ns));
@@ -265,7 +267,7 @@ void clock_frame(avr_t *avr, const target_t *t, const uint8_t *unsealed) {
   // Idle for the inter-frame gap, stopping early if a string starts.
   uint64_t paced = frame_start + ns_cycles(g_frame_period_ns);
   uint64_t gap_end = (g_frame_period_ns != 0U) ? paced : (avr->cycle + FRAME_GAP_CYCLES);
-  while ((avr->cycle < gap_end) && !((g_led_seen != 0) && (led_before == 0))) {
+  while ((avr->cycle < gap_end) && !((g_indicator_seen != 0) && (indicator_before == 0))) {
     run_cycles(avr, 500U);
   }
 }
@@ -273,7 +275,7 @@ void clock_frame(avr_t *avr, const target_t *t, const uint8_t *unsealed) {
 // Clock lead-in frames until the first string starts, plus the spare frames,
 // and stop there so no frame overlaps the string.
 void clock_until_inject(avr_t *avr, const target_t *t, const uint8_t *frame) {
-  for (int i = 0; (i < (TRIGGER_FRAMES + TRIGGER_SPARE_FRAMES)) && (g_led_seen == 0); i++) {
+  for (int i = 0; (i < (TRIGGER_FRAMES + TRIGGER_SPARE_FRAMES)) && (g_indicator_seen == 0); i++) {
     clock_frame(avr, t, frame);
   }
 }
@@ -290,12 +292,12 @@ void boot_quiet(avr_t *avr, const target_t *t, int modern, wfck_ctx_t *ctx) {
   run_cycles(avr, DETECT_CYCLES);
 }
 
-// Rebuild the 44-bit word from DATA, one sample per bit cell from the LED
+// Rebuild the 44-bit word from DATA, one sample per bit cell from the indicator
 // marker. On a carrier board a one is DATA mirroring WFCK; on a legacy board a
 // one is high-Z (DDR clear) and a zero is driven low.
 void decode_region(avr_t *avr, const target_t *t, int modern, uint64_t bit_cycles, char *out) {
   for (int k = 0; k < SCEX_BITS; k++) {
-    uint64_t base = g_led_cycle + ((uint64_t)k * bit_cycles);
+    uint64_t base = g_indicator_cycle + ((uint64_t)k * bit_cycles);
     uint8_t bit;
     if (modern != 0) {
       // A carrier one oscillates within the cell, so sample finely across the

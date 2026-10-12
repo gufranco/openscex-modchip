@@ -10,8 +10,8 @@
 #include "pscu/assert.h"
 #include "pscu/calib.h"
 #include "pscu/config.h"
+#include "pscu/indicator.h"
 #include "pscu/inject.h"
-#include "pscu/led.h"
 #include "pscu/run.h"
 #include "pscu/subq.h"
 
@@ -27,7 +27,7 @@ typedef struct {
 
 // What the session and the calibration made of the pass.
 typedef struct {
-  pscu_led_event_t event;
+  pscu_indicator_event_t event;
   bool missed;
   bool store;
 } pscu_loop_learned_t;
@@ -40,7 +40,7 @@ static pscu_session_t pscu_loop_session_init(void) {
   return session;
 }
 
-pscu_loop_t pscu_loop_init(pscu_calib_t calib, pscu_led_t led, bool vcd_filter) {
+pscu_loop_t pscu_loop_init(pscu_calib_t calib, pscu_indicator_t indicator, bool vcd_filter) {
   pscu_loop_t state;
   state.calib = calib;
   state.counter = 0U;
@@ -52,7 +52,7 @@ pscu_loop_t pscu_loop_init(pscu_calib_t calib, pscu_led_t led, bool vcd_filter) 
   state.since.armed = false;
   state.stealth = pscu_stealth_init();
   state.session = pscu_loop_session_init();
-  state.led = led;
+  state.indicator = indicator;
   return state;
 }
 
@@ -108,7 +108,7 @@ static void pscu_loop_burst(pscu_loop_t *next, bool supply_ok, pscu_loop_pass_t 
 // teaches the calibration.
 static pscu_loop_learned_t pscu_loop_watch(pscu_loop_t *next, const pscu_loop_pass_t *pass) {
   pscu_loop_learned_t out;
-  out.event = pass->fire ? PSCU_LED_EVENT_FIRED : PSCU_LED_EVENT_NONE;
+  out.event = pass->fire ? PSCU_INDICATOR_EVENT_FIRED : PSCU_INDICATOR_EVENT_NONE;
   out.store = false;
   out.missed = false;
   if ((next->session.injects > 0U) && !next->session.resolved) {
@@ -117,7 +117,7 @@ static pscu_loop_learned_t pscu_loop_watch(pscu_loop_t *next, const pscu_loop_pa
     next->session.confirm = outcome.state;
     if (outcome.resolved || pass->disc_gone) {
       next->session.resolved = true;
-      out.event = outcome.confirmed ? PSCU_LED_EVENT_ACCEPTED : PSCU_LED_EVENT_REFUSED;
+      out.event = outcome.confirmed ? PSCU_INDICATOR_EVENT_ACCEPTED : PSCU_INDICATOR_EVENT_REFUSED;
       out.store = !pass->disc_gone;
     }
   }
@@ -128,7 +128,7 @@ static pscu_loop_learned_t pscu_loop_watch(pscu_loop_t *next, const pscu_loop_pa
 // strings stop, so the store never lands inside the window.
 static pscu_loop_learned_t pscu_loop_learn(pscu_loop_t *next, const pscu_loop_pass_t *pass) {
   pscu_loop_learned_t out = pscu_loop_watch(next, pass);
-  bool confirmed = out.event == PSCU_LED_EVENT_ACCEPTED;
+  bool confirmed = out.event == PSCU_INDICATOR_EVENT_ACCEPTED;
   pscu_calib_outcome_t outcome = confirmed ? PSCU_CALIB_ACCEPTED : PSCU_CALIB_REFUSED;
   out.missed = !pass->disc_gone &&
                pscu_calib_missed(next->calib, pass->previous, next->counter, next->since.armed);
@@ -155,24 +155,26 @@ static pscu_since_disc_t pscu_loop_since(pscu_since_disc_t since,
   return next;
 }
 
-// Draw this pass's LED state. A missed window shows as a refusal.
+// Draw this pass's indicator state. A missed window shows as a refusal.
 static bool pscu_loop_show(pscu_loop_t *next,
                            const pscu_loop_in_t *in,
                            pscu_loop_learned_t learned,
                            const pscu_loop_pass_t *pass) {
   next->since = pscu_loop_since(next->since, pass, in->elapsed_ms);
-  uint8_t fault = pscu_led_fault(!in->supply_ok,
-                                 next->presence.seen,
-                                 next->presence.quiet_ms,
-                                 next->since.ms,
-                                 next->since.framed,
-                                 next->since.armed);
+  uint8_t fault = pscu_indicator_fault(!in->supply_ok,
+                                       next->presence.seen,
+                                       next->presence.quiet_ms,
+                                       next->since.ms,
+                                       next->since.framed,
+                                       next->since.armed);
   bool arrived = next->was_gone && !pass->disc_gone;
-  pscu_led_t led = arrived ? pscu_led_disc_arrived(next->led) : next->led;
-  bool none = learned.event == PSCU_LED_EVENT_NONE;
-  pscu_led_event_t shown = (none && learned.missed) ? PSCU_LED_EVENT_REFUSED : learned.event;
-  pscu_led_step_t step = pscu_led_step(led, shown, fault, in->elapsed_ms);
-  next->led = step.state;
+  pscu_indicator_t indicator =
+      arrived ? pscu_indicator_disc_arrived(next->indicator) : next->indicator;
+  bool none = learned.event == PSCU_INDICATOR_EVENT_NONE;
+  pscu_indicator_event_t shown =
+      (none && learned.missed) ? PSCU_INDICATOR_EVENT_REFUSED : learned.event;
+  pscu_indicator_step_t step = pscu_indicator_step(indicator, shown, fault, in->elapsed_ms);
+  next->indicator = step.state;
   next->was_gone = pass->disc_gone;
   return step.on;
 }
@@ -189,7 +191,7 @@ pscu_loop_out_t pscu_loop_step(pscu_loop_t *state, const pscu_loop_in_t *in) {
   bool timed = settled && pass.valid && in->supply_ok;
   pscu_loop_burst(state, in->supply_ok, &pass);
   pscu_loop_learned_t learned = pscu_loop_learn(state, &pass);
-  out.led_on = pscu_loop_show(state, in, learned, &pass);
+  out.indicator_on = pscu_loop_show(state, in, learned, &pass);
   // A pass that fires blocks for the whole string, so it times nothing.
   out.trim_sample = timed && !pass.fire;
   out.fire = pass.fire;

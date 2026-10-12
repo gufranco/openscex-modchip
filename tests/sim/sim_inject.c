@@ -21,9 +21,9 @@ static void scenario_inject(const target_t *t,
                             const char *family) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * wfck_hz)) };
-  g_led_seen = 0;
-  g_led_cycle = 0;
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  g_indicator_seen = 0;
+  g_indicator_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, modern, &ctx);
 
   // A TOC lead-in frame that arms injection (control 0x41, track 0xA0) and an
@@ -32,8 +32,8 @@ static void scenario_inject(const target_t *t,
   uint8_t audio[SUBQ_FRAME_BYTES] = { 0x01U, 0x00U, 0x02U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   clock_until_inject(avr, t, (trigger != 0) ? toc : audio);
 
-  uint64_t deadline = avr->cycle + LED_DEADLINE;
-  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+  uint64_t deadline = avr->cycle + INDICATOR_DEADLINE;
+  while ((g_indicator_seen == 0) && (avr->cycle < deadline)) {
     run_cycles(avr, 2000U);
   }
 
@@ -46,8 +46,8 @@ static void scenario_inject(const target_t *t,
   char decoded[SCEX_BITS + 1];
   if (trigger != 0) {
     (void)snprintf(label, sizeof(label), "%s: inject triggered at %u Hz", tag, freq);
-    check(g_led_seen != 0, label);
-    if (g_led_seen != 0) {
+    check(g_indicator_seen != 0, label);
+    if (g_indicator_seen != 0) {
       decode_region(avr, t, modern, bit_cycles, decoded);
       (void)snprintf(label, sizeof(label), "%s: decodes SCEA at %u Hz", tag, freq);
       check(strcmp(decoded, SCEA_BITS) == 0, label);
@@ -57,11 +57,11 @@ static void scenario_inject(const target_t *t,
     }
   } else {
     (void)snprintf(label, sizeof(label), "%s: non-TOC does not inject at %u Hz", tag, freq);
-    check(g_led_seen == 0, label);
+    check(g_indicator_seen == 0, label);
   }
 }
 
-// The LED result code after a disc's check: one long flash for an accepted
+// The indicator result code after a disc's check: one long flash for an accepted
 // disc, two for a refused one, each shown three times.
 #define RESULT_TOC_FRAMES 12
 #define RESULT_AFTER_FRAMES 120
@@ -69,7 +69,7 @@ static void scenario_inject(const target_t *t,
 void result_case(const target_t *t, const char *elf, uint32_t freq, int program) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
 
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -85,11 +85,11 @@ void result_case(const target_t *t, const char *elf, uint32_t freq, int program)
   char label[96];
   (void)snprintf(label,
                  sizeof(label),
-                 "led %s: %s disc shows code %d",
+                 "indicator %s: %s disc shows code %d",
                  t->mcu,
                  (program != 0) ? "accepted" : "refused",
                  expected);
-  check((g_led_seen != 0) && (code_after(mark) == expected), label);
+  check((g_indicator_seen != 0) && (code_after(mark) == expected), label);
 }
 
 // A capture that starts mid-burst must realign on the next inter-frame gap and
@@ -112,9 +112,9 @@ static void clock_partial(avr_t *avr, const target_t *t, int bits) {
 void scenario_resync(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
-  g_led_seen = 0;
-  g_led_cycle = 0;
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  g_indicator_seen = 0;
+  g_indicator_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
 
   uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -122,15 +122,15 @@ void scenario_resync(const target_t *t, const char *elf, uint32_t freq) {
   for (int i = 0; i < RESYNC_FRAMES; i++) {
     clock_frame(avr, t, toc);
   }
-  uint64_t deadline = avr->cycle + LED_DEADLINE;
-  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+  uint64_t deadline = avr->cycle + INDICATOR_DEADLINE;
+  while ((g_indicator_seen == 0) && (avr->cycle < deadline)) {
     run_cycles(avr, 2000U);
   }
 
   const char *tag = t->mcu;
   char label[96];
   (void)snprintf(label, sizeof(label), "resync %s: injects after a capture starts mid-burst", tag);
-  check(g_led_seen != 0, label);
+  check(g_indicator_seen != 0, label);
 }
 
 // WFCK starting 283 ms after power-on must still be detected as a carrier; the
@@ -138,9 +138,9 @@ void scenario_resync(const target_t *t, const char *elf, uint32_t freq) {
 void scenario_late_carrier(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
-  g_led_seen = 0;
-  g_led_cycle = 0;
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  g_indicator_seen = 0;
+  g_indicator_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   avr_raise_irq(pin_irq(avr, t, t->sqck), 1U);
   avr_raise_irq(pin_irq(avr, t, t->subq), 0U);
   avr_raise_irq(pin_irq(avr, t, t->wfck), 1U);
@@ -151,8 +151,8 @@ void scenario_late_carrier(const target_t *t, const char *elf, uint32_t freq) {
 
   uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   clock_until_inject(avr, t, toc);
-  uint64_t deadline = avr->cycle + LED_DEADLINE;
-  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+  uint64_t deadline = avr->cycle + INDICATOR_DEADLINE;
+  while ((g_indicator_seen == 0) && (avr->cycle < deadline)) {
     run_cycles(avr, 2000U);
   }
 
@@ -160,8 +160,8 @@ void scenario_late_carrier(const target_t *t, const char *elf, uint32_t freq) {
   char label[96];
   char decoded[SCEX_BITS + 1] = { 0 };
   (void)snprintf(label, sizeof(label), "late carrier %s: injection triggered", tag);
-  check(g_led_seen != 0, label);
-  if (g_led_seen != 0) {
+  check(g_indicator_seen != 0, label);
+  if (g_indicator_seen != 0) {
     decode_region(avr, t, 1, (uint64_t)WFCK_PERIODS_PER_BIT * freq / WFCK_HZ, decoded);
     (void)snprintf(label, sizeof(label), "late carrier %s: detected as a carrier board", tag);
     check(strcmp(decoded, SCEA_BITS) == 0, label);
@@ -187,7 +187,7 @@ void scenario_carrier_after_boot(const target_t *t, const char *elf, uint32_t fr
   wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
   g_wfck_driven = 0;
   g_wfck_bit = t->wfck;
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   avr_irq_register_notify(pin_irq(avr, t, IOPORT_IRQ_DIRECTION_ALL), on_direction, NULL);
   boot_quiet(avr, t, 0, &ctx);
   int blinks = pulse_group(0U, 250U, 350U);
@@ -196,12 +196,12 @@ void scenario_carrier_after_boot(const target_t *t, const char *elf, uint32_t fr
 
   uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   clock_until_inject(avr, t, toc);
-  uint64_t deadline = avr->cycle + LED_DEADLINE;
-  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+  uint64_t deadline = avr->cycle + INDICATOR_DEADLINE;
+  while ((g_indicator_seen == 0) && (avr->cycle < deadline)) {
     run_cycles(avr, 2000U);
   }
   char decoded[SCEX_BITS + 1] = { 0 };
-  if (g_led_seen != 0) {
+  if (g_indicator_seen != 0) {
     decode_region(avr, t, 1, (uint64_t)WFCK_PERIODS_PER_BIT * freq / WFCK_HZ, decoded);
   }
 
@@ -231,23 +231,23 @@ static uint8_t wfck_ddr(avr_t *avr, const target_t *t) {
 void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
-  g_led_seen = 0;
-  g_led_cycle = 0;
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  g_indicator_seen = 0;
+  g_indicator_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 1, &ctx);
 
   uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   clock_until_inject(avr, t, toc);
-  uint64_t deadline = avr->cycle + LED_DEADLINE;
-  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+  uint64_t deadline = avr->cycle + INDICATOR_DEADLINE;
+  while ((g_indicator_seen == 0) && (avr->cycle < deadline)) {
     run_cycles(avr, 2000U);
   }
 
   const char *tag = t->mcu;
   char label[96];
   (void)snprintf(label, sizeof(label), "stall %s: injection started", tag);
-  check(g_led_seen != 0, label);
-  run_to(avr, g_led_cycle + STALL_AFTER_CYCLES);
+  check(g_indicator_seen != 0, label);
+  run_to(avr, g_indicator_cycle + STALL_AFTER_CYCLES);
   (void)snprintf(label, sizeof(label), "stall %s: DATA driven while the carrier runs", tag);
   check(data_ddr(avr, t) != 0U, label);
 
@@ -294,24 +294,24 @@ static void vcd_case(
   target_t t85 = { "attiny85", 'B', 0U, 1U, 2U, 3U, 4U };
   avr_t *avr = build_avr(&t85, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  g_led_seen = 0;
-  g_led_cycle = 0;
-  avr_irq_register_notify(pin_irq(avr, &t85, t85.led), on_led, avr);
+  g_indicator_seen = 0;
+  g_indicator_cycle = 0;
+  avr_irq_register_notify(pin_irq(avr, &t85, t85.indicator), on_indicator, avr);
   boot_quiet(avr, &t85, 0, &ctx);
   clock_until_inject(avr, &t85, frame);
-  uint64_t deadline = avr->cycle + LED_DEADLINE;
-  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+  uint64_t deadline = avr->cycle + INDICATOR_DEADLINE;
+  while ((g_indicator_seen == 0) && (avr->cycle < deadline)) {
     run_cycles(avr, 2000U);
   }
 
   char label[96];
   (void)snprintf(label, sizeof(label), "vcd build: %s at %u Hz", what, freq);
   if (expect == NULL) {
-    check(g_led_seen == 0, label);
+    check(g_indicator_seen == 0, label);
     return;
   }
-  check(g_led_seen != 0, label);
-  if (g_led_seen != 0) {
+  check(g_indicator_seen != 0, label);
+  if (g_indicator_seen != 0) {
     char decoded[SCEX_BITS + 1];
     decode_region(avr, &t85, 0, BIT_CYCLES(freq), decoded);
     (void)snprintf(label, sizeof(label), "vcd build: decodes SCEI at %u Hz", freq);
@@ -351,17 +351,17 @@ static uint8_t wfck_driven_low(avr_t *avr, const target_t *t) {
 void scenario_gate(const target_t *t, const char *elf, uint32_t freq, int modern) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, modern, &ctx);
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   clock_until_inject(avr, t, toc);
-  uint64_t deadline = avr->cycle + LED_DEADLINE;
-  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+  uint64_t deadline = avr->cycle + INDICATOR_DEADLINE;
+  while ((g_indicator_seen == 0) && (avr->cycle < deadline)) {
     run_cycles(avr, 2000U);
   }
-  run_to(avr, g_led_cycle + ms_cycles(80U));
+  run_to(avr, g_indicator_cycle + ms_cycles(80U));
   uint8_t during = wfck_driven_low(avr, t);
-  run_to(avr, g_led_cycle + ms_cycles(210U));
+  run_to(avr, g_indicator_cycle + ms_cycles(210U));
   uint8_t after = wfck_driven_low(avr, t);
 
   char label[96];
@@ -371,7 +371,7 @@ void scenario_gate(const target_t *t, const char *elf, uint32_t freq, int modern
                  "%s board: WFCK %s during a string",
                  board,
                  (modern != 0) ? "left alone" : "held low");
-  check((g_led_seen != 0) && (during == ((modern != 0) ? 0U : 1U)), label);
+  check((g_indicator_seen != 0) && (during == ((modern != 0) ? 0U : 1U)), label);
   (void)snprintf(label, sizeof(label), "%s board: WFCK released after the string", board);
   check(after == 0U, label);
 }
@@ -384,7 +384,7 @@ void scenario_gate(const target_t *t, const char *elf, uint32_t freq, int modern
 void scenario_string_gap(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   clock_frames(avr, t, toc, GAP_TOC_FRAMES);
@@ -415,7 +415,7 @@ void scenario_string_gap(const target_t *t, const char *elf, uint32_t freq) {
 void scenario_slow_sqck(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
   avr_irq_t *sqck = pin_irq(avr, t, t->sqck);
   uint64_t started = avr->cycle;
@@ -437,8 +437,8 @@ void scenario_slow_sqck(const target_t *t, const char *elf, uint32_t freq) {
 void scenario_bad_crc(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  g_led_seen = 0;
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  g_indicator_seen = 0;
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   g_seal_frames = 0;
@@ -446,14 +446,14 @@ void scenario_bad_crc(const target_t *t, const char *elf, uint32_t freq) {
   g_seal_frames = 1;
   char label[96];
   (void)snprintf(label, sizeof(label), "%s: a lead-in failing its CRC never arms", t->mcu);
-  check(g_led_seen == 0, label);
+  check(g_indicator_seen == 0, label);
   clock_until_inject(avr, t, toc);
-  uint64_t deadline = avr->cycle + LED_DEADLINE;
-  while ((g_led_seen == 0) && (avr->cycle < deadline)) {
+  uint64_t deadline = avr->cycle + INDICATOR_DEADLINE;
+  while ((g_indicator_seen == 0) && (avr->cycle < deadline)) {
     run_cycles(avr, 2000U);
   }
   (void)snprintf(label, sizeof(label), "%s: the same lead-in with its CRC arms", t->mcu);
-  check(g_led_seen != 0, label);
+  check(g_indicator_seen != 0, label);
 }
 
 void scenario_families(const target_t *t, const char *elf, uint32_t freq) {

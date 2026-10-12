@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
   const char *elf = argv[1];
   uint32_t freq = (uint32_t)strtoul(argv[2], NULL, 10);
 
-  // The SCEx signals and the LED sit on PORTB. The image runs the board-family
+  // The SCEx signals and the indicator sit on PORTB. The image runs the board-family
   // matrix, then every behaviour scenario.
   target_t t85 = { "attiny85", 'B', 0U, 1U, 2U, 3U, 4U };
 

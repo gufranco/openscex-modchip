@@ -20,7 +20,7 @@
 <p>
   <a href="#クイックスタート">クイックスタート</a> &nbsp;|&nbsp;
   <a href="#コンソールのタップ位置">配線</a> &nbsp;|&nbsp;
-  <a href="#ステータス-led">ステータス LED</a> &nbsp;|&nbsp;
+  <a href="#ステータス表示">ステータス表示</a> &nbsp;|&nbsp;
   <a href="#他のチップとの比較">他のチップとの比較</a> &nbsp;|&nbsp;
   <a href="../../issues/new?template=compatibility.yml">あなたの機種を報告</a>
 </p>
@@ -44,7 +44,7 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 |:--|:--|:--|
 | **受け入れ後は沈黙**<br>最初のプログラム領域フレームで、文字列の途中でも注入を止めます。再び応じるのは、アンチモッドの TOC 再読み取りのような新しいリードイン読み取りだけです。 | **蓋線なしのディスク交換**<br>SUBQ フレームが 1.5 s 途絶えると交換とみなし、次のディスクに向けて再武装します。 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [src/run.c](src/run.c) |
 | **自己補正のタイミング**<br>コンソールの 75 Hz の SUBQ フレームを計時し、内蔵発振器を 1% 以内に補正します。クロック線は不要です。 | **1 リージョン、1 つの窓**<br>設定したリージョン文字列だけを、SUBQ リージョンチェックの窓の間だけ、武装ごとに最大 16 回。 | [src/trim.c](src/trim.c), [src/region.c](src/region.c), [include/pscu/config.h](include/pscu/config.h) |
-| **ステータス LED またはブザー**<br>1 本のピンで起動の段階、ディスクごとの結果、配線の異常を示す。final ビルドは短く鳴るだけで、異常は 1 回だけ知らせる。 | **コードで実証**<br>MISRA C:2012 準拠、ホストカバレッジ 100%、simavr コンソールモデル、ミューテーションテスト、バイト一致の再ビルド。 | [src/led.c](src/led.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
+| **ステータス LED またはブザー**<br>1 本のピンで起動の段階、ディスクごとの結果、配線の異常を示す。final ビルドは短く鳴るだけで、異常は 1 回だけ知らせる。 | **コードで実証**<br>MISRA C:2012 準拠、ホストカバレッジ 100%、simavr コンソールモデル、ミューテーションテスト、バイト一致の再ビルド。 | [src/indicator.c](src/indicator.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
 
 ## 概要
 
@@ -77,7 +77,7 @@ PU-7 と PU-8 は PsNee V9.0 と同じく静的ゲート方式です。開発機
 
 ## クイックスタート
 
-各[リリース](../../releases)にはビルド済みイメージが付きます: `us`、`eu`、`jp`、SCPH-5903 用の `jp-vcd`、それぞれの静かな `-final` 版（[ステータス LED](#ステータス-led) を参照）、`SHA256SUMS` ファイル、ライセンス、ビルド来歴のアテステーション。書き込む前にダウンロードを確認してください:
+各[リリース](../../releases)にはビルド済みイメージが付きます: `us`、`eu`、`jp`、SCPH-5903 用の `jp-vcd`、それぞれの静かな `-final` 版（[ステータス表示](#ステータス表示) を参照）、`SHA256SUMS` ファイル、ライセンス、ビルド来歴のアテステーション。書き込む前にダウンロードを確認してください:
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing
@@ -127,12 +127,12 @@ make bench_ci    # コンソールベンチ: 同じ模擬コンソールでこ�
 
 ## MCU ピン配置
 
-4 本の SCEx 信号と LED は PsNee の `MCU.h` にある ATtiny85 の割り当てを保つので、PsNee の配線ガイドとピン単位で一致します。PB5 はリセットのままなので、チップは ISP で書き込めます。ピン番号は 8 ピン PDIP のものです。SOIC はデータシートで確認してください。 出典: [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530), [include/port/registers.h](include/port/registers.h), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
+4 本の SCEx 信号と表示ピンは PsNee の `MCU.h` にある ATtiny85 の割り当てを保つので、PsNee の配線ガイドとピン単位で一致します。PB5 はリセットのままなので、チップは ISP で書き込めます。ピン番号は 8 ピン PDIP のものです。SOIC はデータシートで確認してください。 出典: [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530), [include/port/registers.h](include/port/registers.h), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
 
 | DIP ピン | ポート | 信号 | 方向 | 接続先 | 出典 |
 |:--------:|:-------|:-----|:-----|:-------|:--|
 | 1 | PB5 | RESET | - | リセットのまま | [include/port/registers.h](include/port/registers.h), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 2 | PB3 | LED | 出力、任意 | 1 kΩ の抵抗経由の状態 LED、または付けない | [include/port/registers.h](include/port/registers.h), [PsNee PSNee.ino L64](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L64) |
+| 2 | PB3 | INDICATOR | 出力、任意 | 1 kΩ の抵抗経由の状態 LED、アクティブブザー、または付けない | [include/port/registers.h](include/port/registers.h), [PsNee PSNee.ino L64](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L64) |
 | 3 | PB4 | WFCK | 入出力 | 静的ゲート、または PU-22 以降のライブキャリア | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
 | 4 | GND | GND | - | コンソールのグランド | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 5 | PB0 | SQCK | 入力 | SUBQ シリアルクロック | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
@@ -187,9 +187,9 @@ ISP ヘッダは AVR の 6 ピン配列に従います: 1 MISO が SUBQ、2 VCC�
 - 配線前に、すべてのタップ位置の論理電圧を測ってください。PsNee と Mayumi の取り付けでは、フット機は約 5 V、PSone PM-41(2) は低めでノイズに敏感です。 出典: [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/)。
 - コンソールを開けて CD サブシステムにはんだ付けすると壊すことがあります。自己責任で作ってください。 出典: [quade.co PS1 modchip guide](https://quade.co/ps1-modchip-guide/)。
 
-## ステータス LED
+## ステータス表示
 
-PB3 には任意で LED かアクティブブザーをつなぎ、これがチップ唯一の診断手段です。現在の段階、各ディスクがリージョンチェックを通ったか、問題があればどの配線を見るべきかを示します。どの機能も遅らせず妨げず、履歴も持たないので、起動時の 2 つを除くコードは現在の状態を示します。 出典: [src/led.c](src/led.c)。
+PB3 には任意で LED かアクティブブザーをつなぎ、これがチップ唯一の診断手段です。現在の段階、各ディスクがリージョンチェックを通ったか、問題があればどの配線を見るべきかを示します。どの機能も遅らせず妨げず、履歴も持たないので、起動時の 2 つを除くコードは現在の状態を示します。 出典: [src/indicator.c](src/indicator.c)。
 
 | 部品 | 選び方 | 出典 |
 |:-----|:-------|:--|
@@ -199,28 +199,28 @@ PB3 には任意で LED かアクティブブザーをつなぎ、これがチ�
 | ブザー | LED の代わりに、直流をかけるだけで鳴るアクティブ圧電ブザー。例えば PUI Audio AI-3035-TWT-3V-R: 2 から 5 V、3 V で最大 9 mA、約 3.5 kHz、直径 30 mm。5 V のフット機では電流を確認すること | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | ブザーの配線 | 2 番ピン（PB3）をブザーの + 端子へ、- 端子を GND へ。抵抗もダイオードも不要: 圧電素子はコイルではないので、切っても電圧スパイクを返さない。コイルである電磁ブザーには対応しない | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [include/port/registers.h](include/port/registers.h) |
 
-ピンを駆動するビルドは 2 種類あります。既定の `debug` は下の表のすべてを示し、`make PROFILE=final` でビルドして `-final` イメージとして配布する `final` は静かです。取り付けと不具合調査には `debug`、遊ぶときは `final` を書き込みます。違うのはピンだけで、両者が同じ文字列を同じ時刻に送ることをシミュレータがエッジ単位で確かめます。 出典: [include/pscu/led.h](include/pscu/led.h), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
+ピンを駆動するビルドは 2 種類あります。既定の `debug` は下の表のすべてを示し、`make PROFILE=final` でビルドして `-final` イメージとして配布する `final` は静かです。取り付けと不具合調査には `debug`、遊ぶときは `final` を書き込みます。違うのはピンだけで、両者が同じ文字列を同じ時刻に送ることをシミュレータがエッジ単位で確かめます。 出典: [include/pscu/indicator.h](include/pscu/indicator.h), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
 
 | 段階 | debug | final | 出典 |
 |:-----|:------|:------|:--|
 | 基板判別 | 電源投入後約 0.4 s 点灯 | 消灯 | [src/engine.c](src/engine.c) |
-| 基板確定 | 静的ゲート基板（PU-18、PU-20）なら 300 ms の点滅 1 回、WFCK キャリア基板（PU-22 以降）なら 2 回 | 静的ゲート基板なら 60 ms の短音 1 回、WFCK キャリア基板なら 2 回 | [src/led.c](src/led.c) |
-| ディスク待ち | 2 s ごとに 40 ms の短い点灯 | 消灯 | [src/led.c](src/led.c) |
+| 基板確定 | 静的ゲート基板（PU-18、PU-20）なら 300 ms の点滅 1 回、WFCK キャリア基板（PU-22 以降）なら 2 回 | 静的ゲート基板なら 60 ms の短音 1 回、WFCK キャリア基板なら 2 回 | [src/indicator.c](src/indicator.c) |
+| ディスク待ち | 2 s ごとに 40 ms の短い点灯 | 消灯 | [src/indicator.c](src/indicator.c) |
 | 注入中 | リージョン文字列 1 本ごとに 90 から 181 ms の点灯 | 消灯 | [src/engine.c](src/engine.c) |
-| 結果 | コードを 3 回示し、その後消灯 | 受理されたディスクは 60 ms の短音 1 回、拒否されたディスクはコード 2 を 2 回。その後消灯 | [src/led.c](src/led.c) |
-| プレイ中 | 消灯。OSCCAL が動くか校正値を書き込むたびに 40 ms の点灯 | 消灯 | [src/led.c](src/led.c), [src/run.c](src/run.c) |
+| 結果 | コードを 3 回示し、その後消灯 | 受理されたディスクは 60 ms の短音 1 回、拒否されたディスクはコード 2 を 2 回。その後消灯 | [src/indicator.c](src/indicator.c) |
+| プレイ中 | 消灯。OSCCAL が動くか校正値を書き込むたびに 40 ms の点灯 | 消灯 | [src/indicator.c](src/indicator.c), [src/run.c](src/run.c) |
 
-コードは 700 ms の長い点灯を 300 ms 間隔で数え、2 s 休んでから繰り返します。`final` ではコード 3 と 4 はディスクごとに 1 回だけ示し、コード 7 は続く間 30 s ごとに繰り返します。 出典: [src/led.c](src/led.c)。
+コードは 700 ms の長い点灯を 300 ms 間隔で数え、2 s 休んでから繰り返します。`final` ではコード 3 と 4 はディスクごとに 1 回だけ示し、コード 7 は続く間 30 s ごとに繰り返します。 出典: [src/indicator.c](src/indicator.c)。
 
 | コード | 意味 | 確認先 | 出典 |
 |:------:|:-----|:-------|:--|
-| 1 | コンソールがリージョン文字列を受け入れた | 何もしない、ディスクは動く | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
-| 2 | 文字列を送ったがコンソールがプログラム領域に達しなかった | DATA と WFCK の配線、ビルドのリージョンがディスクと合っているか | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
-| 3 | 電源投入後 5 s SUBQ フレームが無い。15 s 示してから鼓動の点滅に戻る | SQCK、SUBQ、電源と GND。ディスクが無いときも出る | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
-| 4 | フレームは来るが 20 s リージョンチェックが無い。続く間は繰り返す | SUBQ。音楽 CD でも正常に出る | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
-| 5 | ウォッチドッグがチップをリセットした。次の起動で 1 回示す | 注入中に止まった WFCK | [src/led.c](src/led.c), [src/port_chip.S](src/port_chip.S) |
-| 6 | 基板がキャリブレーションに保存したものと違う。起動時に 1 回示し、コード 5 が優先 | 不安定な WFCK の配線。チップを別のコンソールに移した場合を除く | [src/led.c](src/led.c), [src/calib.c](src/calib.c) |
-| 7 | 電源が約 2.75 V 未満と測れた、または測定に失敗した。続く間は文字列を送らず、コード 3 と 4 より優先 | 取り出し点の VCC と GND。3.3 V 以上あること | [src/led.c](src/led.c), [src/supply.c](src/supply.c) |
+| 1 | コンソールがリージョン文字列を受け入れた | 何もしない、ディスクは動く | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
+| 2 | 文字列を送ったがコンソールがプログラム領域に達しなかった | DATA と WFCK の配線、ビルドのリージョンがディスクと合っているか | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
+| 3 | 電源投入後 5 s SUBQ フレームが無い。15 s 示してから鼓動の点滅に戻る | SQCK、SUBQ、電源と GND。ディスクが無いときも出る | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
+| 4 | フレームは来るが 20 s リージョンチェックが無い。続く間は繰り返す | SUBQ。音楽 CD でも正常に出る | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
+| 5 | ウォッチドッグがチップをリセットした。次の起動で 1 回示す | 注入中に止まった WFCK | [src/indicator.c](src/indicator.c), [src/port_chip.S](src/port_chip.S) |
+| 6 | 基板がキャリブレーションに保存したものと違う。起動時に 1 回示し、コード 5 が優先 | 不安定な WFCK の配線。チップを別のコンソールに移した場合を除く | [src/indicator.c](src/indicator.c), [src/calib.c](src/calib.c) |
+| 7 | 電源が約 2.75 V 未満と測れた、または測定に失敗した。続く間は文字列を送らず、コード 3 と 4 より優先 | 取り出し点の VCC と GND。3.3 V 以上あること | [src/indicator.c](src/indicator.c), [src/supply.c](src/supply.c) |
 
 ## 仕組み
 
@@ -236,12 +236,12 @@ graph LR
         DET[リージョンチェック検出]
         ST[ステルス状態機械]
         INJ[SCEx 注入]
-        LED[ステータス LED]
+        IND[ステータス表示]
         CAL[コンソールごとのキャリブレーション]
     end
     CD -->|SQCK, SUBQ| CAP
     CAP --> DET --> ST --> INJ
-    ST --> LED
+    ST --> IND
     ST <-->|開始| CAL
     WF -->|ゲートまたはキャリア| INJ
     INJ -->|DATA| MECH
@@ -256,13 +256,13 @@ graph LR
 | 電源ガード | 各文字列の前に 1.1 V のバンドギャップで自分の電源を測る。約 2.75 V 未満、またはありえない読み値なら何も送らずコード 7 を示す。短い低下は送信を止めるだけで数え直さず、閉じたままの窓からキャリブレーションは何も学ばない | [src/supply.c](src/supply.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 発振器の補正 | コンソールの 75 Hz の SUBQ フレームをリードイン中もプレイ中も計時し、バッチごとに最大 4 段、1 回の書き込みで 1 段ずつ OSCCAL を動かして 1% 以内に入れる。工場値から 16 段を超えては動かさない。補正値は EEPROM に保存し、起動時に適用する | [src/trim.c](src/trim.c), [src/run.c](src/run.c), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | ディスク交換 | 蓋線は不要。止まったドライブだけが生む 1.5 s の有効な SUBQ フレームの途絶で再武装する。シークや再読み取りはフレームを出し続ける。SUBQ カウンタは開始位置から 8 フレームで止まるので、拒否されたディスクでも蓋を開けてから約 0.5 秒で窓が閉じる。どのディスクも上限の 16 本全部を受けられる | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/loop.h](include/pscu/loop.h) |
-| ステルス | SUBQ リージョンチェックの窓の間だけ、武装ごとに上限付きで、PsNee と Mayumi V4 と同じく文字列の間に 5 フレーム（67 ms）空けて注入する。それ以外は DATA をハイ Z、LED をオフにする。コンソールがプログラム領域を読んだら止める。アンチモッド v2 の TOC 再読み取りのような以後のリードイン読み取りには、同じ上限で再び応じる。計数が開始点をわずかに下回っても上限と間隔は保たれ、8 フレーム下回って初めて再武装する | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/config.h](include/pscu/config.h), [PsNee PSNee.ino L53](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L53), [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
+| ステルス | SUBQ リージョンチェックの窓の間だけ、武装ごとに上限付きで、PsNee と Mayumi V4 と同じく文字列の間に 5 フレーム（67 ms）空けて注入する。それ以外は DATA をハイ Z、表示ピンをオフにする。コンソールがプログラム領域を読んだら止める。アンチモッド v2 の TOC 再読み取りのような以後のリードイン読み取りには、同じ上限で再び応じる。計数が開始点をわずかに下回っても上限と間隔は保たれ、8 フレーム下回って初めて再武装する | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/config.h](include/pscu/config.h), [PsNee PSNee.ino L53](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L53), [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
 | 単一リージョン | `REGION` だけを送り、3 つ全部は送らない | [src/region.c](src/region.c) |
 | 適応タイミング | WFCK キャリア基板では注入ビットを WFCK の 30 周期で計時するので、等速でも倍速でもコンソールのクロックに従う。静的ゲート基板では補正済みの発振器で計時する | [src/port.S](src/port.S), [src/trim.c](src/trim.c) |
 | 自己回復 | 各 SUBQ 取得はフレーム間の隙間で再同期し、30 ms で諦める。注入中に WFCK が止まるとウォッチドッグが DATA を解放する。プルアップが必要なピンはない: SQCK、SUBQ、WFCK はコンソールの線、DATA は解放中はコンソールの線、PB3 は出力 | [src/engine.c](src/engine.c), [src/port.S](src/port.S), [include/port/registers.h](include/port/registers.h) |
 | フレームの完全性 | SUBQ フレームは CRC-16 が一致するときだけ数えるので、壊れたフレームやずれたフレームは文字列を起動せず、ディスクの存在とも、プログラム領域とも見なされない | [src/subq.c](src/subq.c), [ECMA-130, Q-channel CRC](https://ecma-international.org/publications-and-standards/standards/ecma-130/) |
-| ステータス LED | 任意の LED かアクティブブザーが起動の段階、ディスクごとの結果、現在の異常を示す。ファームウェアはそれを待たず、何もつながなくても正しく動く | [src/led.c](src/led.c) |
-| 現場診断 | コードが、クロックが来ない SUBQ からリージョンチェックが来ない SUBQ まで、失敗した段階を示す。プログラマは不要 | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
+| ステータス表示 | 任意の LED かアクティブブザーが起動の段階、ディスクごとの結果、現在の異常を示す。ファームウェアはそれを待たず、何もつながなくても正しく動く | [src/indicator.c](src/indicator.c) |
+| 現場診断 | コードが、クロックが来ない SUBQ からリージョンチェックが来ない SUBQ まで、失敗した段階を示す。プログラマは不要 | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
 | コンソールごとのキャリブレーション | このコンソールの開始位置と自分の発振器の速さを学び、6 バイトの EEPROM レコードに保存する。無いか壊れていれば既定値に戻る | [src/calib.c](src/calib.c) |
 | 閉ループ確認 | 注入後、プログラム領域のフレーム（実在のトラック番号）を待つ。メカコンは文字列を受け入れた後でしかそれを許さないので、その結果を示す | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c) |
 | 検証 | ホストの行と分岐カバレッジ 100%、速い発振器と遅い発振器を含む simavr コンソールモデル、ミューテーションテスト、再現可能ビルド、そして 1 台の模擬コンソールをこのファームウェア、PsNee、Mayumi V4、MM3 に流すコンソールベンチ。このチップは、他が受け入れられる場面では受け入れられ、ビットセルがそれらの範囲内にあり、リージョンチェックの外で送る量がそれ以下でなければならない。ベンチは到達可能な全命令を実行し、到達できない命令にはソースに理由を記す | [tests/host](tests/host), [tests/sim](tests/sim), [tools/mutate.py](tools/mutate.py), [tools/bench](tools/bench), [CONTRIBUTING.md](CONTRIBUTING.md) |
@@ -274,7 +274,7 @@ graph LR
 | 値 | 学習元 | 効果 | 出典 |
 |:---|:-------|:-----|:--|
 | 開始位置 | 受け入れられたディスクごとに開始をリードインのフレーム 2 個分（27 ms）遅らせ、最大 20 フレームまで。`jp` ビルドは既定値のまま。PsNee が日本のコンソールでの遅いトリガーを戒めているため | 文字列がリージョンチェックの近くで始まる。拒否か、開始前にリードインの読み出しが終わると 2 フレーム戻し、探索を終える | [src/calib.c](src/calib.c), [PsNee PSNee.ino L48](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L48) |
-| 基板 | 起動時に判別した基板 | 基板が違えばコード 6 を 1 回示し、開始位置をやり直す | [src/calib.c](src/calib.c), [src/led.c](src/led.c) |
+| 基板 | 起動時に判別した基板 | 基板が違えばコード 6 を 1 回示し、開始位置をやり直す | [src/calib.c](src/calib.c), [src/indicator.c](src/indicator.c) |
 | 発振器 | コンソールの水晶による 75 Hz の等速フレーム間隔、リードイン中もプレイ中も。発振器の速さは電源電圧に左右されるので、電源チェックが通っている間だけ | 64 フレームのバッチごとに、1% の不感帯を超えた誤差 1% ごとに 1 段（切り上げ）、最大 4 段、書き込みごとに 1 段ずつ OSCCAL を動かす。補正はチップのものなので、基板が変わっても保つ | [src/trim.c](src/trim.c), [src/run.c](src/run.c) |
 
 チップは値が変わったバイトだけを、起動時かディスクのチェックが決着した後にだけ書き、文字列の送信中には書かないので、落ち着いたコンソールでは何も書きません。セルの書き換え寿命は 100,000 回です。電源断で途中まで書かれたレコードはチェックバイトで検出し、既定値として読みます。どちらのヒューズ設定も EESAVE を未プログラムのままにするので、書き直すとレコードも消えます（データシート Table 20-4、ハイヒューズのビット 3）。2 フレームの刻みと 20 フレームの上限は、まだコンソールで調整していません。補正の目標はデータシートのユーザー校正後の精度 1% で、工場出荷時は 10% です（Table 21-2）。 出典: [src/calib.c](src/calib.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
@@ -286,7 +286,7 @@ graph LR
 | ノブ | 値 | 既定 | 選ぶもの | 出典 |
 |:-----|:---|:-----|:---------|:--|
 | `REGION` | `jp`、`us`、`eu` | `us` | チップが送る唯一のリージョン文字列 | [Makefile](Makefile), [src/region.c](src/region.c) |
-| `PROFILE` | `debug`、`final` | `debug` | LED かブザーが示す内容。debug はすべての段階、文字列、異常を示し、final は電源投入時と受理時に短く鳴り、各異常を 1 回だけ示す。DATA はどちらも同じ | [Makefile](Makefile), [include/pscu/led.h](include/pscu/led.h) |
+| `PROFILE` | `debug`、`final` | `debug` | LED かブザーが示す内容。debug はすべての段階、文字列、異常を示し、final は電源投入時と受理時に短く鳴り、各異常を 1 回だけ示す。DATA はどちらも同じ | [Makefile](Makefile), [include/pscu/indicator.h](include/pscu/indicator.h) |
 | `VCD_FILTER` | `off`、`on` | `off` | SCPH-5903 専用で on。PsNee V9.0 の SCPH-5903 フィルタと同じく、注入はゲームのリードイン TOC でのみ起動し、ビデオ CD では起動しない | [Makefile](Makefile), [src/subq.c](src/subq.c), [PsNee PSNee.ino L456-L490](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L456-L490) |
 
 既定以外のリージョン、フィルタ、プロファイルは成果物名にタグを付けます。例 `openscex-modchip-attiny85-jp.hex`、`openscex-modchip-attiny85-jp-vcd.hex`、`openscex-modchip-attiny85-final.hex`。 出典: [Makefile](Makefile)。
@@ -300,7 +300,7 @@ graph LR
 | クロック | 内蔵、SUBQ で補正 | 内蔵 | コンソール | 内蔵 RC | [src/trim.c](src/trim.c), [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/), [quade.co MM3 guide](https://quade.co/ps1-modchip-guide/mm3/) |
 | ブート ROM の BIOS パッチ | なし、パッチ済み BIOS を使う | あり、ATmega 版 | なし | なし | [AGENTS.md](AGENTS.md), [PsNee PSNee.ino L33-L38](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L33-L38), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/), [quade.co MM3 guide](https://quade.co/ps1-modchip-guide/mm3/) |
 | 基板 | PU-7 から PM-41(2) | PU-7 から PM-41(2) | PU-18 以降 | PU-7 以降 | [src/board_mode.c](src/board_mode.c), [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/), [quade.co MM3 guide](https://quade.co/ps1-modchip-guide/mm3/) |
-| 診断 | LED の段階と結果コード | シリアルデバッグ | なし | なし | [src/led.c](src/led.c), [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/) |
+| 診断 | 表示ピンの段階と結果コード | シリアルデバッグ | なし | なし | [src/indicator.c](src/indicator.c), [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/) |
 | コンソールごとの学習 | 開始位置と発振器の補正 | なし | なし | なし | [src/calib.c](src/calib.c), [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/) |
 | テストと静的解析 | ホスト、simavr、ミューテーション、MISRA、コンソールベンチ | なし | なし | なし | [CONTRIBUTING.md](CONTRIBUTING.md), [.github/workflows/ci.yml](.github/workflows/ci.yml) |
 | 実績 | 2 基板、以前のファームウェア | 数年 | 数十年 | 数十年 | [compatibility reports](https://github.com/gufranco/openscex-modchip/issues?q=label%3Acompatibility), [quade.co PS1 modchip guide](https://quade.co/ps1-modchip-guide/) |

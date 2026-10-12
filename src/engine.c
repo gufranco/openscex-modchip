@@ -107,15 +107,15 @@ static pscu_board_mode_t pscu_sample_wfck(uint16_t window) {
   return pscu_board_detect_mode(state);
 }
 
-// Boot-time board detection, about 0.4 s. With lamp set (debug profile) the LED
+// Boot-time board detection, about 0.4 s. With lamp set (debug profile) the indicator
 // is lit for the wait, showing the chip is alive.
 pscu_board_mode_t pscu_engine_detect_board(bool lamp) {
   if (lamp) {
-    pscu_port_led_on();
+    pscu_port_indicator_on();
   }
   pscu_port_delay_ms(PSCU_DETECT_SETTLE_MS);
   pscu_board_mode_t mode = pscu_sample_wfck(PSCU_DETECT_WINDOW);
-  pscu_port_led_off();
+  pscu_port_indicator_off();
   return mode;
 }
 
@@ -154,7 +154,7 @@ void pscu_engine_inject(pscu_board_mode_t board, bool lamp) {
 
   bool gate = board == PSCU_BOARD_MODE_GATE;
   if (lamp) {
-    pscu_port_led_on();
+    pscu_port_indicator_on();
   }
   if (gate) {
     pscu_port_gate_drive_low();
@@ -164,7 +164,7 @@ void pscu_engine_inject(pscu_board_mode_t board, bool lamp) {
   if (gate) {
     pscu_port_gate_release();
   }
-  pscu_port_led_off();
+  pscu_port_indicator_off();
 }
 
 pscu_calib_t pscu_engine_load_calib(void) {

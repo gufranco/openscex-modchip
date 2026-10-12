@@ -20,7 +20,7 @@
 <p>
   <a href="#quick-start">Quick start</a> &nbsp;|&nbsp;
   <a href="#console-tap-points">Wiring</a> &nbsp;|&nbsp;
-  <a href="#status-led">Status LED</a> &nbsp;|&nbsp;
+  <a href="#status-indicator">Status indicator</a> &nbsp;|&nbsp;
   <a href="#against-other-chips">Comparison</a> &nbsp;|&nbsp;
   <a href="../../issues/new?template=compatibility.yml">Report your console</a>
 </p>
@@ -44,7 +44,7 @@ Region-unlock firmware for the original PlayStation and the PSone, on an ATtiny8
 |:--|:--|:--|
 | **Silent after acceptance**<br>The first program-area frame stops injection, even mid-string. Only a new lead-in read, such as an anti-mod TOC re-read, is served again. | **Disc swaps without a lid wire**<br>1.5 s without SUBQ frames counts as a swap and re-arms the chip for the next disc. | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [src/run.c](src/run.c) |
 | **Self-trimmed timing**<br>The chip times the console's 75 Hz SUBQ frames and trims its internal oscillator to within 1%. No clock wire. | **One region, one window**<br>Only the configured region string, only inside the SUBQ region-check window, at most 16 strings per arming. | [src/trim.c](src/trim.c), [src/region.c](src/region.c), [include/pscu/config.h](include/pscu/config.h) |
-| **Status LED or buzzer**<br>One pin reports boot stages, each disc's result and wiring faults. A final build only chirps and reports each fault once. | **Proven in code**<br>MISRA C:2012 clean, 100% host coverage, a simavr console model, mutation testing, byte-identical rebuilds. | [src/led.c](src/led.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
+| **Status LED or buzzer**<br>One pin reports boot stages, each disc's result and wiring faults. A final build only chirps and reports each fault once. | **Proven in code**<br>MISRA C:2012 clean, 100% host coverage, a simavr console model, mutation testing, byte-identical rebuilds. | [src/indicator.c](src/indicator.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
 
 ## Overview
 
@@ -77,7 +77,7 @@ The PU-7 and PU-8 use the static-gate method, as in PsNee V9.0. Dev boards (DTL-
 
 ## Quick start
 
-Each [release](../../releases) carries prebuilt images: `us`, `eu`, `jp`, `jp-vcd` for the SCPH-5903, a quiet `-final` variant of each (see [Status LED](#status-led)), a `SHA256SUMS` file, the license and a build-provenance attestation. Check a download before flashing it:
+Each [release](../../releases) carries prebuilt images: `us`, `eu`, `jp`, `jp-vcd` for the SCPH-5903, a quiet `-final` variant of each (see [Status indicator](#status-indicator)), a `SHA256SUMS` file, the license and a build-provenance attestation. Check a download before flashing it:
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing
@@ -127,12 +127,12 @@ CI runs the same gates on every push and pull request, as defined in [`.github/w
 
 ## MCU pinout
 
-The four SCEx signals and the LED keep PsNee's ATtiny85 assignment from its `MCU.h`, so PsNee wiring guides match pin for pin. PB5 stays RESET, so the chip remains ISP-programmable. Pin numbers are for the 8-pin PDIP; check the datasheet for SOIC. Source: [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530), [include/port/registers.h](include/port/registers.h), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf).
+The four SCEx signals and the indicator pin keep PsNee's ATtiny85 assignment from its `MCU.h`, so PsNee wiring guides match pin for pin. PB5 stays RESET, so the chip remains ISP-programmable. Pin numbers are for the 8-pin PDIP; check the datasheet for SOIC. Source: [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530), [include/port/registers.h](include/port/registers.h), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf).
 
 | DIP pin | Port | Signal | Direction | Connect to | Source |
 |:-------:|:-----|:-------|:----------|:-----------|:--|
 | 1 | PB5 | RESET | - | leave as reset | [include/port/registers.h](include/port/registers.h), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 2 | PB3 | LED | out, optional | status LED through a 1 kΩ resistor, or leave off | [include/port/registers.h](include/port/registers.h), [PsNee PSNee.ino L64](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L64) |
+| 2 | PB3 | INDICATOR | out, optional | status LED through a 1 kΩ resistor, an active buzzer, or leave off | [include/port/registers.h](include/port/registers.h), [PsNee PSNee.ino L64](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L64) |
 | 3 | PB4 | WFCK | in and out | static gate, or PU-22+ live carrier | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
 | 4 | GND | GND | - | console ground | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 5 | PB0 | SQCK | in | SUBQ serial clock | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
@@ -187,9 +187,9 @@ Each board has a bill of materials and a Gerber and drill archive ready for a bo
 - Measure the logic voltage at every tap point before wiring. PsNee and Mayumi installs put fat boards around 5 V and the PSone PM-41(2) lower and noise-sensitive. Source: [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/).
 - Opening a console and soldering to the CD subsystem can destroy it. Build at your own risk. Source: [quade.co PS1 modchip guide](https://quade.co/ps1-modchip-guide/).
 
-## Status LED
+## Status indicator
 
-PB3 drives an optional LED or active buzzer, the chip's only diagnostic channel. It shows the current stage, whether each disc passed its region check, and which wire to check when something fails. It never delays or gates a feature and keeps no history, so every code except the two boot codes describes the present. Source: [src/led.c](src/led.c).
+PB3 drives an optional LED or active buzzer, the chip's only diagnostic channel. It shows the current stage, whether each disc passed its region check, and which wire to check when something fails. It never delays or gates a feature and keeps no history, so every code except the two boot codes describes the present. Source: [src/indicator.c](src/indicator.c).
 
 | Part | Choice | Source |
 |:-----|:-------|:--|
@@ -199,28 +199,28 @@ PB3 drives an optional LED or active buzzer, the chip's only diagnostic channel.
 | Buzzer | instead of the LED, an active piezo buzzer, which sounds on plain DC, such as the PUI Audio AI-3035-TWT-3V-R: 2 to 5 V, at most 9 mA at 3 V, about 3.5 kHz, 30 mm across; check its current at 5 V on a fat console | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | Buzzer wiring | pin 2 (PB3) to the buzzer's + lead, the - lead to ground, with no resistor or diode: a piezo is not a coil and sends no spike back when switched off. Magnetic buzzers are coils and are not supported | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [include/port/registers.h](include/port/registers.h) |
 
-Two builds drive the pin. `debug`, the default, shows everything below; `final`, built with `make PROFILE=final` and released as the `-final` images, stays quiet. Flash `debug` to install and troubleshoot, then `final` to play. Only the pin differs: the simulator checks edge by edge that both send the same strings at the same times. Source: [include/pscu/led.h](include/pscu/led.h), [tests/sim/sim_profile.c](tests/sim/sim_profile.c).
+Two builds drive the pin. `debug`, the default, shows everything below; `final`, built with `make PROFILE=final` and released as the `-final` images, stays quiet. Flash `debug` to install and troubleshoot, then `final` to play. Only the pin differs: the simulator checks edge by edge that both send the same strings at the same times. Source: [include/pscu/indicator.h](include/pscu/indicator.h), [tests/sim/sim_profile.c](tests/sim/sim_profile.c).
 
 | Stage | debug | final | Source |
 |:------|:------|:------|:--|
 | Board detection | lit for about 0.4 s after power-on | dark | [src/engine.c](src/engine.c) |
-| Board found | one 300 ms blink for a static-gate board (PU-18, PU-20), two for a WFCK-carrier board (PU-22 and later) | one 60 ms chirp for a static-gate board, two for a WFCK-carrier board | [src/led.c](src/led.c) |
-| Waiting for a disc | a 40 ms blip every 2 s | dark | [src/led.c](src/led.c) |
+| Board found | one 300 ms blink for a static-gate board (PU-18, PU-20), two for a WFCK-carrier board (PU-22 and later) | one 60 ms chirp for a static-gate board, two for a WFCK-carrier board | [src/indicator.c](src/indicator.c) |
+| Waiting for a disc | a 40 ms blip every 2 s | dark | [src/indicator.c](src/indicator.c) |
 | Injecting | a 90 to 181 ms flash per region string | dark | [src/engine.c](src/engine.c) |
-| Result | a code shown three times, then dark | an accepted disc gives one 60 ms chirp, a refused one code 2 twice; then dark | [src/led.c](src/led.c) |
-| Play | dark, with a 40 ms tick each time OSCCAL moves or the calibration is written | dark | [src/led.c](src/led.c), [src/run.c](src/run.c) |
+| Result | a code shown three times, then dark | an accepted disc gives one 60 ms chirp, a refused one code 2 twice; then dark | [src/indicator.c](src/indicator.c) |
+| Play | dark, with a 40 ms tick each time OSCCAL moves or the calibration is written | dark | [src/indicator.c](src/indicator.c), [src/run.c](src/run.c) |
 
-Codes are long 700 ms flashes, 300 ms apart, with a 2 s pause before the code repeats. In `final`, codes 3 and 4 play once per disc, and code 7 repeats every 30 s while it holds. Source: [src/led.c](src/led.c).
+Codes are long 700 ms flashes, 300 ms apart, with a 2 s pause before the code repeats. In `final`, codes 3 and 4 play once per disc, and code 7 repeats every 30 s while it holds. Source: [src/indicator.c](src/indicator.c).
 
 | Code | Meaning | Check | Source |
 |:----:|:--------|:------|:--|
-| 1 | the console accepted the region string | nothing, the disc plays | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
-| 2 | strings were sent and the console never reached the program area | DATA and WFCK wiring, and that the build's region matches the disc | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
-| 3 | no SUBQ frame for 5 s after power-on; shown for 15 s, then the heartbeat | SQCK, SUBQ, power and ground; also shown with no disc in | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
-| 4 | frames arrive but no region check for 20 s; repeats while it holds | SUBQ; also normal with an audio CD | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
-| 5 | the watchdog reset the chip, shown once at the next boot | WFCK, which stalled mid-injection | [src/led.c](src/led.c), [src/port_chip.S](src/port_chip.S) |
-| 6 | the board differs from the one the calibration stored, shown once at boot; code 5 takes priority | the WFCK wire, which is intermittent, unless the chip moved to another console | [src/led.c](src/led.c), [src/calib.c](src/calib.c) |
-| 7 | the supply measured under about 2.75 V, or the reading failed; no string is sent while it holds, and it outranks codes 3 and 4 | VCC and ground at the tap points, which must measure 3.3 V or more | [src/led.c](src/led.c), [src/supply.c](src/supply.c) |
+| 1 | the console accepted the region string | nothing, the disc plays | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
+| 2 | strings were sent and the console never reached the program area | DATA and WFCK wiring, and that the build's region matches the disc | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
+| 3 | no SUBQ frame for 5 s after power-on; shown for 15 s, then the heartbeat | SQCK, SUBQ, power and ground; also shown with no disc in | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
+| 4 | frames arrive but no region check for 20 s; repeats while it holds | SUBQ; also normal with an audio CD | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
+| 5 | the watchdog reset the chip, shown once at the next boot | WFCK, which stalled mid-injection | [src/indicator.c](src/indicator.c), [src/port_chip.S](src/port_chip.S) |
+| 6 | the board differs from the one the calibration stored, shown once at boot; code 5 takes priority | the WFCK wire, which is intermittent, unless the chip moved to another console | [src/indicator.c](src/indicator.c), [src/calib.c](src/calib.c) |
+| 7 | the supply measured under about 2.75 V, or the reading failed; no string is sent while it holds, and it outranks codes 3 and 4 | VCC and ground at the tap points, which must measure 3.3 V or more | [src/indicator.c](src/indicator.c), [src/supply.c](src/supply.c) |
 
 ## How it works
 
@@ -236,12 +236,12 @@ graph LR
         DET[Region-check detector]
         ST[Stealth state machine]
         INJ[SCEx injector]
-        LED[Status LED]
+        IND[Status indicator]
         CAL[Per-console calibration]
     end
     CD -->|SQCK, SUBQ| CAP
     CAP --> DET --> ST --> INJ
-    ST --> LED
+    ST --> IND
     ST <-->|start| CAL
     WF -->|gate or carrier| INJ
     INJ -->|DATA| MECH
@@ -256,13 +256,13 @@ graph LR
 | Supply guard | before every string the chip measures its supply against its 1.1 V bandgap; below about 2.75 V, or on an impossible reading, it sends nothing and shows code 7. A brief dip pauses a burst without restarting its count, and a window kept shut teaches the calibration nothing | [src/supply.c](src/supply.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | Oscillator trim | times the console's 75 Hz SUBQ frames in the lead-in and in play, and steps OSCCAL up to 4 notches per batch, one per write, until within 1%, never more than 16 notches from the factory value; the trim is stored in EEPROM and applied at boot | [src/trim.c](src/trim.c), [src/run.c](src/run.c), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | Disc swaps | no lid wire: 1.5 s without a valid SUBQ frame, which only a stopped drive gives, re-arms the chip; seeks and rereads keep producing frames. The SUBQ counter stops 8 frames past the start, so the window closes within about half a second after a lid opens, even on a refused disc. Every disc may get the full 16-string cap | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/loop.h](include/pscu/loop.h) |
-| Stealth | injects only inside the SUBQ region-check window, capped per arming, 5 frames (67 ms) between strings as in PsNee and Mayumi V4; otherwise DATA is high-Z and the LED off. Stops when the console reads the program area. A later lead-in read, such as the anti-mod v2 TOC re-read, is served again under the same cap. A count that dips just under the start keeps the cap and gap; only a drop 8 frames below it re-arms | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/config.h](include/pscu/config.h), [PsNee PSNee.ino L53](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L53), [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
+| Stealth | injects only inside the SUBQ region-check window, capped per arming, 5 frames (67 ms) between strings as in PsNee and Mayumi V4; otherwise DATA is high-Z and the indicator off. Stops when the console reads the program area. A later lead-in read, such as the anti-mod v2 TOC re-read, is served again under the same cap. A count that dips just under the start keeps the cap and gap; only a drop 8 frames below it re-arms | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/config.h](include/pscu/config.h), [PsNee PSNee.ino L53](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L53), [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
 | Single configured region | emits only `REGION`, never all three | [src/region.c](src/region.c) |
 | Adaptive timing | on WFCK-carrier boards each injected bit lasts 30 WFCK periods, following the console's clock at single and double speed; on static-gate boards the trimmed oscillator times it | [src/port.S](src/port.S), [src/trim.c](src/trim.c) |
 | Self-recovery | each SUBQ capture realigns on the gap between frames and gives up after 30 ms; the watchdog releases DATA if WFCK stalls mid-injection. No pin needs a pull-up: SQCK, SUBQ and WFCK are console lines, DATA is the console's line while released, and PB3 is an output | [src/engine.c](src/engine.c), [src/port.S](src/port.S), [include/port/registers.h](include/port/registers.h) |
 | Frame integrity | a SUBQ frame counts only when its CRC-16 matches, so a corrupted or misaligned frame cannot arm a string, mark a disc present or pass for the program area | [src/subq.c](src/subq.c), [ECMA-130, Q-channel CRC](https://ecma-international.org/publications-and-standards/standards/ecma-130/) |
-| Status LED | an optional LED or active buzzer shows boot stages, each disc's result and live faults; the firmware never waits on it and works with nothing fitted | [src/led.c](src/led.c) |
-| In-field diagnostics | the codes name the failing stage, from a SUBQ line that never clocks to one that never shows a region check; no programmer needed | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
+| Status indicator | an optional LED or active buzzer shows boot stages, each disc's result and live faults; the firmware never waits on it and works with nothing fitted | [src/indicator.c](src/indicator.c) |
+| In-field diagnostics | the codes name the failing stage, from a SUBQ line that never clocks to one that never shows a region check; no programmer needed | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
 | Per-console calibration | learns this console's start point and its own oscillator rate in a six-byte EEPROM record; a missing or damaged record falls back to the defaults | [src/calib.c](src/calib.c) |
 | Closed-loop confirmation | after injecting, the chip waits for a program-area frame (a real track number), which the mechacon allows only after accepting the string, and reports the result | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c) |
 | Verification | 100% host line and branch coverage, a simavr console model with fast and slow oscillators, mutation testing, reproducible builds, and a console bench that plays one simulated console into this firmware, PsNee, Mayumi V4 and MM3. This one must accept wherever they do, keep its bit cell in their range and send no more outside the region check. The bench executes every reachable instruction; each unreachable one carries its reason in the source | [tests/host](tests/host), [tests/sim](tests/sim), [tools/mutate.py](tools/mutate.py), [tools/bench](tools/bench), [CONTRIBUTING.md](CONTRIBUTING.md) |
@@ -274,7 +274,7 @@ The chip learns how this console reads the region string and keeps the result in
 | Value | Learned from | Effect | Source |
 |:------|:-------------|:-------|:--|
 | Start point | each accepted disc moves the start 2 lead-in frames (27 ms) later, up to 20 frames; a `jp` build keeps the default, as PsNee warns against a later trigger on Japanese consoles | strings start closer to the region check; a refusal, or a lead-in read that ends before the start, steps back 2 frames and ends the probe | [src/calib.c](src/calib.c), [PsNee PSNee.ino L48](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L48) |
-| Board | the board detected at boot | a different board shows code 6 once and restarts the start point | [src/calib.c](src/calib.c), [src/led.c](src/led.c) |
+| Board | the board detected at boot | a different board shows code 6 once and restarts the start point | [src/calib.c](src/calib.c), [src/indicator.c](src/indicator.c) |
 | Oscillator | single-speed frame spacing, 75 Hz from the console's crystal, in the lead-in and in play, only while the supply check passes, since the oscillator's rate follows its supply | each 64-frame batch moves OSCCAL one notch per percent of error beyond a 1% dead band, rounded up, at most 4, one notch per write; the trim belongs to the chip, so a board change keeps it | [src/trim.c](src/trim.c), [src/run.c](src/run.c) |
 
 The chip writes only changed bytes, only at boot or after a disc's check resolves and never during a string, so a settled console writes nothing; cell endurance is 100,000 writes. A check byte makes a record cut short by power-off read as the defaults. Reflashing erases the record, because both fuse sets leave EESAVE unprogrammed (datasheet Table 20-4, high fuse bit 3). The 2-frame step and the 20-frame bound are not yet tuned on a console. The trim targets the datasheet's 1% after user calibration, against 10% from the factory (Table 21-2). Source: [src/calib.c](src/calib.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf).
@@ -286,7 +286,7 @@ One source builds every variant; the knobs are passed to `make`. Source: [Makefi
 | Knob | Values | Default | Selects | Source |
 |:-----|:-------|:--------|:--------|:--|
 | `REGION` | `jp`, `us`, `eu` | `us` | the one region string the chip emits | [Makefile](Makefile), [src/region.c](src/region.c) |
-| `PROFILE` | `debug`, `final` | `debug` | what the LED or buzzer says: debug shows every stage, string and fault; final chirps at power-on and on an accepted disc, and shows each fault once; DATA is the same in both | [Makefile](Makefile), [include/pscu/led.h](include/pscu/led.h) |
+| `PROFILE` | `debug`, `final` | `debug` | what the LED or buzzer says: debug shows every stage, string and fault; final chirps at power-on and on an accepted disc, and shows each fault once; DATA is the same in both | [Makefile](Makefile), [include/pscu/indicator.h](include/pscu/indicator.h) |
 | `VCD_FILTER` | `off`, `on` | `off` | on for the SCPH-5903 only: injection arms on a game's lead-in TOC, never on a Video CD's, as PsNee V9.0's SCPH-5903 filter does | [Makefile](Makefile), [src/subq.c](src/subq.c), [PsNee PSNee.ino L456-L490](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L456-L490) |
 
 A non-default region, filter or profile tags the artifact name, for example `openscex-modchip-attiny85-jp.hex`, `openscex-modchip-attiny85-jp-vcd.hex` or `openscex-modchip-attiny85-final.hex`. Source: [Makefile](Makefile).
@@ -300,7 +300,7 @@ A non-default region, filter or profile tags the artifact name, for example `ope
 | Clock | internal, trimmed against SUBQ | internal | console | internal RC | [src/trim.c](src/trim.c), [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/), [quade.co MM3 guide](https://quade.co/ps1-modchip-guide/mm3/) |
 | Boot-ROM BIOS patch | no, use a patched BIOS | yes, ATmega builds | no | no | [AGENTS.md](AGENTS.md), [PsNee PSNee.ino L33-L38](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L33-L38), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/), [quade.co MM3 guide](https://quade.co/ps1-modchip-guide/mm3/) |
 | Boards | PU-7 to PM-41(2) | PU-7 to PM-41(2) | PU-18 and later | PU-7 and later | [src/board_mode.c](src/board_mode.c), [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/), [quade.co MM3 guide](https://quade.co/ps1-modchip-guide/mm3/) |
-| Diagnostics | LED stage and result codes | serial debug | none | none | [src/led.c](src/led.c), [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/) |
+| Diagnostics | indicator stage and result codes | serial debug | none | none | [src/indicator.c](src/indicator.c), [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/) |
 | Per-console learning | start point and oscillator trim | none | none | none | [src/calib.c](src/calib.c), [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/) |
 | Tests and static analysis | host, simavr, mutation, MISRA, console bench | none | none | none | [CONTRIBUTING.md](CONTRIBUTING.md), [.github/workflows/ci.yml](.github/workflows/ci.yml) |
 | Field record | 2 boards, earlier firmware | years | decades | decades | [compatibility reports](https://github.com/gufranco/openscex-modchip/issues?q=label%3Acompatibility), [quade.co PS1 modchip guide](https://quade.co/ps1-modchip-guide/) |

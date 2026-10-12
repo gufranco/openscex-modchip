@@ -8,7 +8,7 @@
 
 #include "pscu/calib.h"
 #include "pscu/config.h"
-#include "pscu/led.h"
+#include "pscu/indicator.h"
 #include "pscu/loop.h"
 #include "pscu/subq.h"
 
@@ -40,14 +40,17 @@ static pscu_calib_t calib_with(uint8_t trigger, bool frozen) {
   return calib;
 }
 
-// The LED past its boot blink, so a fault or a result can take it at once.
-static pscu_led_t waiting_led(void) {
-  return pscu_led_step(pscu_led_init(1U, 0U, PSCU_LED_PROFILE_DEBUG), PSCU_LED_EVENT_NONE, 0U, 700U)
+// The indicator past its boot blink, so a fault or a result can take it at once.
+static pscu_indicator_t waiting_indicator(void) {
+  return pscu_indicator_step(pscu_indicator_init(1U, 0U, PSCU_INDICATOR_PROFILE_DEBUG),
+                             PSCU_INDICATOR_EVENT_NONE,
+                             0U,
+                             700U)
       .state;
 }
 
 static pscu_loop_t fresh(pscu_calib_t calib) {
-  return pscu_loop_init(calib, waiting_led(), false);
+  return pscu_loop_init(calib, waiting_indicator(), false);
 }
 
 // One pass's decisions together with the state it leaves.
@@ -57,7 +60,7 @@ typedef struct {
   bool store;
   bool trim_sample;
   bool quiet;
-  bool led_on;
+  bool indicator_on;
 } step_t;
 
 static step_t pass_with(
@@ -65,7 +68,7 @@ static step_t pass_with(
   pscu_loop_in_t in = { frame, captured, supply_ok, ms };
   pscu_loop_t next = state;
   pscu_loop_out_t out = pscu_loop_step(&next, &in);
-  step_t step = { next, out.fire, out.store, out.trim_sample, out.quiet, out.led_on };
+  step_t step = { next, out.fire, out.store, out.trim_sample, out.quiet, out.indicator_on };
   return step;
 }
 
@@ -82,7 +85,7 @@ static step_t feed(pscu_loop_t state, const uint8_t *frame, uint16_t count) {
 }
 
 static void test_init(void) {
-  pscu_loop_t state = pscu_loop_init(calib_with(12U, true), waiting_led(), true);
+  pscu_loop_t state = pscu_loop_init(calib_with(12U, true), waiting_indicator(), true);
   g_check((state.calib.trigger == 12U) && state.vcd_filter,
           "loop: init takes the stored start and filter");
   g_check((state.counter == 0U) && !state.was_gone && (state.since.ms == 0U) &&
@@ -101,9 +104,10 @@ static void test_fire_at_trigger(void) {
   step_t fired = pass(before.state, LEAD_IN);
   g_check(fired.fire && !fired.quiet && (fired.state.stealth.sent == 1U),
           "loop: the frame reaching the start point sends a string");
-  g_check((fired.state.session.injects == 1U) && (fired.state.led.stage == PSCU_LED_INJECT),
-          "loop: a string opens the session and hands the LED to injection");
-  g_check(fired.state.since.armed && !fired.led_on, "loop: a string marks the disc armed");
+  g_check(
+      (fired.state.session.injects == 1U) && (fired.state.indicator.stage == PSCU_INDICATOR_INJECT),
+      "loop: a string opens the session and hands the indicator to injection");
+  g_check(fired.state.since.armed && !fired.indicator_on, "loop: a string marks the disc armed");
 }
 
 // A low supply inside the window holds the burst and shows code 7; the next
@@ -113,7 +117,7 @@ static void test_held_window(void) {
   step_t held = pass_with(before.state, LEAD_IN, true, false, FRAME_MS);
   g_check(!held.fire && !held.quiet && (held.state.stealth.sent == 0U),
           "loop: a low supply sends nothing inside the window");
-  g_check((held.state.led.code == PSCU_LED_CODE_SUPPLY) && held.led_on,
+  g_check((held.state.indicator.code == PSCU_INDICATOR_CODE_SUPPLY) && held.indicator_on,
           "loop: a low supply lights code 7");
   g_check(held.state.since.armed, "loop: a held window still counts as reached");
   step_t resumed = pass(held.state, LEAD_IN);
@@ -129,7 +133,8 @@ static void test_accepted(void) {
           "loop: a program-area frame resolves the session and stores");
   g_check(accepted.state.calib.trigger == (uint8_t)(TRIGGER + PSCU_CALIB_TRIGGER_STEP),
           "loop: an accepted disc probes a later start");
-  g_check(accepted.state.led.code == PSCU_LED_CODE_ACCEPTED, "loop: an accepted disc shows code 1");
+  g_check(accepted.state.indicator.code == PSCU_INDICATOR_CODE_ACCEPTED,
+          "loop: an accepted disc shows code 1");
   step_t gap = feed(fired.state, LEAD_IN, PSCU_STEALTH_GAP_FRAMES + 1U);
   g_check(gap.fire && (gap.state.session.injects == 2U),
           "loop: a second string joins the same session");
@@ -155,7 +160,7 @@ static void test_refused(void) {
   g_check(!waiting.store && !waiting.state.session.resolved,
           "loop: the session waits the whole confirmation span");
   step_t refused = pass(waiting.state, LEAD_OUT);
-  g_check(refused.store && (refused.state.led.code == PSCU_LED_CODE_REFUSED),
+  g_check(refused.store && (refused.state.indicator.code == PSCU_INDICATOR_CODE_REFUSED),
           "loop: the wait running out stores a refusal and shows code 2");
   g_check((refused.state.calib.trigger == TRIGGER) && refused.state.calib.frozen,
           "loop: a refusal steps the start back");
@@ -166,18 +171,18 @@ static void test_refused(void) {
 static void test_disc_gone(void) {
   step_t fired = feed(fresh(calib_with(TRIGGER, false)), LEAD_IN, TRIGGER);
   step_t gone = pass_with(fired.state, FAILED, false, true, PSCU_DISC_GONE_MS);
-  g_check(
-      !gone.store && gone.state.session.resolved && (gone.state.led.code == PSCU_LED_CODE_REFUSED),
-      "loop: a disc leaving shows its refusal and learns nothing");
+  g_check(!gone.store && gone.state.session.resolved &&
+              (gone.state.indicator.code == PSCU_INDICATOR_CODE_REFUSED),
+          "loop: a disc leaving shows its refusal and learns nothing");
   g_check((gone.state.counter == 0U) && (gone.state.stealth.sent == 0U) && gone.state.was_gone,
           "loop: a disc leaving empties the counter and the burst");
   g_check((gone.state.since.ms == 0U) && !gone.state.since.armed,
           "loop: a disc leaving starts the disc history over");
   step_t still = pass_with(gone.state, FAILED, false, true, FRAME_MS);
-  g_check(still.state.led.code == PSCU_LED_CODE_REFUSED,
+  g_check(still.state.indicator.code == PSCU_INDICATOR_CODE_REFUSED,
           "loop: the result stays while no disc is in");
   step_t next = pass(gone.state, LEAD_IN);
-  g_check((next.state.led.stage == PSCU_LED_WAIT) && !next.state.was_gone,
+  g_check((next.state.indicator.stage == PSCU_INDICATOR_WAIT) && !next.state.was_gone,
           "loop: the next disc clears the last disc's result");
   step_t short_pause = pass_with(fired.state, FAILED, false, true, PSCU_DISC_GONE_MS - 1U);
   g_check(!short_pause.state.was_gone && !short_pause.state.session.resolved,
@@ -193,7 +198,8 @@ static void test_missed(void) {
   step_t missed = pass(at_default.state, LEAD_OUT);
   g_check(missed.store && (missed.state.calib.trigger == TRIGGER) && missed.state.calib.frozen,
           "loop: falling below the default start steps the start back");
-  g_check(missed.state.led.code == PSCU_LED_CODE_REFUSED, "loop: a missed window shows code 2");
+  g_check(missed.state.indicator.code == PSCU_INDICATOR_CODE_REFUSED,
+          "loop: a missed window shows code 2");
 
   step_t reached = feed(fresh(calib_with(12U, false)), LEAD_IN, 11U);
   step_t held = pass_with(reached.state, LEAD_IN, true, false, FRAME_MS);
@@ -336,7 +342,7 @@ static void test_noisy_lead_in(void) {
 
 // The Video-CD filter is the state's, not the build's, so both rules run here.
 static void test_vcd_filter(void) {
-  pscu_loop_t filtered = pscu_loop_init(calib_with(TRIGGER, false), waiting_led(), true);
+  pscu_loop_t filtered = pscu_loop_init(calib_with(TRIGGER, false), waiting_indicator(), true);
   g_check(pass(filtered, VCD).state.counter == 0U, "loop: the filter ignores a Video CD lead-in");
   g_check(pass(fresh(calib_with(TRIGGER, false)), VCD).state.counter == 1U,
           "loop: without the filter a Video CD lead-in counts");
@@ -367,11 +373,11 @@ static void test_since(void) {
 
 static void test_faults(void) {
   pscu_loop_t start = fresh(calib_with(TRIGGER, false));
-  step_t silent = pass_with(start, FAILED, false, true, PSCU_LED_NO_SQCK_MS);
-  g_check(silent.state.led.code == PSCU_LED_CODE_NO_SQCK,
+  step_t silent = pass_with(start, FAILED, false, true, PSCU_INDICATOR_NO_SQCK_MS);
+  g_check(silent.state.indicator.code == PSCU_INDICATOR_CODE_NO_SQCK,
           "loop: no frame since power-on is code 3");
-  step_t audio = pass_with(start, LEAD_OUT, true, true, PSCU_LED_NO_CHECK_MS);
-  g_check(audio.state.led.code == PSCU_LED_CODE_NO_CHECK,
+  step_t audio = pass_with(start, LEAD_OUT, true, true, PSCU_INDICATOR_NO_CHECK_MS);
+  g_check(audio.state.indicator.code == PSCU_INDICATOR_CODE_NO_CHECK,
           "loop: frames but no region check is code 4");
 }
 

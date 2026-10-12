@@ -39,7 +39,7 @@ pscu_port_init:
 	out _SFR_IO_ADDR(CLKPR), r24
 	ldi r24, 0x00
 	out _SFR_IO_ADDR(CLKPR), r24
-	ldi r24, (1 << PSCU_PIN_LED)
+	ldi r24, (1 << PSCU_PIN_INDICATOR)
 	out _SFR_IO_ADDR(PSCU_DDR), r24
 	ldi r24, PSCU_PORT_INIT
 	out _SFR_IO_ADDR(PSCU_PORT), r24
@@ -117,17 +117,17 @@ pscu_port_gate_release:
 	ret
 	.endfunc
 
-	.global pscu_port_led_on
-	.func pscu_port_led_on
-pscu_port_led_on:
-	sbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_LED
+	.global pscu_port_indicator_on
+	.func pscu_port_indicator_on
+pscu_port_indicator_on:
+	sbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_INDICATOR
 	ret
 	.endfunc
 
-	.global pscu_port_led_off
-	.func pscu_port_led_off
-pscu_port_led_off:
-	cbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_LED
+	.global pscu_port_indicator_off
+	.func pscu_port_indicator_off
+pscu_port_indicator_off:
+	cbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_INDICATOR
 	ret
 	.endfunc
 

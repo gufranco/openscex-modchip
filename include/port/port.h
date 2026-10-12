@@ -31,9 +31,9 @@ void pscu_port_gate_drive_low(void);
 
 void pscu_port_gate_release(void);
 
-void pscu_port_led_on(void);
+void pscu_port_indicator_on(void);
 
-void pscu_port_led_off(void);
+void pscu_port_indicator_off(void);
 
 void pscu_port_delay_ms(uint16_t milliseconds);
 

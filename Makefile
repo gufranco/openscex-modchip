@@ -5,7 +5,7 @@ PYTHON ?= python3
 BUILD := build
 NAME := openscex-modchip
 
-# The only target: five pins for the four signals and the LED; PB5 stays RESET.
+# The only target: five pins for the four signals and the indicator; PB5 stays RESET.
 MCU := attiny85
 FLASH_BYTES := 8192
 # Flash the image must leave free (text plus data), so the build fails while a
@@ -33,7 +33,7 @@ endif
 
 # Indicator profile on PB3 (LED or active buzzer): debug (default) shows
 # everything, final chirps at power-on and on acceptance and shows each fault
-# once. DATA is the same in both. See include/pscu/led.h.
+# once. DATA is the same in both. See include/pscu/indicator.h.
 PROFILE ?= debug
 ifeq ($(PROFILE),final)
 PROFILE_DEF := -DPSCU_PROFILE_FINAL=1
@@ -93,7 +93,7 @@ WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -Wsh
 	-Wswitch-default -Wdouble-promotion -Wnull-dereference -Wvla -Wredundant-decls -Wformat=2
 HOST_CFLAGS := $(C_STD) -Iinclude $(WARNINGS)
 
-LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c src/led.c src/calib.c src/trim.c src/supply.c src/loop.c
+LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c src/indicator.c src/calib.c src/trim.c src/supply.c src/loop.c
 HOST_LOGIC_C := $(LOGIC_C)
 
 FIRMWARE_C := $(LOGIC_C) src/engine.c src/run.c src/main.c
@@ -102,7 +102,7 @@ CPPCHECK_MCU_DEF := -D__AVR_ATtiny85__
 ALL_SRC_C := $(FIRMWARE_C)
 FIRMWARE_S := src/port.S src/port_chip.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
-HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_test.c tests/host/trim_test.c tests/host/disc_test.c tests/host/led_test.c tests/host/loop_test.c
+HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_test.c tests/host/trim_test.c tests/host/disc_test.c tests/host/indicator_test.c tests/host/loop_test.c
 SIM_TEST_C := tests/sim/sim_test.c tests/sim/harness.c tests/sim/sim_inject.c tests/sim/sim_disc.c tests/sim/sim_calib.c tests/sim/sim_profile.c
 SIM_TEST_H := tests/sim/harness.h tests/sim/scenarios.h tests/sim/sim_t85.h
 BENCH_SRC := bench/pic_runner.cc bench/avr_runner.c

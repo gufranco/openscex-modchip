@@ -11,7 +11,7 @@
 #include "sim_t85.h"
 
 // A minimal PlayStation for simavr: it drives SQCK, SUBQ and WFCK, watches DATA
-// and the LED, and decodes the injected word. Console timing is in real time,
+// and the indicator, and decodes the injected word. Console timing is in real time,
 // converted to cycles at the simulated clock, so a fast or slow RC can be run.
 
 #define SUBQ_FRAME_BYTES 12
@@ -42,7 +42,7 @@
 // A carrier bit cell is this many WFCK periods (PsNee).
 #define WFCK_PERIODS_PER_BIT 30UL
 // How long to wait for an expected string to start: 236 ms.
-#define LED_DEADLINE ns_cycles(236000000ULL)
+#define INDICATOR_DEADLINE ns_cycles(236000000ULL)
 
 typedef struct {
   const char *mcu;
@@ -50,7 +50,7 @@ typedef struct {
   uint8_t sqck;
   uint8_t subq;
   uint8_t data;
-  uint8_t led;
+  uint8_t indicator;
   uint8_t wfck;
 } target_t;
 
@@ -60,7 +60,7 @@ extern const char SCEA_BITS[SCEX_BITS + 1];
 // The Japan (SCEI) word, emitted by the SCPH-5903 Video-CD build.
 extern const char SCEI_BITS[SCEX_BITS + 1];
 
-// Every LED pulse as rise cycle and length. A string lights the LED for 90 to
+// Every indicator pulse as rise cycle and length. A string lights the indicator for 90 to
 // 181 ms, so a pulse of 80 to 200 ms after boot counts as one.
 #define MAX_PULSES 512
 
@@ -85,8 +85,8 @@ typedef struct {
 // Harness state shared by every scenario.
 extern int g_checks;
 extern int g_failures;
-extern int g_led_seen;
-extern uint64_t g_led_cycle;
+extern int g_indicator_seen;
+extern uint64_t g_indicator_cycle;
 extern uint64_t g_pulse_rise[MAX_PULSES];
 extern uint64_t g_pulse_len[MAX_PULSES];
 extern int g_pulses;
@@ -104,7 +104,7 @@ extern uint32_t g_addr_capture;
 void check(int cond, const char *name);
 uint64_t ms_cycles(uint32_t ms);
 uint64_t ns_cycles(uint64_t ns);
-void on_led(struct avr_irq_t *irq, uint32_t value, void *param);
+void on_indicator(struct avr_irq_t *irq, uint32_t value, void *param);
 int pulse_group(uint64_t from, uint32_t min_ms, uint32_t max_ms);
 int code_after(uint64_t from);
 avr_cycle_count_t wfck_tick(avr_t *avr, avr_cycle_count_t when, void *param);

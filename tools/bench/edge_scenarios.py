@@ -63,7 +63,7 @@ OFF_WINDOW_CONSOLE = 0.7
 # consecutive samples a verdict needs.
 TRIM_REREAD_FRAMES = 700
 # The debug tick shows only once the result has played, 9 s in the debug
-# profile (include/pscu/led.h): 10 s at nominal rate, then 4 s slow.
+# profile (include/pscu/indicator.h): 10 s at nominal rate, then 4 s slow.
 RESULT_SHOWN_FRAMES = 10 * 75
 SLOW_PLAY_FRAMES = 4 * 75
 STUCK_AFTER_BYTES = 6

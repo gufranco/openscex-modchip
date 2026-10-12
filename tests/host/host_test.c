@@ -8,7 +8,7 @@
 
 #include "calib_test.h"
 #include "disc_test.h"
-#include "led_test.h"
+#include "indicator_test.h"
 #include "loop_test.h"
 #include "pscu/board_mode.h"
 #include "pscu/inject.h"
@@ -504,7 +504,7 @@ int main(void) {
   calib_tests(check);
   trim_tests(check);
   disc_tests(check);
-  led_tests(check);
+  indicator_tests(check);
   loop_tests(check);
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);

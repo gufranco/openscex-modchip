@@ -11,7 +11,7 @@
 #include "pscu/calib.h"
 #include "pscu/config.h"
 #include "pscu/engine.h"
-#include "pscu/led.h"
+#include "pscu/indicator.h"
 #include "pscu/loop.h"
 #include "pscu/subq.h"
 #include "pscu/supply.h"
@@ -60,16 +60,16 @@ typedef struct {
 
 // The indicator profile, fixed at build time (pscu/config.h).
 #if PSCU_PROFILE_FINAL
-#define PSCU_RUN_PROFILE PSCU_LED_PROFILE_FINAL
+#define PSCU_RUN_PROFILE PSCU_INDICATOR_PROFILE_FINAL
 #else
-#define PSCU_RUN_PROFILE PSCU_LED_PROFILE_DEBUG
+#define PSCU_RUN_PROFILE PSCU_INDICATOR_PROFILE_DEBUG
 #endif
 
 static void pscu_run_show(bool on) {
   if (on) {
-    pscu_port_led_on();
+    pscu_port_indicator_on();
   } else {
-    pscu_port_led_off();
+    pscu_port_indicator_off();
   }
 }
 
@@ -153,11 +153,11 @@ void pscu_run(void) {
     board = pscu_engine_detect_board(PSCU_LAMP_STRINGS);
   }
   pscu_calib_boot_t boot = pscu_calib_start(stored, board);
-  uint8_t changed_code = boot.board_changed ? PSCU_LED_CODE_BOARD_CHANGED : 0U;
-  uint8_t boot_code = watchdog ? PSCU_LED_CODE_WATCHDOG : changed_code;
-  pscu_led_t led =
-      pscu_led_init((board == PSCU_BOARD_MODE_WFCK) ? 2U : 1U, boot_code, PSCU_RUN_PROFILE);
-  pscu_loop_t loop = pscu_loop_init(boot.calib, led, PSCU_VCD_FILTER_ENABLED);
+  uint8_t changed_code = boot.board_changed ? PSCU_INDICATOR_CODE_BOARD_CHANGED : 0U;
+  uint8_t boot_code = watchdog ? PSCU_INDICATOR_CODE_WATCHDOG : changed_code;
+  pscu_indicator_t indicator =
+      pscu_indicator_init((board == PSCU_BOARD_MODE_WFCK) ? 2U : 1U, boot_code, PSCU_RUN_PROFILE);
+  pscu_loop_t loop = pscu_loop_init(boot.calib, indicator, PSCU_VCD_FILTER_ENABLED);
   pscu_clock_t clock = { pscu_port_ticks(), 0U };
 
   for (;;) {
@@ -183,8 +183,8 @@ void pscu_run(void) {
     bool learned = out.store || (osc.osccal != osccal_before) || (kept.osc.dirty != osc.dirty);
     osc = kept.osc;
     loop.calib = kept.calib;
-    loop.led = learned ? pscu_led_note(loop.led) : loop.led;
-    pscu_run_show(out.led_on);
+    loop.indicator = learned ? pscu_indicator_note(loop.indicator) : loop.indicator;
+    pscu_run_show(out.indicator_on);
     pscu_port_watchdog_reset();
   }
 }

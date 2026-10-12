@@ -7,7 +7,7 @@
 #include "scenarios.h"
 #include "sim_cycle_timers.h"
 
-// The two indicator profiles (include/pscu/led.h). The final image must stay
+// The two indicator profiles (include/pscu/indicator.h). The final image must stay
 // quiet, and both images must drive DATA identically.
 
 // DATA is sampled every 0.1 ms, and each change of direction or level is kept.
@@ -65,7 +65,7 @@ static const uint8_t PROFILE_PLAY[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x0
 static const uint8_t PROFILE_AUDIO[SUBQ_FRAME_BYTES] = { 0x01U, 0x00U, 0x02U, 0, 0, 0,
                                                          0,     0,     0,     0, 0, 0 };
 
-// A legacy-board session, so DATA has no carrier to alias against. The LED is
+// A legacy-board session, so DATA has no carrier to alias against. The indicator is
 // not watched, so both images get the same script.
 static void accepted_session(const target_t *t,
                              const char *elf,
@@ -113,7 +113,7 @@ static int pulses_longer_than(uint32_t ms) {
 static void final_accepted_case(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
   clock_frames(avr, t, PROFILE_TOC, PROFILE_TOC_FRAMES);
   clock_frames(avr, t, PROFILE_PLAY, PROFILE_PLAY_FRAMES);
@@ -130,7 +130,7 @@ static void final_accepted_case(const target_t *t, const char *elf, uint32_t fre
 static void final_audio_case(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
   clock_frames(avr, t, PROFILE_AUDIO, PROFILE_AUDIO_FRAMES);
 

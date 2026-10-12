@@ -20,7 +20,7 @@
 <p>
   <a href="#快速开始">快速开始</a> &nbsp;|&nbsp;
   <a href="#主机接点">接线</a> &nbsp;|&nbsp;
-  <a href="#状态-led">状态 LED</a> &nbsp;|&nbsp;
+  <a href="#状态指示">状态指示</a> &nbsp;|&nbsp;
   <a href="#与其他芯片对比">与其他芯片对比</a> &nbsp;|&nbsp;
   <a href="../../issues/new?template=compatibility.yml">报告你的主机</a>
 </p>
@@ -44,7 +44,7 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 |:--|:--|:--|
 | **接受后保持静默**<br>第一个程序区帧即停止注入，字符串中途也一样。只有新的导入区读取，例如反改机的 TOC 重读，才会再次得到响应。 | **无需光驱盖线的换盘**<br>SUBQ 帧中断 1.5 s 即视为换盘，并为下一张光盘重新武装。 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [src/run.c](src/run.c) |
 | **自校正的时序**<br>芯片对主机 75 Hz 的 SUBQ 帧计时，把内部振荡器校正到 1% 以内，无需时钟线。 | **一个区域，一个窗口**<br>只送出配置的区域字符串，只在 SUBQ 区域检查窗口内，每次武装最多 16 次。 | [src/trim.c](src/trim.c), [src/region.c](src/region.c), [include/pscu/config.h](include/pscu/config.h) |
-| **状态 LED 或蜂鸣器**<br>一个引脚显示启动阶段、每张光盘的结果和接线故障；final 构建只发短响，每个故障只报一次。 | **代码实证**<br>MISRA C:2012 合规，主机覆盖率 100%，simavr 主机模型，变异测试，逐字节一致的重新构建。 | [src/led.c](src/led.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
+| **状态 LED 或蜂鸣器**<br>一个引脚显示启动阶段、每张光盘的结果和接线故障；final 构建只发短响，每个故障只报一次。 | **代码实证**<br>MISRA C:2012 合规，主机覆盖率 100%，simavr 主机模型，变异测试，逐字节一致的重新构建。 | [src/indicator.c](src/indicator.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
 
 ## 概览
 
@@ -77,7 +77,7 @@ PU-7 与 PU-8 与 PsNee V9.0 一样使用静态门控方式。开发机（DTL-H1
 
 ## 快速开始
 
-每个[发布](../../releases)都附有预构建镜像：`us`、`eu`、`jp`、SCPH-5903 用的 `jp-vcd`、它们各自安静的 `-final` 版本（见[状态 LED](#状态-led)）、`SHA256SUMS` 文件、许可证与构建来源证明。烧录前请先校验下载文件：
+每个[发布](../../releases)都附有预构建镜像：`us`、`eu`、`jp`、SCPH-5903 用的 `jp-vcd`、它们各自安静的 `-final` 版本（见[状态指示](#状态指示)）、`SHA256SUMS` 文件、许可证与构建来源证明。烧录前请先校验下载文件：
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing
@@ -127,12 +127,12 @@ make bench_ci    # 主机测试台：在同一个模拟主机中对比本固件�
 
 ## MCU 引脚
 
-4 路 SCEx 信号与 LED 保持 PsNee `MCU.h` 中的 ATtiny85 分配，因此与 PsNee 的接线指南逐脚一致。PB5 保持为复位，芯片仍可用 ISP 烧录。引脚号对应 8 脚 PDIP，SOIC 请查数据手册。 出处：[PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530), [include/port/registers.h](include/port/registers.h), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
+4 路 SCEx 信号与指示引脚保持 PsNee `MCU.h` 中的 ATtiny85 分配，因此与 PsNee 的接线指南逐脚一致。PB5 保持为复位，芯片仍可用 ISP 烧录。引脚号对应 8 脚 PDIP，SOIC 请查数据手册。 出处：[PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530), [include/port/registers.h](include/port/registers.h), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
 
 | DIP 脚 | 端口 | 信号 | 方向 | 连接到 | 出处 |
 |:------:|:-----|:-----|:-----|:-------|:--|
 | 1 | PB5 | RESET | - | 保持为复位 | [include/port/registers.h](include/port/registers.h), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 2 | PB3 | LED | 输出，可选 | 经 1 kΩ 电阻的状态 LED，或不接 | [include/port/registers.h](include/port/registers.h), [PsNee PSNee.ino L64](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L64) |
+| 2 | PB3 | INDICATOR | 输出，可选 | 经 1 kΩ 电阻的状态 LED、有源蜂鸣器，或不接 | [include/port/registers.h](include/port/registers.h), [PsNee PSNee.ino L64](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L64) |
 | 3 | PB4 | WFCK | 输入输出 | 静态门控，或 PU-22 及以后的实时载波 | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
 | 4 | GND | GND | - | 主机地 | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 5 | PB0 | SQCK | 输入 | SUBQ 串行时钟 | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
@@ -187,9 +187,9 @@ ISP 插座采用 AVR 六针排列：1 MISO 接 SUBQ，2 VCC，3 SCK 接 DATA，4
 - 接线前测量每个接点的逻辑电压。在 PsNee 与 Mayumi 的安装中，厚机约 5 V，PSone PM-41(2) 较低且对噪声敏感。 出处：[quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/)。
 - 打开主机并焊接 CD 子系统可能损坏主机。风险自负。 出处：[quade.co PS1 modchip guide](https://quade.co/ps1-modchip-guide/)。
 
-## 状态 LED
+## 状态指示
 
-PB3 可选接一个 LED 或有源蜂鸣器，这是芯片唯一的诊断手段。它显示当前阶段、每张光盘是否通过区域检查，以及出问题时该检查哪根线。它从不延迟或阻碍任何功能，也不保存历史，所以除两个启动代码外，代码都反映当前状态。 出处：[src/led.c](src/led.c)。
+PB3 可选接一个 LED 或有源蜂鸣器，这是芯片唯一的诊断手段。它显示当前阶段、每张光盘是否通过区域检查，以及出问题时该检查哪根线。它从不延迟或阻碍任何功能，也不保存历史，所以除两个启动代码外，代码都反映当前状态。 出处：[src/indicator.c](src/indicator.c)。
 
 | 部件 | 选择 | 出处 |
 |:-----|:-----|:--|
@@ -199,28 +199,28 @@ PB3 可选接一个 LED 或有源蜂鸣器，这是芯片唯一的诊断手段�
 | 蜂鸣器 | 代替 LED 的有源压电蜂鸣器，通直流就响，例如 PUI Audio AI-3035-TWT-3V-R：2 至 5 V，3 V 时最大 9 mA，约 3.5 kHz，直径 30 mm；在 5 V 的厚机上请实测电流 | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 蜂鸣器接线 | 2 号引脚（PB3）接蜂鸣器 + 端，- 端接地，不需要电阻或二极管：压电元件不是线圈，关断时不会送回电压尖峰。电磁蜂鸣器是线圈，不支持 | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [include/port/registers.h](include/port/registers.h) |
 
-驱动该引脚的构建有两种。默认的 `debug` 显示下表全部内容；用 `make PROFILE=final` 构建、以 `-final` 镜像发布的 `final` 保持安静。安装和排查故障时烧录 `debug`，玩游戏时换成 `final`。只有该引脚不同：模拟器逐个边沿核对两者在同一时刻发送相同的字符串。 出处：[include/pscu/led.h](include/pscu/led.h), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
+驱动该引脚的构建有两种。默认的 `debug` 显示下表全部内容；用 `make PROFILE=final` 构建、以 `-final` 镜像发布的 `final` 保持安静。安装和排查故障时烧录 `debug`，玩游戏时换成 `final`。只有该引脚不同：模拟器逐个边沿核对两者在同一时刻发送相同的字符串。 出处：[include/pscu/indicator.h](include/pscu/indicator.h), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
 
 | 阶段 | debug | final | 出处 |
 |:-----|:------|:------|:--|
 | 主板识别 | 上电后点亮约 0.4 s | 熄灭 | [src/engine.c](src/engine.c) |
-| 主板确定 | 静态门控主板（PU-18、PU-20）闪 1 次 300 ms，WFCK 载波主板（PU-22 及以后）闪 2 次 | 静态门控主板短响 1 次 60 ms，WFCK 载波主板 2 次 | [src/led.c](src/led.c) |
-| 等待光盘 | 每 2 s 短闪 40 ms | 熄灭 | [src/led.c](src/led.c) |
+| 主板确定 | 静态门控主板（PU-18、PU-20）闪 1 次 300 ms，WFCK 载波主板（PU-22 及以后）闪 2 次 | 静态门控主板短响 1 次 60 ms，WFCK 载波主板 2 次 | [src/indicator.c](src/indicator.c) |
+| 等待光盘 | 每 2 s 短闪 40 ms | 熄灭 | [src/indicator.c](src/indicator.c) |
 | 注入中 | 每个区域字符串闪 90 至 181 ms | 熄灭 | [src/engine.c](src/engine.c) |
-| 结果 | 代码显示 3 次，之后熄灭 | 被接受的光盘短响 1 次 60 ms，被拒绝的光盘显示代码 2 两次；之后熄灭 | [src/led.c](src/led.c) |
-| 游戏中 | 熄灭；每次 OSCCAL 变动或写入校准值时闪 40 ms | 熄灭 | [src/led.c](src/led.c), [src/run.c](src/run.c) |
+| 结果 | 代码显示 3 次，之后熄灭 | 被接受的光盘短响 1 次 60 ms，被拒绝的光盘显示代码 2 两次；之后熄灭 | [src/indicator.c](src/indicator.c) |
+| 游戏中 | 熄灭；每次 OSCCAL 变动或写入校准值时闪 40 ms | 熄灭 | [src/indicator.c](src/indicator.c), [src/run.c](src/run.c) |
 
-代码是 700 ms 的长闪，间隔 300 ms，暂停 2 s 后重复。`final` 中代码 3 和 4 每张光盘只显示一次，代码 7 在持续期间每 30 s 重复一次。 出处：[src/led.c](src/led.c)。
+代码是 700 ms 的长闪，间隔 300 ms，暂停 2 s 后重复。`final` 中代码 3 和 4 每张光盘只显示一次，代码 7 在持续期间每 30 s 重复一次。 出处：[src/indicator.c](src/indicator.c)。
 
 | 代码 | 含义 | 检查 | 出处 |
 |:----:|:-----|:-----|:--|
-| 1 | 主机接受了区域字符串 | 无需处理，光盘正常运行 | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
-| 2 | 已送出字符串但主机未到达程序区 | DATA 与 WFCK 接线，以及构建的区域是否与光盘一致 | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
-| 3 | 上电后 5 s 内没有 SUBQ 帧；显示 15 s 后回到心跳闪烁 | SQCK、SUBQ、电源与地；没有光盘时也会显示 | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
-| 4 | 有帧但 20 s 内没有区域检查；持续期间重复 | SUBQ；音乐 CD 时也属正常 | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
-| 5 | 看门狗复位了芯片，下次启动时显示一次 | 注入中停止的 WFCK | [src/led.c](src/led.c), [src/port_chip.S](src/port_chip.S) |
-| 6 | 主板与校准记录中的不同，启动时显示一次；代码 5 优先 | 接触不良的 WFCK 线，除非芯片换到了另一台主机 | [src/led.c](src/led.c), [src/calib.c](src/calib.c) |
-| 7 | 测得电源低于约 2.75 V，或测量失败；持续期间不发送字符串，优先于代码 3 和 4 | 取电点的 VCC 与地，应在 3.3 V 以上 | [src/led.c](src/led.c), [src/supply.c](src/supply.c) |
+| 1 | 主机接受了区域字符串 | 无需处理，光盘正常运行 | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
+| 2 | 已送出字符串但主机未到达程序区 | DATA 与 WFCK 接线，以及构建的区域是否与光盘一致 | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
+| 3 | 上电后 5 s 内没有 SUBQ 帧；显示 15 s 后回到心跳闪烁 | SQCK、SUBQ、电源与地；没有光盘时也会显示 | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
+| 4 | 有帧但 20 s 内没有区域检查；持续期间重复 | SUBQ；音乐 CD 时也属正常 | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
+| 5 | 看门狗复位了芯片，下次启动时显示一次 | 注入中停止的 WFCK | [src/indicator.c](src/indicator.c), [src/port_chip.S](src/port_chip.S) |
+| 6 | 主板与校准记录中的不同，启动时显示一次；代码 5 优先 | 接触不良的 WFCK 线，除非芯片换到了另一台主机 | [src/indicator.c](src/indicator.c), [src/calib.c](src/calib.c) |
+| 7 | 测得电源低于约 2.75 V，或测量失败；持续期间不发送字符串，优先于代码 3 和 4 | 取电点的 VCC 与地，应在 3.3 V 以上 | [src/indicator.c](src/indicator.c), [src/supply.c](src/supply.c) |
 
 ## 工作原理
 
@@ -236,12 +236,12 @@ graph LR
         DET[区域检查检测]
         ST[隐身状态机]
         INJ[SCEx 注入]
-        LED[状态 LED]
+        IND[状态指示]
         CAL[按主机校准]
     end
     CD -->|SQCK, SUBQ| CAP
     CAP --> DET --> ST --> INJ
-    ST --> LED
+    ST --> IND
     ST <-->|起始| CAL
     WF -->|门控或载波| INJ
     INJ -->|DATA| MECH
@@ -256,13 +256,13 @@ graph LR
 | 电源保护 | 每个字符串前芯片用 1.1 V 带隙测量自身电源；低于约 2.75 V 或读数不可能时，不发送任何内容并显示代码 7。短暂的电压下降只暂停一轮发送而不重新计数，被关闭的窗口不会让校准学到任何东西 | [src/supply.c](src/supply.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 振荡器校正 | 在导入区与游戏中对主机 75 Hz 的 SUBQ 帧计时，每批最多调 4 级、每次写入一级，直到误差在 1% 以内，且离出厂值不超过 16 级；校正值保存在 EEPROM 中，启动时应用 | [src/trim.c](src/trim.c), [src/run.c](src/run.c), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 换盘 | 无需光驱盖线：只有停转的光驱会带来 1.5 s 没有有效 SUBQ 帧，这会重新武装芯片；寻道和重读会持续产生帧。SUBQ 计数器最多比起始位置高 8 帧，因此即使光盘被拒绝，打开光驱盖后约半秒窗口就会关闭。每张光盘都可以得到整个 16 个字符串的上限 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/loop.h](include/pscu/loop.h) |
-| 隐身 | 只在 SUBQ 区域检查窗口内、每次武装有上限地注入，与 PsNee 和 Mayumi V4 一样在字符串之间间隔 5 帧（67 ms）；其余时间 DATA 高阻、LED 关闭。主机读到程序区即停止。之后的导入区读取，例如反改机 v2 的 TOC 重读，会在同一上限下再次得到响应。计数略低于起始点时上限与间隔保持不变，只有低于起始点 8 帧才重新武装 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/config.h](include/pscu/config.h), [PsNee PSNee.ino L53](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L53), [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
+| 隐身 | 只在 SUBQ 区域检查窗口内、每次武装有上限地注入，与 PsNee 和 Mayumi V4 一样在字符串之间间隔 5 帧（67 ms）；其余时间 DATA 高阻、指示引脚关闭。主机读到程序区即停止。之后的导入区读取，例如反改机 v2 的 TOC 重读，会在同一上限下再次得到响应。计数略低于起始点时上限与间隔保持不变，只有低于起始点 8 帧才重新武装 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/config.h](include/pscu/config.h), [PsNee PSNee.ino L53](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L53), [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
 | 单一区域 | 只送出 `REGION`，从不送出全部三个 | [src/region.c](src/region.c) |
 | 自适应时序 | 在 WFCK 载波主板上每个注入位持续 30 个 WFCK 周期，因此在单倍速和倍速下都跟随主机的时钟；在静态门控主板上由校正后的振荡器计时 | [src/port.S](src/port.S), [src/trim.c](src/trim.c) |
 | 自我恢复 | 每次 SUBQ 采集都在帧间空隙重新对齐，并在 30 ms 后放弃；注入中 WFCK 停止时看门狗会释放 DATA。没有引脚需要上拉：SQCK、SUBQ、WFCK 是主机的线，DATA 释放时是主机的线，PB3 是输出 | [src/engine.c](src/engine.c), [src/port.S](src/port.S), [include/port/registers.h](include/port/registers.h) |
 | 帧完整性 | 只有 CRC-16 匹配的 SUBQ 帧才计入，因此损坏或错位的帧既不会触发字符串，也不会被算作光盘仍在，更不会被当作程序区 | [src/subq.c](src/subq.c), [ECMA-130, Q-channel CRC](https://ecma-international.org/publications-and-standards/standards/ecma-130/) |
-| 状态 LED | 可选的 LED 或有源蜂鸣器显示启动阶段、每张光盘的结果和当前故障；固件从不等待它，什么都不接也正确运行 | [src/led.c](src/led.c) |
-| 现场诊断 | 代码指出失败的阶段，从没有时钟的 SUBQ 到始终没有区域检查的 SUBQ；无需编程器 | [src/led.c](src/led.c), [src/loop.c](src/loop.c) |
+| 状态指示 | 可选的 LED 或有源蜂鸣器显示启动阶段、每张光盘的结果和当前故障；固件从不等待它，什么都不接也正确运行 | [src/indicator.c](src/indicator.c) |
+| 现场诊断 | 代码指出失败的阶段，从没有时钟的 SUBQ 到始终没有区域检查的 SUBQ；无需编程器 | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
 | 按主机校准 | 学习本主机的起始位置与自身振荡器的快慢，保存在 6 字节的 EEPROM 记录中，缺失或损坏时回退到默认值 | [src/calib.c](src/calib.c) |
 | 闭环确认 | 注入后，芯片等待程序区帧（真实的音轨号），机芯控制器只有在接受字符串后才允许读取它，并显示结果 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c) |
 | 验证 | 主机测试行与分支覆盖率 100%，包含偏快与偏慢振荡器的 simavr 主机模型，变异测试，可复现构建，以及把同一个模拟主机接到本固件、PsNee、Mayumi V4 和 MM3 上的主机测试台。本固件必须在它们被接受的场景中都被接受、位单元落在它们的范围内、在区域检查之外发送的不多于它们。测试台执行每一条可达指令，无法到达的指令都在源码中注明原因 | [tests/host](tests/host), [tests/sim](tests/sim), [tools/mutate.py](tools/mutate.py), [tools/bench](tools/bench), [CONTRIBUTING.md](CONTRIBUTING.md) |
@@ -274,7 +274,7 @@ graph LR
 | 值 | 学习来源 | 效果 | 出处 |
 |:---|:---------|:-----|:--|
 | 起始位置 | 每张被接受的光盘把起始推迟 2 个导入区帧（27 ms），最多 20 帧；`jp` 构建保持默认值，因为 PsNee 告诫在日本主机上不要用更晚的触发 | 字符串更接近区域检查开始；被拒绝，或导入区读取在起始之前结束，则回退 2 帧并结束探索 | [src/calib.c](src/calib.c), [PsNee PSNee.ino L48](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L48) |
-| 主板 | 启动时识别的主板 | 主板不同则显示一次代码 6，并重新学习起始位置 | [src/calib.c](src/calib.c), [src/led.c](src/led.c) |
+| 主板 | 启动时识别的主板 | 主板不同则显示一次代码 6，并重新学习起始位置 | [src/calib.c](src/calib.c), [src/indicator.c](src/indicator.c) |
 | 振荡器 | 主机晶振决定的 75 Hz 单倍速帧间隔，导入区与游戏中均计；振荡器速率随电源变化，因此只在电源检查通过时计 | 每批 64 帧按超出 1% 死区的误差每 1% 调一级（向上取整），最多 4 级，每次写入一级；校正属于芯片本身，因此更换主板时保留 | [src/trim.c](src/trim.c), [src/run.c](src/run.c) |
 
 芯片只写入值有变化的字节，只在启动时或光盘检查有结果之后写入，从不在发送字符串时写入，因此稳定下来的主机不再写入。单元擦写寿命为 100,000 次。因断电只写了一半的记录由校验字节发现，按默认值读取。重新烧录也会擦除记录，因为上面两组熔丝都让 EESAVE 保持未编程（数据手册 Table 20-4，高熔丝位 3）。2 帧的步长和 20 帧的上限尚未在主机上调校。校正的目标是数据手册给出的用户校准后精度 1%，出厂精度为 10%（Table 21-2）。 出处：[src/calib.c](src/calib.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
@@ -286,7 +286,7 @@ graph LR
 | 参数 | 取值 | 默认 | 选择 | 出处 |
 |:-----|:-----|:-----|:-----|:--|
 | `REGION` | `jp`、`us`、`eu` | `us` | 芯片送出的唯一区域字符串 | [Makefile](Makefile), [src/region.c](src/region.c) |
-| `PROFILE` | `debug`、`final` | `debug` | LED 或蜂鸣器显示的内容：debug 显示每个阶段、字符串和故障；final 在上电和光盘被接受时短响，每个故障只显示一次；两者的 DATA 相同 | [Makefile](Makefile), [include/pscu/led.h](include/pscu/led.h) |
+| `PROFILE` | `debug`、`final` | `debug` | LED 或蜂鸣器显示的内容：debug 显示每个阶段、字符串和故障；final 在上电和光盘被接受时短响，每个故障只显示一次；两者的 DATA 相同 | [Makefile](Makefile), [include/pscu/indicator.h](include/pscu/indicator.h) |
 | `VCD_FILTER` | `off`、`on` | `off` | 仅 SCPH-5903 设为 on：与 PsNee V9.0 的 SCPH-5903 过滤器一样，注入只在游戏的导入区 TOC 触发，不在 Video CD 上触发 | [Makefile](Makefile), [src/subq.c](src/subq.c), [PsNee PSNee.ino L456-L490](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L456-L490) |
 
 非默认区域、过滤器或配置会在产物名上加标签，例如 `openscex-modchip-attiny85-jp.hex`、`openscex-modchip-attiny85-jp-vcd.hex` 或 `openscex-modchip-attiny85-final.hex`。 出处：[Makefile](Makefile)。
@@ -300,7 +300,7 @@ graph LR
 | 时钟 | 内部，按 SUBQ 校正 | 内部 | 主机 | 内部 RC | [src/trim.c](src/trim.c), [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/), [quade.co MM3 guide](https://quade.co/ps1-modchip-guide/mm3/) |
 | 引导 ROM BIOS 补丁 | 无，使用已修补的 BIOS | 有，ATmega 版本 | 无 | 无 | [AGENTS.md](AGENTS.md), [PsNee PSNee.ino L33-L38](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L33-L38), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/), [quade.co MM3 guide](https://quade.co/ps1-modchip-guide/mm3/) |
 | 主板 | PU-7 至 PM-41(2) | PU-7 至 PM-41(2) | PU-18 及以后 | PU-7 及以后 | [src/board_mode.c](src/board_mode.c), [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/), [quade.co MM3 guide](https://quade.co/ps1-modchip-guide/mm3/) |
-| 诊断 | LED 阶段与结果代码 | 串口调试 | 无 | 无 | [src/led.c](src/led.c), [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/) |
+| 诊断 | 指示引脚的阶段与结果代码 | 串口调试 | 无 | 无 | [src/indicator.c](src/indicator.c), [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/) |
 | 按主机学习 | 起始位置与振荡器校正 | 无 | 无 | 无 | [src/calib.c](src/calib.c), [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/) |
 | 测试与静态分析 | 主机、simavr、变异、MISRA、主机测试台 | 无 | 无 | 无 | [CONTRIBUTING.md](CONTRIBUTING.md), [.github/workflows/ci.yml](.github/workflows/ci.yml) |
 | 实战记录 | 2 块主板，旧固件 | 数年 | 数十年 | 数十年 | [compatibility reports](https://github.com/gufranco/openscex-modchip/issues?q=label%3Acompatibility), [quade.co PS1 modchip guide](https://quade.co/ps1-modchip-guide/) |

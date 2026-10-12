@@ -55,7 +55,7 @@ static void calib_check(const target_t *t, int ok, const char *what) {
 void scenario_calib_cap(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
@@ -86,7 +86,7 @@ void scenario_calib_board(const target_t *t, const char *elf, uint32_t freq) {
   seed_calib(1U, 14U, 1U, 0);
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
   run_cycles(avr, ms_cycles(CALIB_REPLAY_MS));
   calib_check(t, code_after(0U) == 6, "a board change replays code 6 at boot");
@@ -106,7 +106,7 @@ void scenario_calib_missed(const target_t *t, const char *elf, uint32_t freq) {
   seed_calib(0U, CALIB_TRIGGER_MAX, 0U, 0);
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
@@ -128,7 +128,7 @@ void scenario_calib_missed(const target_t *t, const char *elf, uint32_t freq) {
 void scenario_calib_jp(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
@@ -248,7 +248,7 @@ void scenario_trim(const target_t *t, const char *elf, uint32_t freq) {
 }
 
 // The supply guard. simavr's bandgap reads 225 at 5 V, 341 at 3.3 V and 401 at
-// 2.8 V. At 2.6 V no string goes out, the LED shows code 7 and the record is
+// 2.8 V. At 2.6 V no string goes out, the indicator shows code 7 and the record is
 // unchanged; back at 3.3 V the next lead-in is injected.
 #define LOW_SUPPLY_MV 2600U
 #define GOOD_SUPPLY_MV 3300U
@@ -277,7 +277,7 @@ void scenario_supply(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
   set_supply(avr, LOW_SUPPLY_MV);
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
   uint64_t mark = avr->cycle;
   clock_frames(avr, t, toc, SUPPLY_TOC_FRAMES);
@@ -312,7 +312,7 @@ void scenario_supply_dip(const target_t *t, const char *elf, uint32_t freq) {
   seed_calib(0U, CALIB_TRIGGER, 1U, 0);
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
   clock_until_inject(avr, t, toc);
   clock_frames(avr, t, toc, DIP_BEFORE_FRAMES);
@@ -337,7 +337,7 @@ void scenario_store_low_supply(const target_t *t, const char *elf, uint32_t freq
   seed_calib(0U, CALIB_TRIGGER, 0U, 0);
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
-  avr_irq_register_notify(pin_irq(avr, t, t->led), on_led, avr);
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
   boot_quiet(avr, t, 0, &ctx);
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,

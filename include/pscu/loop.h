@@ -8,8 +8,8 @@
 #include <stdint.h>
 
 #include "pscu/calib.h"
+#include "pscu/indicator.h"
 #include "pscu/inject.h"
-#include "pscu/led.h"
 
 // Every decision of one run-loop pass, as a pure function so the host suite
 // covers the wiring between modules. run.c keeps only the hardware calls.
@@ -57,7 +57,7 @@ typedef struct {
   pscu_since_disc_t since;
   pscu_stealth_t stealth;
   pscu_session_t session;
-  pscu_led_t led;
+  pscu_indicator_t indicator;
 } pscu_loop_t;
 
 // One pass's inputs.
@@ -75,10 +75,10 @@ typedef struct {
   bool store;
   bool trim_sample;
   bool quiet;
-  bool led_on;
+  bool indicator_on;
 } pscu_loop_out_t;
 
-pscu_loop_t pscu_loop_init(pscu_calib_t calib, pscu_led_t led, bool vcd_filter);
+pscu_loop_t pscu_loop_init(pscu_calib_t calib, pscu_indicator_t indicator, bool vcd_filter);
 
 // Decide one pass and advance the state in place (see src/loop.c).
 pscu_loop_out_t pscu_loop_step(pscu_loop_t *state, const pscu_loop_in_t *in);

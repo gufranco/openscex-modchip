@@ -17,7 +17,7 @@ LOGIC_FILES = (
     "src/subq.c",
     "src/board_mode.c",
     "src/inject.c",
-    "src/led.c",
+    "src/indicator.c",
     "src/calib.c",
     "src/trim.c",
     "src/supply.c",
@@ -29,7 +29,7 @@ TEST_FILES = (
     "tests/host/calib_test.c",
     "tests/host/trim_test.c",
     "tests/host/disc_test.c",
-    "tests/host/led_test.c",
+    "tests/host/indicator_test.c",
     "tests/host/loop_test.c",
 )
 CC = "gcc"
