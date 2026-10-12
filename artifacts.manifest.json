@@ -31,7 +31,7 @@
     {
       "id": "old-crow-12c508",
       "kind": "pic-source",
-      "path": "docs/research/sources/oldcrow_v5.3-4wire_12c508_all.asm",
+      "path": "docs/research/sources/original/oldcrow_v5.3-4wire_12c508_all.asm",
       "sha256": "dabac66ad2b7946d7762945dcf8e900bf6c0ebdfc97c85241b6abd9194cc9af5",
       "license": "none stated",
       "redistributable": false,
