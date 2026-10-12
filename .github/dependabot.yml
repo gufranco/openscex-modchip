@@ -16,6 +16,12 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+    # From v7 the action warns on every run when the repository has no
+    # package.json, and its skip_npm_plugin switch replaces the plugin list
+    # in .releaserc.json, so the release stays on v6.
+    ignore:
+      - dependency-name: "cycjimmy/semantic-release-action"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "docker"
     directory: "/"
