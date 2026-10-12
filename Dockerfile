@@ -37,7 +37,10 @@ RUN rm -f /etc/apt/sources.list.d/debian.sources \
 # binary rebuild number differs by architecture (+b1 on amd64, +b2 on arm64 in
 # trixie, read with apt-cache madison on 2026-10-08), so an exact pin built on
 # one machine failed to install on the other. The quotes keep the shell from
-# treating the pattern as a file glob; apt matches it against versions.
+# treating the pattern as a file glob; apt matches it against versions. avra,
+# the assembler for Atmel's own AVR syntax, takes the same rebuild pattern: the
+# bench assembles Liss's AT90S1200 source with it, and it ships the part
+# definition files that source includes.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       gcc-avr=1:14.2.0-2 \
@@ -47,6 +50,7 @@ RUN apt-get update \
       'gpsim=0.32.1-2+b*' \
       'gpsim-dev=0.32.1-2+b*' \
       gputils=1.5.2-1 \
+      'avra=1.4.2+dfsg-1+b*' \
       libglib2.0-dev \
       libelf-dev \
       pkg-config \

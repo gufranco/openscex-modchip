@@ -17,8 +17,8 @@ showcase, never used to widen the envelope. Old Crow sends strings for as
 long as it is powered, so as evidence it would let ours send anything. boards
 lists the mainboards each chip is made for, from its own guide, so a chip is
 never held up as evidence for a board it does not support. region is the
-string the image sends; OneChip exists only as a PAL image, so it alone is
-measured against the European string.
+string the image sends; OneChip exists only as a PAL image and Liss's source
+spells out SCEE, so those two are measured against the European string.
 """
 
 from dataclasses import dataclass
@@ -68,6 +68,25 @@ _PU18_ON = frozenset(Board) - {Board.PU_7, Board.PU_8}
 # release the gate pin). OneChip is made for the PAL PSone, PM-41 and
 # PM-41(2) only (quade.co ONEchip guide, Read).
 _PSONE = frozenset({Board.PM_41, Board.PM_41_2})
+
+# Hans Liss's AT90S1200 chip, version 1.4 (1999), assembled from its source with
+# avra. simavr has no AT90S1200, so it runs on the ATtiny2313, Atmel's
+# pin-compatible successor of the AT90S line: PORTB, PORTD, their DDR and PIN
+# registers sit at the same I/O addresses (1200def.inc and the ATtiny2313
+# datasheet, Read), and the source never touches the stack pointer, which the
+# ATtiny2313 resets to the top of its RAM. The clock is 4 MHz, Concluded from
+# the source: its header names a 2 MHz resonator, but the delay constants it
+# loads, 254 and 253, give one millisecond at about 4.07 MHz through a 16-cycle
+# inner loop (DOJUMP 5, eight NOPs, DEC and BRNE), and only then is each bit the
+# 4 ms its sendbyte comment states. It is a timed chip like Old Crow, gating the
+# drive with its blanking pin, so it is made for the static-gate boards; its
+# PU-22 "software jumper" (pins 8 and 9) is not modelled and stays unwired.
+_LISS_ORIGIN = (
+    "Liss V1.4 source assembled with avra, run on the pin-compatible "
+    "ATtiny2313; PD0 lid (high while open), PD1 reset (low while pressed), "
+    "PD2 blanking, PD3 DATA (its source, PORT D definitions); 4 MHz Concluded "
+    "from its delay constants; sends SCEE only"
+)
 
 CHIPS = (
     Chip(
@@ -232,6 +251,19 @@ CHIPS = (
         "strings when low, GP3 waited high at boot (the BIOS side, held high "
         "here); internal 4 MHz RC (configuration word 0xFEA)",
         boards=_PSONE,
+        region=Region.EUROPE,
+    ),
+    Chip(
+        name="liss-at90s1200",
+        simulator=Simulator.AVR,
+        cpu="attiny2313",
+        clock_hz=4_000_000,
+        pins="lid=D0,reset=D1,gate=D2,data=D3",
+        firmware="build/bench/liss-at90s1200.elf",
+        artifact="liss-v14-at90s1200",
+        field_proven=False,
+        origin=_LISS_ORIGIN,
+        boards=GATE_BOARDS,
         region=Region.EUROPE,
     ),
 )

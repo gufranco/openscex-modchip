@@ -21,7 +21,13 @@ from pathlib import Path
 from tools.bench.chips import Chip, Simulator
 from tools.bench.manifest import Artifact, Status, check, load
 from tools.bench.metrics import Metrics, measure
-from tools.bench.prepare import ARDUINO_CORE, assemble, avr_elf, build_ubernee
+from tools.bench.prepare import (
+    ARDUINO_CORE,
+    assemble,
+    assemble_avr,
+    avr_elf,
+    build_ubernee,
+)
 from tools.bench.reach import Entry, Line, by_line, by_table, markers
 from tools.bench.scenarios import Scenario
 from tools.bench.trace import parse
@@ -133,6 +139,8 @@ def _from_file(root: Path, artifact: Artifact, chip: Chip, workdir: Path) -> str
         return result.message
     if artifact.kind == "pic-source":
         return assemble(root, artifact, chip)
+    if artifact.kind == "avr-source":
+        return assemble_avr(root, artifact, chip, workdir)
     if artifact.kind == "avr-image":
         avr_elf(root, artifact, chip, workdir)
     return None

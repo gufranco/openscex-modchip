@@ -118,5 +118,15 @@
     "stuck-sqck": "fail",
     "watchdog": "pass",
     "swap": "pass"
+  },
+  "liss-at90s1200": {
+    "antimod-v1": "fail",
+    "antimod-v2-reauth": "pass",
+    "antimod-v2": "fail",
+    "silent-in-play": "fail",
+    "pins-float": "fail",
+    "stuck-sqck": "n/a",
+    "watchdog": "n/a",
+    "swap": "n/a"
   }
 }

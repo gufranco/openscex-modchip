@@ -12,7 +12,7 @@ import unittest
 
 from tools.bench.chips import CHIPS, Simulator, by_name
 from tools.bench.manifest import ROOT, load
-from tools.bench.scenarios import Board
+from tools.bench.scenarios import GATE_BOARDS, Board
 from tools.bench.scex import Region
 
 
@@ -65,6 +65,7 @@ class CatalogueTest(unittest.TestCase):
             "modavr-attiny13",
             "ubernee-atmega328p",
             "onechip-12c508a",
+            "liss-at90s1200",
         ]
 
         proven = [n for n in recorded if by_name(n).field_proven]
@@ -77,8 +78,15 @@ class CatalogueTest(unittest.TestCase):
         self.assertIs(onechip.region, Region.EUROPE)
         self.assertEqual(onechip.boards, frozenset({Board.PM_41, Board.PM_41_2}))
 
+    def test_liss_is_a_pal_static_gate_chip(self) -> None:
+        liss = by_name("liss-at90s1200")
+
+        self.assertIs(liss.region, Region.EUROPE)
+        self.assertEqual(liss.boards, GATE_BOARDS)
+
     def test_every_other_chip_sends_the_usa_string(self) -> None:
-        regions = {c.region for c in CHIPS if c.name != "onechip-12c508a"}
+        pal = {"onechip-12c508a", "liss-at90s1200"}
+        regions = {c.region for c in CHIPS if c.name not in pal}
 
         self.assertEqual(regions, {Region.AMERICA})
 

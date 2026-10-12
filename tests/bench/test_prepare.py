@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: MIT
 
 """Tests for preparing third-party firmware the bench builds itself: PIC
-sources assembled with gpasm, an AVR image converted to an ELF, and UberNee
-built against a pinned Arduino core.
+sources assembled with gpasm, an Atmel-syntax AVR source assembled with avra,
+an AVR image converted to an ELF, and UberNee built against a pinned Arduino
+core.
 
 The build tests run the pinned toolchain on small fixtures in local git
 repositories, so they need the toolchain image and no network.
@@ -20,6 +21,7 @@ from tools.bench.manifest import Artifact
 from tools.bench.prepare import (
     UBERNEE_EDITS,
     assemble,
+    assemble_avr,
     avr_elf,
     build_ubernee,
     edit_sketch,
@@ -36,6 +38,23 @@ start\tgoto start
 """
 
 AVR_HEX = ":0400000000C0FFCF6E\n:00000001FF\n"
+
+# The smallest Atmel-syntax source that exercises what Liss's file needs: a
+# .device line after a form feed, as Liss's file has it, a part definition file
+# found on avra's include path, a .def alias and a macro taking an argument.
+AVR_SOURCE = """\
+\f
+.device AT90S1200
+.include "1200def.inc"
+.def A1 = r16
+.macro LOAD
+\tldi A1,@0
+.endmacro
+start:
+\tLOAD 3
+\tout DDRD,A1
+\trjmp start
+"""
 
 SKETCH = """\
 #define SELECT_MAGICKEY SCEE    // region
@@ -158,6 +177,39 @@ class BuildTest(unittest.TestCase):
         reason = assemble(self.root, artifact, by_name("old-crow-12c508"))
 
         self.assertIn("gpasm", str(reason))
+
+    def test_an_avr_source_assembles_into_an_elf_holding_its_code(self) -> None:
+        (self.root / "liss.asm").write_text(AVR_SOURCE)
+        artifact = Artifact("liss", "avr-source", "none", False, "t", path="liss.asm")
+        chip = by_name("liss-at90s1200")
+
+        reason = assemble_avr(self.root, artifact, chip, self.work)
+
+        listing = subprocess.run(
+            ["avr-objdump", "-d", str(self.root / chip.firmware)],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        self.assertIsNone(reason)
+        self.assertIn("rjmp", listing)
+
+    def test_an_avr_source_that_fails_says_why(self) -> None:
+        (self.root / "liss.asm").write_text(".device AT90S1200\n\tbogus\n")
+        artifact = Artifact("liss", "avr-source", "none", False, "t", path="liss.asm")
+
+        reason = assemble_avr(self.root, artifact, by_name("liss-at90s1200"), self.work)
+
+        self.assertIn("avra", str(reason))
+
+    def test_an_avr_source_keeps_its_part_instruction_check(self) -> None:
+        text = AVR_SOURCE.replace("\trjmp start", "\tpush A1")
+        (self.root / "liss.asm").write_text(text)
+        artifact = Artifact("liss", "avr-source", "none", False, "t", path="liss.asm")
+
+        reason = assemble_avr(self.root, artifact, by_name("liss-at90s1200"), self.work)
+
+        self.assertIn("avra", str(reason))
 
     def test_an_avr_image_becomes_an_elf_holding_its_code(self) -> None:
         (self.root / "m.hex").write_text(AVR_HEX)

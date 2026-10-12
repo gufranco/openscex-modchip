@@ -16,6 +16,15 @@ manifest pins:
   image starts with an extended segment record that avr-objcopy refuses, so
   the records are laid out here into a flat image first, gaps erased to 0xFF
   as an unprogrammed flash reads, and that image is wrapped;
+- an AVR assembly source in Atmel's own syntax is assembled with avra, the
+  open-source assembler for that syntax, against the part definition file its
+  .include names (avra ships Atmel's, 1200def.inc among them), and the HEX it
+  writes is wrapped the same way. Liss's 1999 AT90S1200 source names its part
+  with .device and then includes 1200def.inc, which wavrasm accepted; avra's
+  copy of that file declares the device itself and avra refuses a second
+  declaration, so the copy assembled here, under the work directory, turns the
+  source's own .device line into a comment. The part file's declaration still
+  holds every instruction to the AT90S1200's set;
 - UberNee is an Arduino sketch. Both it and the Arduino AVR core are fetched
   at pinned commits, their git tree ids checked, and built as the Arduino IDE
   would for an ATmega328P at 16 MHz. Two configuration lines are changed in a
@@ -25,6 +34,7 @@ manifest pins:
   both, and a sketch missing either line is refused rather than built.
 """
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -38,6 +48,12 @@ ERASED = 0xFF
 SEGMENT_SHIFT = 4
 LINEAR_SHIFT = 16
 
+# Where Debian's avra package installs the Atmel part definition files.
+AVRA_INCLUDES = "/usr/share/avra"
+# A source's own .device directive, at the start of a line in any case. Only
+# spaces and tabs may lead it: \s would also cross the form feed and line
+# break before the directive in Liss's file and comment out the wrong line.
+DEVICE_LINE = re.compile(r"^([ \t]*\.device\b)", re.IGNORECASE | re.MULTILINE)
 ARDUINO_CORE = "arduino-core-avr"
 UBERNEE_EDITS = (
     ("#define SELECT_MAGICKEY SCEE", "#define SELECT_MAGICKEY SCEA"),
@@ -116,8 +132,33 @@ def assemble(root: Path, artifact: Artifact, chip: Chip) -> str | None:
 
 def avr_elf(root: Path, artifact: Artifact, chip: Chip, workdir: Path) -> None:
     """Wrap an AVR Intel HEX image in the ELF simavr loads."""
+    _wrap_hex((root / str(artifact.path)).read_text(), root, chip, workdir)
+
+
+def assemble_avr(
+    root: Path, artifact: Artifact, chip: Chip, workdir: Path
+) -> str | None:
+    """Assemble an Atmel-syntax AVR source with avra into the chip's ELF;
+    None, or avra's error."""
+    source = workdir / f"{chip.name}.asm"
+    text = (root / str(artifact.path)).read_text(encoding="latin-1")
+    source.write_text(DEVICE_LINE.sub(r";\1", text), encoding="latin-1")
+    result = subprocess.run(
+        ["avra", "-I", AVRA_INCLUDES, source.name],
+        cwd=workdir,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return f"{chip.name}: avra failed: {(result.stdout + result.stderr).strip()}"
+    _wrap_hex(source.with_suffix(".hex").read_text(), root, chip, workdir)
+    return None
+
+
+def _wrap_hex(text: str, root: Path, chip: Chip, workdir: Path) -> None:
     flat = workdir / f"{chip.name}.bin"
-    flat.write_bytes(hex_image((root / str(artifact.path)).read_text()))
+    flat.write_bytes(hex_image(text))
     subprocess.run(
         [
             "avr-objcopy",

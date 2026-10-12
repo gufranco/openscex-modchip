@@ -105,6 +105,15 @@
       "license": "none stated",
       "redistributable": false,
       "obtain": "Old Crow's archive on Richard Erbe's PlayStation page, http://www.jstic.com/cypher/sony/files/m508v54f.zip, unzipped and renamed to the path above; the gpasm build of its m508v54f.asm"
+    },
+    {
+      "id": "liss-v14-at90s1200",
+      "kind": "avr-source",
+      "path": "docs/research/sources/liss-stealth_v1.4_at90s1200_all.asm",
+      "sha256": "976941c51b17a3b182933d6f8e230ff73fd88fcec5cd49b2cf3da1e929c9bdf9",
+      "license": "none stated",
+      "redistributable": false,
+      "obtain": "Hans Liss's AT90S1200 stealth chip source, version 1.4 (mc14smt.asm), from the web.archive.org captures of hans.liss.pp.se or the archive.org item PSXModchipPack (Others/Stealth chip for AT90S1200/source/mc14smt.asm), saved and renamed to the path above"
     }
   ]
 }

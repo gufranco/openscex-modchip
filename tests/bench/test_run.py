@@ -234,6 +234,20 @@ class PrepareTest(unittest.TestCase):
         self.assertIsNone(reason)
         self.assertTrue(built)
 
+    def test_an_avr_source_is_assembled_into_the_chip_elf(self) -> None:
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            (root / "build" / "bench").mkdir(parents=True)
+            source = '.device AT90S1200\n.include "1200def.inc"\nstart:\trjmp start\n'
+            self.manifest(root, self.file_entry(root, "l.asm", source, "avr-source"))
+            chip = replace(by_name("liss-at90s1200"), artifact="x")
+
+            reason = prepare(root, chip, root)
+            built = (root / chip.firmware).is_file()
+
+        self.assertIsNone(reason)
+        self.assertTrue(built)
+
     def test_a_source_with_the_wrong_bytes_is_not_built(self) -> None:
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
