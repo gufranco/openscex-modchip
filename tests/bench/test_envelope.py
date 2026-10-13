@@ -142,6 +142,16 @@ class EnvelopeTest(unittest.TestCase):
         self.assertIs(result["cell_min_ns"], Verdict.MET)
         self.assertIs(result["cell_max_ns"], Verdict.MET)
 
+    def test_garbled_strings_are_still_held_to_the_cell_range(self) -> None:
+        # Arrange
+        ours = replace(BASE, valid=0, garbled=4, cell_min_ns=2_000_000)
+
+        # Act
+        result = verdicts(ours, [BASE])
+
+        # Assert
+        self.assertIs(result["cell_min_ns"], Verdict.BROKEN)
+
     def test_a_cell_within_one_carrier_period_of_the_range_meets_it(self) -> None:
         ours = replace(BASE, cell_min_ns=known(BASE.cell_min_ns) - CELL_TOLERANCE_NS)
 

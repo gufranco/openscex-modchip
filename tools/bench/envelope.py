@@ -12,7 +12,9 @@ Per scenario, the field-proven chips' metrics bound ours:
 - strings sent, in every phase including play after a swap, a re-read or the
   anti-mod probe, and drive outside strings: at most their maximum.
 
-A rule with nothing to compare against is unchecked, never passed.
+A rule with nothing to compare against is unchecked, never passed. Ours sending
+no string at all has no bit cell, which meets the cell rules; a garbled string
+still has one, and is judged.
 """
 
 from collections.abc import Callable
@@ -105,7 +107,7 @@ def check_ours(scenario: str, ours: Metrics, proven: list[Metrics]) -> list[Find
     for metric, rule in RULES:
         values = [getattr(m, metric) for m in proven if getattr(m, metric) is not None]
         verdict, low, high = rule(getattr(ours, metric), values)
-        if metric in CELL_RULES and ours.valid == 0 and verdict is Verdict.BROKEN:
+        if metric in CELL_RULES and ours.strings == 0 and verdict is Verdict.BROKEN:
             verdict = Verdict.MET
         findings.append(
             Finding(scenario, metric, verdict, getattr(ours, metric), low, high)
