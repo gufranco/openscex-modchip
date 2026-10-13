@@ -120,7 +120,8 @@ HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_
 SIM_TEST_C := tests/sim/sim_test.c tests/sim/harness.c tests/sim/sim_inject.c tests/sim/sim_disc.c tests/sim/sim_calib.c tests/sim/sim_profile.c tests/sim/sim_trace.c
 SIM_TEST_H := tests/sim/harness.h tests/sim/scenarios.h tests/sim/sim_t85.h
 BENCH_SRC := bench/pic_runner.cc bench/avr_runner.c
-C_FILES := $(ALL_SRC_C) $(FIRMWARE_H) $(HOST_TEST_C) $(SIM_TEST_C) $(SIM_TEST_H) $(BENCH_SRC)
+HOST_REGION_C := tests/host/config_region.c
+C_FILES := $(ALL_SRC_C) $(FIRMWARE_H) $(HOST_TEST_C) $(HOST_REGION_C) $(SIM_TEST_C) $(SIM_TEST_H) $(BENCH_SRC)
 HOST_TEST := $(BUILD)/host/host_test
 SIM_TEST := $(BUILD)/sim/sim_test
 SIM_CFLAGS := $(C_STD) -O2 -Wall -Wextra -Werror \
@@ -184,6 +185,12 @@ image_size: $(RELEASE_ELF)
 	echo "flash: $$used of $(FLASH_BUDGET) budgeted bytes"
 
 hosttest: $(HOST_TEST)
+	$(HOST_CC) $(HOST_CFLAGS) -fsyntax-only -DPSCU_REGION_JP \
+		-DPSCU_EXPECTED_REGION=PSCU_REGION_NTSC_J $(HOST_REGION_C)
+	$(HOST_CC) $(HOST_CFLAGS) -fsyntax-only -DPSCU_REGION_EU \
+		-DPSCU_EXPECTED_REGION=PSCU_REGION_PAL $(HOST_REGION_C)
+	$(HOST_CC) $(HOST_CFLAGS) -fsyntax-only \
+		-DPSCU_EXPECTED_REGION=PSCU_REGION_NTSC_UC $(HOST_REGION_C)
 	rm -f $(BUILD)/host/*.gcda
 	$(HOST_TEST)
 	gcovr --root . --filter 'src/' --exclude-branches-by-pattern '.*PSCU_ASSERT.*' \
