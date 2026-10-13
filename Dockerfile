@@ -12,20 +12,23 @@ ARG ACTIONLINT_SHA256_AMD64=8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08c
 ARG ACTIONLINT_SHA256_ARM64=325e971b6ba9bfa504672e29be93c24981eeb1c07576d730e9f7c8805afff0c6
 
 # All packages come from one dated Debian snapshot, so unpinned ones resolve
-# the same everywhere. Snapshots have expired Valid-Until dates; signatures are
+# the same everywhere. The snapshot is the one the base image was built from,
+# which it names in a comment in debian.sources, so a base digest bump moves
+# the packages with it. Snapshots have expired Valid-Until dates; signatures are
 # still checked. Plain http works before ca-certificates is installed.
-ARG DEBIAN_SNAPSHOT=20261008T000000Z
-RUN rm -f /etc/apt/sources.list.d/debian.sources \
+RUN snapshot="$(sed -n 's|^# http://snapshot.debian.org/archive/debian/\([0-9]\{8\}T[0-9]\{6\}Z\)$|\1|p' /etc/apt/sources.list.d/debian.sources)" \
+ && test -n "$snapshot" \
+ && rm -f /etc/apt/sources.list.d/debian.sources \
  && printf '%s\n' \
       'Types: deb' \
-      "URIs: http://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}" \
+      "URIs: http://snapshot.debian.org/archive/debian/${snapshot}" \
       'Suites: trixie trixie-updates' \
       'Components: main' \
       'Check-Valid-Until: no' \
       'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' \
       '' \
       'Types: deb' \
-      "URIs: http://snapshot.debian.org/archive/debian-security/${DEBIAN_SNAPSHOT}" \
+      "URIs: http://snapshot.debian.org/archive/debian-security/${snapshot}" \
       'Suites: trixie-security' \
       'Components: main' \
       'Check-Valid-Until: no' \
