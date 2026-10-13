@@ -75,6 +75,8 @@ static void test_subq_counter(void) {
   check(pscu_subq_update_counter(audio, 3U, false, 0xFFU) == 4U,
         "track 01 keeps counter when synced");
   check(pscu_subq_update_counter(audio, 0U, false, 0xFFU) == 0U, "track 01 does not start sync");
+  check(pscu_subq_update_counter(audio, 1U, false, 0xFFU) == 2U,
+        "track 01 keeps a counter of one, the lowest synced value");
 
   uint8_t spiral[PSCU_SUBQ_FRAME_BYTES] = {
     0x41U, 0, 0x01U, 0x00U, 0, 0, 0, 0, 0, 0, 0xA5U, 0x73U
@@ -119,6 +121,8 @@ static void test_subq_counter(void) {
   uint8_t other[PSCU_SUBQ_FRAME_BYTES] = { 0x00U, 0, 0x50U, 0, 0, 0, 0, 0, 0, 0, 0x34U, 0x9BU };
   check(pscu_subq_update_counter(other, 3U, false, 0xFFU) == 2U,
         "non-data non-audio sample decays while synced");
+  check(pscu_subq_update_counter(other, 1U, false, 0xFFU) == 0U,
+        "a miss takes a counter of one to zero");
 
   uint8_t empty[PSCU_SUBQ_FRAME_BYTES] = { 0 };
   check(pscu_subq_update_counter(empty, 0U, false, 0xFFU) == 0U, "decay floors at zero");
@@ -235,6 +239,10 @@ static void test_board_mode(void) {
   check(pscu_board_detect_mode(feed(single_low, 1U, 1U)) == PSCU_BOARD_MODE_WFCK,
         "first low sample counts as one pulse");
 
+  check(pscu_board_detect_mode(feed(high, 0U, 1U)) == PSCU_BOARD_MODE_GATE,
+        "board: a detector needing one edge starts as a gate board");
+  check(pscu_board_detect_mode(feed(high, 0U, 0U)) == PSCU_BOARD_MODE_WFCK,
+        "board: a detector needing no edge is a carrier before any sample");
   check(pscu_board_detect_mode(feed(high, 8U, 0U)) == PSCU_BOARD_MODE_WFCK,
         "zero threshold is wfck");
 }

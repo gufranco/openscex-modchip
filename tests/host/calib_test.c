@@ -60,6 +60,14 @@ static void test_record_round_trip(void) {
   stale.bytes[PSCU_CALIB_AT_CHECK] = (uint8_t)(stale.bytes[PSCU_CALIB_AT_CHECK] ^ 0x01U);
   g_check(is_default(pscu_calib_decode(stale)), "calib: a wrong check byte reads as defaults");
 
+  // A record as any build writes it, from the documented layout rather than the
+  // encoder: magic 0xC8, board 1, start 10, not frozen, trim 0, then the check,
+  // 0x5A ^ 0xC8 ^ 0x01 ^ 0x0A ^ 0x00 ^ 0x00 = 0x99.
+  pscu_calib_record_t written = { { 0xC8U, 0x01U, 0x0AU, 0x00U, 0x00U, 0x99U } };
+  pscu_calib_t read = pscu_calib_decode(written);
+  g_check((read.board == 1U) && (read.trigger == 0x0AU) && !read.frozen && (read.trim == 0),
+          "calib: a record checked over all five bytes from the seed reads back");
+
   pscu_calib_record_t foreign = pscu_calib_encode(make(1U, MIN_T, false));
   foreign.bytes[PSCU_CALIB_AT_MAGIC] = 0x00U;
   g_check(is_default(pscu_calib_decode(foreign)), "calib: a record without the magic is ignored");

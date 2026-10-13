@@ -72,7 +72,14 @@ class GenerateMutantsTest(unittest.TestCase):
 
         self.assertEqual(
             sorted(labels),
-            sorted(["L1 ge->gt col25", "L1 le->lt col33"]),
+            sorted(
+                [
+                    "L1 shr->shl col3",
+                    "L1 shl->shr col11",
+                    "L1 ge->gt col25",
+                    "L1 le->lt col33",
+                ]
+            ),
         )
 
     def test_single_relational_operators_are_widened(self) -> None:
@@ -90,6 +97,76 @@ class GenerateMutantsTest(unittest.TestCase):
         sources = [mutant.source for mutant in mutate.generate_mutants(source)]
 
         self.assertEqual(sources, ["if (a && b) {}"])
+
+    def test_binary_arithmetic_and_bitwise_operators_are_swapped(self) -> None:
+        # Arrange
+        source = "x = a + b - c & d | e ^ f;"
+
+        # Act
+        sources = {mutant.source for mutant in mutate.generate_mutants(source)}
+
+        # Assert
+        self.assertTrue(
+            {
+                "x = a - b - c & d | e ^ f;",
+                "x = a + b + c & d | e ^ f;",
+                "x = a + b - c | d | e ^ f;",
+                "x = a + b - c & d & e ^ f;",
+                "x = a + b - c & d | e | f;",
+            }
+            <= sources
+        )
+
+    def test_unary_minus_and_arrows_are_left_alone(self) -> None:
+        # Arrange
+        source = "x = -a; y = p->q;"
+
+        # Act
+        mutants = mutate.generate_mutants(source)
+
+        # Assert
+        self.assertEqual(mutants, [])
+
+    def test_an_unsigned_literal_is_bumped_in_its_own_base(self) -> None:
+        # Arrange
+        source = "x = 0x0FU + 9U;"
+
+        # Act
+        sources = {mutant.source for mutant in mutate.generate_mutants(source)}
+
+        # Assert
+        self.assertTrue({"x = 0x10U + 9U;", "x = 0x0FU + 10U;"} <= sources)
+
+    def test_booleans_are_flipped(self) -> None:
+        # Arrange
+        source = "a = true; b = false;"
+
+        # Act
+        sources = {mutant.source for mutant in mutate.generate_mutants(source)}
+
+        # Assert
+        self.assertEqual(sources, {"a = false; b = false;", "a = true; b = true;"})
+
+    def test_a_listed_equivalent_mutant_is_skipped_only_in_its_file(self) -> None:
+        # Arrange
+        source = "  out.missed = false;"
+
+        # Act
+        listed = mutate.generate_mutants(source, "src/loop.c")
+        elsewhere = mutate.generate_mutants(source, "src/calib.c")
+
+        # Assert
+        self.assertEqual((len(listed), len(elsewhere)), (0, 1))
+
+    def test_every_equivalent_names_a_reason(self) -> None:
+        # Arrange
+        equivalents = mutate.EQUIVALENTS
+
+        # Act
+        missing = [e for e in equivalents if not e.reason]
+
+        # Assert
+        self.assertEqual(missing, [])
 
 
 def project(test: str, logic: str = LOGIC) -> Path:
@@ -120,6 +197,17 @@ class CompileAndRunTest(ProjectTestCase):
 
         passed = mutate._compile_and_run(root, root / "bin", SUITE)
 
+        self.assertFalse(passed)
+
+    def test_a_suite_that_never_ends_is_stopped_and_reported(self) -> None:
+        # Arrange
+        root = self.make("int main(void) { for (;;) { } }\n")
+        hanging = mutate.Suite(("logic.c",), ("test.c",), mutate.CC, ("-std=c17",), 1)
+
+        # Act
+        passed = mutate._compile_and_run(root, root / "bin", hanging)
+
+        # Assert
         self.assertFalse(passed)
 
     def test_code_that_does_not_compile_is_reported(self) -> None:

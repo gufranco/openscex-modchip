@@ -371,6 +371,13 @@ static void test_since(void) {
           "loop: the disc time saturates");
   g_check(pass_with(start, LEAD_OUT, true, true, 0x100U).state.since.ms == 0x100U,
           "loop: the disc time adds the pass");
+  pscu_loop_t seen = start;
+  seen.since.ms = 0x200U;
+  seen.since.framed = true;
+  seen.since.armed = true;
+  step_t gone = pass_with(seen, LEAD_OUT, false, true, PSCU_DISC_GONE_MS);
+  g_check((gone.state.since.ms == 0U) && !gone.state.since.framed && !gone.state.since.armed,
+          "loop: a disc leaving restarts its time and evidence");
   pscu_loop_t timed = start;
   timed.since.ms = 0x200U;
   g_check(pass_with(timed, LEAD_OUT, true, true, 0U).state.since.ms == 0x200U,

@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -33,11 +34,28 @@ TEST_FILES = (
     "tests/host/loop_test.c",
 )
 CC = "gcc"
+# A backstop per compile and per run: the unmutated host suite builds and runs
+# in under 2 s, so a mutant still running after a minute is stuck in a loop it
+# made, which the suite has caught.
+STEP_TIMEOUT_S = 60
 CFLAGS = ("-std=c17", "-pedantic-errors", "-Iinclude", "-O0", "-DPSCU_DEBUG")
 
+
+def _bump(match: re.Match[str]) -> str:
+    """An unsigned integer literal one higher, in the same base and suffix."""
+    digits = match.group(1)
+    value = int(digits, 0) + 1
+    return (f"0x{value:X}" if digits.lower().startswith("0x") else str(value)) + "U"
+
+
+Replacement = str | Callable[[re.Match[str]], str]
+
 # Each mutator flips one operator to a near neighbour. The single < and > forms
-# use look-around so they never match <<, >>, ->, <=, >= or ==.
-MUTATORS = (
+# use look-around so they never match <<, >>, ->, <=, >= or ==. The arithmetic,
+# bitwise and shift forms match only between spaces, as clang-format writes a
+# binary operator, so a unary minus or an arrow is never touched. Every unsigned
+# literal is also tried one higher, which catches an off-by-one in a bound.
+MUTATORS: tuple[tuple[str, re.Pattern[str], Replacement], ...] = (
     ("eq->ne", re.compile(r"=="), "!="),
     ("ne->eq", re.compile(r"!="), "=="),
     ("ge->gt", re.compile(r">="), ">"),
@@ -46,7 +64,154 @@ MUTATORS = (
     ("or->and", re.compile(r"\|\|"), "&&"),
     ("lt->le", re.compile(r"(?<![<>=-])<(?![<=])"), "<="),
     ("gt->ge", re.compile(r"(?<![<>=-])>(?![>=])"), ">="),
+    ("add->sub", re.compile(r"(?<= )\+(?= )"), "-"),
+    ("sub->add", re.compile(r"(?<= )-(?= )"), "+"),
+    ("band->bor", re.compile(r"(?<= )&(?= )"), "|"),
+    ("bor->band", re.compile(r"(?<= )\|(?= )"), "&"),
+    ("xor->bor", re.compile(r"(?<= )\^(?= )"), "|"),
+    ("shl->shr", re.compile(r"(?<= )<<(?= )"), ">>"),
+    ("shr->shl", re.compile(r"(?<= )>>(?= )"), "<<"),
+    ("true->false", re.compile(r"\btrue\b"), "false"),
+    ("false->true", re.compile(r"\bfalse\b"), "true"),
+    ("literal+1", re.compile(r"\b(0[xX][0-9A-Fa-f]+|\d+)U\b"), _bump),
 )
+
+
+@dataclass(frozen=True, slots=True)
+class Equivalent:
+    """A mutant that cannot change behaviour, with the reason. It is matched by
+    file, a fragment of its line, the mutator, and which of that mutator's
+    matches on the line it is (-1 for all of them)."""
+
+    path: str
+    fragment: str
+    mutator: str
+    occurrence: int
+    reason: str
+
+
+_UNREAD = "code and live are read only in the CODE and DARK stages, live only in CODE"
+_CARRIER = "carrier is only ever compared with zero"
+_TOLD_ZERO = "told bit 0 names no code; codes start at 1"
+_ASSIGNED_FIRST = "pscu_loop_read and pscu_loop_burst assign every field before use"
+
+EQUIVALENTS: tuple[Equivalent, ...] = (
+    Equivalent(
+        "src/board_mode.c", "(needed == 0U) ? 1U : 0U", "literal+1", 2, _CARRIER
+    ),
+    Equivalent("src/board_mode.c", "? 1U : state.carrier", "literal+1", 0, _CARRIER),
+    Equivalent(
+        "src/indicator.c", "PSCU_INDICATOR_BOARD, 0U, false,", "literal+1", 0, _UNREAD
+    ),
+    Equivalent(
+        "src/indicator.c", "PSCU_INDICATOR_BOARD, 0U, false,", "false->true", 0, _UNREAD
+    ),
+    Equivalent("src/indicator.c", "replay_code,", "literal+1", 1, _TOLD_ZERO),
+    Equivalent(
+        "src/indicator.c",
+        "return (uint8_t)(1U << code);",
+        "literal+1",
+        0,
+        "told bits stay distinct for codes 1 to 6; the supply code is never told",
+    ),
+    Equivalent(
+        "src/indicator.c",
+        "PSCU_INDICATOR_INJECT, 0U, false);",
+        "literal+1",
+        -1,
+        _UNREAD,
+    ),
+    Equivalent(
+        "src/indicator.c",
+        "PSCU_INDICATOR_INJECT, 0U, false);",
+        "false->true",
+        -1,
+        _UNREAD,
+    ),
+    Equivalent(
+        "src/indicator.c", "PSCU_INDICATOR_WAIT, 0U, false);", "literal+1", -1, _UNREAD
+    ),
+    Equivalent(
+        "src/indicator.c",
+        "PSCU_INDICATOR_WAIT, 0U, false);",
+        "false->true",
+        -1,
+        _UNREAD,
+    ),
+    Equivalent(
+        "src/indicator.c",
+        "PSCU_INDICATOR_DARK, 0U, false);",
+        "false->true",
+        -1,
+        _UNREAD,
+    ),
+    Equivalent(
+        "src/indicator.c",
+        "PSCU_INDICATOR_DARK, 1U, false);",
+        "literal+1",
+        -1,
+        "the DARK stage reads only whether code is nonzero",
+    ),
+    Equivalent(
+        "src/indicator.c",
+        "PSCU_INDICATOR_DARK, 1U, false);",
+        "false->true",
+        -1,
+        _UNREAD,
+    ),
+    Equivalent(
+        "src/indicator.c",
+        "pause_ms = 0U;",
+        "literal+1",
+        -1,
+        "the board stage ends at its cycle without a pause, before any pause",
+    ),
+    Equivalent("src/indicator.c", "next.told = 0U;", "literal+1", -1, _TOLD_ZERO),
+    Equivalent(
+        "src/calib.c",
+        "(trigger - PSCU_CALIB_TRIGGER_MIN) %",
+        "sub->add",
+        -1,
+        "the start bound 10 is even, so t + 10 and t - 10 share a remainder mod 2",
+    ),
+    Equivalent(
+        "src/calib.c",
+        "pscu_calib_record_t record = { {",
+        "literal+1",
+        -1,
+        "every byte is assigned before the record is returned",
+    ),
+    Equivalent(
+        "src/loop.c",
+        "out.missed = false;",
+        "false->true",
+        -1,
+        "pscu_loop_learn assigns missed before any read",
+    ),
+    Equivalent(
+        "src/loop.c", "pscu_loop_pass_t pass = {", "literal+1", -1, _ASSIGNED_FIRST
+    ),
+    Equivalent(
+        "src/loop.c", "pscu_loop_pass_t pass = {", "false->true", -1, _ASSIGNED_FIRST
+    ),
+    Equivalent(
+        "src/subq.c",
+        "(tno <= 0x99U)",
+        "literal+1",
+        1,
+        "a track number 0x9A already fails the units-digit check",
+    ),
+)
+
+
+def _equivalent(path: str, line: str, mutator: str, occurrence: int) -> bool:
+    return any(
+        e.path == path
+        and e.fragment in line
+        and e.mutator == mutator
+        and e.occurrence in (-1, occurrence)
+        for e in EQUIVALENTS
+    )
 
 
 @dataclass(frozen=True)
@@ -64,6 +229,7 @@ class Suite:
     tests: tuple[str, ...]
     cc: str
     cflags: tuple[str, ...]
+    timeout_s: int = STEP_TIMEOUT_S
 
 
 SUITE = Suite(LOGIC_FILES, TEST_FILES, CC, CFLAGS)
@@ -86,15 +252,21 @@ def _is_skipped(line: str) -> bool:
     return ("PSCU_ASSERT" in line) or ("_Static_assert" in line)
 
 
-def generate_mutants(source: str) -> list[Mutant]:
+def generate_mutants(source: str, path: str = "") -> list[Mutant]:
+    """Every mutant of a file at path, less the listed equivalent ones."""
     lines = source.split("\n")
     mutants: list[Mutant] = []
     for index, line in enumerate(lines):
         if _is_skipped(line):
             continue
         for name, pattern, replacement in MUTATORS:
-            for match in pattern.finditer(line):
-                new_line = line[: match.start()] + replacement + line[match.end() :]
+            for occurrence, match in enumerate(pattern.finditer(line)):
+                if _equivalent(path, line, name, occurrence):
+                    continue
+                text = (
+                    replacement if isinstance(replacement, str) else replacement(match)
+                )
+                new_line = line[: match.start()] + text + line[match.end() :]
                 mutated = lines.copy()
                 mutated[index] = new_line
                 label = f"L{index + 1} {name} col{match.start() + 1}"
@@ -105,21 +277,30 @@ def generate_mutants(source: str) -> list[Mutant]:
 def _compile_and_run(root: Path, binary: Path, suite: Suite = SUITE) -> bool:
     """Build and run the host suite; True only if it compiles and passes.
 
-    A mutant that fails to compile counts as killed. The suite runs in the temp
-    directory so a core dump never lands in the repo.
+    A mutant that fails to compile, or makes a step outlast STEP_TIMEOUT_S,
+    counts as killed. The suite runs in the temp directory so a core dump never
+    lands in the repo.
     """
     sources = [str(root / name) for name in (*suite.logic, *suite.tests)]
-    compiled = subprocess.run(
-        [suite.cc, *suite.cflags, "-o", str(binary), *sources],
-        cwd=root,
-        capture_output=True,
-        check=False,
-    )
-    if compiled.returncode != 0:
+    try:
+        compiled = subprocess.run(
+            [suite.cc, *suite.cflags, "-o", str(binary), *sources],
+            cwd=root,
+            capture_output=True,
+            check=False,
+            timeout=suite.timeout_s,
+        )
+        if compiled.returncode != 0:
+            return False
+        executed = subprocess.run(
+            [str(binary)],
+            cwd=binary.parent,
+            capture_output=True,
+            check=False,
+            timeout=suite.timeout_s,
+        )
+    except subprocess.TimeoutExpired:
         return False
-    executed = subprocess.run(
-        [str(binary)], cwd=binary.parent, capture_output=True, check=False
-    )
     return executed.returncode == 0
 
 
@@ -147,7 +328,7 @@ def run(root: Path, suite: Suite = SUITE) -> Result:
         survivors: list[str] = []
         for name in suite.logic:
             path = root / name
-            for mutant in generate_mutants(path.read_text()):
+            for mutant in generate_mutants(path.read_text(), name):
                 total += 1
                 if _mutant_killed(root, path, mutant, binary, suite):
                     killed += 1
