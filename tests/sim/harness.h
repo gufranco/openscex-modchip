@@ -57,8 +57,17 @@ typedef struct {
 // The America (SCEA) word as the 44 DATA levels the firmware emits, LSB first.
 extern const char SCEA_BITS[SCEX_BITS + 1];
 
-// The Japan (SCEI) word, emitted by the SCPH-5903 Video-CD build.
+// The Japan (SCEI) word, emitted by the Japanese and SCPH-5903 Video-CD builds.
 extern const char SCEI_BITS[SCEX_BITS + 1];
+
+// The Europe (SCEE) word. The three words differ only in their fifth byte:
+// 0xFA, 0xEA and 0xDA, LSB first (PsNee V9.0 PSNee.ino L577-L580).
+extern const char SCEE_BITS[SCEX_BITS + 1];
+
+// How many DATA direction changes and bursts a run keeps for decoding: 16
+// strings of at most 44 changes each, with room to spare.
+#define MAX_DDR_LOG 4096
+#define MAX_BURSTS 64
 
 // Every indicator pulse as rise cycle and length. A string lights the indicator for 90 to
 // 181 ms, so a pulse of 80 to 200 ms after boot counts as one.
@@ -131,6 +140,10 @@ void decode_region(avr_t *avr, const target_t *t, int modern, uint64_t bit_cycle
 // The DATA bursts so far that were not one string: shorter than 80 ms, longer
 // than 200 ms, or two strings run together. Closes a burst that has ended.
 int data_strays(const avr_t *avr);
+// Decode every gate-board DATA burst of the run into a 44-bit word, one sample
+// per bit cell from the lamp rise that opened it, and count those equal to
+// `expect`.
+int decode_bursts(uint64_t bit_cycles, const char *expect);
 
 // Check that the stack never came within SIM_STACK_MARGIN bytes of the data.
 void check_stack(void);

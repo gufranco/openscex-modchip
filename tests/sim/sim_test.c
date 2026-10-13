@@ -11,8 +11,11 @@
 // The simulator suite's entry point.
 
 int main(int argc, char *argv[]) {
-  if (argc < 3) {
-    (void)fprintf(stderr, "usage: %s elf freq_hz [vcd_elf [final_elf [trace_elf]]]\n", argv[0]);
+  // Every image is required: a missing one would skip its scenarios and still
+  // report a clean run.
+  if (argc != 8) {
+    (void)fprintf(
+        stderr, "usage: %s elf freq_hz vcd_elf final_elf trace_elf eu_elf jp_elf\n", argv[0]);
     return 2;
   }
   const char *elf = argv[1];
@@ -51,21 +54,19 @@ int main(int argc, char *argv[]) {
   scenario_slow_sqck(&t85, elf, freq);
   scenario_trim(&t85, elf, freq);
 
-  // The optional third argument is the SCPH-5903 Video-CD image.
-  if (argc >= 4) {
-    scenario_vcd(argv[3], freq);
-    scenario_calib_jp(&t85, argv[3], freq);
-  }
+  // The SCPH-5903 Video-CD image.
+  scenario_vcd(argv[3], freq);
+  scenario_calib_jp(&t85, argv[3], freq);
 
-  // The optional fourth and fifth arguments are the final and trace images of
-  // the default build, checked against the default (debug) image.
-  if (argc >= 6) {
-    scenario_profiles(&t85, elf, argv[4], argv[5], freq);
-    scenario_trace(&t85, argv[5], freq);
-  } else if (argc == 5) {
-    scenario_profiles(&t85, elf, argv[4], NULL, freq);
-  } else {
-  }
+  // The final and trace images of the default build, checked against the
+  // default (debug) image.
+  scenario_profiles(&t85, elf, argv[4], argv[5], freq);
+  scenario_trace(&t85, argv[5], freq);
+
+  // One image per region; the default image is the American one.
+  scenario_region(&t85, elf, SCEA_BITS, "us", freq);
+  scenario_region(&t85, argv[6], SCEE_BITS, "eu", freq);
+  scenario_region(&t85, argv[7], SCEI_BITS, "jp", freq);
 
   check_stack();
   return sim_report();

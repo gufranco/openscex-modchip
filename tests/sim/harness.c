@@ -16,6 +16,7 @@
 
 const char SCEA_BITS[SCEX_BITS + 1] = "10011010100100111101001010111010010111110100";
 const char SCEI_BITS[SCEX_BITS + 1] = "10011010100100111101001010111010010110110100";
+const char SCEE_BITS[SCEX_BITS + 1] = "10011010100100111101001010111010010101110100";
 
 int g_checks = 0;
 int g_failures = 0;
@@ -30,6 +31,12 @@ int g_data_drives = 0;
 int g_data_strays = 0;
 int g_data_bursts = 0;
 int g_lit_bursts = 0;
+// Every change of DATA's direction bit after boot, and where each burst began,
+// so every string of a burst can be decoded after the run.
+static uint64_t g_ddr_at[MAX_DDR_LOG];
+static uint8_t g_ddr_level[MAX_DDR_LOG];
+static int g_ddr_count = 0;
+static uint64_t g_burst_start[MAX_BURSTS];
 uint32_t g_freq = 8000000U;
 // The SQCK half-period the harness clocks frames with, normally EDGE_NS.
 uint64_t g_edge_ns = EDGE_NS;
@@ -111,6 +118,11 @@ static void on_data_direction(struct avr_irq_t *irq, uint32_t value, void *param
     return;
   }
   g_data_driven = driven;
+  if (g_ddr_count < MAX_DDR_LOG) {
+    g_ddr_at[g_ddr_count] = avr->cycle;
+    g_ddr_level[g_ddr_count] = (uint8_t)driven;
+    g_ddr_count++;
+  }
   if (driven != 0) {
     g_data_drives++;
     if ((g_data_open != 0) && ((avr->cycle - g_data_last) > ms_cycles(DATA_GAP_MS))) {
@@ -120,6 +132,9 @@ static void on_data_direction(struct avr_irq_t *irq, uint32_t value, void *param
       g_data_open = 1;
       g_data_counted = 0;
       g_data_start = avr->cycle;
+      if (g_data_bursts < MAX_BURSTS) {
+        g_burst_start[g_data_bursts] = avr->cycle;
+      }
       g_data_bursts++;
       avr_ioport_state_t state;
       (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE(g_port), &state);
@@ -132,6 +147,47 @@ static void on_data_direction(struct avr_irq_t *irq, uint32_t value, void *param
     g_strings++;
     g_data_counted = 1;
   }
+}
+
+// DATA's direction at a cycle, from the log: the last change at or before it.
+static uint8_t logged_ddr(uint64_t cycle) {
+  uint8_t level = 0U;
+  for (int i = 0; (i < g_ddr_count) && (g_ddr_at[i] <= cycle); i++) {
+    level = g_ddr_level[i];
+  }
+  return level;
+}
+
+// The lamp rise that opened the string whose first drive is at `first`: on a
+// gate board the lamp lights one bit cell before DATA is first driven, since
+// every word starts with a one, which is high-Z. Zero when there is none.
+static uint64_t string_start(uint64_t first, uint64_t bit_cycles) {
+  for (int i = 0; i < g_pulses; i++) {
+    uint64_t rise = g_pulse_rise[i];
+    if ((rise <= first) && ((first - rise) <= (bit_cycles + (bit_cycles / 2U)))) {
+      return rise;
+    }
+  }
+  return 0U;
+}
+
+int decode_bursts(uint64_t bit_cycles, const char *expect) {
+  int matched = 0;
+  int bursts = (g_data_bursts < MAX_BURSTS) ? g_data_bursts : MAX_BURSTS;
+  for (int b = 0; b < bursts; b++) {
+    uint64_t start = string_start(g_burst_start[b], bit_cycles);
+    if (start == 0U) {
+      continue;
+    }
+    char word[SCEX_BITS + 1];
+    for (int k = 0; k < SCEX_BITS; k++) {
+      uint64_t mid = start + ((uint64_t)k * bit_cycles) + (bit_cycles / 2U);
+      word[k] = (logged_ddr(mid) != 0U) ? '0' : '1';
+    }
+    word[SCEX_BITS] = '\0';
+    matched += (strcmp(word, expect) == 0) ? 1 : 0;
+  }
+  return matched;
 }
 
 int data_strays(const avr_t *avr) {
@@ -277,6 +333,7 @@ avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
   g_data_strays = 0;
   g_data_bursts = 0;
   g_lit_bursts = 0;
+  g_ddr_count = 0;
   g_data_bit = t->data;
   g_lamp_bit = t->indicator;
   g_port = (uint32_t)t->port;

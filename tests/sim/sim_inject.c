@@ -502,3 +502,28 @@ void scenario_gap_check(const target_t *t, const char *elf, uint32_t freq) {
             (gap >= ns_cycles(GAP_CHECK_MIN_NS)) && (gap <= ns_cycles(GAP_CHECK_MAX_NS)),
         label);
 }
+
+// Rule 6: a build emits only its own region's word. A lead-in long enough for the
+// whole stealth cap, on a gate board, with every string of the burst decoded.
+#define REGION_TOC_FRAMES 420
+#define REGION_CAP 16
+
+void scenario_region(
+    const target_t *t, const char *elf, const char *expect, const char *name, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
+  boot_quiet(avr, t, 0, &ctx);
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  clock_frames(avr, t, toc, REGION_TOC_FRAMES);
+  int matched = decode_bursts(BIT_CYCLES(freq), expect);
+  char label[112];
+  (void)snprintf(label,
+                 sizeof(label),
+                 "%s build: all %d strings of the burst carry its word (%d bursts, %d match)",
+                 name,
+                 REGION_CAP,
+                 g_data_bursts,
+                 matched);
+  check((g_data_bursts == REGION_CAP) && (matched == REGION_CAP), label);
+}

@@ -187,6 +187,8 @@ SIM_ELF := $(BUILD)/attiny85/release/$(NAME)-attiny85.elf
 SIM_ELF_VCD := $(BUILD)/attiny85-jp-vcd/release/$(NAME)-attiny85-jp-vcd.elf
 SIM_ELF_FINAL := $(BUILD)/attiny85-final/release/$(NAME)-attiny85-final.elf
 SIM_ELF_TRACE := $(BUILD)/attiny85-trace/release/$(NAME)-attiny85-trace.elf
+SIM_ELF_EU := $(BUILD)/attiny85-eu/release/$(NAME)-attiny85-eu.elf
+SIM_ELF_JP := $(BUILD)/attiny85-jp/release/$(NAME)-attiny85-jp.elf
 
 $(SIM_TEST): $(SIM_TEST_C) $(SIM_TEST_H) all
 	@mkdir -p $(@D)
@@ -225,13 +227,16 @@ showcase:
 	$(PYTHON) -m tools.bench.showcase build/bench/showcase.json
 
 # simavr ignores OSCCAL, so trim scenarios vary the console's rate instead and
-# check direction, bounds and persistence. The Video CD, final and trace
-# images are the optional third to fifth arguments.
+# check direction, bounds and persistence. Every image is an argument: the
+# Video CD, final and trace images, then the European and Japanese ones.
 simtest: $(SIM_TEST)
 	$(MAKE) --no-print-directory REGION=jp VCD_FILTER=on image
 	$(MAKE) --no-print-directory PROFILE=final image
 	$(MAKE) --no-print-directory PROFILE=trace image
-	$(SIM_TEST) $(SIM_ELF) $(F_CPU) $(SIM_ELF_VCD) $(SIM_ELF_FINAL) $(SIM_ELF_TRACE)
+	$(MAKE) --no-print-directory REGION=eu image
+	$(MAKE) --no-print-directory REGION=jp image
+	$(SIM_TEST) $(SIM_ELF) $(F_CPU) $(SIM_ELF_VCD) $(SIM_ELF_FINAL) $(SIM_ELF_TRACE) \
+		$(SIM_ELF_EU) $(SIM_ELF_JP)
 
 test: hosttest simtest
 

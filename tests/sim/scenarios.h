@@ -36,6 +36,10 @@ void scenario_string_gap(const target_t *t, const char *elf, uint32_t freq);
 void scenario_gap_check(const target_t *t, const char *elf, uint32_t freq);
 void scenario_bad_crc(const target_t *t, const char *elf, uint32_t freq);
 void scenario_slow_sqck(const target_t *t, const char *elf, uint32_t freq);
+// One build per region: every string of a full burst carries that region's
+// word and no other (rule 6).
+void scenario_region(
+    const target_t *t, const char *elf, const char *expect, const char *name, uint32_t freq);
 // The final and trace profiles against the debug one (tests/sim/sim_profile.c);
 // trace_elf may be NULL.
 void scenario_profiles(const target_t *t,
