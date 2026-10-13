@@ -35,6 +35,10 @@ void pscu_port_indicator_on(void);
 
 void pscu_port_indicator_off(void);
 
+// Trace profile only: send one byte on the indicator pin as 8N1 serial at
+// 115200 baud. The pin must already idle high.
+void pscu_port_trace_byte(uint8_t value);
+
 void pscu_port_delay_ms(uint16_t milliseconds);
 
 // One WFCK-carrier bit cell: hold_low keeps DATA low, mirror copies WFCK onto

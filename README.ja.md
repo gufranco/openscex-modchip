@@ -98,6 +98,7 @@ cd openscex-modchip
 make REGION=us                                        # アメリカ
 make REGION=jp VCD_FILTER=on                          # SCPH-5903
 make REGION=us PROFILE=final                          # アメリカ、静かな表示
+make REGION=us PROFILE=trace                          # アメリカ、ピン 2 に SUBQ フレーム
 avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
 ```
@@ -221,6 +222,10 @@ PB3 には任意で LED かアクティブブザーをつなぎ、これがチ�
 | 5 | ウォッチドッグがチップをリセットした。次の起動で 1 回示す | 注入中に止まった WFCK | [src/indicator.c](src/indicator.c), [src/port_chip.S](src/port_chip.S) |
 | 6 | 基板がキャリブレーションに保存したものと違う。起動時に 1 回示し、コード 5 が優先 | 不安定な WFCK の配線。チップを別のコンソールに移した場合を除く | [src/indicator.c](src/indicator.c), [src/calib.c](src/calib.c) |
 | 7 | 電源が約 2.75 V 未満と測れた、または測定に失敗した。続く間は文字列を送らず、コード 3 と 4 より優先 | 取り出し点の VCC と GND。3.3 V 以上あること | [src/indicator.c](src/indicator.c), [src/supply.c](src/supply.c) |
+
+### シリアルトレース
+
+`make PROFILE=trace` は、ピン 2 (PB3) を表示の代わりにシリアル線にするイメージをビルドします。チップが取り込んだ 12 バイトの SUBQ バーストは、正しいかどうかに関係なく、すべて 115200 baud、8N1 の 24 桁の 16 進数 1 行として送られます。取り込みに失敗した場合はすべて `F` になります。ピン 2 を USB シリアルアダプタの RX 入力に、アダプタの GND をコンソールの GND につなぎ、キャリアボードのスイッチはどちらの部品も使わない位置にします。mini では線が待機している間 LED が点いたままです。アダプタはコンソールのロジックレベル、ファット基板では約 5 V を受けられる必要があります。行は各フレームの後の空き時間に送られるので、DATA はほかの 2 つのイメージと同じタイミングを保ち、シミュレータがそれをエッジ単位で確かめます。 出典: [src/run.c](src/run.c), [src/port.S](src/port.S), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
 
 ## 仕組み
 

@@ -98,6 +98,7 @@ cd openscex-modchip
 make REGION=us                                        # 美洲
 make REGION=jp VCD_FILTER=on                          # SCPH-5903
 make REGION=us PROFILE=final                          # 美洲，安静的指示
+make REGION=us PROFILE=trace                          # 美洲，SUBQ 帧输出到引脚 2
 avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
 ```
@@ -221,6 +222,10 @@ PB3 可选接一个 LED 或有源蜂鸣器，这是芯片唯一的诊断手段�
 | 5 | 看门狗复位了芯片，下次启动时显示一次 | 注入中停止的 WFCK | [src/indicator.c](src/indicator.c), [src/port_chip.S](src/port_chip.S) |
 | 6 | 主板与校准记录中的不同，启动时显示一次；代码 5 优先 | 接触不良的 WFCK 线，除非芯片换到了另一台主机 | [src/indicator.c](src/indicator.c), [src/calib.c](src/calib.c) |
 | 7 | 测得电源低于约 2.75 V，或测量失败；持续期间不发送字符串，优先于代码 3 和 4 | 取电点的 VCC 与地，应在 3.3 V 以上 | [src/indicator.c](src/indicator.c), [src/supply.c](src/supply.c) |
+
+### 串口跟踪
+
+`make PROFILE=trace` 构建的镜像把引脚 2 (PB3) 改作串口线，不再驱动指示。芯片捕获的每个 12 字节 SUBQ 数据块，无论是否有效，都以一行 24 位十六进制数字发出，115200 baud，8N1；捕获失败时整行为 `F`。把引脚 2 接到 USB 串口适配器的 RX 输入，适配器的地接主机的地，并把载板的开关拨到两个器件都不用的位置；mini 板上的 LED 在线路空闲时保持点亮。适配器必须能接受主机的逻辑电平，厚机主板约为 5 V。每行在每帧之后的空隙中发出，所以 DATA 与另外两种镜像保持相同的时序，模拟器逐个边沿核对这一点。 出处：[src/run.c](src/run.c), [src/port.S](src/port.S), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
 
 ## 工作原理
 

@@ -7,8 +7,8 @@
 #include "scenarios.h"
 #include "sim_cycle_timers.h"
 
-// The two indicator profiles (include/pscu/indicator.h). The final image must stay
-// quiet, and both images must drive DATA identically.
+// The PB3 profiles (include/pscu/config.h). The final image must stay quiet, and
+// the debug, final and trace images must drive DATA identically.
 
 // DATA is sampled every 0.1 ms, and each change of direction or level is kept.
 #define PROFILE_SAMPLE_NS 100000ULL
@@ -45,6 +45,7 @@ typedef struct {
 
 static data_trace_t g_debug_trace;
 static data_trace_t g_final_trace;
+static data_trace_t g_trace_trace;
 
 static avr_cycle_count_t data_sample(avr_t *avr, avr_cycle_count_t when, void *param) {
   data_trace_t *trace = param;
@@ -147,6 +148,7 @@ static void final_audio_case(const target_t *t, const char *elf, uint32_t freq) 
 void scenario_profiles(const target_t *t,
                        const char *debug_elf,
                        const char *final_elf,
+                       const char *trace_elf,
                        uint32_t freq) {
   accepted_session(t, debug_elf, freq, &g_debug_trace);
   accepted_session(t, final_elf, freq, &g_final_trace);
@@ -157,6 +159,18 @@ void scenario_profiles(const target_t *t,
                  g_debug_trace.count,
                  g_final_trace.count);
   check(same_data(&g_debug_trace, &g_final_trace), label);
+
+  // The trace line goes out in the gap after each frame, so it must not move a
+  // single DATA edge either.
+  if (trace_elf != NULL) {
+    accepted_session(t, trace_elf, freq, &g_trace_trace);
+    (void)snprintf(label,
+                   sizeof(label),
+                   "profiles: debug and trace put the same edges on DATA (%d and %d)",
+                   g_debug_trace.count,
+                   g_trace_trace.count);
+    check(same_data(&g_debug_trace, &g_trace_trace), label);
+  }
 
   final_accepted_case(t, final_elf, freq);
   final_audio_case(t, final_elf, freq);

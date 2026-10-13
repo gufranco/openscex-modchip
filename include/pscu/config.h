@@ -35,7 +35,17 @@
 #ifndef PSCU_PROFILE_FINAL
 #define PSCU_PROFILE_FINAL 0
 #endif
-#define PSCU_LAMP_STRINGS (PSCU_PROFILE_FINAL == 0)
+
+// Trace profile, set by PROFILE=trace: PB3 is a serial line instead of the
+// indicator, and each captured SUBQ frame goes out on it (src/run.c). The
+// indicator logic still runs, but never reaches the pin.
+#ifndef PSCU_PROFILE_TRACE
+#define PSCU_PROFILE_TRACE 0
+#endif
+#if (PSCU_PROFILE_FINAL != 0) && (PSCU_PROFILE_TRACE != 0)
+#error "PSCU_PROFILE_FINAL and PSCU_PROFILE_TRACE are exclusive"
+#endif
+#define PSCU_LAMP_STRINGS ((PSCU_PROFILE_FINAL == 0) && (PSCU_PROFILE_TRACE == 0))
 
 // Most region strings per arming: a safety cap so a stuck window cannot drive
 // the bus forever. The console latches the region within a few reads.

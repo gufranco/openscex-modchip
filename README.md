@@ -98,6 +98,7 @@ cd openscex-modchip
 make REGION=us                                        # America
 make REGION=jp VCD_FILTER=on                          # SCPH-5903
 make REGION=us PROFILE=final                          # America, quiet indicator
+make REGION=us PROFILE=trace                          # America, SUBQ frames on pin 2
 avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
 ```
@@ -221,6 +222,10 @@ Codes are long 700 ms flashes, 300 ms apart, with a 2 s pause before the code re
 | 5 | the watchdog reset the chip, shown once at the next boot | WFCK, which stalled mid-injection | [src/indicator.c](src/indicator.c), [src/port_chip.S](src/port_chip.S) |
 | 6 | the board differs from the one the calibration stored, shown once at boot; code 5 takes priority | the WFCK wire, which is intermittent, unless the chip moved to another console | [src/indicator.c](src/indicator.c), [src/calib.c](src/calib.c) |
 | 7 | the supply measured under about 2.75 V, or the reading failed; no string is sent while it holds, and it outranks codes 3 and 4 | VCC and ground at the tap points, which must measure 3.3 V or more | [src/indicator.c](src/indicator.c), [src/supply.c](src/supply.c) |
+
+### Serial trace
+
+`make PROFILE=trace` builds an image that turns pin 2 (PB3) into a serial line instead of the indicator. Every 12-byte SUBQ burst the chip captures, valid or not, goes out as one line of 24 hex digits at 115200 baud, 8N1; a failed capture reads as all `F`. Wire pin 2 to the RX input of a USB serial adapter and its ground to the console's ground, and set the carrier board's switch to neither part; on the mini the LED stays lit while the line idles. The adapter must accept the console's logic level, about 5 V on a fat board. The line goes out in the gap after each frame, so DATA keeps the timing of the other two images, which the simulator checks edge by edge. Source: [src/run.c](src/run.c), [src/port.S](src/port.S), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c).
 
 ## How it works
 

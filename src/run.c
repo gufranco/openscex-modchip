@@ -65,6 +65,24 @@ typedef struct {
 #define PSCU_RUN_PROFILE PSCU_INDICATOR_PROFILE_DEBUG
 #endif
 
+#if PSCU_PROFILE_TRACE
+// A hex digit in ASCII: '0' is 0x30, and 'A' less ten is 0x37.
+static uint8_t pscu_trace_digit(uint8_t nibble) {
+  return (nibble < 10U) ? (uint8_t)(0x30U + nibble) : (uint8_t)(0x37U + nibble);
+}
+
+// One captured frame as a text line: 24 upper-case hex digits and a newline,
+// 25 bytes, 2.2 ms at 115200 baud. A failed capture shows as all FF. The line
+// goes out after the pass's decisions and any string, inside the gap before the
+// next frame, so captures and DATA keep the debug image's timing.
+static void pscu_trace_frame(const uint8_t *frame) {
+  for (uint8_t byte = 0U; byte < PSCU_SUBQ_FRAME_BYTES; byte++) {
+    pscu_port_trace_byte(pscu_trace_digit((uint8_t)(frame[byte] >> 4U)));
+    pscu_port_trace_byte(pscu_trace_digit((uint8_t)(frame[byte] & 0x0FU)));
+  }
+  pscu_port_trace_byte(0x0AU);
+}
+#else
 static void pscu_run_show(bool on) {
   if (on) {
     pscu_port_indicator_on();
@@ -72,6 +90,7 @@ static void pscu_run_show(bool on) {
     pscu_port_indicator_off();
   }
 }
+#endif
 
 // Fold the detected board into the record and store it.
 static pscu_calib_boot_t pscu_calib_start(pscu_calib_t stored, pscu_board_mode_t board) {
@@ -159,6 +178,10 @@ void pscu_run(void) {
       pscu_indicator_init((board == PSCU_BOARD_MODE_WFCK) ? 2U : 1U, boot_code, PSCU_RUN_PROFILE);
   pscu_loop_t loop = pscu_loop_init(boot.calib, indicator, PSCU_VCD_FILTER_ENABLED);
   pscu_clock_t clock = { pscu_port_ticks(), 0U };
+#if PSCU_PROFILE_TRACE
+  // A serial line idles high.
+  pscu_port_indicator_on();
+#endif
 
   for (;;) {
     uint8_t frame[PSCU_SUBQ_FRAME_BYTES];
@@ -184,7 +207,11 @@ void pscu_run(void) {
     osc = kept.osc;
     loop.calib = kept.calib;
     loop.indicator = learned ? pscu_indicator_note(loop.indicator) : loop.indicator;
+#if PSCU_PROFILE_TRACE
+    pscu_trace_frame(frame);
+#else
     pscu_run_show(out.indicator_on);
+#endif
     pscu_port_watchdog_reset();
   }
 }

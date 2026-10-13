@@ -31,18 +31,22 @@ else
 $(error unknown VCD_FILTER '$(VCD_FILTER)'; use off or on)
 endif
 
-# Indicator profile on PB3 (LED or active buzzer): debug (default) shows
-# everything, final chirps at power-on and on acceptance and shows each fault
-# once. DATA is the same in both. See include/pscu/indicator.h.
+# Profile of PB3: debug (default) and final drive the LED or active buzzer
+# (debug shows everything, final chirps at power-on and on acceptance and shows
+# each fault once); trace sends every captured SUBQ frame to a serial adapter
+# instead. DATA is the same in all three. See include/pscu/indicator.h.
 PROFILE ?= debug
 ifeq ($(PROFILE),final)
-PROFILE_DEF := -DPSCU_PROFILE_FINAL=1
+PROFILE_DEF := -DPSCU_PROFILE_FINAL=1 -DPSCU_PROFILE_TRACE=0
 PROFILE_TAG := -final
 else ifeq ($(PROFILE),debug)
-PROFILE_DEF := -DPSCU_PROFILE_FINAL=0
+PROFILE_DEF := -DPSCU_PROFILE_FINAL=0 -DPSCU_PROFILE_TRACE=0
 PROFILE_TAG :=
+else ifeq ($(PROFILE),trace)
+PROFILE_DEF := -DPSCU_PROFILE_FINAL=0 -DPSCU_PROFILE_TRACE=1
+PROFILE_TAG := -trace
 else
-$(error unknown PROFILE '$(PROFILE)'; use debug or final)
+$(error unknown PROFILE '$(PROFILE)'; use debug, final or trace)
 endif
 
 # Region string the chip emits. us is the default and carries no tag.
@@ -103,7 +107,7 @@ ALL_SRC_C := $(FIRMWARE_C)
 FIRMWARE_S := src/port.S src/port_chip.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
 HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_test.c tests/host/trim_test.c tests/host/disc_test.c tests/host/indicator_test.c tests/host/loop_test.c
-SIM_TEST_C := tests/sim/sim_test.c tests/sim/harness.c tests/sim/sim_inject.c tests/sim/sim_disc.c tests/sim/sim_calib.c tests/sim/sim_profile.c
+SIM_TEST_C := tests/sim/sim_test.c tests/sim/harness.c tests/sim/sim_inject.c tests/sim/sim_disc.c tests/sim/sim_calib.c tests/sim/sim_profile.c tests/sim/sim_trace.c
 SIM_TEST_H := tests/sim/harness.h tests/sim/scenarios.h tests/sim/sim_t85.h
 BENCH_SRC := bench/pic_runner.cc bench/avr_runner.c
 C_FILES := $(ALL_SRC_C) $(FIRMWARE_H) $(HOST_TEST_C) $(SIM_TEST_C) $(SIM_TEST_H) $(BENCH_SRC)
@@ -123,7 +127,7 @@ RELEASE_OBJECTS := $(patsubst src/%,$(RELEASE)/%.o,$(FIRMWARE_C) $(FIRMWARE_S))
 AVR_DEBUG := -g
 AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(VCD_DEF) $(PROFILE_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
 	$(WARNINGS) -fno-common -ffunction-sections -fdata-sections $(AVR_DEBUG)
-AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) -Iinclude -Wall -Wextra -Werror $(AVR_DEBUG)
+AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) $(PROFILE_DEF) -Iinclude -Wall -Wextra -Werror $(AVR_DEBUG)
 AVR_LDFLAGS := -mmcu=$(MCU) -Os -flto -Wl,--gc-sections $(AVR_DEBUG)
 
 AVR_INCLUDE := /usr/lib/avr/include
@@ -154,9 +158,11 @@ $(RELEASE_ELF): $(RELEASE_OBJECTS)
 $(RELEASE_HEX): $(RELEASE_ELF)
 	$(AVR_OBJCOPY) -O ihex -R .eeprom $< $@
 
-# Both profiles must fit: the final image is sized with the default one.
+# Every profile must fit: the final and trace images are sized with the
+# default one.
 size: image_size
 	$(MAKE) --no-print-directory PROFILE=final image_size
+	$(MAKE) --no-print-directory PROFILE=trace image_size
 
 image_size: $(RELEASE_ELF)
 	$(AVR_SIZE) $(RELEASE_ELF)
@@ -180,6 +186,7 @@ $(HOST_TEST): $(HOST_LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H)
 SIM_ELF := $(BUILD)/attiny85/release/$(NAME)-attiny85.elf
 SIM_ELF_VCD := $(BUILD)/attiny85-jp-vcd/release/$(NAME)-attiny85-jp-vcd.elf
 SIM_ELF_FINAL := $(BUILD)/attiny85-final/release/$(NAME)-attiny85-final.elf
+SIM_ELF_TRACE := $(BUILD)/attiny85-trace/release/$(NAME)-attiny85-trace.elf
 
 $(SIM_TEST): $(SIM_TEST_C) $(SIM_TEST_H) all
 	@mkdir -p $(@D)
@@ -218,12 +225,13 @@ showcase:
 	$(PYTHON) -m tools.bench.showcase build/bench/showcase.json
 
 # simavr ignores OSCCAL, so trim scenarios vary the console's rate instead and
-# check direction, bounds and persistence. The Video CD and final-profile
-# images are the optional third and fourth arguments.
+# check direction, bounds and persistence. The Video CD, final and trace
+# images are the optional third to fifth arguments.
 simtest: $(SIM_TEST)
 	$(MAKE) --no-print-directory REGION=jp VCD_FILTER=on image
 	$(MAKE) --no-print-directory PROFILE=final image
-	$(SIM_TEST) $(SIM_ELF) $(F_CPU) $(SIM_ELF_VCD) $(SIM_ELF_FINAL)
+	$(MAKE) --no-print-directory PROFILE=trace image
+	$(SIM_TEST) $(SIM_ELF) $(F_CPU) $(SIM_ELF_VCD) $(SIM_ELF_FINAL) $(SIM_ELF_TRACE)
 
 test: hosttest simtest
 
@@ -247,9 +255,10 @@ analyse: all bench_runners
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage run --branch --source=tools -m unittest discover -s tests -t . -p 'test_*.py'
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage report -m
 
-# MISRA covers both profiles, which compile different code.
+# MISRA covers every profile, since each compiles different code.
 misra: image_misra
 	$(MAKE) --no-print-directory PROFILE=final image_misra
+	$(MAKE) --no-print-directory PROFILE=trace image_misra
 
 image_misra:
 	$(foreach config,$(CPPCHECK_CONFIGS),cppcheck $(CPPCHECK_FLAGS) $(config) --addon=misra $(FIRMWARE_C) &&) true

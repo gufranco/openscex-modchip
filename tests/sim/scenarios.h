@@ -36,10 +36,14 @@ void scenario_string_gap(const target_t *t, const char *elf, uint32_t freq);
 void scenario_gap_check(const target_t *t, const char *elf, uint32_t freq);
 void scenario_bad_crc(const target_t *t, const char *elf, uint32_t freq);
 void scenario_slow_sqck(const target_t *t, const char *elf, uint32_t freq);
-// The final indicator profile against the debug one (tests/sim/sim_profile.c).
+// The final and trace profiles against the debug one (tests/sim/sim_profile.c);
+// trace_elf may be NULL.
 void scenario_profiles(const target_t *t,
                        const char *debug_elf,
                        const char *final_elf,
+                       const char *trace_elf,
                        uint32_t freq);
+// The trace profile's serial output (tests/sim/sim_trace.c).
+void scenario_trace(const target_t *t, const char *elf, uint32_t freq);
 
 #endif

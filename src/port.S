@@ -131,6 +131,41 @@ pscu_port_indicator_off:
 	ret
 	.endfunc
 
+#if PSCU_PROFILE_TRACE
+// Trace profile only: send r24 on the indicator pin as 8N1 serial at 115200
+// baud, the rate any USB serial adapter takes. A bit costs 5 cycles to set the
+// pin, 3 * PSCU_TRACE_DELAY in the delay loop and 4 to step, so 69 cycles at
+// 8 MHz: 115942 baud, 0.6 percent fast, inside the few percent a receiver
+// tolerates. The byte is inverted first, so the carry set by sec is the start
+// bit and the zeros lsr shifts in become the stop bit (Atmel AVR305). Nothing
+// here is an interrupt, so the bit time is exact.
+#define PSCU_TRACE_BAUD 115200
+#define PSCU_TRACE_DELAY (((F_CPU / PSCU_TRACE_BAUD) - 9 + 1) / 3)
+	.global pscu_port_trace_byte
+	.func pscu_port_trace_byte
+pscu_port_trace_byte:
+	ldi r18, 10
+	com r24
+	sec
+40:
+	brcc 41f
+	cbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_INDICATOR
+	rjmp 42f
+41:
+	sbi _SFR_IO_ADDR(PSCU_PORT), PSCU_PIN_INDICATOR
+	nop
+42:
+	ldi r19, PSCU_TRACE_DELAY
+43:
+	dec r19
+	brne 43b
+	lsr r24
+	dec r18
+	brne 40b
+	ret
+	.endfunc
+#endif
+
 // Busy-wait r25:r24 milliseconds, kicking the watchdog each millisecond.
 	.global pscu_port_delay_ms
 	.func pscu_port_delay_ms
