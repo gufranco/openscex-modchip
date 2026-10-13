@@ -4,10 +4,11 @@
 """Decode SCEx strings from what one chip did to DATA, whatever its CPU.
 
 A one is either DATA released for the cell (gate mode) or a train of pulses
-mirroring WFCK (carrier mode); a trace that ever toggles at carrier speed is
-decoded in carrier mode. Strings are framed on the SCEx layout (scex.py), which
-gives each string's cell length and start. A cell outside 2 to 8 ms is no
-string.
+mirroring WFCK (carrier mode). Each burst is decoded in its own mode: a chip
+moved from a carrier board to a gate board, or one that changes mode after a
+power cycle, sends both kinds in one trace. Strings are framed on the SCEx
+layout (scex.py), which gives each string's cell length and start. A cell
+outside 2 to 8 ms is no string.
 """
 
 from dataclasses import dataclass
@@ -171,10 +172,18 @@ def _decode_carrier(burst: list[tuple[int, int]]) -> Decoded | None:
 
 
 def decode(changes: list[Change], end_ns: int) -> list[Decoded]:
-    """Decode every string in a trace, in time order."""
-    trains = carrier_trains(changes)
-    if trains:
-        decoded = [_decode_carrier(burst) for burst in _bursts(trains)]
-    else:
-        decoded = [_decode_gate(b) for b in _bursts(low_runs(changes, end_ns))]
-    return [string for string in decoded if string is not None]
+    """Decode every string in a trace, in time order. Low runs inside a carrier
+    burst are its zero cells, so only the runs outside every carrier burst are
+    decoded in gate mode."""
+    carrier_bursts = _bursts(carrier_trains(changes))
+    spans = [(burst[0][0], burst[-1][1]) for burst in carrier_bursts]
+    gate_runs = [
+        run
+        for run in low_runs(changes, end_ns)
+        if not any(run[0] < high and low < run[1] for low, high in spans)
+    ]
+    decoded = [_decode_carrier(burst) for burst in carrier_bursts] + [
+        _decode_gate(burst) for burst in _bursts(gate_runs)
+    ]
+    strings = [string for string in decoded if string is not None]
+    return sorted(strings, key=lambda string: string.start_ns)

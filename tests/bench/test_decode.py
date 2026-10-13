@@ -181,3 +181,19 @@ class GateSpreadTest(unittest.TestCase):
         strings = decode(stretched, 1_000_000_000)
 
         self.assertGreater(strings[0].cell_spread_ns, 0)
+
+
+class MixedModeTest(unittest.TestCase):
+    def test_a_gate_string_and_a_carrier_string_decode_each_in_its_mode(self) -> None:
+        # Arrange
+        bits = region_bits(Region.AMERICA)
+        changes = gate_string(bits, 1_000_000_000) + carrier_string(bits, 3_000_000_000)
+
+        # Act
+        strings = decode(changes, 4_000_000_000)
+
+        # Assert
+        self.assertEqual(
+            [(s.region, s.carrier) for s in strings],
+            [(Region.AMERICA, False), (Region.AMERICA, True)],
+        )
