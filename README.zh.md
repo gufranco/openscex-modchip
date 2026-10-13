@@ -121,7 +121,7 @@ avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse
 make size        # 镜像大小；剩余闪存少于 256 字节时失败
 make test        # 主机测试、simavr 主机模型及其栈检查
 make analyse     # 格式、lint、类型、许可证、MISRA 与 Python 测试
-make repro       # 两次全新构建逐字节一致
+make repro       # 每个发布镜像从零构建两次，逐字节一致
 make mutate      # 逻辑层的变异测试
 make mutate_platform  # run.c 与 engine.c 的变异测试，由模拟器捕获
 make bench_ci    # 主机测试台：在同一个模拟主机中对比本固件与 PsNee

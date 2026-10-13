@@ -68,8 +68,16 @@ endif
 # build has an empty VARIANT and the plain artifact name the sim uses.
 VARIANT := $(REGION_TAG)$(VCD_TAG)$(PROFILE_TAG)
 
+# The images a release attaches, named by their artifact suffix: the region,
+# then -vcd for the Video CD filter, then -final for the quiet profile. One
+# list, read by release_images, which the release workflow and repro build.
+RELEASE_VARIANTS := us eu jp jp-vcd us-final eu-final jp-final jp-vcd-final
+variant_region = $(firstword $(subst -, ,$(1)))
+variant_vcd = $(if $(findstring -vcd,$(1)),on,off)
+variant_profile = $(if $(findstring -final,$(1)),final,debug)
+
 CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate mutate_platform format \
-	precommit image image_size image_misra bench_runners bench bench_ci showcase
+	precommit image image_size image_misra release_images bench_runners bench bench_ci showcase
 
 .PHONY: $(CONTAINER_TARGETS) clean hooks
 
@@ -275,10 +283,15 @@ image_misra:
 REPRO_A := $(BUILD)/repro-a
 REPRO_B := $(BUILD)/repro-b
 
+release_images:
+	$(foreach v,$(RELEASE_VARIANTS),$(MAKE) --no-print-directory REGION=$(call variant_region,$(v)) \
+		VCD_FILTER=$(call variant_vcd,$(v)) PROFILE=$(call variant_profile,$(v)) image &&) true
+
+# Every released image, built twice from clean, must come out byte-identical.
 repro:
 	rm -rf $(REPRO_A) $(REPRO_B)
-	$(MAKE) --no-print-directory BUILD=$(REPRO_A) image
-	$(MAKE) --no-print-directory BUILD=$(REPRO_B) image
+	$(MAKE) --no-print-directory BUILD=$(REPRO_A) release_images
+	$(MAKE) --no-print-directory BUILD=$(REPRO_B) release_images
 	cd $(REPRO_A) && find . -type f \( -name '*.hex' -o -name '*.elf' \) | sort | xargs sha256sum > $(CURDIR)/$(BUILD)/repro-a.sums
 	cd $(REPRO_B) && find . -type f \( -name '*.hex' -o -name '*.elf' \) | sort | xargs sha256sum > $(CURDIR)/$(BUILD)/repro-b.sums
 	diff $(BUILD)/repro-a.sums $(BUILD)/repro-b.sums

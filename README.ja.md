@@ -121,7 +121,7 @@ ISP は何でも使えます。Arduino as ISP も可。フラッシュを先に�
 make size        # イメージサイズ。空きフラッシュが 256 バイト未満なら失敗
 make test        # ホストテスト、simavr コンソールモデルとスタック検査
 make analyse     # 整形、lint、型、ライセンス、MISRA、Python テスト
-make repro       # 2 回の新規ビルドがバイト単位で一致
+make repro       # リリースの全イメージを 2 回新規ビルドし、バイト単位で一致
 make mutate      # ロジック層のミューテーションテスト
 make mutate_platform  # run.c と engine.c のミューテーション、シミュレータで検出
 make bench_ci    # コンソールベンチ: 同じ模擬コンソールでこのファームウェアと PsNee を比較

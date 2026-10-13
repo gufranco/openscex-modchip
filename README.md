@@ -121,7 +121,7 @@ Verify with the [Makefile](Makefile) targets:
 make size        # image size; fails when less than 256 bytes of flash stay free
 make test        # host tests, simavr console model and its stack check
 make analyse     # formatting, lint, types, licences, MISRA and the Python tests
-make repro       # two fresh builds, byte-identical
+make repro       # every release image, built twice from clean, byte-identical
 make mutate      # mutation testing on the logic layer
 make mutate_platform  # mutation of run.c and engine.c, killed by the simulator
 make bench_ci    # console bench: this firmware against PsNee in the same simulated console
