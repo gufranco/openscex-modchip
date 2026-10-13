@@ -24,6 +24,10 @@ from pathlib import Path
 from tools.bench.chips import Chip
 from tools.bench.manifest import Artifact
 
+# A backstop for each git, assembler, compiler and binutils call, so a stalled
+# clone or tool cannot hold the bench until the job limit. No single step was
+# measured; the whole bench job took 22 min 44 s for 27 scenarios.
+TOOL_TIMEOUT_S = 600
 HEX_DATA = 0
 HEX_EXTENDED_SEGMENT = 2
 HEX_EXTENDED_LINEAR = 4
@@ -104,6 +108,7 @@ def assemble(root: Path, artifact: Artifact, chip: Chip) -> str | None:
             str(root / str(artifact.path)),
         ],
         capture_output=True,
+        timeout=TOOL_TIMEOUT_S,
         text=True,
         check=False,
     )
@@ -128,6 +133,7 @@ def assemble_avr(
         ["avra", "-I", AVRA_INCLUDES, source.name],
         cwd=workdir,
         capture_output=True,
+        timeout=TOOL_TIMEOUT_S,
         text=True,
         check=False,
     )
@@ -157,12 +163,18 @@ def _wrap_hex(text: str, root: Path, chip: Chip, workdir: Path) -> None:
         cwd=workdir,
         check=True,
         capture_output=True,
+        timeout=TOOL_TIMEOUT_S,
     )
 
 
 def _git(args: list[str], cwd: Path) -> str:
     return subprocess.run(
-        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
+        ["git", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        timeout=TOOL_TIMEOUT_S,
+        text=True,
     ).stdout.strip()
 
 
@@ -173,6 +185,7 @@ def checkout(artifact: Artifact, target: Path) -> str | None:
             ["git", "clone", "--quiet", str(artifact.url), str(target)],
             check=True,
             capture_output=True,
+            timeout=TOOL_TIMEOUT_S,
         )
     _git(["checkout", "--quiet", "--force", str(artifact.commit)], target)
     tree = _git(["rev-parse", "HEAD^{tree}"], target)
@@ -198,6 +211,7 @@ def _compile(source: Path, output: Path, includes: list[str]) -> None:
         ],
         check=True,
         capture_output=True,
+        timeout=TOOL_TIMEOUT_S,
     )
 
 
@@ -237,5 +251,6 @@ def build_ubernee(
         ],
         check=True,
         capture_output=True,
+        timeout=TOOL_TIMEOUT_S,
     )
     return None

@@ -4,7 +4,8 @@
 """Run chips through scenarios: prepare each firmware, play, measure.
 
 A chip whose firmware cannot be prepared is skipped with the reason. Every
-runner call has a timeout and a step limit.
+subprocess has a time limit: a runner's grows with the simulated time, every
+other tool has TOOL_TIMEOUT_S.
 """
 
 import json
@@ -17,6 +18,7 @@ from tools.bench.manifest import Artifact, Status, check, load
 from tools.bench.metrics import Metrics, measure
 from tools.bench.prepare import (
     ARDUINO_CORE,
+    TOOL_TIMEOUT_S,
     assemble,
     assemble_avr,
     avr_elf,
@@ -60,7 +62,12 @@ class Run:
 
 def _git(args: list[str], cwd: Path) -> str:
     return subprocess.run(
-        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
+        ["git", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        timeout=TOOL_TIMEOUT_S,
+        text=True,
     ).stdout.strip()
 
 
@@ -76,6 +83,7 @@ def build_psnee(root: Path, artifact: Artifact, workdir: Path) -> str | None:
             ["git", "clone", "--quiet", str(artifact.url), str(source)],
             check=True,
             capture_output=True,
+            timeout=TOOL_TIMEOUT_S,
         )
     _git(["checkout", "--quiet", "--force", str(artifact.commit)], source)
     tree = _git(["rev-parse", "HEAD^{tree}"], source)
@@ -103,6 +111,7 @@ def build_psnee(root: Path, artifact: Artifact, workdir: Path) -> str | None:
             ],
             check=True,
             capture_output=True,
+            timeout=TOOL_TIMEOUT_S,
         )
     return None
 
@@ -219,7 +228,11 @@ def program_addresses(root: Path, chip: Chip) -> frozenset[int]:
         words = {byte // 2 for byte in _hex_bytes(path)}
         return frozenset(word for word in words if word < limit)
     listing = subprocess.run(
-        ["avr-objdump", "-d", str(path)], check=True, capture_output=True, text=True
+        ["avr-objdump", "-d", str(path)],
+        check=True,
+        capture_output=True,
+        timeout=TOOL_TIMEOUT_S,
+        text=True,
     ).stdout
     return frozenset(
         address
@@ -285,6 +298,7 @@ def _source_lines(
         ["avr-addr2line", "-e", str(root / chip.firmware), *map(hex, addresses)],
         check=True,
         capture_output=True,
+        timeout=TOOL_TIMEOUT_S,
         text=True,
     ).stdout.splitlines()
     return parse_lines(addresses, printed, root)
