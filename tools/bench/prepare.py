@@ -22,18 +22,14 @@ import subprocess
 from pathlib import Path
 
 from tools.bench.chips import Chip
+from tools.bench.intelhex import memory
 from tools.bench.manifest import Artifact
 
 # A backstop for each git, assembler, compiler and binutils call, so a stalled
 # clone or tool cannot hold the bench until the job limit. No single step was
 # measured; the whole bench job took 22 min 44 s for 27 scenarios.
 TOOL_TIMEOUT_S = 600
-HEX_DATA = 0
-HEX_EXTENDED_SEGMENT = 2
-HEX_EXTENDED_LINEAR = 4
 ERASED = 0xFF
-SEGMENT_SHIFT = 4
-LINEAR_SHIFT = 16
 
 # Where Debian's avra package installs the Atmel part definition files.
 AVRA_INCLUDES = "/usr/share/avra"
@@ -66,22 +62,9 @@ CPP_FLAGS = (
 
 def hex_image(text: str) -> bytes:
     """Lay an Intel HEX file out as flash, gaps erased."""
-    memory: dict[int, int] = {}
-    base = 0
-    for line in text.split():
-        record = bytes.fromhex(line[1:])
-        count, offset, kind = record[0], (record[1] << 8) | record[2], record[3]
-        payload = record[4 : 4 + count]
-        if kind == HEX_DATA:
-            memory.update(
-                (base + offset + index, byte) for index, byte in enumerate(payload)
-            )
-        elif kind == HEX_EXTENDED_SEGMENT:
-            base = int.from_bytes(payload, "big") << SEGMENT_SHIFT
-        elif kind == HEX_EXTENDED_LINEAR:
-            base = int.from_bytes(payload, "big") << LINEAR_SHIFT
-    top = max(memory, default=-1) + 1
-    return bytes(memory.get(address, ERASED) for address in range(top))
+    filled = memory(text)
+    top = max(filled, default=-1) + 1
+    return bytes(filled.get(address, ERASED) for address in range(top))
 
 
 def edit_sketch(text: str) -> str:

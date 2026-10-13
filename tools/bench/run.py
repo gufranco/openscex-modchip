@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tools.bench.chips import Chip, Simulator
+from tools.bench.intelhex import memory
 from tools.bench.manifest import Artifact, Status, check, load
 from tools.bench.metrics import Metrics, measure
 from tools.bench.prepare import (
@@ -46,8 +47,6 @@ RUN_TIMEOUT_PER_SIM_S = 10
 NANOSECONDS_PER_SECOND = 1_000_000_000
 EXCLUSIONS = "bench/coverage-exclusions.json"
 SOURCE_GLOBS = ("src/*.c", "src/*.S", "include/**/*.h")
-HEX_DATA = 0
-HEX_EXTENDED_LINEAR_ADDRESS = 4
 
 
 @dataclass(frozen=True, slots=True)
@@ -239,7 +238,7 @@ def program_addresses(root: Path, chip: Chip) -> frozenset[int]:
     path = root / chip.firmware
     if chip.simulator is Simulator.PIC:
         limit = PROGRAM_WORDS[chip.cpu]
-        words = {byte // 2 for byte in _hex_bytes(path)}
+        words = {byte // 2 for byte in memory(path.read_text())}
         return frozenset(word for word in words if word < limit)
     listing = subprocess.run(
         ["avr-objdump", "-d", str(path)],
@@ -264,20 +263,6 @@ def _instruction_address(line: str) -> int | None:
         return int(address.strip(), 16)
     except ValueError:
         return None
-
-
-def _hex_bytes(path: Path) -> set[int]:
-    """Byte addresses an Intel HEX file fills, honouring extended addresses."""
-    addresses: set[int] = set()
-    base = 0
-    for line in path.read_text().split():
-        record = bytes.fromhex(line[1:])
-        count, offset, kind = record[0], (record[1] << 8) | record[2], record[3]
-        if kind == HEX_DATA:
-            addresses.update(base + offset + index for index in range(count))
-        elif kind == HEX_EXTENDED_LINEAR_ADDRESS:
-            base = ((record[4] << 8) | record[5]) << 16
-    return addresses
 
 
 def parse_lines(

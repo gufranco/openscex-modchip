@@ -27,7 +27,6 @@ from tools.bench.run import (
     RUN_TIMEOUT_PER_SIM_S,
     RUN_TIMEOUT_S,
     RUNNERS,
-    _hex_bytes,
     _instruction_address,
     build_psnee,
     check_events,
@@ -622,14 +621,3 @@ class ExclusionsTest(unittest.TestCase):
 
         self.assertGreater(len(excused), 0)
         self.assertLess(len(excused), len(addresses) // 10)
-
-
-class HexTest(unittest.TestCase):
-    def test_an_extended_address_record_moves_the_base(self) -> None:
-        with tempfile.TemporaryDirectory() as work:
-            path = Path(work) / "x.hex"
-            path.write_text(":020000040001F9\n:0100000000FF\n:00000001FF\n")
-
-            addresses = _hex_bytes(path)
-
-        self.assertEqual(addresses, {0x10000})

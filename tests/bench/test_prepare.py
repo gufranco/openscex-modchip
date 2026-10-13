@@ -109,7 +109,10 @@ class HexImageTest(unittest.TestCase):
         self.assertEqual(image, bytes([0xFF, 0xFF, 0x11]))
 
     def test_segment_and_linear_bases_move_the_records(self) -> None:
-        text = ":020000020001FB\n:0100000022DD\n:020000040000FA\n:0100010033CB\n"
+        text = (
+            ":020000020001FB\n:0100000022DD\n:020000040000FA\n:0100010033CB\n"
+            ":00000001FF\n"
+        )
 
         image = hex_image(text)
 
