@@ -4,8 +4,8 @@
 #ifndef PSCU_CONFIG_H
 #define PSCU_CONFIG_H
 
-// port.S includes this file too, so C-only declarations are hidden from the
-// assembler.
+// port.S includes this file too, for the profile switches, so C-only
+// declarations are hidden from the assembler.
 #ifndef __ASSEMBLER__
 #include <stdint.h>
 

@@ -8,6 +8,7 @@
 #include <avr/io.h>
 
 #include "port/registers.h"
+#include "pscu/config.h"
 
 // Delay loop iterations per millisecond, from F_CPU; the inner loop is 4 cycles.
 #define PSCU_DELAY_1MS_ITERS (F_CPU / 4000UL)
