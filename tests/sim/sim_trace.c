@@ -87,13 +87,33 @@ static int decode_serial(const trace_edges_t *edges, double bit_cycles, char *te
   return framing_ok ? len : -1;
 }
 
-void scenario_trace(const target_t *t, const char *elf, uint32_t freq) {
+// Count the decoded lines, how many are the lead-in frame, and whether every one
+// is 24 upper-case hex digits. strtok consumes text.
+static int read_lines(char *text, int *lines, int *toc_lines) {
+  int well_formed = 1;
+  *lines = 0;
+  *toc_lines = 0;
+  for (char *line = strtok(text, "\n"); line != NULL; line = strtok(NULL, "\n")) {
+    (*lines)++;
+    well_formed = well_formed && (strlen(line) == TRACE_LINE_CHARS) &&
+                  (strspn(line, "0123456789ABCDEF") == TRACE_LINE_CHARS);
+    *toc_lines += (strcmp(line, TRACE_TOC_HEX) == 0) ? 1 : 0;
+  }
+  return well_formed;
+}
+
+static avr_t *trace_boot(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
   g_edges.avr = avr;
   g_edges.count = 0;
   avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_trace_pin, &g_edges);
   boot_quiet(avr, t, 0, &ctx);
+  return avr;
+}
+
+void scenario_trace(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = trace_boot(t, elf, freq);
   clock_frames(avr, t, TRACE_TOC, TRACE_TOC_FRAMES);
   run_cycles(avr, ms_cycles(TRACE_TAIL_MS));
 
@@ -101,13 +121,7 @@ void scenario_trace(const target_t *t, const char *elf, uint32_t freq) {
   int len = decode_serial(&g_edges, (double)freq / (double)TRACE_BAUD, text, TRACE_TEXT_MAX);
   int lines = 0;
   int toc_lines = 0;
-  int well_formed = (len > 0);
-  for (char *line = strtok(text, "\n"); line != NULL; line = strtok(NULL, "\n")) {
-    lines++;
-    well_formed = well_formed && (strlen(line) == TRACE_LINE_CHARS) &&
-                  (strspn(line, "0123456789ABCDEF") == TRACE_LINE_CHARS);
-    toc_lines += (strcmp(line, TRACE_TOC_HEX) == 0) ? 1 : 0;
-  }
+  int well_formed = (len > 0) && read_lines(text, &lines, &toc_lines);
 
   char label[112];
   (void)snprintf(label,
@@ -118,4 +132,37 @@ void scenario_trace(const target_t *t, const char *elf, uint32_t freq) {
   (void)snprintf(
       label, sizeof(label), "trace: the lead-in frames arrive as sent (%d lines)", toc_lines);
   check((toc_lines >= TRACE_TOC_LINES_MIN) && (toc_lines <= TRACE_TOC_FRAMES), label);
+}
+
+// A lead-in long enough for several strings: the line must stay idle-high
+// through each one and carry no byte inside it, so every line after a string
+// still decodes (rule 7: the trace goes out in the gap after a frame, never
+// inside a string).
+#define TRACE_STRING_FRAMES 60
+
+void scenario_trace_strings(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = trace_boot(t, elf, freq);
+  clock_frames(avr, t, TRACE_TOC, TRACE_STRING_FRAMES);
+  run_cycles(avr, ms_cycles(TRACE_TAIL_MS));
+
+  int inside = 0;
+  for (int i = 0; i < g_edges.count; i++) {
+    inside += in_burst(g_edges.at[i], BIT_CYCLES(freq));
+  }
+  static char text[TRACE_TEXT_MAX];
+  int len = decode_serial(&g_edges, (double)freq / (double)TRACE_BAUD, text, TRACE_TEXT_MAX);
+  int lines = 0;
+  int toc_lines = 0;
+  int well_formed = (len > 0) && read_lines(text, &lines, &toc_lines);
+
+  char label[112];
+  (void)snprintf(label,
+                 sizeof(label),
+                 "trace: lines stay framed across %d strings (%d lines)",
+                 g_data_bursts,
+                 lines);
+  check((g_data_bursts >= 2) && well_formed && (len != -1), label);
+  (void)snprintf(
+      label, sizeof(label), "trace: no line goes out inside a string (%d edges inside)", inside);
+  check(inside == 0, label);
 }

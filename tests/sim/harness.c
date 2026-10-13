@@ -37,6 +37,7 @@ static uint64_t g_ddr_at[MAX_DDR_LOG];
 static uint8_t g_ddr_level[MAX_DDR_LOG];
 static int g_ddr_count = 0;
 static uint64_t g_burst_start[MAX_BURSTS];
+static uint64_t g_burst_end[MAX_BURSTS];
 uint32_t g_freq = 8000000U;
 // The SQCK half-period the harness clocks frames with, normally EDGE_NS.
 uint64_t g_edge_ns = EDGE_NS;
@@ -143,6 +144,9 @@ static void on_data_direction(struct avr_irq_t *irq, uint32_t value, void *param
     return;
   }
   g_data_last = avr->cycle;
+  if ((g_data_bursts > 0) && (g_data_bursts <= MAX_BURSTS)) {
+    g_burst_end[g_data_bursts - 1] = avr->cycle;
+  }
   if ((g_data_counted == 0) && ((g_data_last - g_data_start) >= ms_cycles(DATA_STRING_MIN_MS))) {
     g_strings++;
     g_data_counted = 1;
@@ -188,6 +192,16 @@ int decode_bursts(uint64_t bit_cycles, const char *expect) {
     matched += (strcmp(word, expect) == 0) ? 1 : 0;
   }
   return matched;
+}
+
+int in_burst(uint64_t cycle, uint64_t lead) {
+  int bursts = (g_data_bursts < MAX_BURSTS) ? g_data_bursts : MAX_BURSTS;
+  for (int b = 0; b < bursts; b++) {
+    if ((cycle + lead >= g_burst_start[b]) && (cycle <= g_burst_end[b])) {
+      return 1;
+    }
+  }
+  return 0;
 }
 
 int data_strays(const avr_t *avr) {

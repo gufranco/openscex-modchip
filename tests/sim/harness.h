@@ -144,6 +144,9 @@ int data_strays(const avr_t *avr);
 // per bit cell from the lamp rise that opened it, and count those equal to
 // `expect`.
 int decode_bursts(uint64_t bit_cycles, const char *expect);
+// Whether a cycle falls inside a DATA burst, from `lead` cycles before its first
+// drive to its last release; a string opens with a high-Z cell, so pass one bit.
+int in_burst(uint64_t cycle, uint64_t lead);
 
 // Check that the stack never came within SIM_STACK_MARGIN bytes of the data.
 void check_stack(void);

@@ -62,6 +62,7 @@ int main(int argc, char *argv[]) {
   // default (debug) image.
   scenario_profiles(&t85, elf, argv[4], argv[5], freq);
   scenario_trace(&t85, argv[5], freq);
+  scenario_trace_strings(&t85, argv[5], freq);
 
   // One image per region; the default image is the American one.
   scenario_region(&t85, elf, SCEA_BITS, "us", freq);

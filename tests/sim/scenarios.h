@@ -49,5 +49,7 @@ void scenario_profiles(const target_t *t,
                        uint32_t freq);
 // The trace profile's serial output (tests/sim/sim_trace.c).
 void scenario_trace(const target_t *t, const char *elf, uint32_t freq);
+// The trace line across a burst of strings.
+void scenario_trace_strings(const target_t *t, const char *elf, uint32_t freq);
 
 #endif

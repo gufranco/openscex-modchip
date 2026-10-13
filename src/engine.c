@@ -148,7 +148,10 @@ bool pscu_engine_capture_frame(uint8_t *frame) {
 }
 
 // Emit the configured region word, then release DATA, and on a gate board WFCK,
-// to high-Z. The lamp is set before the first cell and cleared after the last.
+// to high-Z. The lamp is set before the first cell and cleared after the last,
+// only when it was lit: in the trace build PB3 is a serial line that idles high,
+// and driving it low after a string would read as a break that garbles the next
+// line.
 void pscu_engine_inject(pscu_board_mode_t board, bool lamp) {
   PSCU_ASSERT((board == PSCU_BOARD_MODE_GATE) || (board == PSCU_BOARD_MODE_WFCK));
 
@@ -164,7 +167,9 @@ void pscu_engine_inject(pscu_board_mode_t board, bool lamp) {
   if (gate) {
     pscu_port_gate_release();
   }
-  pscu_port_indicator_off();
+  if (lamp) {
+    pscu_port_indicator_off();
+  }
 }
 
 pscu_calib_t pscu_engine_load_calib(void) {
