@@ -4,7 +4,9 @@
 """A runner's trace, read back into per-pin changes.
 
 Each line is `<time_ns> <output> <driven> <level>`; the last is
-`<time_ns> end 0 0`. Only DATA, the gate and `pull-<line>` states are kept.
+`<time_ns> end 0 0`. Only DATA, the gate and `pull-<line>` states are kept. A
+trace without its end line comes from a runner that stopped early, and is
+refused rather than measured as if the run were shorter.
 """
 
 from dataclasses import dataclass, field
@@ -12,6 +14,7 @@ from dataclasses import dataclass, field
 from tools.bench.decode import Change
 
 PULL_PREFIX = "pull-"
+FIELDS = 4
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,12 +28,18 @@ class Trace:
 
 
 def parse(lines: list[str]) -> Trace:
-    """Read the trace lines a runner wrote."""
+    """Read the trace lines a runner wrote; refuse a malformed line or a trace
+    with no end line."""
     pins: dict[str, list[Change]] = {"data": [], "gate": []}
     pulls: dict[str, list[Change]] = {}
-    end_ns = 0
-    for line in lines:
-        time_ns, name, driven, level = line.split()
+    end_ns: int | None = None
+    for number, line in enumerate(lines, start=1):
+        words = line.split()
+        if len(words) != FIELDS or not words[0].isdigit():
+            raise ValueError(
+                f"trace line {number}: expected time, output, driven, level"
+            )
+        time_ns, name, driven, level = words
         change = Change(int(time_ns), driven == "1", level == "1")
         if name == "end":
             end_ns = int(time_ns)
@@ -38,6 +47,8 @@ def parse(lines: list[str]) -> Trace:
             pins[name].append(change)
         elif name.startswith(PULL_PREFIX):
             pulls.setdefault(name.removeprefix(PULL_PREFIX), []).append(change)
+    if end_ns is None:
+        raise ValueError("trace has no end line: the runner stopped early")
     return Trace(pins["data"], pins["gate"], end_ns, pulls)
 
 
