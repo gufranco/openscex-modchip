@@ -10,6 +10,7 @@
 #include "avr_ioport.h"
 #include "sim_cycle_timers.h"
 #include "sim_elf.h"
+#include "sim_io.h"
 
 // The console model every scenario drives: the frame clock, the WFCK
 // carrier and the indicator recorder, plus the DATA decoder.
@@ -31,6 +32,8 @@ int g_data_drives = 0;
 int g_data_strays = 0;
 int g_data_bursts = 0;
 int g_lit_bursts = 0;
+int g_eeprom_writes = 0;
+int g_eeprom_mode_bad = 0;
 // Every change of DATA's direction bit after boot, and where each burst began,
 // so every string of a burst can be decoded after the run.
 static uint64_t g_ddr_at[MAX_DDR_LOG];
@@ -194,6 +197,20 @@ int decode_bursts(uint64_t bit_cycles, const char *expect) {
   return matched;
 }
 
+// Every EECR write that starts an EEPROM write (EEPE) is checked for the mode
+// it starts in: EEPM1:0 must be 00, erase and write, or the byte is only erased
+// or only programmed (datasheet 2586Q, EECR). simavr chains this hook after its
+// own EEPROM model, so the write itself still happens.
+static void on_eecr_write(avr_t *avr, avr_io_addr_t addr, uint8_t value, void *param) {
+  (void)avr;
+  (void)addr;
+  (void)param;
+  if ((value & SIM_EECR_EEPE) != 0U) {
+    g_eeprom_writes++;
+    g_eeprom_mode_bad += ((value & SIM_EECR_EEPM) != 0U) ? 1 : 0;
+  }
+}
+
 int in_burst(uint64_t cycle, uint64_t lead) {
   int bursts = (g_data_bursts < MAX_BURSTS) ? g_data_bursts : MAX_BURSTS;
   for (int b = 0; b < bursts; b++) {
@@ -348,6 +365,9 @@ avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
   g_data_bursts = 0;
   g_lit_bursts = 0;
   g_ddr_count = 0;
+  g_eeprom_writes = 0;
+  g_eeprom_mode_bad = 0;
+  avr_register_io_write(avr, SIM_EECR_ADDR, on_eecr_write, NULL);
   g_data_bit = t->data;
   g_lamp_bit = t->indicator;
   g_port = (uint32_t)t->port;

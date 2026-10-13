@@ -378,3 +378,25 @@ void scenario_torn_record(const target_t *t, const char *elf, uint32_t freq) {
               calib_valid(raw) && (raw[2] == CALIB_TRIGGER) && (raw[3] == 0U) && (raw[4] == 0U),
               "a torn record is replaced by the defaults at boot");
 }
+
+// EEPM1:0 come out of reset undefined, so the chip must clear them before its
+// first write. Start them at 01, erase only, and store a record.
+void scenario_eeprom_mode(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  avr->data[SIM_EECR_ADDR] = (uint8_t)(avr->data[SIM_EECR_ADDR] | 0x10U);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
+  boot_quiet(avr, t, 0, &ctx);
+  const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
+                                           0,     0,     0x02U, 0,     0,     0 };
+  clock_until_inject(avr, t, toc);
+  clock_frames(avr, t, play, CALIB_SETTLE_FRAMES);
+  char what[96];
+  (void)snprintf(what,
+                 sizeof(what),
+                 "every EEPROM write starts in erase-and-write mode (%d of %d bad)",
+                 g_eeprom_mode_bad,
+                 g_eeprom_writes);
+  calib_check(t, (g_eeprom_writes > 0) && (g_eeprom_mode_bad == 0), what);
+}

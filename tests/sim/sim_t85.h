@@ -16,6 +16,11 @@
 // OSCCAL at data address 0x51 (datasheet 2586Q, register summary). simavr has
 // no factory value, so a mid-range one is preset; writes do not change speed.
 #define SIM_OSCCAL_ADDR 0x51U
+// EECR, I/O 0x1C (datasheet 2586Q, register summary): EEPE is bit 1, EEPM1:0
+// bits 5:4, whose reset value the datasheet gives as undefined.
+#define SIM_EECR_ADDR 0x3CU
+#define SIM_EECR_EEPE 0x02U
+#define SIM_EECR_EEPM 0x30U
 // Timer1: TCCR1 at 0x50, TCNT1 at 0x4F (datasheet 2586Q, register summary).
 // simavr does not run it, so TCNT1 reads are computed from the cycle count:
 // CK divided by 2^(CS - 1).

@@ -46,6 +46,7 @@ int main(int argc, char *argv[]) {
   scenario_calib_missed(&t85, elf, freq);
   scenario_store_low_supply(&t85, elf, freq);
   scenario_torn_record(&t85, elf, freq);
+  scenario_eeprom_mode(&t85, elf, freq);
   scenario_gate(&t85, elf, freq, 0);
   scenario_gate(&t85, elf, freq, 1);
   scenario_string_gap(&t85, elf, freq);

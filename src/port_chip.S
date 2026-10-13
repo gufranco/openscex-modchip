@@ -93,12 +93,15 @@ pscu_port_eeprom_read:
 	ret
 	.endfunc
 
-// Set EEMPE, then EEPE within four cycles; interrupts are never enabled. Returns
-// once the write has started.
+// Clear EECR first: EEPM1:0 reset to an undefined value (datasheet 2586Q,
+// EECR), and anything but 00 would only erase or only program the byte. Then set
+// EEMPE, then EEPE within four cycles; interrupts are never enabled. Returns once
+// the write has started.
 	.global pscu_port_eeprom_write
 	.func pscu_port_eeprom_write
 pscu_port_eeprom_write:
 	rcall pscu_port_eeprom_wait
+	out _SFR_IO_ADDR(EECR), r1
 	out _SFR_IO_ADDR(EEARH), r1
 	out _SFR_IO_ADDR(EEARL), r24
 	out _SFR_IO_ADDR(EEDR), r22

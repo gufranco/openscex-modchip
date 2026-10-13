@@ -108,6 +108,9 @@ extern int g_data_strays;
 // DATA bursts, and those that began with the lamp already lit.
 extern int g_data_bursts;
 extern int g_lit_bursts;
+// EEPROM writes started, and those started with EEPM1:0 not 00.
+extern int g_eeprom_writes;
+extern int g_eeprom_mode_bad;
 extern uint32_t g_freq;
 extern uint64_t g_edge_ns;
 extern uint64_t g_frame_period_ns;
