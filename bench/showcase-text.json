@@ -34,9 +34,9 @@
         "zh": "反改机 v1 检测期间保持静默"
       },
       "mechanism": {
-        "en": "the game counts SCEx strings while playing the program area, where an original disc has none; any string there, even a partial one, means a modchip",
-        "ja": "ゲームはプログラム領域の再生中に SCEx 文字列を数える。正規ディスクではそこに文字列はなく、部分的な文字列でも 1 本あればモッドチップと判定される",
-        "zh": "游戏在播放程序区时统计 SCEx 字符串；正版光盘在那里没有字符串，哪怕只出现一段不完整的字符串也会被判定为改机芯片"
+        "en": "the game counts SCEx strings while playing the program area, where an original disc has none; any string it receives whole there means a modchip",
+        "ja": "ゲームはプログラム領域の再生中に SCEx 文字列を数える。正規ディスクではそこに文字列はなく、完全に受け取った文字列が 1 本でもあればモッドチップと判定される",
+        "zh": "游戏在播放程序区时统计 SCEx 字符串；正版光盘在那里没有字符串，只要完整收到一条字符串就会被判定为改机芯片"
       }
     },
     "antimod-v2-reauth": {
