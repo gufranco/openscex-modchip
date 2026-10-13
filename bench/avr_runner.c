@@ -300,6 +300,7 @@ int main(int argc, char **argv) {
   unsigned long long wfck_half_ns = 0;
   unsigned long long next_wfck_ns = 0;
   int wfck = 1;
+  int crashed = 0;
   for (uint64_t step = 0; step < max_steps && avr->cycle < end_cycle; step++) {
     unsigned long long now_ns = (unsigned long long)((double)avr->cycle * ns_per_cycle);
     while (next_event < event_count && events[next_event].time_ns <= now_ns) {
@@ -340,8 +341,12 @@ int main(int argc, char **argv) {
     if ((step % PULL_SAMPLE_STEPS) == 0U) {
       sample_pulls(avr, trace, ns_per_cycle);
     }
+    // A crash, such as a jump past the end of flash, makes the rest of the run
+    // meaningless, so the runner fails. A core that stopped cleanly, sleeping
+    // with interrupts off, is the image's own behaviour and is measured.
     if (state == cpu_Crashed || state == cpu_Done) {
       fprintf(stderr, "cpu stopped at cycle %llu\n", (unsigned long long)avr->cycle);
+      crashed = state == cpu_Crashed;
       break;
     }
   }
@@ -361,5 +366,5 @@ int main(int argc, char **argv) {
   fclose(coverage);
   free(executed);
   free(events);
-  return 0;
+  return crashed ? 3 : 0;
 }

@@ -206,6 +206,33 @@ class EventCountTest(unittest.TestCase):
         self.assertEqual(events_read(done.stdout), events)
 
 
+# An AVR image that calls past the end of flash, which simavr reports as a crash.
+CRASH_C = "int main(void) {\n  ((void (*)(void))0x3FFF)();\n  return 0;\n}\n"
+
+
+class AvrCrashTest(unittest.TestCase):
+    def test_a_crashing_image_fails_the_run(self) -> None:
+        # Arrange
+        ours = by_name("ours")
+        with tempfile.TemporaryDirectory() as work:
+            folder = Path(work)
+            (folder / "crash.c").write_text(CRASH_C)
+            subprocess.run(
+                ["avr-gcc", "-mmcu=attiny85", "-Os", "-o", "crash.elf", "crash.c"],
+                cwd=folder,
+                check=True,
+                capture_output=True,
+            )
+            chip = replace(ours, name="crash", firmware=str(folder / "crash.elf"))
+
+            # Act
+            def act() -> None:
+                run(ROOT, chip, scenario("no-disc"), folder)
+
+            # Assert
+            self.assertRaises(subprocess.CalledProcessError, act)
+
+
 class PicRunnerTest(unittest.TestCase):
     def test_a_pic_program_drives_data_and_is_measured(self) -> None:
         with tempfile.TemporaryDirectory() as work:
