@@ -5,6 +5,11 @@ FROM debian:trixie@sha256:913f6706df59a68922d1dd08f78c2476560a8d367897200a6005b0
 
 ARG CPPCHECK_VERSION=2.22.0
 ARG CPPCHECK_SHA256=d74945deb2d50393430e07596b766f8a779512c7f60dac2a30ea64e059ece57b
+# actionlint's release binaries, one digest per architecture, from the
+# release's own checksums file.
+ARG ACTIONLINT_VERSION=1.7.12
+ARG ACTIONLINT_SHA256_AMD64=8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+ARG ACTIONLINT_SHA256_ARM64=325e971b6ba9bfa504672e29be93c24981eeb1c07576d730e9f7c8805afff0c6
 
 # All packages come from one dated Debian snapshot, so unpinned ones resolve
 # the same everywhere. Snapshots have expired Valid-Until dates; signatures are
@@ -55,6 +60,7 @@ RUN apt-get update \
       ca-certificates \
       git \
       libmagic1 \
+      shellcheck \
  && rm -rf /var/lib/apt/lists/*
 
 # cppcheck from its release tarball. USE_BOOST=Off avoids the warning Auto
@@ -66,6 +72,18 @@ RUN curl -fsSL -o /tmp/cppcheck.tar.gz "https://github.com/danmar/cppcheck/archi
  && cmake --build /tmp/cppcheck-build --parallel 2 \
  && cmake --install /tmp/cppcheck-build \
  && rm -rf /tmp/cppcheck.tar.gz "/tmp/cppcheck-${CPPCHECK_VERSION}" /tmp/cppcheck-build
+
+# actionlint checks the workflows, and runs shellcheck on their run steps.
+RUN arch="$(dpkg --print-architecture)" \
+ && case "$arch" in \
+      amd64) sum="${ACTIONLINT_SHA256_AMD64}" ;; \
+      arm64) sum="${ACTIONLINT_SHA256_ARM64}" ;; \
+      *) echo "no actionlint digest for $arch" >&2; exit 1 ;; \
+    esac \
+ && curl -fsSL -o /tmp/actionlint.tar.gz "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_${arch}.tar.gz" \
+ && echo "${sum}  /tmp/actionlint.tar.gz" | sha256sum -c - \
+ && tar -xzf /tmp/actionlint.tar.gz -C /usr/local/bin actionlint \
+ && rm -f /tmp/actionlint.tar.gz
 
 # Hash-locked Python tools in a venv, kept apart from Debian's packages. The
 # venv is first on PATH, so the Makefile's python3 sees them.

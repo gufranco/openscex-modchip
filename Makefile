@@ -257,6 +257,8 @@ analyse: all bench_runners
 	ruff format --check
 	mypy --strict tools tests
 	yamllint -s .
+	actionlint
+	shellcheck .github/scripts/*.sh .githooks/commit-msg .githooks/pre-commit
 	reuse lint
 	$(MAKE) misra
 	COVERAGE_FILE=$(BUILD)/.coverage $(PYTHON) -m coverage run --branch --source=tools -m unittest discover -s tests -t . -p 'test_*.py'
