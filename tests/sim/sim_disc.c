@@ -49,10 +49,8 @@ void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq) {
   md_check(t, after_accept == 0, "no string once the program area is read", after_accept);
 
   int reread = strings_while(avr, t, toc, MD_REREAD_FRAMES);
-  md_check(t,
-           (reread >= 1) && (reread <= MD_CAP),
-           "a long TOC re-read of the same disc is served again, within the cap",
-           reread);
+  md_check(
+      t, reread == MD_CAP, "a long TOC re-read of the same disc gets the whole cap again", reread);
   clock_frames(avr, t, play, MD_SETTLE_FRAMES);
   int replay = strings_while(avr, t, play, MD_PLAY_FRAMES);
   md_check(t, replay == 0, "play after the re-read stays silent", replay);

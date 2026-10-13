@@ -108,6 +108,10 @@ extern int g_data_strays;
 // DATA bursts, and those that began with the lamp already lit.
 extern int g_data_bursts;
 extern int g_lit_bursts;
+// When set, build_avr calls this once the image is loaded and before its first
+// instruction, so a scenario can hook a register the boot code writes.
+extern void (*g_on_build)(avr_t *avr, void *param);
+extern void *g_on_build_param;
 // EEPROM writes started, and those started with EEPM1:0 not 00.
 extern int g_eeprom_writes;
 extern int g_eeprom_mode_bad;

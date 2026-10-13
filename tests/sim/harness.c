@@ -33,6 +33,8 @@ int g_data_strays = 0;
 int g_data_bursts = 0;
 int g_lit_bursts = 0;
 int g_eeprom_writes = 0;
+void (*g_on_build)(avr_t *avr, void *param) = NULL;
+void *g_on_build_param = NULL;
 int g_eeprom_mode_bad = 0;
 // Every change of DATA's direction bit after boot, and where each burst began,
 // so every string of a burst can be decoded after the run.
@@ -378,6 +380,9 @@ avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
       avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ((uint32_t)t->port), IOPORT_IRQ_DIRECTION_ALL),
       on_data_direction,
       avr);
+  if (g_on_build != NULL) {
+    g_on_build(avr, g_on_build_param);
+  }
   run_cycles(avr, PORT_INIT_CYCLES);
   return avr;
 }

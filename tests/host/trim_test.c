@@ -16,6 +16,11 @@
 #define EXPECTED 6666U
 #define BAND 66U
 
+// Rule 8's trim limits, pinned: at most 4 notches per batch and 16 from the
+// factory value (README, oscillator trim).
+_Static_assert(PSCU_TRIM_MAX_STEP == 4, "a batch moves OSCCAL at most four notches");
+_Static_assert(PSCU_TRIM_MAX_OFFSET == 16, "the trim stays within 16 notches of the factory value");
+
 static pscu_check_fn g_check;
 
 static pscu_trim_ref_t ref(void) {

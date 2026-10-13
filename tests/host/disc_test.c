@@ -12,6 +12,11 @@
 // Host tests for disc presence without a lid wire: gone only after a real
 // stretch of silence, and a valid frame ends that stretch at once.
 
+// Rule 5's disc-gone bound, pinned so a change to it fails the build instead of
+// passing every case that uses the symbol: 1.5 s, longer than any seek or
+// reread pause and shorter than a disc swap.
+_Static_assert(PSCU_DISC_GONE_MS == 1500U, "a disc is gone after 1.5 s without a frame");
+
 static pscu_check_fn g_check;
 
 static void test_valid_frames(void) {

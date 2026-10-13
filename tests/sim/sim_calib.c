@@ -189,6 +189,10 @@ static void watch_osccal(avr_t *avr, osccal_watch_t *watch) {
   avr->io[AVR_DATA_TO_IO(SIM_OSCCAL_ADDR)].w.param = watch;
 }
 
+static void watch_osccal_hook(avr_t *avr, void *param) {
+  watch_osccal(avr, (osccal_watch_t *)param);
+}
+
 static void trim_case(const target_t *t, const char *elf, uint32_t freq, int percent) {
   uint32_t actual = (uint32_t)(((uint64_t)freq * (uint64_t)(100 + percent)) / 100U);
   avr_t *avr = build_avr(t, elf, actual);
@@ -241,12 +245,26 @@ void scenario_trim(const target_t *t, const char *elf, uint32_t freq) {
   trim_case(t, elf, freq, -5);
   trim_case(t, elf, freq, 0);
 
-  seed_calib(0U, CALIB_TRIGGER, 0U, -3);
+  // The stored trim at its limit, replayed at boot under a watch installed before
+  // the first instruction: 16 writes of one notch each (rule 8).
+  seed_calib(0U, CALIB_TRIGGER, 0U, -16);
+  osccal_watch_t boot = { 0U, 0U, 0U, 0U, 0U };
+  g_on_build = watch_osccal_hook;
+  g_on_build_param = &boot;
   avr_t *avr = build_avr(t, elf, freq);
+  g_on_build = NULL;
+  g_on_build_param = NULL;
   wfck_ctx_t ctx = { NULL, 1U, 0U };
   boot_quiet(avr, t, 0, &ctx);
-  calib_check(
-      t, osccal(avr) == (uint8_t)(SIM_OSCCAL_FACTORY - 3U), "the stored trim is applied at boot");
+  char what[96];
+  (void)snprintf(what,
+                 sizeof(what),
+                 "the stored trim is replayed at boot one notch per write (%u writes)",
+                 boot.writes);
+  calib_check(t,
+              (osccal(avr) == (uint8_t)(SIM_OSCCAL_FACTORY - 16U)) && (boot.largest_step == 1U) &&
+                  (boot.writes == 16U),
+              what);
 }
 
 // The supply guard. simavr's bandgap reads 225 at 5 V, 341 at 3.3 V and 401 at
