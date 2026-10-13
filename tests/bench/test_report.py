@@ -18,35 +18,45 @@ from tools.bench.scenarios import by_name as scenario
 
 class CoverageTest(unittest.TestCase):
     def test_every_instruction_executed_is_full_coverage(self) -> None:
+        # Act
         result = coverage(
             "c", frozenset({0, 2, 4}), [frozenset({0, 2}), frozenset({4})]
         )
 
+        # Assert
         self.assertEqual((result.executed, result.total), (3, 3))
         self.assertEqual(result.uncovered, ())
         self.assertEqual(result.percent, 100.0)
 
     def test_adjacent_unexecuted_instructions_merge_into_one_range(self) -> None:
+        # Act
         result = coverage("c", frozenset({0, 2, 6, 8, 12}), [frozenset({0, 12})])
 
+        # Assert
         self.assertEqual(result.uncovered, ((2, 8),))
         self.assertEqual(result.executed, 2)
 
     def test_execution_outside_the_image_is_not_counted(self) -> None:
+        # Act
         result = coverage("c", frozenset({0, 1}), [frozenset({0, 1, 0x1FF})])
 
+        # Assert
         self.assertEqual(result.executed, 2)
 
     def test_an_empty_image_is_fully_reached_without_dividing_by_zero(self) -> None:
+        # Act
         result = coverage("c", frozenset(), [])
 
+        # Assert
         self.assertEqual(result.percent, 100.0)
 
     def test_excused_instructions_leave_the_uncovered_ranges(self) -> None:
+        # Act
         result = coverage(
             "c", frozenset({0, 2, 4, 6}), [frozenset({0})], {2: "why", 4: "why"}
         )
 
+        # Assert
         self.assertEqual(result.uncovered, ((6, 6),))
         self.assertEqual(result.excluded, (("why", 2),))
         self.assertEqual(result.percent, 75.0)
@@ -59,81 +69,109 @@ class RenderTest(unittest.TestCase):
         )
 
     def test_a_run_appears_as_a_row_with_its_chip_and_scenario(self) -> None:
+        # Act
         text = render([self.ours], {}, [], [])
 
+        # Assert
         self.assertIn("| ours | carrier-accept | yes |", text)
 
     def test_a_row_carries_the_reread_strings_and_the_probe_drive(self) -> None:
+        # Arrange
         metrics = replace(BASE, reread_valid=3, probe_strings=2)
         run = replace(self.ours, metrics=metrics)
 
+        # Act
         text = render([run], {}, [], [])
 
+        # Assert
         self.assertIn("| 0.000 | 3 | 2 | 0.000 | 0.000 | all |", text)
 
     def test_each_row_says_whether_the_chip_supports_the_boards(self) -> None:
+        # Arrange
         early_only = replace(by_name("mayumi-v4"), boards=frozenset({Board.PU_7}))
         mayumi = Run(early_only, scenario("gate-accept-early"), BASE, frozenset())
         carrier = Run(by_name("mayumi-v4"), scenario("no-disc"), BASE, frozenset())
 
+        # Act
         text = render([self.ours, mayumi, carrier], {}, [], [])
 
+        # Assert
         self.assertRegex(text, r"\| ours \| carrier-accept \|.*\| all \|\n")
         self.assertRegex(text, r"\| mayumi-v4 \| gate-accept-early \|.*\| partly \|\n")
         self.assertRegex(text, r"\| mayumi-v4 \| no-disc \|.*\| all \|\n")
 
     def test_a_chip_made_for_none_of_the_boards_says_so(self) -> None:
+        # Arrange
         stranger = replace(by_name("ours"), name="stranger", boards=frozenset())
         run = Run(stranger, scenario("gate-accept"), BASE, frozenset())
 
+        # Act
         text = render([run], {}, [], [])
 
+        # Assert
         self.assertRegex(text, r"\| stranger \| gate-accept \|.*\| none \|\n")
 
     def test_a_skipped_chip_is_listed_with_its_reason(self) -> None:
+        # Act
         text = render([], {"mayumi-v4": "image missing; see quade.co"}, [], [])
 
+        # Assert
         self.assertIn("mayumi-v4: image missing; see quade.co", text)
 
     def test_a_failed_rule_is_listed_with_its_bounds(self) -> None:
+        # Arrange
         finding = Finding("swap", "during_play", Verdict.BROKEN, 5, None, 3)
 
+        # Act
         text = render([], {}, [finding], [])
 
+        # Assert
         self.assertIn("| swap | during_play | broken | 5 | - | 3 |", text)
 
     def test_the_verdict_counts_are_summarised(self) -> None:
+        # Arrange
         findings = [
             Finding("a", "x", Verdict.MET, 1, None, 1),
             Finding("a", "y", Verdict.UNCHECKED, 1, None, None),
         ]
 
+        # Act
         text = render([], {}, findings, [])
 
+        # Assert
         self.assertIn("1 met, 0 broken, 1 unchecked", text)
 
     def test_coverage_lists_each_uncovered_range(self) -> None:
+        # Arrange
         result = coverage("ours", frozenset({0, 2, 4}), [frozenset({0})])
 
+        # Act
         text = render([], {}, [], [result])
 
+        # Assert
         self.assertIn("| ours | 1 | 0 | 3 | 33.3 |", text)
         self.assertIn("ours: 0x2-0x4", text)
 
     def test_one_uncovered_instruction_never_reads_as_whole(self) -> None:
+        # Arrange
         image = frozenset(range(0, 2 * 3802, 2))
         result = coverage("ours", image, [image - {0}])
 
+        # Act
         text = render([], {}, [], [result])
 
+        # Assert
         self.assertIn("| ours | 3801 | 0 | 3802 | 99.9 |", text)
 
     def test_coverage_lists_each_reason_with_its_count(self) -> None:
+        # Arrange
         result = coverage(
             "ours", frozenset({0, 2}), [frozenset({0})], {2: "a stuck ADC"}
         )
 
+        # Act
         text = render([], {}, [], [result])
 
+        # Assert
         self.assertIn("| ours | 1 | 1 | 2 | 100.0 |", text)
         self.assertIn("- ours, 1: a stuck ADC", text)

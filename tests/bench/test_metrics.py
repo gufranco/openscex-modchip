@@ -48,6 +48,7 @@ PHASES = {
 
 class MeasureTest(unittest.TestCase):
     def test_strings_are_counted_by_phase(self) -> None:
+        # Arrange
         data = (
             string_at(int(1.5 * SECOND))
             + string_at(2 * SECOND)
@@ -56,8 +57,10 @@ class MeasureTest(unittest.TestCase):
         )
         trace = trace_of(data, [], 9 * SECOND)
 
+        # Act
         metrics = measure(trace, PHASES, Region.AMERICA)
 
+        # Assert
         self.assertEqual(metrics.strings, 4)
         self.assertEqual(metrics.valid, 4)
         self.assertEqual(metrics.before_program, 2)
@@ -67,50 +70,65 @@ class MeasureTest(unittest.TestCase):
         self.assertEqual(metrics.first_latency_ns, SECOND // 2)
 
     def test_a_string_before_the_lead_in_is_counted_apart(self) -> None:
+        # Arrange
         trace = trace_of(string_at(0) + string_at(2 * SECOND), [], 5 * SECOND)
 
+        # Act
         metrics = measure(trace, PHASES, Region.AMERICA)
 
+        # Assert
         self.assertEqual(metrics.before_lead_in, 1)
         self.assertEqual(metrics.before_program, 1)
 
     def test_a_wrong_region_neither_counts_as_valid_nor_accepts(self) -> None:
+        # Arrange
         trace = trace_of(
             string_at(2 * SECOND, region_bits(Region.EUROPE)), [], 5 * SECOND
         )
 
+        # Act
         metrics = measure(trace, PHASES, Region.AMERICA)
 
+        # Assert
         self.assertEqual((metrics.valid, metrics.garbled), (0, 0))
         self.assertFalse(metrics.would_accept)
         self.assertIsNone(metrics.first_latency_ns)
 
     def test_a_string_that_ends_after_the_program_mark_does_not_accept(self) -> None:
+        # Arrange
         trace = trace_of(string_at(3 * SECOND - CELL), [], 5 * SECOND)
 
+        # Act
         metrics = measure(trace, PHASES, Region.AMERICA)
 
+        # Assert
         self.assertFalse(metrics.would_accept)
 
     def test_a_garbled_string_is_counted(self) -> None:
+        # Arrange
         bits = region_bits(Region.AMERICA)[:30] + "0"
 
+        # Act
         metrics = measure(
             trace_of(string_at(2 * SECOND, bits), [], 5 * SECOND),
             PHASES,
             Region.AMERICA,
         )
 
+        # Assert
         self.assertEqual(metrics.garbled, 1)
 
     def test_no_string_leaves_cell_figures_empty(self) -> None:
+        # Act
         metrics = measure(trace_of([], [], 5 * SECOND), PHASES, Region.AMERICA)
 
+        # Assert
         self.assertEqual(metrics.strings, 0)
         self.assertIsNone(metrics.cell_min_ns)
         self.assertIsNone(metrics.carrier)
 
     def test_drive_outside_strings_and_gate_drive_are_timed(self) -> None:
+        # Arrange
         data = [
             Change(0, True, False),
             Change(100, False, False),
@@ -118,13 +136,16 @@ class MeasureTest(unittest.TestCase):
         ]
         gate = [Change(10, True, False), Change(60, False, False)]
 
+        # Act
         metrics = measure(trace_of(data, gate, 5 * SECOND), PHASES, Region.AMERICA)
 
+        # Assert
         self.assertEqual(metrics.data_driven_outside_ns, 100)
         self.assertEqual(metrics.gate_driven_ns, 50)
         self.assertEqual(metrics.cell_min_ns, CELL)
 
     def test_strings_inside_the_probe_window_are_counted_apart(self) -> None:
+        # Arrange
         phases = {
             **PHASES,
             Phase.PROBE: 8 * SECOND,
@@ -138,23 +159,29 @@ class MeasureTest(unittest.TestCase):
             + string_at(int(10.5 * SECOND))
         )
 
+        # Act
         metrics = measure(trace_of(data, [], 12 * SECOND), phases, Region.AMERICA)
 
+        # Assert
         self.assertEqual(metrics.probe_strings, 2)
 
     def test_a_held_line_without_a_string_counts_nothing_in_the_probe(
         self,
     ) -> None:
+        # Arrange
         phases = {**PHASES, Phase.PROBE: 8 * SECOND, Phase.AFTER_PROBE: 10 * SECOND}
         data = [Change(7 * SECOND, True, False), Change(11 * SECOND, False, False)]
 
+        # Act
         metrics = measure(trace_of(data, [], 12 * SECOND), phases, Region.AMERICA)
 
+        # Assert
         self.assertEqual(metrics.probe_strings, 0)
 
     def test_only_valid_strings_in_the_reread_count_as_reauthentication(
         self,
     ) -> None:
+        # Arrange
         europe = region_bits(Region.EUROPE)
         data = (
             string_at(2 * SECOND)
@@ -162,12 +189,15 @@ class MeasureTest(unittest.TestCase):
             + string_at(7 * SECOND, europe)
         )
 
+        # Act
         metrics = measure(trace_of(data, [], 9 * SECOND), PHASES, Region.AMERICA)
 
+        # Assert
         self.assertEqual(metrics.during_reread, 2)
         self.assertEqual(metrics.reread_valid, 1)
 
     def test_gate_drive_outside_strings_and_pull_ups_are_timed(self) -> None:
+        # Arrange
         start = 2 * SECOND
         end = start + 44 * CELL
         gate = [
@@ -179,37 +209,48 @@ class MeasureTest(unittest.TestCase):
         pulls = {"sqck": [Change(0, True, True), Change(700, False, False)]}
         trace = trace_of(string_at(start), gate, 5 * SECOND, pulls)
 
+        # Act
         metrics = measure(trace, PHASES, Region.AMERICA)
 
+        # Assert
         self.assertEqual(metrics.gate_driven_outside_ns, 200)
         self.assertEqual(metrics.pulled_ns, 700)
 
     def test_a_gate_held_between_strings_counts_beyond_the_margins(self) -> None:
+        # Arrange
         start = 2 * SECOND
         second = start + 74 * CELL
         gate = [Change(start, True, False), Change(second + 44 * CELL, False, False)]
         trace = trace_of(string_at(start) + string_at(second), gate, 5 * SECOND)
 
+        # Act
         metrics = measure(trace, PHASES, Region.AMERICA)
 
+        # Assert
         self.assertEqual(metrics.gate_driven_outside_ns, 30 * CELL - 2 * GATE_MARGIN_NS)
 
 
 class FramedTest(unittest.TestCase):
     def test_spans_closer_than_two_margins_merge(self) -> None:
+        # Arrange
         spans = [(100_000_000, 200_000_000), (205_000_000, 300_000_000)]
 
+        # Act
         merged = framed(spans)
 
+        # Assert
         self.assertEqual(
             merged, [(100_000_000 - GATE_MARGIN_NS, 300_000_000 + GATE_MARGIN_NS)]
         )
 
     def test_distant_spans_stay_apart(self) -> None:
+        # Arrange
         spans = [(100_000_000, 200_000_000), (300_000_000, 400_000_000)]
 
+        # Act
         merged = framed(spans)
 
+        # Assert
         self.assertEqual(len(merged), 2)
 
     def test_strings_in_play_after_a_second_lead_in_or_the_probe_count_as_second_play(

@@ -74,6 +74,7 @@ def archived(name: str) -> set[str]:
 
 class ParsingTest(unittest.TestCase):
     def test_a_symbol_kept_out_of_the_bom_is_not_a_reference(self) -> None:
+        # Arrange
         text = (
             '(symbol (lib_id "Device:R") (in_bom yes)'
             ' (property "Reference" "R1")\n'
@@ -81,35 +82,46 @@ class ParsingTest(unittest.TestCase):
             ' (property "Reference" "TP1")\n'
         )
 
+        # Act
         found = schematic_references(text)
 
+        # Assert
         self.assertEqual(found, {"R1"})
 
     def test_a_library_copy_is_not_a_placed_symbol(self) -> None:
+        # Arrange
         text = (
             '(lib_symbols (symbol "Device:R" (in_bom yes)'
             ' (property "Reference" "R")))\n'
         )
 
+        # Act
         found = schematic_references(text)
 
+        # Assert
         self.assertEqual(found, set())
 
     def test_a_grouped_bom_row_counts_each_reference(self) -> None:
+        # Arrange
         text = '"References","Qty","Value"\n"R1,R2","2","1k"\n"C1","1","100nF"\n'
 
+        # Act
         refs, quantity = bom_references(text)
 
+        # Assert
         self.assertEqual((refs, quantity), ({"R1", "R2", "C1"}, 3))
 
 
 class BoardTest(unittest.TestCase):
     def test_there_are_boards_to_check(self) -> None:
+        # Act
         names = boards()
 
+        # Assert
         self.assertEqual(names, ["openscex-bare", "openscex-carrier", "openscex-mini"])
 
     def test_every_board_has_a_bom_matching_its_schematic(self) -> None:
+        # Act
         mismatched = {}
         for name in boards():
             schematic = (HARDWARE / f"{name}.kicad_sch").read_text()
@@ -118,9 +130,11 @@ class BoardTest(unittest.TestCase):
             if refs != wanted or quantity != len(wanted):
                 mismatched[name] = (sorted(wanted), sorted(refs), quantity)
 
+        # Assert
         self.assertEqual(mismatched, {})
 
     def test_every_board_has_a_complete_fabrication_archive(self) -> None:
+        # Act
         missing = {}
         for name in boards():
             members = archived(name)
@@ -128,4 +142,5 @@ class BoardTest(unittest.TestCase):
             if absent:
                 missing[name] = absent
 
+        # Assert
         self.assertEqual(missing, {})

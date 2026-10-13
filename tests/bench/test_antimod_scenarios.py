@@ -25,35 +25,44 @@ def scenario(name: str) -> Scenario:
 
 class AntimodScenarioTest(unittest.TestCase):
     def test_both_versions_cover_every_board_family(self) -> None:
+        # Act
         boards = {
             version: [s.boards for s in ANTIMOD_SCENARIOS if version in s.name]
             for version in ("v1", "v2")
         }
 
+        # Assert
         expected = [CARRIER_BOARDS, EARLY_GATE_BOARDS, LATE_GATE_BOARDS]
         self.assertEqual(boards, {"v1": expected, "v2": expected})
 
     def test_every_probe_window_lasts_the_probe(self) -> None:
+        # Act
         spans = {
             s.name: s.phases[Phase.AFTER_PROBE] - s.phases[Phase.PROBE]
             for s in ANTIMOD_SCENARIOS
         }
 
+        # Assert
         self.assertEqual(set(spans.values()), {PROBE_FRAMES * FRAME_NS})
 
     def test_only_the_second_version_rereads_the_lead_in(self) -> None:
+        # Act
         rereads = {s.name: Phase.REREAD in s.phases for s in ANTIMOD_SCENARIOS}
 
+        # Assert
         self.assertEqual(
             {name for name, reread in rereads.items() if reread},
             {s.name for s in ANTIMOD_SCENARIOS if "v2" in s.name},
         )
 
     def test_the_reread_comes_after_play_and_before_the_probe(self) -> None:
+        # Arrange
         phases = scenario("antimod-v2-carrier").phases
 
+        # Act
         order = sorted(phases, key=phases.__getitem__)
 
+        # Assert
         self.assertEqual(
             order,
             [
@@ -67,9 +76,11 @@ class AntimodScenarioTest(unittest.TestCase):
         )
 
     def test_a_gate_board_plays_the_probe_at_single_speed(self) -> None:
+        # Arrange
         timeline = scenario("antimod-v1-gate").build()
         probe = scenario("antimod-v1-gate").phases[Phase.PROBE]
 
+        # Act
         levels = [e.value for e in timeline.events if e.signal is Signal.SENSE]
         last_before = [
             e.value
@@ -77,10 +88,13 @@ class AntimodScenarioTest(unittest.TestCase):
             if e.signal is Signal.SENSE and e.time_ns <= probe
         ][-1]
 
+        # Assert
         self.assertIn(DOUBLE_SPEED, levels)
         self.assertEqual(last_before, SINGLE_SPEED)
 
     def test_no_antimod_scenario_is_judged_against_the_envelope(self) -> None:
+        # Act
         judged = [s.name for s in ANTIMOD_SCENARIOS if s.judged]
 
+        # Assert
         self.assertEqual(judged, [])

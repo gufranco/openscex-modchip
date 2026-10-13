@@ -28,8 +28,10 @@ def write_manifest(root: Path, content: bytes) -> None:
 
 class LoadTest(unittest.TestCase):
     def test_the_project_manifest_loads_every_entry(self) -> None:
+        # Act
         artifacts = load(ROOT)
 
+        # Assert
         self.assertIn("mayumi-v4-12c508a-usa", artifacts)
         self.assertEqual(artifacts["psnee-v9"].license, "Unlicense")
         self.assertTrue(artifacts["psnee-v9"].redistributable)
@@ -173,22 +175,29 @@ class CheckTest(unittest.TestCase):
         self.assertEqual((result.status, result.data), (Status.READY, b"good image"))
 
     def test_a_missing_file_says_where_and_how_to_get_it(self) -> None:
+        # Act
         result = check(self.root, load(self.root)["chip-x"])
 
+        # Assert
         self.assertIs(result.status, Status.MISSING)
         self.assertIn("images/chip.hex", result.message)
         self.assertIn("download chip-x", result.message)
 
     def test_different_bytes_name_both_hashes(self) -> None:
+        # Arrange
         (self.root / "images" / "chip.hex").write_bytes(b"other image")
 
+        # Act
         result = check(self.root, load(self.root)["chip-x"])
 
+        # Assert
         self.assertIs(result.status, Status.MISMATCH)
         self.assertIn(hashlib.sha256(b"good image").hexdigest(), result.message)
         self.assertIn(hashlib.sha256(b"other image").hexdigest(), result.message)
 
     def test_a_source_entry_is_not_a_file_to_check(self) -> None:
+        # Act
         result = check(ROOT, load(ROOT)["psnee-v9"])
 
+        # Assert
         self.assertIs(result.status, Status.READY)

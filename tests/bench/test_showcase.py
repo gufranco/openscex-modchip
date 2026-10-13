@@ -7,6 +7,7 @@ results file, and the README tables written from it."""
 import tempfile
 import unittest
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 
 from tests.bench.test_envelope import BASE
@@ -44,49 +45,64 @@ def outcome(results: dict[str, dict[str, Outcome]], name: str, key: str) -> Outc
 
 class EvaluateTest(unittest.TestCase):
     def test_a_chip_driving_data_in_the_probe_is_detected(self) -> None:
+        # Arrange
         runs = [
             run("psnee-attiny85", "antimod-v1-carrier", replace(BASE, probe_strings=5))
         ]
 
+        # Act
         results = evaluate(runs)
 
+        # Assert
         self.assertEqual(
             outcome(results, "psnee-attiny85", "antimod-v1"), Outcome.FAILED
         )
 
     def test_a_silent_probe_passes(self) -> None:
+        # Arrange
         runs = [run("ours", "antimod-v1-carrier", replace(BASE, probe_strings=0))]
 
+        # Act
         results = evaluate(runs)
 
+        # Assert
         self.assertEqual(outcome(results, "ours", "antimod-v1"), Outcome.HELD)
 
     def test_one_failing_board_fails_the_property(self) -> None:
+        # Arrange
         runs = [
             run("ours", "antimod-v2-carrier", replace(BASE, reread_valid=2)),
             run("ours", "antimod-v2-gate", replace(BASE, reread_valid=0)),
         ]
 
+        # Act
         results = evaluate(runs)
 
+        # Assert
         self.assertEqual(outcome(results, "ours", "antimod-v2-reauth"), Outcome.FAILED)
 
     def test_a_chip_built_for_none_of_the_boards_is_not_applicable(self) -> None:
+        # Arrange
         runs = [
             run("mayumi-v4", "antimod-v1-gate-early", replace(BASE, probe_strings=9))
         ]
 
+        # Act
         results = evaluate(runs)
 
+        # Assert
         self.assertEqual(outcome(results, "mayumi-v4", "antimod-v1"), Outcome.NA)
 
     def test_a_chip_made_for_some_of_the_boards_is_judged(self) -> None:
+        # Arrange
         runs = [
             run("onechip-12c508a", "antimod-v1-carrier", replace(BASE, probe_strings=1))
         ]
 
+        # Act
         results = evaluate(runs)
 
+        # Assert
         self.assertEqual(
             outcome(results, "onechip-12c508a", "antimod-v1"), Outcome.FAILED
         )
@@ -103,15 +119,19 @@ class EvaluateTest(unittest.TestCase):
         self.assertEqual(outcome(results, "ours", "swap"), Outcome.FAILED)
 
     def test_a_property_with_no_run_is_not_applicable(self) -> None:
+        # Act
         results = evaluate([run("ours", "antimod-v1-carrier")])
 
+        # Assert
         self.assertEqual(outcome(results, "ours", "stuck-sqck"), Outcome.NA)
 
     def test_every_property_says_its_title_and_mechanism_in_every_language(
         self,
     ) -> None:
+        # Arrange
         said = words()
 
+        # Act
         missing = [
             (p.key, field, lang)
             for p in PROPERTIES
@@ -120,35 +140,45 @@ class EvaluateTest(unittest.TestCase):
             if not said.said(p.key, field, lang)
         ]
 
+        # Assert
         self.assertEqual(missing, [])
         self.assertTrue(all(p.sources for p in PROPERTIES))
 
     def test_every_property_scenario_is_in_the_catalogue(self) -> None:
+        # Arrange
         names = [name for p in PROPERTIES for name in p.scenarios]
 
+        # Act
         found = [find(name).name for name in names]
 
+        # Assert
         self.assertEqual(found, names)
 
 
 class FailuresTest(unittest.TestCase):
     def test_only_ours_failures_are_listed(self) -> None:
+        # Arrange
         runs = [
             run("ours", "antimod-v1-carrier", replace(BASE, probe_strings=1)),
             run("psnee-attiny85", "antimod-v1-carrier", replace(BASE, probe_strings=1)),
         ]
 
+        # Act
         failed = failures(evaluate(runs))
 
+        # Assert
         self.assertEqual(failed, ["antimod-v1"])
 
 
 class ResultsFileTest(unittest.TestCase):
     def test_results_survive_a_round_trip(self) -> None:
+        # Arrange
         results = evaluate([run("ours", "antimod-v1-carrier")])
 
+        # Act
         restored = from_json(to_json(results))
 
+        # Assert
         self.assertEqual(restored, results)
 
 
@@ -166,32 +196,46 @@ class TableTest(unittest.TestCase):
         )
 
     def test_the_table_has_a_row_per_property_and_a_column_per_chip(self) -> None:
+        # Act
         lines = table(self.results, "en")
 
+        # Assert
         self.assertEqual(len(lines), 2 + len(PROPERTIES))
         self.assertIn("openscex", lines[0])
         self.assertIn("psnee-attiny85", lines[0])
 
     def test_each_language_labels_the_outcomes_in_its_own_words(self) -> None:
+        # Act
         rows = {lang: "\n".join(table(self.results, lang)) for lang in ("ja", "zh")}
 
+        # Assert
         self.assertNotIn("pass", rows["ja"])
         self.assertNotIn("pass", rows["zh"])
 
     def test_rewrite_replaces_only_the_marked_block(self) -> None:
+        # Arrange
         text = f"before\n{START}\nold\n{END}\nafter\n"
 
+        # Act
         updated = rewrite(text, ["new"])
 
+        # Assert
         self.assertEqual(updated, f"before\n{START}\nnew\n{END}\nafter\n")
 
     def test_rewrite_refuses_a_text_without_the_markers(self) -> None:
-        with self.assertRaises(ValueError):
-            rewrite("no markers here\n", ["new"])
+        # Arrange
+        readme = "no markers here\n"
+
+        # Act
+        call = partial(rewrite, readme, ["new"])
+
+        # Assert
+        self.assertRaises(ValueError, call)
 
 
 class MainTest(unittest.TestCase):
     def test_a_run_rewrites_the_results_file_and_every_readme(self) -> None:
+        # Arrange
         results = evaluate([run("ours", "antimod-v1-carrier")])
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -201,8 +245,10 @@ class MainTest(unittest.TestCase):
             source = root / "run.json"
             source.write_text(to_json(results))
 
+            # Act
             status = main(["showcase", str(source), "--root", str(root)])
 
+            # Assert
             written = from_json((root / RESULTS).read_text())
             tables = [(root / n).read_text() for n in READMES.values()]
         self.assertEqual(status, 0)
@@ -212,8 +258,10 @@ class MainTest(unittest.TestCase):
 
 class ReadmeSyncTest(unittest.TestCase):
     def test_every_readme_shows_exactly_the_recorded_results(self) -> None:
+        # Arrange
         results = from_json((ROOT / RESULTS).read_text())
 
+        # Act
         stale = [
             name
             for lang, name in READMES.items()
@@ -221,4 +269,5 @@ class ReadmeSyncTest(unittest.TestCase):
             != (ROOT / name).read_text()
         ]
 
+        # Assert
         self.assertEqual(stale, [])

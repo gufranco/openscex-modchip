@@ -4,6 +4,7 @@
 """Tests for the catalogue that joins every scenario set."""
 
 import unittest
+from functools import partial
 
 from tools.bench.antimod_scenarios import ANTIMOD_SCENARIOS
 from tools.bench.catalogue import CATALOGUE, find
@@ -14,8 +15,10 @@ from tools.bench.sense_scenarios import SENSE_SCENARIOS
 
 class CatalogueTest(unittest.TestCase):
     def test_the_catalogue_holds_every_set_with_unique_names(self) -> None:
+        # Act
         names = [s.name for s in CATALOGUE]
 
+        # Assert
         expected = (
             len(SCENARIOS)
             + len(EDGE_SCENARIOS)
@@ -26,6 +29,7 @@ class CatalogueTest(unittest.TestCase):
         self.assertEqual(len(names), len(set(names)))
 
     def test_find_reaches_a_scenario_of_each_set(self) -> None:
+        # Arrange
         names = [
             "carrier-accept",
             "carrier-power-cycle",
@@ -33,10 +37,18 @@ class CatalogueTest(unittest.TestCase):
             "antimod-v2-carrier",
         ]
 
+        # Act
         found = [find(name).name for name in names]
 
+        # Assert
         self.assertEqual(found, names)
 
     def test_an_unknown_name_is_refused(self) -> None:
-        with self.assertRaises(KeyError):
-            find("no-such-scenario")
+        # Arrange
+        given = "no-such-scenario"
+
+        # Act
+        call = partial(find, given)
+
+        # Assert
+        self.assertRaises(KeyError, call)

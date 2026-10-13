@@ -29,47 +29,65 @@ SUITE = mutate.Suite(("logic.c",), ("test.c",), mutate.CC, ("-std=c17",))
 
 class GenerateMutantsTest(unittest.TestCase):
     def test_skips_preprocessor_and_comment_lines(self) -> None:
+        # Arrange
         source = "#include <stdint.h>\n// a == b\nint x;"
 
+        # Act
         mutants = mutate.generate_mutants(source)
 
+        # Assert
         self.assertEqual(mutants, [])
 
     def test_skips_assert_guard_lines(self) -> None:
+        # Arrange
         source = "  PSCU_ASSERT(index < COUNT);"
 
+        # Act
         mutants = mutate.generate_mutants(source)
 
+        # Assert
         self.assertEqual(mutants, [])
 
     def test_skips_compile_time_assertions(self) -> None:
+        # Arrange
         source = '_Static_assert((A + B) <= 0x100U, "bound");'
 
+        # Act
         mutants = mutate.generate_mutants(source)
 
+        # Assert
         self.assertEqual(mutants, [])
 
     def test_equality_operator_is_mutated_both_ways(self) -> None:
+        # Arrange
         source = "if (a == b) {}\nif (c != d) {}"
 
+        # Act
         labels = [mutant.label for mutant in mutate.generate_mutants(source)]
 
+        # Assert
         self.assertIn("L1 eq->ne col7", labels)
         self.assertIn("L2 ne->eq col7", labels)
 
     def test_mutant_source_replaces_only_one_occurrence(self) -> None:
+        # Arrange
         source = "x == y == z;"
 
+        # Act
         sources = [mutant.source for mutant in mutate.generate_mutants(source)]
 
+        # Assert
         self.assertIn("x != y == z;", sources)
         self.assertIn("x == y != z;", sources)
 
     def test_relational_mutations_ignore_shifts_and_arrows(self) -> None:
+        # Arrange
         source = "a >> 1; b << 2; p->q; r >= s; t <= u;"
 
+        # Act
         labels = [mutant.label for mutant in mutate.generate_mutants(source)]
 
+        # Assert
         self.assertEqual(
             sorted(labels),
             sorted(
@@ -83,19 +101,25 @@ class GenerateMutantsTest(unittest.TestCase):
         )
 
     def test_single_relational_operators_are_widened(self) -> None:
+        # Arrange
         source = "if (a < b && c > d) {}"
 
+        # Act
         labels = [mutant.label for mutant in mutate.generate_mutants(source)]
 
+        # Assert
         self.assertIn("L1 lt->le col7", labels)
         self.assertIn("L1 gt->ge col16", labels)
         self.assertIn("L1 and->or col11", labels)
 
     def test_logical_or_is_mutated(self) -> None:
+        # Arrange
         source = "if (a || b) {}"
 
+        # Act
         sources = [mutant.source for mutant in mutate.generate_mutants(source)]
 
+        # Assert
         self.assertEqual(sources, ["if (a && b) {}"])
 
     def test_binary_arithmetic_and_bitwise_operators_are_swapped(self) -> None:
@@ -186,17 +210,23 @@ class ProjectTestCase(unittest.TestCase):
 
 class CompileAndRunTest(ProjectTestCase):
     def test_passing_suite_compiles_and_runs(self) -> None:
+        # Arrange
         root = self.make(STRONG_TEST)
 
+        # Act
         passed = mutate._compile_and_run(root, root / "bin", SUITE)
 
+        # Assert
         self.assertTrue(passed)
 
     def test_failing_suite_is_reported(self) -> None:
+        # Arrange
         root = self.make(FAILING_TEST)
 
+        # Act
         passed = mutate._compile_and_run(root, root / "bin", SUITE)
 
+        # Assert
         self.assertFalse(passed)
 
     def test_a_suite_that_never_ends_is_stopped_and_reported(self) -> None:
@@ -211,39 +241,50 @@ class CompileAndRunTest(ProjectTestCase):
         self.assertFalse(passed)
 
     def test_code_that_does_not_compile_is_reported(self) -> None:
+        # Arrange
         root = self.make(STRONG_TEST, "int above(int a) { return a > ; }\n")
 
+        # Act
         passed = mutate._compile_and_run(root, root / "bin", SUITE)
 
+        # Assert
         self.assertFalse(passed)
 
 
 class MutantKilledTest(ProjectTestCase):
     def test_killed_mutant_is_reported_and_file_restored(self) -> None:
+        # Arrange
         root = self.make(STRONG_TEST)
         mutant = mutate.generate_mutants(LOGIC)[0]
 
+        # Act
         killed = mutate._mutant_killed(
             root, root / "logic.c", mutant, root / "bin", SUITE
         )
 
+        # Assert
         self.assertEqual((killed, (root / "logic.c").read_text()), (True, LOGIC))
 
     def test_surviving_mutant_is_reported_and_file_restored(self) -> None:
+        # Arrange
         root = self.make(WEAK_TEST)
         mutant = mutate.generate_mutants(LOGIC)[0]
 
+        # Act
         killed = mutate._mutant_killed(
             root, root / "logic.c", mutant, root / "bin", SUITE
         )
 
+        # Assert
         self.assertEqual((killed, (root / "logic.c").read_text()), (False, LOGIC))
 
     def test_file_is_restored_when_the_build_raises(self) -> None:
+        # Act
         root = self.make(STRONG_TEST)
         mutant = mutate.generate_mutants(LOGIC)[0]
         broken = mutate.Suite(("logic.c",), ("test.c",), "/nonexistent/cc", ())
 
+        # Assert
         with self.assertRaises(FileNotFoundError):
             mutate._mutant_killed(root, root / "logic.c", mutant, root / "bin", broken)
         self.assertEqual((root / "logic.c").read_text(), LOGIC)
@@ -251,23 +292,31 @@ class MutantKilledTest(ProjectTestCase):
 
 class RunTest(ProjectTestCase):
     def test_raises_when_baseline_fails(self) -> None:
+        # Act
         root = self.make(FAILING_TEST)
 
+        # Assert
         with self.assertRaises(RuntimeError):
             mutate.run(root, SUITE)
 
     def test_strong_suite_kills_every_mutant(self) -> None:
+        # Arrange
         root = self.make(STRONG_TEST)
 
+        # Act
         result = mutate.run(root, SUITE)
 
+        # Assert
         self.assertEqual(result, mutate.Result(total=1, killed=1, survivors=()))
 
     def test_weak_suite_reports_the_survivor(self) -> None:
+        # Arrange
         root = self.make(WEAK_TEST)
 
+        # Act
         result = mutate.run(root, SUITE)
 
+        # Assert
         self.assertEqual(
             result,
             mutate.Result(total=1, killed=0, survivors=("logic.c: L1 gt->ge col29",)),
@@ -276,36 +325,45 @@ class RunTest(ProjectTestCase):
 
 class MainTest(ProjectTestCase):
     def test_returns_zero_when_all_killed(self) -> None:
+        # Arrange
         root = self.make(STRONG_TEST)
         output = io.StringIO()
 
+        # Act
         with contextlib.redirect_stdout(output):
             code = mutate.main(["mutate.py"], root, SUITE)
 
+        # Assert
         self.assertEqual((code, output.getvalue()), (0, "mutation score 1/1 killed\n"))
 
     def test_returns_one_and_prints_survivors(self) -> None:
+        # Arrange
         root = self.make(WEAK_TEST)
         output = io.StringIO()
 
+        # Act
         with contextlib.redirect_stdout(output):
             code = mutate.main(["mutate.py"], root, SUITE)
 
+        # Assert
         self.assertEqual(
             (code, output.getvalue()),
             (1, "SURVIVED logic.c: L1 gt->ge col29\nmutation score 0/1 killed\n"),
         )
 
     def test_returns_one_when_no_mutants(self) -> None:
+        # Arrange
         root = self.make(
             "int above(int a);\nint main(void) { return above(0); }\n",
             "int above(int a) { return a; }\n",
         )
         output = io.StringIO()
 
+        # Act
         with contextlib.redirect_stdout(output):
             code = mutate.main(["mutate.py"], root, SUITE)
 
+        # Assert
         self.assertEqual((code, output.getvalue()), (1, "mutation score 0/0 killed\n"))
 
 

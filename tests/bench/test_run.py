@@ -84,14 +84,18 @@ def git(cwd: Path, *args: str) -> str:
 
 class OursTest(unittest.TestCase):
     def test_ours_is_ready_once_built(self) -> None:
+        # Act
         reason = prepare(ROOT, by_name("ours"), Path(tempfile.gettempdir()))
 
+        # Assert
         self.assertIsNone(reason)
 
     def test_ours_accepts_the_carrier_lead_in_and_stays_silent_in_play(self) -> None:
+        # Act
         with tempfile.TemporaryDirectory() as work:
             result = run(ROOT, by_name("ours"), scenario("carrier-accept"), Path(work))
 
+        # Assert
         self.assertTrue(result.metrics.would_accept)
         self.assertEqual(result.metrics.during_play, 0)
         self.assertTrue(result.metrics.carrier)
@@ -123,8 +127,10 @@ class OursTest(unittest.TestCase):
         self.assertEqual(result.metrics.second_play, 0)
 
     def test_ours_program_addresses_hold_every_instruction_start(self) -> None:
+        # Act
         addresses = program_addresses(ROOT, by_name("ours"))
 
+        # Assert
         self.assertGreater(len(addresses), 1000)
         self.assertIn(0, addresses)
         self.assertTrue(all(address % 2 == 0 for address in addresses))
@@ -235,6 +241,7 @@ class AvrCrashTest(unittest.TestCase):
 
 class PicRunnerTest(unittest.TestCase):
     def test_a_pic_program_drives_data_and_is_measured(self) -> None:
+        # Arrange
         with tempfile.TemporaryDirectory() as work:
             folder = Path(work)
             (folder / "fixture.asm").write_text(FIXTURE_ASM)
@@ -257,9 +264,11 @@ class PicRunnerTest(unittest.TestCase):
                 boards=frozenset(),
             )
 
+            # Act
             result = run(ROOT, chip, scenario("no-disc"), folder)
             addresses = program_addresses(ROOT, chip)
 
+        # Assert
         self.assertEqual(result.metrics.strings, 0)
         self.assertGreater(result.metrics.data_driven_outside_ns, 0)
         self.assertEqual(addresses, frozenset(range(7)))
@@ -268,27 +277,34 @@ class PicRunnerTest(unittest.TestCase):
 
 class TimeoutTest(unittest.TestCase):
     def test_the_backstop_grows_with_the_simulated_time(self) -> None:
+        # Act
         short = run_timeout(1_000_000_000)
         long = run_timeout(300_000_000_000)
 
+        # Assert
         self.assertEqual(long - short, 299 * RUN_TIMEOUT_PER_SIM_S)
         self.assertGreaterEqual(short, RUN_TIMEOUT_S)
 
 
 class PrepareTest(unittest.TestCase):
     def test_missing_ours_says_to_build_first(self) -> None:
+        # Act
         with tempfile.TemporaryDirectory() as work:
             reason = prepare(Path(work), by_name("ours"), Path(work))
 
+        # Assert
         self.assertIn("make all", str(reason))
 
     def test_a_missing_image_is_skipped_with_how_to_get_it(self) -> None:
+        # Arrange
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
             shutil.copy(ROOT / "artifacts.manifest.json", root)
 
+            # Act
             reason = prepare(root, by_name("mayumi-v4"), root)
 
+        # Assert
         self.assertIn("quade.co", str(reason))
 
     def test_a_verified_image_is_copied_to_the_chip_firmware(self) -> None:
@@ -340,6 +356,7 @@ class PrepareTest(unittest.TestCase):
         }
 
     def test_a_pic_source_is_assembled_into_the_chip_image(self) -> None:
+        # Arrange
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
             (root / "build" / "bench").mkdir(parents=True)
@@ -348,13 +365,16 @@ class PrepareTest(unittest.TestCase):
             )
             chip = replace(by_name("old-crow-12c508"), artifact="x")
 
+            # Act
             reason = prepare(root, chip, root)
             built = (root / chip.firmware).is_file()
 
+        # Assert
         self.assertIsNone(reason)
         self.assertTrue(built)
 
     def test_an_avr_image_is_wrapped_into_the_chip_elf(self) -> None:
+        # Arrange
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
             (root / "build" / "bench").mkdir(parents=True)
@@ -362,13 +382,16 @@ class PrepareTest(unittest.TestCase):
             self.manifest(root, self.file_entry(root, "m.hex", image, "avr-image"))
             chip = replace(by_name("modavr-attiny13"), artifact="x")
 
+            # Act
             reason = prepare(root, chip, root)
             built = (root / chip.firmware).is_file()
 
+        # Assert
         self.assertIsNone(reason)
         self.assertTrue(built)
 
     def test_an_avr_source_is_assembled_into_the_chip_elf(self) -> None:
+        # Arrange
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
             (root / "build" / "bench").mkdir(parents=True)
@@ -376,21 +399,26 @@ class PrepareTest(unittest.TestCase):
             self.manifest(root, self.file_entry(root, "l.asm", source, "avr-source"))
             chip = replace(by_name("liss-at90s1200"), artifact="x")
 
+            # Act
             reason = prepare(root, chip, root)
             built = (root / chip.firmware).is_file()
 
+        # Assert
         self.assertIsNone(reason)
         self.assertTrue(built)
 
     def test_a_source_with_the_wrong_bytes_is_not_built(self) -> None:
+        # Arrange
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
             entry = self.file_entry(root, "a.asm", FIXTURE_ASM, "pic-source")
             self.manifest(root, {**entry, "sha256": "0" * 64})
             chip = replace(by_name("old-crow-12c508"), artifact="x")
 
+            # Act
             reason = prepare(root, chip, root)
 
+        # Assert
         self.assertIn("SHA-256", str(reason))
 
     def test_an_image_from_another_tree_is_built_again(self) -> None:
@@ -444,6 +472,7 @@ class PrepareTest(unittest.TestCase):
             self.assertFalse(tree_stamp(root, chip).exists())
 
     def test_a_sketch_source_is_built_against_the_arduino_core(self) -> None:
+        # Arrange
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
             (root / "build" / "bench").mkdir(parents=True)
@@ -459,13 +488,16 @@ class PrepareTest(unittest.TestCase):
             )
             chip = replace(by_name("ubernee-atmega328p"), artifact="ub")
 
+            # Act
             reason = prepare(root, chip, root)
             built = (root / chip.firmware).is_file()
 
+        # Assert
         self.assertIsNone(reason)
         self.assertTrue(built)
 
     def test_a_built_sketch_source_is_not_built_again(self) -> None:
+        # Arrange
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
             chip = replace(by_name("ubernee-atmega328p"), firmware="built.elf")
@@ -474,8 +506,10 @@ class PrepareTest(unittest.TestCase):
             pinned = load(root)[str(chip.artifact)].tree
             tree_stamp(root, chip).write_text(str(pinned))
 
+            # Act
             reason = prepare(root, chip, root)
 
+        # Assert
         self.assertIsNone(reason)
 
 
@@ -510,55 +544,72 @@ class PsneeBuildTest(unittest.TestCase):
         )
 
     def test_the_pinned_tree_builds_both_targets(self) -> None:
+        # Arrange
         tree = git(self.repo, "rev-parse", "HEAD^{tree}")
 
+        # Act
         reason = build_psnee(self.root, self.artifact(tree), self.work)
 
+        # Assert
         self.assertIsNone(reason)
         self.assertTrue((self.root / "build/bench/psnee-attiny85.elf").is_file())
         self.assertTrue((self.root / "build/bench/psnee-atmega328p.elf").is_file())
 
     def test_a_relative_workdir_still_finds_the_sketch(self) -> None:
+        # Arrange
         tree = git(self.repo, "rev-parse", "HEAD^{tree}")
         relative = Path(os.path.relpath(self.work))
 
+        # Act
         reason = build_psnee(self.root, self.artifact(tree), relative)
 
+        # Assert
         self.assertIsNone(reason)
 
     def test_a_second_build_reuses_the_clone(self) -> None:
+        # Arrange
         tree = git(self.repo, "rev-parse", "HEAD^{tree}")
         build_psnee(self.root, self.artifact(tree), self.work)
 
+        # Act
         reason = build_psnee(self.root, self.artifact(tree), self.work)
 
+        # Assert
         self.assertIsNone(reason)
         self.assertTrue((self.work / "psnee-src" / ".git").is_dir())
 
     def test_a_different_tree_is_refused(self) -> None:
+        # Act
         reason = build_psnee(self.root, self.artifact("0" * 40), self.work)
 
+        # Assert
         self.assertIn("expected", str(reason))
 
     def test_prepare_builds_a_missing_psnee_image(self) -> None:
+        # Arrange
         tree = git(self.repo, "rev-parse", "HEAD^{tree}")
         manifest = {"artifacts": [asdict(self.artifact(tree))]}
         (self.root / "artifacts.manifest.json").write_text(json.dumps(manifest))
 
+        # Act
         first = prepare(self.root, by_name("psnee-attiny85"), self.work)
         second = prepare(self.root, by_name("psnee-attiny85"), self.work)
 
+        # Assert
         self.assertIsNone(first)
         self.assertIsNone(second)
 
 
 class ListingTest(unittest.TestCase):
     def test_an_instruction_line_gives_its_address(self) -> None:
+        # Act
         address = _instruction_address("  1a4:\t0f 92       \tpush\tr0")
 
+        # Assert
         self.assertEqual(address, 0x1A4)
 
     def test_labels_headers_and_data_lines_give_none(self) -> None:
+        # Arrange
         lines = [
             "00000000 <__vectors>:",
             "",
@@ -566,13 +617,16 @@ class ListingTest(unittest.TestCase):
             " zz:\tx",
         ]
 
+        # Act
         addresses = [_instruction_address(line) for line in lines]
 
+        # Assert
         self.assertEqual(addresses, [None, None, None, None])
 
 
 class LinesTest(unittest.TestCase):
     def test_lines_in_and_out_of_the_tree_and_code_without_lines(self) -> None:
+        # Arrange
         root = Path("/src")
         text = [
             "/src/src/inject.c:124 (discriminator 1)",
@@ -582,8 +636,10 @@ class LinesTest(unittest.TestCase):
             "/usr/lib/avr/include/util/delay.h:174",
         ]
 
+        # Act
         lines = parse_lines([2, 4, 6, 8, 10], text, root)
 
+        # Assert
         self.assertEqual(
             lines,
             {
@@ -596,34 +652,45 @@ class LinesTest(unittest.TestCase):
         )
 
     def test_a_line_number_lost_inside_the_tree_is_kept_as_zero(self) -> None:
+        # Act
         lines = parse_lines([2], ["/src/src/loop.c:?"], Path("/src"))
 
+        # Assert
         self.assertEqual(lines, {2: ("src/loop.c", 0)})
 
 
 class ExclusionsTest(unittest.TestCase):
     def test_the_committed_table_loads_entries_by_artifact(self) -> None:
+        # Act
         table = load_exclusions(ROOT)
 
+        # Assert
         self.assertTrue(all(isinstance(k, str) for k in table))
         self.assertTrue(any(e.file for e in table["ubernee-v142"]))
 
     def test_nothing_uncovered_needs_no_excuse(self) -> None:
+        # Act
         excused = excuse(ROOT, by_name("ours"), frozenset())
 
+        # Assert
         self.assertEqual(excused, {})
 
     def test_a_pic_image_is_excused_by_address_from_the_table(self) -> None:
+        # Act
         excused = excuse(ROOT, by_name("mayumi-v4"), frozenset({0x008, 0x050}))
 
+        # Assert
         self.assertEqual(list(excused), [0x008])
         self.assertIn("Mayumi04", excused[0x008])
 
     def test_ours_excuses_only_marked_and_runtime_instructions(self) -> None:
+        # Arrange
         chip = by_name("ours")
         addresses = program_addresses(ROOT, chip)
 
+        # Act
         excused = excuse(ROOT, chip, addresses)
 
+        # Assert
         self.assertGreater(len(excused), 0)
         self.assertLess(len(excused), len(addresses) // 10)

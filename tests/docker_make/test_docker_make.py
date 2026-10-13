@@ -46,32 +46,40 @@ class ImageInputsTestCase(unittest.TestCase):
 
 class ImageTagTest(ImageInputsTestCase):
     def test_tag_is_name_and_twelve_hex_of_input_digest(self) -> None:
+        # Arrange
         root = self.inputs()
 
+        # Act
         tag = docker_make.image_tag(root)
 
+        # Assert
         name, _, digest = tag.partition(":")
         self.assertEqual(name, docker_make.IMAGE_NAME)
         self.assertEqual(len(digest), docker_make.TAG_LENGTH)
         self.assertTrue(all(character in "0123456789abcdef" for character in digest))
 
     def test_tag_changes_when_an_input_changes(self) -> None:
+        # Arrange
         root = self.inputs()
         before = docker_make.image_tag(root)
         dockerfile = root / "Dockerfile"
         dockerfile.write_bytes(dockerfile.read_bytes() + b"x")
 
+        # Act
         after = docker_make.image_tag(root)
 
+        # Assert
         self.assertNotEqual(after, before)
 
 
 class ToolchainCommandTest(unittest.TestCase):
     def test_command_mounts_root_and_runs_make_targets(self) -> None:
+        # Act
         command = docker_make.toolchain_command(
             Path("/repo"), "img:abc", (501, 20), ["analyse", "hosttest"]
         )
 
+        # Assert
         self.assertEqual(command[:3], ["docker", "run", "--rm"])
         self.assertIn("501:20", command)
         self.assertIn("/repo:/src", command)
@@ -80,20 +88,26 @@ class ToolchainCommandTest(unittest.TestCase):
 
 class EnsureImageTest(unittest.TestCase):
     def test_builds_when_image_absent(self) -> None:
+        # Arrange
         docker = FakeDocker(present=False)
 
+        # Act
         docker_make.ensure_image(Path("/repo"), "img:abc", docker)
 
+        # Assert
         self.assertEqual(
             [call[:3] for call in docker.calls],
             [["docker", "image", "inspect"], ["docker", "build", "-t"]],
         )
 
     def test_skips_build_when_image_present(self) -> None:
+        # Arrange
         docker = FakeDocker(present=True)
 
+        # Act
         docker_make.ensure_image(Path("/repo"), "img:abc", docker)
 
+        # Assert
         self.assertEqual(
             [call[:3] for call in docker.calls], [["docker", "image", "inspect"]]
         )
@@ -101,11 +115,14 @@ class EnsureImageTest(unittest.TestCase):
 
 class MainTest(ImageInputsTestCase):
     def test_main_builds_the_image_then_returns_the_make_exit_code(self) -> None:
+        # Arrange
         root = self.inputs()
         docker = FakeDocker(present=False, exit_code=7)
 
+        # Act
         code = docker_make.main(["docker_make.py", "hosttest"], root, docker)
 
+        # Assert
         self.assertEqual(code, 7)
         self.assertEqual(
             [call[:2] for call in docker.calls],

@@ -61,43 +61,60 @@ def unsourced(text: str) -> list[int]:
 
 class ClaimsTest(unittest.TestCase):
     def test_a_table_header_and_its_separator_are_not_claims(self) -> None:
+        # Arrange
         text = "| a | b |\n|:--|:--|\n| row | [x](y) |\n"
 
+        # Act
         found = claims(text)
 
+        # Assert
         self.assertEqual(found, [(3, "| row | [x](y) |")])
 
     def test_code_html_and_headings_are_not_claims(self) -> None:
+        # Arrange
         text = "# Title\n```\nplain\n```\n<div>\nplain\n</div>\nfact\n"
 
+        # Act
         found = claims(text)
 
+        # Assert
         self.assertEqual(found, [(8, "fact")])
 
     def test_a_claim_without_a_link_is_reported(self) -> None:
+        # Arrange
         text = "first [a](b)\n\nsecond with none\n"
 
+        # Act
         missing = unsourced(text)
 
+        # Assert
         self.assertEqual(missing, [3])
 
     def test_an_empty_header_row_is_a_header_not_a_separator(self) -> None:
+        # Arrange
         text = "| | |\n|:--|:--|\n| cell | [x](y) |\n"
 
+        # Act
         found = claims(text)
 
+        # Assert
         self.assertEqual(found, [(3, "| cell | [x](y) |")])
 
     def test_an_alert_marker_is_not_a_claim(self) -> None:
+        # Arrange
         text = "> [!IMPORTANT]\n> fact [a](b)\n"
 
+        # Act
         found = claims(text)
 
+        # Assert
         self.assertEqual(found, [(2, "> fact [a](b)")])
 
 
 class ReadmeTest(unittest.TestCase):
     def test_every_claim_in_every_readme_links_to_its_source(self) -> None:
+        # Act
         missing = {name: unsourced((ROOT / name).read_text()) for name in READMES}
 
+        # Assert
         self.assertEqual({k: v for k, v in missing.items() if v}, {})
