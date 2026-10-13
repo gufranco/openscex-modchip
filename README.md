@@ -370,3 +370,5 @@ Releases follow [Semantic Versioning](https://semver.org/) on the `0.x` line, so
 ## License
 
 [MIT](LICENSE) for firmware and documentation.
+
+The footprints in [hardware/openscex.pretty](hardware/openscex.pretty) start from KiCad's library footprints and keep their licence, [CC-BY-SA-4.0](LICENSES/CC-BY-SA-4.0.txt) with the [KiCad libraries exception](LICENSES/KiCad-libraries-exception.txt): a board made with them carries no obligation. Source: [REUSE.toml](REUSE.toml).

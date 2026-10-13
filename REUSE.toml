@@ -12,3 +12,11 @@ SPDX-License-Identifier = "MIT"
 path = ["assets/psnee/**"]
 SPDX-FileCopyrightText = "2026 kalymos and the PsNee contributors <https://github.com/kalymos/PsNee>"
 SPDX-License-Identifier = "Unlicense"
+
+# The project's footprints start from KiCad's library footprints, which KiCad
+# licenses under CC-BY-SA-4.0 with its libraries exception: a board made with
+# them carries no licence obligation, a modified footprint library does.
+[[annotations]]
+path = ["hardware/openscex.pretty/**"]
+SPDX-FileCopyrightText = ["KiCad Libraries Team <https://gitlab.com/kicad/libraries/kicad-footprints>", "2026 Gustavo Franco <gufranco@users.noreply.github.com>"]
+SPDX-License-Identifier = "CC-BY-SA-4.0 WITH KiCad-libraries-exception"

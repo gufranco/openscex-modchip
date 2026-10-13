@@ -370,3 +370,5 @@ graph LR
 ## ライセンス
 
 ファームウェアとドキュメントは [MIT](LICENSE)。
+
+[hardware/openscex.pretty](hardware/openscex.pretty) のフットプリントは KiCad ライブラリのフットプリントを元にしており、そのライセンス [CC-BY-SA-4.0](LICENSES/CC-BY-SA-4.0.txt) と [KiCad ライブラリ例外](LICENSES/KiCad-libraries-exception.txt) を引き継ぎます。これを使って作った基板には義務は生じません。出典: [REUSE.toml](REUSE.toml)。

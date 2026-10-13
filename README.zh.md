@@ -370,3 +370,5 @@ graph LR
 ## 许可证
 
 固件与文档采用 [MIT](LICENSE)。
+
+[hardware/openscex.pretty](hardware/openscex.pretty) 中的封装源自 KiCad 库的封装，沿用其许可证 [CC-BY-SA-4.0](LICENSES/CC-BY-SA-4.0.txt) 及 [KiCad 库例外条款](LICENSES/KiCad-libraries-exception.txt)：用它们制作的电路板不承担任何义务。来源：[REUSE.toml](REUSE.toml)。
