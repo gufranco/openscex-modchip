@@ -179,6 +179,18 @@ def _supply_low_lead_in() -> Timeline:
     return disc(timeline, False)
 
 
+def _supply_low_store() -> Timeline:
+    """A quick accept, then the supply sags as play starts, so the record the
+    check learned is refused at its store; once the supply recovers the store
+    is tried again (src/engine.c, pscu_engine_store_calib; src/run.c)."""
+    timeline = carrier().set(Signal.VCC_MV, SUPPLY_GOOD_MV).idle(BOOT_NS)
+    timeline.mark(Phase.LEAD_IN).frames(LEAD_IN, QUICK_LEAD_IN_FRAMES)
+    timeline.mark(Phase.PROGRAM).set(Signal.VCC_MV, SUPPLY_LOW_MV)
+    timeline.frames(PROGRAM, QUICK_PLAY_FRAMES)
+    timeline.set(Signal.VCC_MV, SUPPLY_GOOD_MV)
+    return timeline.frames(PROGRAM, QUICK_PLAY_FRAMES)
+
+
 def _bad_crc() -> Timeline:
     """A lead-in of corrupted frames, which must never arm a string, then the
     same lead-in intact and a quick accept."""
@@ -360,6 +372,11 @@ EDGE_SCENARIOS = (
         "carrier-supply-low-lead-in",
         "the supply sits below the guard through the climb to the start, then recovers",
         _supply_low_lead_in,
+    ),
+    edge(
+        "carrier-supply-low-store",
+        "an accept, then the supply sags as play starts and recovers 4 s later",
+        _supply_low_store,
     ),
     edge(
         "carrier-bad-crc",

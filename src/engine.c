@@ -193,6 +193,8 @@ bool pscu_engine_store_calib(pscu_calib_t calib) {
     for (uint8_t at = 0U; (at < PSCU_CALIB_BYTES) && written; at++) {
       if (pscu_port_eeprom_read(at) != record.bytes[at]) {
         uint8_t started = pscu_port_eeprom_write(at, record.bytes[at]);
+        // coverage: unreachable: simavr finishes EEPROM writes at once, so a
+        // write that cannot start never happens there.
         written = started != 0U;
       }
     }
