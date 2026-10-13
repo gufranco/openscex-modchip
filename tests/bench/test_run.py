@@ -21,7 +21,7 @@ from pathlib import Path
 from tests.bench.test_prepare import CORE_FILES, SKETCH, repository
 from tests.bench.test_prepare import source as fixture_source
 from tools.bench.chips import Chip, Simulator, by_name
-from tools.bench.manifest import ROOT, Artifact
+from tools.bench.manifest import ROOT, Artifact, load
 from tools.bench.prepare import ARDUINO_CORE
 from tools.bench.run import (
     RUN_TIMEOUT_PER_SIM_S,
@@ -39,6 +39,7 @@ from tools.bench.run import (
     program_addresses,
     run,
     run_timeout,
+    tree_stamp,
 )
 from tools.bench.scenarios import by_name as scenario
 
@@ -387,6 +388,56 @@ class PrepareTest(unittest.TestCase):
 
         self.assertIn("SHA-256", str(reason))
 
+    def test_an_image_from_another_tree_is_built_again(self) -> None:
+        with tempfile.TemporaryDirectory() as work:
+            # Arrange
+            root = Path(work)
+            (root / "build" / "bench").mkdir(parents=True)
+            core = fixture_source(
+                repository(root / "core", CORE_FILES), ARDUINO_CORE, None
+            )
+            sketch = fixture_source(
+                repository(root / "ub", {"U.ino": SKETCH}), "ub", "U.ino"
+            )
+            (root / "artifacts.manifest.json").write_text(
+                json.dumps({"artifacts": [asdict(core), asdict(sketch)]})
+            )
+            chip = replace(by_name("ubernee-atmega328p"), artifact="ub")
+            (root / chip.firmware).write_bytes(b"old build")
+            tree_stamp(root, chip).write_text("an older tree")
+
+            # Act
+            reason = prepare(root, chip, root)
+
+            # Assert
+            self.assertIsNone(reason)
+            self.assertEqual(tree_stamp(root, chip).read_text(), sketch.tree)
+            self.assertNotEqual((root / chip.firmware).read_bytes(), b"old build")
+
+    def test_a_source_that_fails_its_tree_check_leaves_no_stamp(self) -> None:
+        with tempfile.TemporaryDirectory() as work:
+            # Arrange
+            root = Path(work)
+            (root / "build" / "bench").mkdir(parents=True)
+            core = fixture_source(
+                repository(root / "core", CORE_FILES), ARDUINO_CORE, None
+            )
+            sketch = fixture_source(
+                repository(root / "ub", {"U.ino": SKETCH}), "ub", "U.ino"
+            )
+            wrong = replace(sketch, tree="0" * 40)
+            (root / "artifacts.manifest.json").write_text(
+                json.dumps({"artifacts": [asdict(core), asdict(wrong)]})
+            )
+            chip = replace(by_name("ubernee-atmega328p"), artifact="ub")
+
+            # Act
+            reason = prepare(root, chip, root)
+
+            # Assert
+            self.assertIsNotNone(reason)
+            self.assertFalse(tree_stamp(root, chip).exists())
+
     def test_a_sketch_source_is_built_against_the_arduino_core(self) -> None:
         with tempfile.TemporaryDirectory() as work:
             root = Path(work)
@@ -415,6 +466,8 @@ class PrepareTest(unittest.TestCase):
             chip = replace(by_name("ubernee-atmega328p"), firmware="built.elf")
             (root / "built.elf").write_bytes(b"elf")
             shutil.copy(ROOT / "artifacts.manifest.json", root)
+            pinned = load(root)[str(chip.artifact)].tree
+            tree_stamp(root, chip).write_text(str(pinned))
 
             reason = prepare(root, chip, root)
 

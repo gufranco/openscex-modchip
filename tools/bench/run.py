@@ -116,16 +116,30 @@ def build_psnee(root: Path, artifact: Artifact, workdir: Path) -> str | None:
     return None
 
 
+def tree_stamp(root: Path, chip: Chip) -> Path:
+    """Where the source tree id a built image came from is kept, beside it."""
+    image = root / chip.firmware
+    return image.with_name(image.name + ".tree")
+
+
 def _from_source(
     root: Path, artifact: Artifact, chip: Chip, workdir: Path
 ) -> str | None:
-    """Build a fetched source once; a sketch builds against the Arduino core."""
-    if (root / chip.firmware).is_file():
+    """Build a fetched source, reusing an image only when its stamp names the
+    pinned tree, so a manifest bump never benches the old build. A sketch
+    builds against the Arduino core."""
+    stamp = tree_stamp(root, chip)
+    built = (root / chip.firmware).is_file()
+    if built and stamp.is_file() and stamp.read_text() == artifact.tree:
         return None
     if artifact.sketch is not None:
         core = load(root)[ARDUINO_CORE]
-        return build_ubernee(root, artifact, core, chip, workdir)
-    return build_psnee(root, artifact, workdir)
+        reason = build_ubernee(root, artifact, core, chip, workdir)
+    else:
+        reason = build_psnee(root, artifact, workdir)
+    if reason is None:
+        stamp.write_text(str(artifact.tree))
+    return reason
 
 
 def _from_file(root: Path, artifact: Artifact, chip: Chip, workdir: Path) -> str | None:
