@@ -42,7 +42,7 @@ class Reach:
 
     total: int
     executed: int
-    excluded: dict[int, str]
+    excluded: Mapping[int, str]
     remaining: tuple[int, ...]
 
     @property

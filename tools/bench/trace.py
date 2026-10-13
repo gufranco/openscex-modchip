@@ -9,6 +9,7 @@ trace without its end line comes from a runner that stopped early, and is
 refused rather than measured as if the run were shorter.
 """
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 
 from tools.bench.decode import Change
@@ -21,10 +22,10 @@ FIELDS = 4
 class Trace:
     """One run's DATA and gate changes and when the run ended."""
 
-    data: list[Change]
-    gate: list[Change]
+    data: tuple[Change, ...]
+    gate: tuple[Change, ...]
     end_ns: int
-    pulls: dict[str, list[Change]] = field(default_factory=dict)
+    pulls: Mapping[str, tuple[Change, ...]] = field(default_factory=dict)
 
 
 def parse(lines: list[str]) -> Trace:
@@ -49,7 +50,12 @@ def parse(lines: list[str]) -> Trace:
             pulls.setdefault(name.removeprefix(PULL_PREFIX), []).append(change)
     if end_ns is None:
         raise ValueError("trace has no end line: the runner stopped early")
-    return Trace(pins["data"], pins["gate"], end_ns, pulls)
+    return Trace(
+        tuple(pins["data"]),
+        tuple(pins["gate"]),
+        end_ns,
+        {line: tuple(changes) for line, changes in pulls.items()},
+    )
 
 
 def pulled_ns(trace: Trace) -> int:
@@ -58,7 +64,7 @@ def pulled_ns(trace: Trace) -> int:
 
 
 def driven_ns(
-    changes: list[Change], end_ns: int, excluded: list[tuple[int, int]]
+    changes: Sequence[Change], end_ns: int, excluded: Sequence[tuple[int, int]]
 ) -> int:
     """Total time the pin was driven, outside the excluded spans."""
     stops = [c.time_ns for c in changes[1:]] + ([end_ns] if changes else [])

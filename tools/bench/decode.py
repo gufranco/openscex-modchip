@@ -11,6 +11,7 @@ layout (scex.py), which gives each string's cell length and start. A cell
 outside 2 to 8 ms is no string.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from tools.bench.scex import SCEX_BITS, Region, identify
@@ -52,7 +53,7 @@ class Decoded:
     cell_spread_ns: int
 
 
-def low_runs(changes: list[Change], end_ns: int) -> list[tuple[int, int]]:
+def low_runs(changes: Sequence[Change], end_ns: int) -> list[tuple[int, int]]:
     """Return the intervals during which the chip held DATA low."""
     runs = []
     since = None
@@ -115,7 +116,7 @@ def _decode_gate(burst: list[tuple[int, int]]) -> Decoded | None:
     )
 
 
-def carrier_trains(changes: list[Change]) -> list[tuple[int, int]]:
+def carrier_trains(changes: Sequence[Change]) -> list[tuple[int, int]]:
     """Return the stretches where DATA toggles at carrier speed.
 
     A train is at least four driven edges, each within 200 us of the last,
@@ -171,7 +172,7 @@ def _decode_carrier(burst: list[tuple[int, int]]) -> Decoded | None:
     )
 
 
-def decode(changes: list[Change], end_ns: int) -> list[Decoded]:
+def decode(changes: Sequence[Change], end_ns: int) -> list[Decoded]:
     """Decode every string in a trace, in time order. Low runs inside a carrier
     burst are its zero cells, so only the runs outside every carrier burst are
     decoded in gate mode."""

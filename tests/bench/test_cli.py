@@ -132,7 +132,7 @@ class BenchTest(unittest.TestCase):
 
             result = bench(root, ["mayumi-v4"], ["no-disc"], root)
 
-        self.assertEqual(result.runs, [])
+        self.assertEqual(result.runs, ())
         self.assertIn("quade.co", result.skips["mayumi-v4"])
 
 
@@ -198,7 +198,7 @@ class ShowcasedTest(unittest.TestCase):
 
 class ExitStatusTest(unittest.TestCase):
     def test_a_full_run_fails_on_a_showcase_property(self) -> None:
-        result = Bench([], {}, [], [])
+        result = Bench((), {}, (), ())
         failing = {"ours": {"antimod-v1": Outcome.FAILED}}
 
         with contextlib.redirect_stdout(io.StringIO()):
@@ -208,7 +208,7 @@ class ExitStatusTest(unittest.TestCase):
 
     def test_ours_asked_for_but_skipped_fails_the_run(self) -> None:
         # Arrange
-        result = Bench([], {"ours": "ours: build/x.elf is missing"}, [], [])
+        result = Bench((), {"ours": "ours: build/x.elf is missing"}, (), ())
 
         # Act
         with contextlib.redirect_stdout(io.StringIO()) as out:
@@ -220,7 +220,7 @@ class ExitStatusTest(unittest.TestCase):
 
     def test_another_chip_skipped_does_not_fail_the_run(self) -> None:
         # Arrange
-        result = Bench([], {"mayumi-v4": "image missing"}, [], [])
+        result = Bench((), {"mayumi-v4": "image missing"}, (), ())
 
         # Act
         status = exit_status(result, {}, whole=False)
@@ -229,7 +229,7 @@ class ExitStatusTest(unittest.TestCase):
         self.assertEqual(status, 0)
 
     def test_a_partial_run_ignores_the_showcase(self) -> None:
-        result = Bench([], {}, [], [])
+        result = Bench((), {}, (), ())
         failing = {"ours": {"antimod-v1": Outcome.FAILED}}
 
         status = exit_status(result, failing, whole=False)

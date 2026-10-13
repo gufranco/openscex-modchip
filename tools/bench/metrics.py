@@ -12,6 +12,7 @@ reread_valid and second_window_valid count only strings of the expected region,
 since a garbled string re-authenticates nothing.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from tools.bench.decode import decode
@@ -49,7 +50,7 @@ class Metrics:
     second_window_valid: int = 0
 
 
-def _segment(start_ns: int, phases: dict[Phase, int]) -> Phase | None:
+def _segment(start_ns: int, phases: Mapping[Phase, int]) -> Phase | None:
     """The phase a time falls in, or None before the first mark."""
     current = None
     for phase, mark in sorted(phases.items(), key=lambda item: item[1]):
@@ -76,7 +77,7 @@ def framed(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
     return merged
 
 
-def measure(trace: Trace, phases: dict[Phase, int], region: Region) -> Metrics:
+def measure(trace: Trace, phases: Mapping[Phase, int], region: Region) -> Metrics:
     """Measure one run against its scenario's phase marks."""
     strings = decode(trace.data, trace.end_ns)
     valid = [s for s in strings if s.region is region]

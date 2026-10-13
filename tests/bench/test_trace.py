@@ -15,14 +15,14 @@ class ParseTest(unittest.TestCase):
 
         trace = parse(lines)
 
-        self.assertEqual(trace.data, [Change(0, False, False), Change(20, True, False)])
-        self.assertEqual(trace.gate, [Change(10, True, False)])
+        self.assertEqual(trace.data, (Change(0, False, False), Change(20, True, False)))
+        self.assertEqual(trace.gate, (Change(10, True, False),))
         self.assertEqual(trace.end_ns, 35)
 
     def test_an_unknown_output_is_ignored(self) -> None:
         trace = parse(["5 led 1 1", "9 end 0 0"])
 
-        self.assertEqual((trace.data, trace.gate), ([], []))
+        self.assertEqual((trace.data, trace.gate), ((), ()))
 
 
 class DrivenTest(unittest.TestCase):

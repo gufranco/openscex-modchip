@@ -19,7 +19,7 @@ manual sheet 3; psx-spx), low through the lead-in and high in the program area;
 that polarity is unmeasured.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -91,7 +91,7 @@ class Scenario:
     name: str
     description: str
     duration_ns: int
-    phases: dict[Phase, int]
+    phases: Mapping[Phase, int]
     build: Callable[[], Timeline]
     boards: frozenset[Board]
     judged: bool = True

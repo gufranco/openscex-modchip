@@ -10,7 +10,7 @@ read against a disassembly.
 
 import math
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from tools.bench.envelope import Finding, Verdict
@@ -93,7 +93,7 @@ def _support(run: Run) -> str:
     return "partly" if run.scenario.boards & run.chip.boards else "none"
 
 
-def _runs(runs: list[Run]) -> list[str]:
+def _runs(runs: Sequence[Run]) -> list[str]:
     lines = [
         "## Behaviour",
         "",
@@ -118,7 +118,7 @@ def _runs(runs: list[Run]) -> list[str]:
     return lines
 
 
-def _findings(findings: list[Finding]) -> list[str]:
+def _findings(findings: Sequence[Finding]) -> list[str]:
     counts = dict.fromkeys(Verdict, 0)
     for finding in findings:
         counts[finding.verdict] += 1
@@ -145,7 +145,7 @@ def _floor_tenth(percent: float) -> str:
     return f"{math.floor(percent * 10) / 10:.1f}"
 
 
-def _coverage(results: list[Coverage]) -> list[str]:
+def _coverage(results: Sequence[Coverage]) -> list[str]:
     lines = [
         "## Instruction coverage",
         "",
@@ -168,10 +168,10 @@ def _coverage(results: list[Coverage]) -> list[str]:
 
 
 def render(
-    runs: list[Run],
-    skips: dict[str, str],
-    findings: list[Finding],
-    coverages: list[Coverage],
+    runs: Sequence[Run],
+    skips: Mapping[str, str],
+    findings: Sequence[Finding],
+    coverages: Sequence[Coverage],
 ) -> str:
     """The whole report as Markdown."""
     skipped = [f"- {name}: {reason}" for name, reason in skips.items()]

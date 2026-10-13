@@ -24,6 +24,21 @@ def string_at(start: int, bits: str | None = None) -> list[Change]:
     return [*changes, Change(start + len(pattern) * CELL, False, False)]
 
 
+def trace_of(
+    data: list[Change],
+    gate: list[Change],
+    end_ns: int,
+    pulls: dict[str, list[Change]] | None = None,
+) -> Trace:
+    """A Trace from the lists these tests build."""
+    return Trace(
+        tuple(data),
+        tuple(gate),
+        end_ns,
+        {line: tuple(changes) for line, changes in (pulls or {}).items()},
+    )
+
+
 PHASES = {
     Phase.LEAD_IN: 1 * SECOND,
     Phase.PROGRAM: 3 * SECOND,
@@ -39,7 +54,7 @@ class MeasureTest(unittest.TestCase):
             + string_at(4 * SECOND)
             + string_at(7 * SECOND)
         )
-        trace = Trace(data, [], 9 * SECOND)
+        trace = trace_of(data, [], 9 * SECOND)
 
         metrics = measure(trace, PHASES, Region.AMERICA)
 
@@ -52,7 +67,7 @@ class MeasureTest(unittest.TestCase):
         self.assertEqual(metrics.first_latency_ns, SECOND // 2)
 
     def test_a_string_before_the_lead_in_is_counted_apart(self) -> None:
-        trace = Trace(string_at(0) + string_at(2 * SECOND), [], 5 * SECOND)
+        trace = trace_of(string_at(0) + string_at(2 * SECOND), [], 5 * SECOND)
 
         metrics = measure(trace, PHASES, Region.AMERICA)
 
@@ -60,7 +75,9 @@ class MeasureTest(unittest.TestCase):
         self.assertEqual(metrics.before_program, 1)
 
     def test_a_wrong_region_neither_counts_as_valid_nor_accepts(self) -> None:
-        trace = Trace(string_at(2 * SECOND, region_bits(Region.EUROPE)), [], 5 * SECOND)
+        trace = trace_of(
+            string_at(2 * SECOND, region_bits(Region.EUROPE)), [], 5 * SECOND
+        )
 
         metrics = measure(trace, PHASES, Region.AMERICA)
 
@@ -69,7 +86,7 @@ class MeasureTest(unittest.TestCase):
         self.assertIsNone(metrics.first_latency_ns)
 
     def test_a_string_that_ends_after_the_program_mark_does_not_accept(self) -> None:
-        trace = Trace(string_at(3 * SECOND - CELL), [], 5 * SECOND)
+        trace = trace_of(string_at(3 * SECOND - CELL), [], 5 * SECOND)
 
         metrics = measure(trace, PHASES, Region.AMERICA)
 
@@ -79,13 +96,15 @@ class MeasureTest(unittest.TestCase):
         bits = region_bits(Region.AMERICA)[:30] + "0"
 
         metrics = measure(
-            Trace(string_at(2 * SECOND, bits), [], 5 * SECOND), PHASES, Region.AMERICA
+            trace_of(string_at(2 * SECOND, bits), [], 5 * SECOND),
+            PHASES,
+            Region.AMERICA,
         )
 
         self.assertEqual(metrics.garbled, 1)
 
     def test_no_string_leaves_cell_figures_empty(self) -> None:
-        metrics = measure(Trace([], [], 5 * SECOND), PHASES, Region.AMERICA)
+        metrics = measure(trace_of([], [], 5 * SECOND), PHASES, Region.AMERICA)
 
         self.assertEqual(metrics.strings, 0)
         self.assertIsNone(metrics.cell_min_ns)
@@ -99,7 +118,7 @@ class MeasureTest(unittest.TestCase):
         ]
         gate = [Change(10, True, False), Change(60, False, False)]
 
-        metrics = measure(Trace(data, gate, 5 * SECOND), PHASES, Region.AMERICA)
+        metrics = measure(trace_of(data, gate, 5 * SECOND), PHASES, Region.AMERICA)
 
         self.assertEqual(metrics.data_driven_outside_ns, 100)
         self.assertEqual(metrics.gate_driven_ns, 50)
@@ -119,7 +138,7 @@ class MeasureTest(unittest.TestCase):
             + string_at(int(10.5 * SECOND))
         )
 
-        metrics = measure(Trace(data, [], 12 * SECOND), phases, Region.AMERICA)
+        metrics = measure(trace_of(data, [], 12 * SECOND), phases, Region.AMERICA)
 
         self.assertEqual(metrics.probe_strings, 2)
 
@@ -129,7 +148,7 @@ class MeasureTest(unittest.TestCase):
         phases = {**PHASES, Phase.PROBE: 8 * SECOND, Phase.AFTER_PROBE: 10 * SECOND}
         data = [Change(7 * SECOND, True, False), Change(11 * SECOND, False, False)]
 
-        metrics = measure(Trace(data, [], 12 * SECOND), phases, Region.AMERICA)
+        metrics = measure(trace_of(data, [], 12 * SECOND), phases, Region.AMERICA)
 
         self.assertEqual(metrics.probe_strings, 0)
 
@@ -143,7 +162,7 @@ class MeasureTest(unittest.TestCase):
             + string_at(7 * SECOND, europe)
         )
 
-        metrics = measure(Trace(data, [], 9 * SECOND), PHASES, Region.AMERICA)
+        metrics = measure(trace_of(data, [], 9 * SECOND), PHASES, Region.AMERICA)
 
         self.assertEqual(metrics.during_reread, 2)
         self.assertEqual(metrics.reread_valid, 1)
@@ -158,7 +177,7 @@ class MeasureTest(unittest.TestCase):
             Change(end + CELL + 300, False, False),
         ]
         pulls = {"sqck": [Change(0, True, True), Change(700, False, False)]}
-        trace = Trace(string_at(start), gate, 5 * SECOND, pulls)
+        trace = trace_of(string_at(start), gate, 5 * SECOND, pulls)
 
         metrics = measure(trace, PHASES, Region.AMERICA)
 
@@ -169,7 +188,7 @@ class MeasureTest(unittest.TestCase):
         start = 2 * SECOND
         second = start + 74 * CELL
         gate = [Change(start, True, False), Change(second + 44 * CELL, False, False)]
-        trace = Trace(string_at(start) + string_at(second), gate, 5 * SECOND)
+        trace = trace_of(string_at(start) + string_at(second), gate, 5 * SECOND)
 
         metrics = measure(trace, PHASES, Region.AMERICA)
 
@@ -211,7 +230,7 @@ class FramedTest(unittest.TestCase):
         )
 
         # Act
-        metrics = measure(Trace(data, [], 14 * SECOND), phases, Region.AMERICA)
+        metrics = measure(trace_of(data, [], 14 * SECOND), phases, Region.AMERICA)
 
         # Assert
         self.assertEqual(metrics.second_play, 2)
@@ -223,7 +242,7 @@ class FramedTest(unittest.TestCase):
         data = string_at(int(8.5 * SECOND)) + string_at(int(10.5 * SECOND))
 
         # Act
-        metrics = measure(Trace(data, [], 12 * SECOND), phases, Region.AMERICA)
+        metrics = measure(trace_of(data, [], 12 * SECOND), phases, Region.AMERICA)
 
         # Assert
         self.assertEqual(metrics.during_swap, 1)
@@ -235,7 +254,7 @@ class FramedTest(unittest.TestCase):
         data = string_at(int(10.5 * SECOND), region_bits(Region.EUROPE))
 
         # Act
-        metrics = measure(Trace(data, [], 12 * SECOND), phases, Region.AMERICA)
+        metrics = measure(trace_of(data, [], 12 * SECOND), phases, Region.AMERICA)
 
         # Assert
         self.assertEqual((metrics.second_window, metrics.second_window_valid), (1, 0))

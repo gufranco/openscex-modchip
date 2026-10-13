@@ -12,7 +12,7 @@ are generated between markers. The README wording per language lives in TEXT.
 import argparse
 import json
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import cache
@@ -57,12 +57,12 @@ class Words:
     """TEXT as read: per language, the table's words and each property's title
     and mechanism."""
 
-    heading: dict[str, str]
-    source: dict[str, str]
-    stop: dict[str, str]
-    colon: dict[str, str]
-    outcome: dict[str, dict[str, str]]
-    properties: dict[str, dict[str, dict[str, str]]]
+    heading: Mapping[str, str]
+    source: Mapping[str, str]
+    stop: Mapping[str, str]
+    colon: Mapping[str, str]
+    outcome: Mapping[str, Mapping[str, str]]
+    properties: Mapping[str, Mapping[str, Mapping[str, str]]]
 
     def said(self, key: str, field: str, lang: str) -> str:
         """A property's title or mechanism in one language."""
@@ -209,7 +209,7 @@ def words() -> Words:
     return parse_words(json.loads(TEXT.read_text()))
 
 
-def _judge(prop: Property, runs: list[Run]) -> Outcome:
+def _judge(prop: Property, runs: Sequence[Run]) -> Outcome:
     relevant = [
         r
         for r in runs
@@ -221,7 +221,7 @@ def _judge(prop: Property, runs: list[Run]) -> Outcome:
     return Outcome.HELD if held else Outcome.FAILED
 
 
-def evaluate(runs: list[Run]) -> Results:
+def evaluate(runs: Sequence[Run]) -> Results:
     """Every chip that ran, judged on every property, in catalogue order."""
     names = [c.name for c in CHIPS if any(r.chip.name == c.name for r in runs)]
     return {

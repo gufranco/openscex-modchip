@@ -16,6 +16,7 @@ import argparse
 import os
 import sys
 import tempfile
+from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,10 +41,10 @@ OURS = "ours"
 class Bench:
     """Everything one bench invocation produced."""
 
-    runs: list[Run]
-    skips: dict[str, str]
-    findings: list[Finding]
-    coverages: list[Coverage]
+    runs: tuple[Run, ...]
+    skips: Mapping[str, str]
+    findings: tuple[Finding, ...]
+    coverages: tuple[Coverage, ...]
 
 
 def select(given: str | None, known: list[str]) -> list[str]:
@@ -119,10 +120,10 @@ def bench(root: Path, chips: list[str], scenarios: list[str], workdir: Path) -> 
         ran = frozenset().union(*(r.executed for r in mine))
         excused = excuse(root, chip, addresses - ran)
         coverages.append(coverage(chip.name, addresses, [ran], excused))
-    return Bench(runs, skips, judge(runs), coverages)
+    return Bench(tuple(runs), skips, tuple(judge(runs)), tuple(coverages))
 
 
-def verdict(findings: list[Finding]) -> int:
+def verdict(findings: Sequence[Finding]) -> int:
     """Print every broken rule and return the exit status they call for."""
     broken = [f for f in findings if f.verdict is Verdict.BROKEN]
     for finding in broken:
@@ -130,7 +131,7 @@ def verdict(findings: list[Finding]) -> int:
     return 1 if broken else 0
 
 
-def reached(coverages: list[Coverage]) -> int:
+def reached(coverages: Sequence[Coverage]) -> int:
     """Fail the run when ours has an instruction no scenario reaches and no
     reason excuses. Third-party gaps are only reported."""
     left = [c for c in coverages if c.chip == OURS and c.uncovered]
@@ -140,7 +141,7 @@ def reached(coverages: list[Coverage]) -> int:
     return 1 if left else 0
 
 
-def ran_ours(skips: dict[str, str]) -> int:
+def ran_ours(skips: Mapping[str, str]) -> int:
     """Fail the run when ours was selected but skipped: with no run of ours,
     nothing was judged, and a passing status would mean nothing."""
     if OURS not in skips:
