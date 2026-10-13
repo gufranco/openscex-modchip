@@ -27,7 +27,7 @@
 
 </div>
 
-闪存 [**5804**](Makefile) 字节 · [**8**](assets/psnee) 个主板系列，PU-7 至 PM-41(2) · [**3**](src/region.c) 个区域 · MISRA 偏离 [**0**](AGENTS.md) · 主机测试行与分支覆盖率 [**100%**](tests/host) · 变异体 [**422/422**](tools/mutate.py) 被杀死
+闪存 [**5806**](Makefile) 字节 · [**8**](assets/psnee) 个主板系列，PU-7 至 PM-41(2) · [**3**](src/region.c) 个区域 · MISRA 偏离 [**0**](AGENTS.md) · 主机测试行与分支覆盖率 [**100%**](tests/host) · 变异体 [**422/422**](tools/mutate.py) 被杀死
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -53,7 +53,7 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 | 目标机型 | PlayStation 厚机 PU-7 至 PU-23，PSone PM-41 与 PM-41(2) | [assets/psnee](assets/psnee), [PsNee PSNee.ino L372-L406](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L372-L406) |
 | MCU | ATtiny85（8 脚 DIP） | [include/port/registers.h](include/port/registers.h), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 方式 | SCEx 注入 | [src/inject.c](src/inject.c), [psx-spx cdromdrive.md, SCEx](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromdrive.md#L1211-L1230) |
-| 区域 | 每次构建一个，`REGION=jp|us|eu`（默认 us） | [Makefile](Makefile), [src/region.c](src/region.c) |
+| 区域 | 每次构建一个，`REGION=jp\|us\|eu`（默认 us） | [Makefile](Makefile), [src/region.c](src/region.c) |
 | 时钟 | 内部 8 MHz RC 振荡器，按主机的 SUBQ 帧率校正 | [src/trim.c](src/trim.c), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 连线 | 4 根信号线（SQCK、SUBQ、DATA、WFCK）加电源；LED 或有源蜂鸣器可选 | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
 | 工具链 | C17，MISRA C:2012 零偏离，版本固定的 Docker 镜像 | [Dockerfile](Dockerfile), [AGENTS.md](AGENTS.md) |
@@ -91,6 +91,7 @@ gh attestation verify openscex-modchip-attiny85.hex --repo gufranco/openscex-mod
 | Docker | 运行固定的工具链 | [Docker](https://docs.docker.com/get-docker/), [Dockerfile](Dockerfile) |
 | Git | 克隆仓库 | [Git](https://git-scm.com/downloads) |
 | avrdude | 把镜像烧进芯片 | [avrdude](https://github.com/avrdudes/avrdude) |
+| Python 3 | 在主机上运行 make 的 Docker 包装脚本 | [Python](https://www.python.org/downloads/), [tools/docker_make.py](tools/docker_make.py) |
 
 ```bash
 git clone https://github.com/gufranco/openscex-modchip.git
@@ -99,7 +100,7 @@ make REGION=us                                        # 美洲
 make REGION=jp VCD_FILTER=on                          # SCPH-5903
 make REGION=us PROFILE=final                          # 美洲，安静的指示
 make REGION=us PROFILE=trace                          # 美洲，SUBQ 帧输出到引脚 2
-avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
+avrdude -c <programmer> -p attiny85 -U flash:w:build/attiny85/release/openscex-modchip-attiny85.hex:i
 avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
 ```
 
@@ -118,9 +119,11 @@ avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse
 
 ```bash
 make size        # 镜像大小；剩余闪存少于 256 字节时失败
-make test        # 主机测试、simavr 主机模型及其栈检查、静态分析、MISRA
+make test        # 主机测试、simavr 主机模型及其栈检查
+make analyse     # 格式、lint、类型、许可证、MISRA 与 Python 测试
 make repro       # 两次全新构建逐字节一致
 make mutate      # 逻辑层的变异测试
+make mutate_platform  # run.c 与 engine.c 的变异测试，由模拟器捕获
 make bench_ci    # 主机测试台：在同一个模拟主机中对比本固件与 PsNee
 ```
 
@@ -200,7 +203,7 @@ PB3 可选接一个 LED 或有源蜂鸣器，这是芯片唯一的诊断手段�
 | 电阻 | 1 kΩ，功率不限：在主机的 3.5 V 下约 1.5 mA，远低于引脚 40 mA 的绝对最大值 | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | LED 接线 | 2 号引脚（PB3）接电阻，电阻接 LED 阳极（长脚），阴极（平边）接地 | [include/port/registers.h](include/port/registers.h) |
 | 蜂鸣器 | 代替 LED 的有源压电蜂鸣器，通直流就响，例如 PUI Audio AI-3035-TWT-3V-R：2 至 5 V，3 V 时最大 9 mA，约 3.5 kHz，直径 30 mm | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 蜂鸣器接线 | 2 号引脚（PB3）接蜂鸣器 + 端，- 端接地，不需要电阻或二极管：压电元件不是线圈，关断时不会送回电压尖峰。电磁蜂鸣器是线圈，不支持 | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [include/port/registers.h](include/port/registers.h) |
+| 蜂鸣器接线 | 2 号引脚（PB3）接蜂鸣器 + 端，- 端接地，不需要电阻或二极管：压电元件不是线圈，关断时不会送回电压尖峰。电磁蜂鸣器是线圈，不支持直接接到引脚；载板通过 Q1 并带续流二极管驱动它 | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch),  [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [include/port/registers.h](include/port/registers.h) |
 
 驱动该引脚的构建有两种。默认的 `debug` 显示下表全部内容；用 `make PROFILE=final` 构建、以 `-final` 镜像发布的 `final` 保持安静。安装和排查故障时烧录 `debug`，玩游戏时换成 `final`。只有该引脚不同：模拟器逐个边沿核对两者在同一时刻发送相同的字符串。 出处：[include/pscu/indicator.h](include/pscu/indicator.h), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
 
@@ -284,7 +287,7 @@ graph LR
 | 主板 | 启动时识别的主板 | 主板不同则显示一次代码 6，并重新学习起始位置 | [src/calib.c](src/calib.c), [src/indicator.c](src/indicator.c) |
 | 振荡器 | 主机晶振决定的 75 Hz 单倍速帧间隔，导入区与游戏中均计；振荡器速率随电源变化，因此只在电源检查通过时计 | 每批 64 帧按超出 1% 死区的误差每 1% 调一级（向上取整），最多 4 级，每次写入一级；校正属于芯片本身，因此更换主板时保留 | [src/trim.c](src/trim.c), [src/run.c](src/run.c) |
 
-芯片只写入值有变化的字节，只在启动时或光盘检查有结果之后写入，从不在发送字符串时写入，因此稳定下来的主机不再写入。单元擦写寿命为 100,000 次。因断电只写了一半的记录由校验字节发现，按默认值读取。重新烧录也会擦除记录，因为上面两组熔丝都让 EESAVE 保持未编程（数据手册 Table 20-4，高熔丝位 3）。2 帧的步长和 20 帧的上限尚未在主机上调校。校正的目标是数据手册给出的用户校准后精度 1%，出厂精度为 10%（Table 21-2）。 出处：[src/calib.c](src/calib.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
+芯片只写入值有变化的字节，只在启动时、光盘检查有结果之后或振荡器微调变动时写入，从不在发送字符串时写入，因此微调也稳定下来的主机不再写入。单元擦写寿命为 100,000 次。因断电只写了一半的记录由校验字节发现，按默认值读取。重新烧录也会擦除记录，因为上面两组熔丝都让 EESAVE 保持未编程（数据手册 Table 20-4，高熔丝位 3）。2 帧的步长和 20 帧的上限尚未在主机上调校。校正的目标是数据手册给出的用户校准后精度 1%，出厂精度为 10%（Table 21-2）。 出处：[src/calib.c](src/calib.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
 
 ## 配置
 
@@ -293,7 +296,7 @@ graph LR
 | 参数 | 取值 | 默认 | 选择 | 出处 |
 |:-----|:-----|:-----|:-----|:--|
 | `REGION` | `jp`、`us`、`eu` | `us` | 芯片送出的唯一区域字符串 | [Makefile](Makefile), [src/region.c](src/region.c) |
-| `PROFILE` | `debug`、`final` | `debug` | LED 或蜂鸣器显示的内容：debug 显示每个阶段、字符串和故障；final 在上电和光盘被接受时短响，每个故障只显示一次；两者的 DATA 相同 | [Makefile](Makefile), [include/pscu/indicator.h](include/pscu/indicator.h) |
+| `PROFILE` | `debug`、`final`、`trace` | `debug` | 2 号引脚的作用：debug 显示每个阶段、字符串和故障；final 在上电和光盘被接受时短响，每个故障只显示一次；trace 把该引脚变成 115200 baud 的串口线，发出每个 SUBQ 帧；三者的 DATA 相同 | [Makefile](Makefile), [src/run.c](src/run.c), [include/pscu/indicator.h](include/pscu/indicator.h) |
 | `VCD_FILTER` | `off`、`on` | `off` | 仅 SCPH-5903 设为 on：与 PsNee V9.0 的 SCPH-5903 过滤器一样，注入只在游戏的导入区 TOC 触发，不在 Video CD 上触发 | [Makefile](Makefile), [src/subq.c](src/subq.c), [PsNee PSNee.ino L456-L490](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L456-L490) |
 
 非默认区域、过滤器或配置会在产物名上加标签，例如 `openscex-modchip-attiny85-jp.hex`、`openscex-modchip-attiny85-jp-vcd.hex` 或 `openscex-modchip-attiny85-final.hex`。 出处：[Makefile](Makefile)。

@@ -27,7 +27,7 @@
 
 </div>
 
-[**5804**](Makefile) bytes of flash · [**8**](assets/psnee) board families, PU-7 to PM-41(2) · [**3**](src/region.c) regions · [**0**](AGENTS.md) MISRA deviations · [**100%**](tests/host) host line and branch coverage · [**422/422**](tools/mutate.py) mutants killed
+[**5806**](Makefile) bytes of flash · [**8**](assets/psnee) board families, PU-7 to PM-41(2) · [**3**](src/region.c) regions · [**0**](AGENTS.md) MISRA deviations · [**100%**](tests/host) host line and branch coverage · [**422/422**](tools/mutate.py) mutants killed
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -53,7 +53,7 @@ Region-unlock firmware for the original PlayStation and the PSone, on an ATtiny8
 | Console targets | PlayStation fat PU-7 through PU-23, PSone PM-41 and PM-41(2) | [assets/psnee](assets/psnee), [PsNee PSNee.ino L372-L406](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L372-L406) |
 | MCU | ATtiny85 (8-pin DIP) | [include/port/registers.h](include/port/registers.h), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | Method | SCEx injection | [src/inject.c](src/inject.c), [psx-spx cdromdrive.md, SCEx](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromdrive.md#L1211-L1230) |
-| Region | one per build, `REGION=jp|us|eu` (default us) | [Makefile](Makefile), [src/region.c](src/region.c) |
+| Region | one per build, `REGION=jp\|us\|eu` (default us) | [Makefile](Makefile), [src/region.c](src/region.c) |
 | Clock | the internal 8 MHz RC oscillator, trimmed against the console's SUBQ frame rate | [src/trim.c](src/trim.c), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | Wires | 4 signals (SQCK, SUBQ, DATA, WFCK) plus power; optional LED or active buzzer | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
 | Toolchain | C17, MISRA C:2012 zero deviations, pinned Docker image | [Dockerfile](Dockerfile), [AGENTS.md](AGENTS.md) |
@@ -91,6 +91,7 @@ Releases are versioned automatically from the commit history. To build from sour
 | Docker | runs the pinned toolchain | [Docker](https://docs.docker.com/get-docker/), [Dockerfile](Dockerfile) |
 | Git | clones the repository | [Git](https://git-scm.com/downloads) |
 | avrdude | flashes the image to the chip | [avrdude](https://github.com/avrdudes/avrdude) |
+| Python 3 | runs make's Docker wrapper on the host | [Python](https://www.python.org/downloads/), [tools/docker_make.py](tools/docker_make.py) |
 
 ```bash
 git clone https://github.com/gufranco/openscex-modchip.git
@@ -99,7 +100,7 @@ make REGION=us                                        # America
 make REGION=jp VCD_FILTER=on                          # SCPH-5903
 make REGION=us PROFILE=final                          # America, quiet indicator
 make REGION=us PROFILE=trace                          # America, SUBQ frames on pin 2
-avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
+avrdude -c <programmer> -p attiny85 -U flash:w:build/attiny85/release/openscex-modchip-attiny85.hex:i
 avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
 ```
 
@@ -118,9 +119,11 @@ Verify with the [Makefile](Makefile) targets:
 
 ```bash
 make size        # image size; fails when less than 256 bytes of flash stay free
-make test        # host tests, simavr console model and its stack check, static analysis, MISRA
+make test        # host tests, simavr console model and its stack check
+make analyse     # formatting, lint, types, licences, MISRA and the Python tests
 make repro       # two fresh builds, byte-identical
 make mutate      # mutation testing on the logic layer
+make mutate_platform  # mutation of run.c and engine.c, killed by the simulator
 make bench_ci    # console bench: this firmware against PsNee in the same simulated console
 ```
 
@@ -200,7 +203,7 @@ PB3 drives an optional LED or active buzzer, the chip's only diagnostic channel.
 | Resistor | 1 kΩ, any wattage: about 1.5 mA at the console's 3.5 V, well under the pin's 40 mA absolute maximum | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | LED wiring | pin 2 (PB3) to the resistor, the resistor to the LED anode (long leg), the cathode (flat side) to ground | [include/port/registers.h](include/port/registers.h) |
 | Buzzer | instead of the LED, an active piezo buzzer, which sounds on plain DC, such as the PUI Audio AI-3035-TWT-3V-R: 2 to 5 V, at most 9 mA at 3 V, about 3.5 kHz, 30 mm across | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| Buzzer wiring | pin 2 (PB3) to the buzzer's + lead, the - lead to ground, with no resistor or diode: a piezo is not a coil and sends no spike back when switched off. Magnetic buzzers are coils and are not supported | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [include/port/registers.h](include/port/registers.h) |
+| Buzzer wiring | pin 2 (PB3) to the buzzer's + lead, the - lead to ground, with no resistor or diode: a piezo is not a coil and sends no spike back when switched off. Wired straight to the pin, a magnetic buzzer is not supported, since it is a coil; the carrier board drives one through Q1 with a flyback diode | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch),  [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [include/port/registers.h](include/port/registers.h) |
 
 Two builds drive the pin. `debug`, the default, shows everything below; `final`, built with `make PROFILE=final` and released as the `-final` images, stays quiet. Flash `debug` to install and troubleshoot, then `final` to play. Only the pin differs: the simulator checks edge by edge that both send the same strings at the same times. Source: [include/pscu/indicator.h](include/pscu/indicator.h), [tests/sim/sim_profile.c](tests/sim/sim_profile.c).
 
@@ -284,7 +287,7 @@ The chip learns how this console reads the region string and keeps the result in
 | Board | the board detected at boot | a different board shows code 6 once and restarts the start point | [src/calib.c](src/calib.c), [src/indicator.c](src/indicator.c) |
 | Oscillator | single-speed frame spacing, 75 Hz from the console's crystal, in the lead-in and in play, only while the supply check passes, since the oscillator's rate follows its supply | each 64-frame batch moves OSCCAL one notch per percent of error beyond a 1% dead band, rounded up, at most 4, one notch per write; the trim belongs to the chip, so a board change keeps it | [src/trim.c](src/trim.c), [src/run.c](src/run.c) |
 
-The chip writes only changed bytes, only at boot or after a disc's check resolves and never during a string, so a settled console writes nothing; cell endurance is 100,000 writes. A check byte makes a record cut short by power-off read as the defaults. Reflashing erases the record, because both fuse sets leave EESAVE unprogrammed (datasheet Table 20-4, high fuse bit 3). The 2-frame step and the 20-frame bound are not yet tuned on a console. The trim targets the datasheet's 1% after user calibration, against 10% from the factory (Table 21-2). Source: [src/calib.c](src/calib.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf).
+The chip writes only changed bytes, only at boot, after a disc's check resolves or when the oscillator trim moves, and never during a string, so a settled console with a settled trim writes nothing; cell endurance is 100,000 writes. A check byte makes a record cut short by power-off read as the defaults. Reflashing erases the record, because both fuse sets leave EESAVE unprogrammed (datasheet Table 20-4, high fuse bit 3). The 2-frame step and the 20-frame bound are not yet tuned on a console. The trim targets the datasheet's 1% after user calibration, against 10% from the factory (Table 21-2). Source: [src/calib.c](src/calib.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf).
 
 ## Configuration
 
@@ -293,7 +296,7 @@ One source builds every variant; the knobs are passed to `make`. Source: [Makefi
 | Knob | Values | Default | Selects | Source |
 |:-----|:-------|:--------|:--------|:--|
 | `REGION` | `jp`, `us`, `eu` | `us` | the one region string the chip emits | [Makefile](Makefile), [src/region.c](src/region.c) |
-| `PROFILE` | `debug`, `final` | `debug` | what the LED or buzzer says: debug shows every stage, string and fault; final chirps at power-on and on an accepted disc, and shows each fault once; DATA is the same in both | [Makefile](Makefile), [include/pscu/indicator.h](include/pscu/indicator.h) |
+| `PROFILE` | `debug`, `final`, `trace` | `debug` | what pin 2 does: debug lights or sounds every stage, string and fault; final chirps at power-on and on an accepted disc, and shows each fault once; trace makes it a 115200-baud serial line carrying each SUBQ frame; DATA is the same in all three | [Makefile](Makefile), [src/run.c](src/run.c), [include/pscu/indicator.h](include/pscu/indicator.h) |
 | `VCD_FILTER` | `off`, `on` | `off` | on for the SCPH-5903 only: injection arms on a game's lead-in TOC, never on a Video CD's, as PsNee V9.0's SCPH-5903 filter does | [Makefile](Makefile), [src/subq.c](src/subq.c), [PsNee PSNee.ino L456-L490](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L456-L490) |
 
 A non-default region, filter or profile tags the artifact name, for example `openscex-modchip-attiny85-jp.hex`, `openscex-modchip-attiny85-jp-vcd.hex` or `openscex-modchip-attiny85-final.hex`. Source: [Makefile](Makefile).

@@ -27,7 +27,7 @@
 
 </div>
 
-フラッシュ [**5804**](Makefile) バイト · 基板 [**8**](assets/psnee) 系統、PU-7 から PM-41(2) · リージョン [**3**](src/region.c) 種 · MISRA 逸脱 [**0**](AGENTS.md) · ホストの行と分岐カバレッジ [**100%**](tests/host) · ミュータント [**422/422**](tools/mutate.py) 撃破
+フラッシュ [**5806**](Makefile) バイト · 基板 [**8**](assets/psnee) 系統、PU-7 から PM-41(2) · リージョン [**3**](src/region.c) 種 · MISRA 逸脱 [**0**](AGENTS.md) · ホストの行と分岐カバレッジ [**100%**](tests/host) · ミュータント [**422/422**](tools/mutate.py) 撃破
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -53,7 +53,7 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 | 対象機種 | PlayStation フット機 PU-7 から PU-23、PSone PM-41 と PM-41(2) | [assets/psnee](assets/psnee), [PsNee PSNee.ino L372-L406](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L372-L406) |
 | MCU | ATtiny85（8 ピン DIP） | [include/port/registers.h](include/port/registers.h), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 方式 | SCEx 注入 | [src/inject.c](src/inject.c), [psx-spx cdromdrive.md, SCEx](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromdrive.md#L1211-L1230) |
-| リージョン | ビルドごとに 1 つ、`REGION=jp|us|eu`（既定 us） | [Makefile](Makefile), [src/region.c](src/region.c) |
+| リージョン | ビルドごとに 1 つ、`REGION=jp\|us\|eu`（既定 us） | [Makefile](Makefile), [src/region.c](src/region.c) |
 | クロック | 内蔵 8 MHz RC 発振器。コンソールの SUBQ フレームレートで補正 | [src/trim.c](src/trim.c), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 配線 | 信号 4 本（SQCK、SUBQ、DATA、WFCK）と電源、LED かアクティブブザーは任意 | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
 | ツールチェーン | C17、MISRA C:2012 逸脱ゼロ、バージョン固定の Docker イメージ | [Dockerfile](Dockerfile), [AGENTS.md](AGENTS.md) |
@@ -91,6 +91,7 @@ gh attestation verify openscex-modchip-attiny85.hex --repo gufranco/openscex-mod
 | Docker | 固定ツールチェーンを動かす | [Docker](https://docs.docker.com/get-docker/), [Dockerfile](Dockerfile) |
 | Git | リポジトリを取得する | [Git](https://git-scm.com/downloads) |
 | avrdude | イメージをチップに書き込む | [avrdude](https://github.com/avrdudes/avrdude) |
+| Python 3 | ホスト上で make の Docker ラッパーを動かす | [Python](https://www.python.org/downloads/), [tools/docker_make.py](tools/docker_make.py) |
 
 ```bash
 git clone https://github.com/gufranco/openscex-modchip.git
@@ -99,7 +100,7 @@ make REGION=us                                        # アメリカ
 make REGION=jp VCD_FILTER=on                          # SCPH-5903
 make REGION=us PROFILE=final                          # アメリカ、静かな表示
 make REGION=us PROFILE=trace                          # アメリカ、ピン 2 に SUBQ フレーム
-avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
+avrdude -c <programmer> -p attiny85 -U flash:w:build/attiny85/release/openscex-modchip-attiny85.hex:i
 avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
 ```
 
@@ -118,9 +119,11 @@ ISP は何でも使えます。Arduino as ISP も可。フラッシュを先に�
 
 ```bash
 make size        # イメージサイズ。空きフラッシュが 256 バイト未満なら失敗
-make test        # ホストテスト、simavr コンソールモデルとスタック検査、静的解析、MISRA
+make test        # ホストテスト、simavr コンソールモデルとスタック検査
+make analyse     # 整形、lint、型、ライセンス、MISRA、Python テスト
 make repro       # 2 回の新規ビルドがバイト単位で一致
 make mutate      # ロジック層のミューテーションテスト
+make mutate_platform  # run.c と engine.c のミューテーション、シミュレータで検出
 make bench_ci    # コンソールベンチ: 同じ模擬コンソールでこのファームウェアと PsNee を比較
 ```
 
@@ -200,7 +203,7 @@ PB3 には任意で LED かアクティブブザーをつなぎ、これがチ�
 | 抵抗 | 1 kΩ、ワット数は問わない。コンソールの 3.5 V で約 1.5 mA で、ピンの絶対最大定格 40 mA を大きく下回る | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | LED の配線 | 2 番ピン（PB3）から抵抗、抵抗から LED のアノード（長い足）、カソード（平らな側）を GND へ | [include/port/registers.h](include/port/registers.h) |
 | ブザー | LED の代わりに、直流をかけるだけで鳴るアクティブ圧電ブザー。例えば PUI Audio AI-3035-TWT-3V-R: 2 から 5 V、3 V で最大 9 mA、約 3.5 kHz、直径 30 mm | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| ブザーの配線 | 2 番ピン（PB3）をブザーの + 端子へ、- 端子を GND へ。抵抗もダイオードも不要: 圧電素子はコイルではないので、切っても電圧スパイクを返さない。コイルである電磁ブザーには対応しない | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [include/port/registers.h](include/port/registers.h) |
+| ブザーの配線 | 2 番ピン（PB3）をブザーの + 端子へ、- 端子を GND へ。抵抗もダイオードも不要: 圧電素子はコイルではないので、切っても電圧スパイクを返さない。電磁ブザーはコイルなので、ピンへの直結には対応しない。キャリア基板は Q1 とフライバックダイオードを介して駆動する | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch),  [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [include/port/registers.h](include/port/registers.h) |
 
 ピンを駆動するビルドは 2 種類あります。既定の `debug` は下の表のすべてを示し、`make PROFILE=final` でビルドして `-final` イメージとして配布する `final` は静かです。取り付けと不具合調査には `debug`、遊ぶときは `final` を書き込みます。違うのはピンだけで、両者が同じ文字列を同じ時刻に送ることをシミュレータがエッジ単位で確かめます。 出典: [include/pscu/indicator.h](include/pscu/indicator.h), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
 
@@ -284,7 +287,7 @@ graph LR
 | 基板 | 起動時に判別した基板 | 基板が違えばコード 6 を 1 回示し、開始位置をやり直す | [src/calib.c](src/calib.c), [src/indicator.c](src/indicator.c) |
 | 発振器 | コンソールの水晶による 75 Hz の等速フレーム間隔、リードイン中もプレイ中も。発振器の速さは電源電圧に左右されるので、電源チェックが通っている間だけ | 64 フレームのバッチごとに、1% の不感帯を超えた誤差 1% ごとに 1 段（切り上げ）、最大 4 段、書き込みごとに 1 段ずつ OSCCAL を動かす。補正はチップのものなので、基板が変わっても保つ | [src/trim.c](src/trim.c), [src/run.c](src/run.c) |
 
-チップは値が変わったバイトだけを、起動時かディスクのチェックが決着した後にだけ書き、文字列の送信中には書かないので、落ち着いたコンソールでは何も書きません。セルの書き換え寿命は 100,000 回です。電源断で途中まで書かれたレコードはチェックバイトで検出し、既定値として読みます。どちらのヒューズ設定も EESAVE を未プログラムのままにするので、書き直すとレコードも消えます（データシート Table 20-4、ハイヒューズのビット 3）。2 フレームの刻みと 20 フレームの上限は、まだコンソールで調整していません。補正の目標はデータシートのユーザー校正後の精度 1% で、工場出荷時は 10% です（Table 21-2）。 出典: [src/calib.c](src/calib.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
+チップは値が変わったバイトだけを、起動時、ディスクのチェックが決着した後、または発振器のトリムが動いたときにだけ書き、文字列の送信中には書かないので、トリムも落ち着いたコンソールでは何も書きません。セルの書き換え寿命は 100,000 回です。電源断で途中まで書かれたレコードはチェックバイトで検出し、既定値として読みます。どちらのヒューズ設定も EESAVE を未プログラムのままにするので、書き直すとレコードも消えます（データシート Table 20-4、ハイヒューズのビット 3）。2 フレームの刻みと 20 フレームの上限は、まだコンソールで調整していません。補正の目標はデータシートのユーザー校正後の精度 1% で、工場出荷時は 10% です（Table 21-2）。 出典: [src/calib.c](src/calib.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
 
 ## 設定
 
@@ -293,7 +296,7 @@ graph LR
 | ノブ | 値 | 既定 | 選ぶもの | 出典 |
 |:-----|:---|:-----|:---------|:--|
 | `REGION` | `jp`、`us`、`eu` | `us` | チップが送る唯一のリージョン文字列 | [Makefile](Makefile), [src/region.c](src/region.c) |
-| `PROFILE` | `debug`、`final` | `debug` | LED かブザーが示す内容。debug はすべての段階、文字列、異常を示し、final は電源投入時と受理時に短く鳴り、各異常を 1 回だけ示す。DATA はどちらも同じ | [Makefile](Makefile), [include/pscu/indicator.h](include/pscu/indicator.h) |
+| `PROFILE` | `debug`、`final`、`trace` | `debug` | 2 番ピンの役割。debug はすべての段階、文字列、異常を示し、final は電源投入時と受理時に短く鳴り、各異常を 1 回だけ示す。trace はピンを 115200 baud のシリアル線にして各 SUBQ フレームを送る。DATA は 3 つとも同じ | [Makefile](Makefile), [src/run.c](src/run.c), [include/pscu/indicator.h](include/pscu/indicator.h) |
 | `VCD_FILTER` | `off`、`on` | `off` | SCPH-5903 専用で on。PsNee V9.0 の SCPH-5903 フィルタと同じく、注入はゲームのリードイン TOC でのみ起動し、ビデオ CD では起動しない | [Makefile](Makefile), [src/subq.c](src/subq.c), [PsNee PSNee.ino L456-L490](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L456-L490) |
 
 既定以外のリージョン、フィルタ、プロファイルは成果物名にタグを付けます。例 `openscex-modchip-attiny85-jp.hex`、`openscex-modchip-attiny85-jp-vcd.hex`、`openscex-modchip-attiny85-final.hex`。 出典: [Makefile](Makefile)。

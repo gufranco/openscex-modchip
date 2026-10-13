@@ -10,14 +10,16 @@ Read [`AGENTS.md`](AGENTS.md); its rules are hard constraints.
 
 ## Working on the code
 
-Every build, check and test runs in the pinned Docker toolchain through `make`; you need Docker, Git and, to flash a chip, avrdude.
+Every build, check and test runs in the pinned Docker toolchain through `make`; you need Docker, Git, Python 3, which runs make's Docker wrapper, and, to flash a chip, avrdude.
 
 ```bash
 make hooks        # once: enables the commit-message and formatting hooks
 make size         # image size; fails when less than 256 bytes of flash stay free
-make test         # host tests, simavr console model and its stack check, static analysis, MISRA
+make test         # host tests, simavr console model and its stack check
+make analyse      # formatting, lint, types, licences, MISRA and the Python tests
 make repro        # two fresh builds must be byte-identical
 make mutate       # mutation testing on the logic layer
+make mutate_platform  # mutation of run.c and engine.c, killed by the simulator
 make bench_ci     # console bench: this firmware against PsNee in the same scenarios
 make bench        # the same with every chip whose image is on this machine
 make showcase     # after a full bench: regenerate the README comparison tables
