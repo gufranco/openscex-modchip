@@ -93,12 +93,22 @@ std::map<std::string, Line> parse_pin_map(const char *text) {
   return lines;
 }
 
+// Every line must parse; a malformed one stops the run instead of silently
+// ending the timeline there.
 std::vector<ConsoleEvent> read_timeline(const char *path) {
   std::vector<ConsoleEvent> events;
   std::ifstream in(path);
+  if (!in) {
+    std::fprintf(stderr, "cannot read %s\n", path);
+    std::exit(1);
+  }
   ConsoleEvent event;
   while (in >> event.time_ns >> event.signal >> event.value) {
     events.push_back(event);
+  }
+  if (!in.eof()) {
+    std::fprintf(stderr, "%s: malformed event %zu\n", path, events.size() + 1U);
+    std::exit(1);
   }
   return events;
 }
@@ -117,6 +127,8 @@ int main(int argc, char **argv) {
   const unsigned long long duration_ns = std::strtoull(argv[7], nullptr, 10);
   const std::map<std::string, Line> pins = parse_pin_map(argv[8]);
   const std::vector<ConsoleEvent> events = read_timeline(argv[4]);
+  // The bench compares this count with the timeline it wrote.
+  std::printf("events %zu\n", events.size());
 
   initialize_gpsim_core();
   CSimulationContext *context = CSimulationContext::GetContext();

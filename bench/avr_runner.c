@@ -26,7 +26,11 @@
 #include "sim_irq.h"
 #include "sim_t85.h"
 
-#define MAX_EVENTS 4000000
+// The event list grows as the timeline is read. The largest scenario has about
+// 4.9 million events; MAX_EVENTS is only a backstop against a runaway file, and
+// reaching it is an error, never a silent cut of the scenario's tail.
+#define FIRST_EVENTS 1048576U
+#define MAX_EVENTS 33554432U
 #define MAX_LINES 8
 #define NAME_LEN 16
 
@@ -186,15 +190,37 @@ static void sample_pulls(avr_t *avr, FILE *trace, double ns_per_cycle) {
 }
 
 static event_t *read_timeline(const char *path, size_t *count) {
-  event_t *events = calloc(MAX_EVENTS, sizeof(event_t));
+  size_t capacity = FIRST_EVENTS;
+  event_t *events = malloc(capacity * sizeof(event_t));
   FILE *in = fopen(path, "r");
   if (events == NULL || in == NULL) {
     fprintf(stderr, "cannot read %s\n", path);
     exit(1);
   }
   size_t n = 0;
-  while (n < MAX_EVENTS &&
-         fscanf(in, "%llu %15s %ld", &events[n].time_ns, events[n].signal, &events[n].value) == 3) {
+  for (;;) {
+    if (n == capacity) {
+      if (capacity >= MAX_EVENTS) {
+        fprintf(stderr, "%s: more than %u events\n", path, MAX_EVENTS);
+        exit(1);
+      }
+      capacity *= 2U;
+      event_t *grown = realloc(events, capacity * sizeof(event_t));
+      if (grown == NULL) {
+        fprintf(stderr, "out of memory reading %s\n", path);
+        exit(1);
+      }
+      events = grown;
+    }
+    int fields =
+        fscanf(in, "%llu %15s %ld", &events[n].time_ns, events[n].signal, &events[n].value);
+    if (fields == EOF) {
+      break;
+    }
+    if (fields != 3) {
+      fprintf(stderr, "%s: malformed event %zu\n", path, n + 1U);
+      exit(1);
+    }
     n++;
   }
   fclose(in);
@@ -214,6 +240,9 @@ int main(int argc, char **argv) {
   parse_pin_map(argv[8]);
   size_t event_count = 0;
   event_t *events = read_timeline(argv[4], &event_count);
+  // The bench compares this count with the timeline it wrote, so a reader that
+  // stops early can never pass for a complete run.
+  printf("events %zu\n", event_count);
 
   elf_firmware_t firmware;
   memset(&firmware, 0, sizeof(firmware));

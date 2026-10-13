@@ -26,9 +26,12 @@ from tools.bench.prepare import ARDUINO_CORE
 from tools.bench.run import (
     RUN_TIMEOUT_PER_SIM_S,
     RUN_TIMEOUT_S,
+    RUNNERS,
     _hex_bytes,
     _instruction_address,
     build_psnee,
+    check_events,
+    events_read,
     excuse,
     load_exclusions,
     parse_lines,
@@ -100,6 +103,82 @@ class OursTest(unittest.TestCase):
         self.assertGreater(len(addresses), 1000)
         self.assertIn(0, addresses)
         self.assertTrue(all(address % 2 == 0 for address in addresses))
+
+
+class EventCountTest(unittest.TestCase):
+    def test_the_runner_count_line_is_read(self) -> None:
+        # Arrange
+        stdout = "gpsim banner\nevents 4890138\n"
+
+        # Act
+        count = events_read(stdout)
+
+        # Assert
+        self.assertEqual(count, 4_890_138)
+
+    def test_a_runner_that_prints_no_count_reads_as_none(self) -> None:
+        # Arrange
+        stdout = "cpu stopped\n"
+
+        # Act
+        count = events_read(stdout)
+
+        # Assert
+        self.assertIsNone(count)
+
+    def test_a_short_read_is_refused(self) -> None:
+        # Arrange
+        label = "ours on gate-sense-paths"
+
+        # Act
+        def act() -> None:
+            check_events(label, 4_000_000, 4_890_138)
+
+        # Assert
+        self.assertRaises(RuntimeError, act)
+
+    def test_a_missing_count_is_refused(self) -> None:
+        # Arrange
+        label = "fixture on no-disc"
+
+        # Act
+        def act() -> None:
+            check_events(label, None, 12)
+
+        # Assert
+        self.assertRaises(RuntimeError, act)
+
+    def test_the_avr_runner_reads_a_timeline_past_four_million_events(self) -> None:
+        # Arrange
+        ours = by_name("ours")
+        events = 4_200_000
+        with tempfile.TemporaryDirectory() as work:
+            folder = Path(work)
+            timeline = folder / "long.timeline"
+            with timeline.open("w") as out:
+                out.writelines(f"{i} sense {i % 2}\n" for i in range(events))
+
+            # Act
+            done = subprocess.run(
+                [
+                    str(ROOT / RUNNERS[Simulator.AVR]),
+                    str(ROOT / ours.firmware),
+                    ours.cpu,
+                    str(ours.clock_hz),
+                    str(timeline),
+                    str(folder / "long.trace"),
+                    str(folder / "long.cov"),
+                    "1000000",
+                    ours.pins,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+
+        # Assert
+        self.assertEqual(events_read(done.stdout), events)
 
 
 class PicRunnerTest(unittest.TestCase):

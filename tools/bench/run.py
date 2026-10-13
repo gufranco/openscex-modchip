@@ -158,8 +158,9 @@ def run(root: Path, chip: Chip, scenario: Scenario, workdir: Path) -> Run:
     timeline = stem.with_suffix(".timeline")
     trace = stem.with_suffix(".trace")
     coverage = stem.with_suffix(".cov")
-    timeline.write_text("\n".join(scenario.build().lines()) + "\n")
-    subprocess.run(
+    lines = scenario.build().lines()
+    timeline.write_text("\n".join(lines) + "\n")
+    done = subprocess.run(
         [
             str(root / RUNNERS[chip.simulator]),
             str(root / chip.firmware),
@@ -173,13 +174,36 @@ def run(root: Path, chip: Chip, scenario: Scenario, workdir: Path) -> Run:
         ],
         check=True,
         capture_output=True,
+        text=True,
         timeout=run_timeout(scenario.duration_ns),
+    )
+    check_events(
+        f"{chip.name} on {scenario.name}", events_read(done.stdout), len(lines)
     )
     metrics = measure(
         parse(trace.read_text().splitlines()), scenario.phases, chip.region
     )
     executed = frozenset(int(line, 16) for line in coverage.read_text().split())
     return Run(chip, scenario, metrics, executed)
+
+
+def events_read(stdout: str) -> int | None:
+    """How many timeline events a runner says it read, from its "events N"
+    line; None when it printed none."""
+    for line in stdout.splitlines():
+        word, _, count = line.partition(" ")
+        if word == "events" and count.isdigit():
+            return int(count)
+    return None
+
+
+def check_events(label: str, read: int | None, written: int) -> None:
+    """Refuse a run whose runner read fewer or more events than were written,
+    or reported none: the measurement would be of a different scenario."""
+    if read != written:
+        raise RuntimeError(
+            f"{label}: the runner read {read} of {written} timeline events"
+        )
 
 
 def program_addresses(root: Path, chip: Chip) -> frozenset[int]:
