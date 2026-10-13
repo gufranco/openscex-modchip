@@ -6,9 +6,10 @@
     python3 -m tools.bench.cli [--chips a,b] [--scenarios x,y] [--out FILE]
                                [--workdir DIR]
 
-Exit status 1 when an envelope rule fails, or, on a run of every scenario,
-when ours has unexcused uncovered code or fails a showcase property; 2 on a
-bad argument; else 0. The report is Markdown, with showcase.json beside it.
+Exit status 1 when an envelope rule fails or ours was asked for and could not
+run, or, on a run of every scenario, when ours has unexcused uncovered code or
+fails a showcase property; 2 on a bad argument; else 0. The report is
+Markdown, with showcase.json beside it.
 """
 
 import argparse
@@ -139,6 +140,15 @@ def reached(coverages: list[Coverage]) -> int:
     return 1 if left else 0
 
 
+def ran_ours(skips: dict[str, str]) -> int:
+    """Fail the run when ours was selected but skipped: with no run of ours,
+    nothing was judged, and a passing status would mean nothing."""
+    if OURS not in skips:
+        return 0
+    print(f"SKIPPED {OURS}: {skips[OURS]}")
+    return 1
+
+
 def showcased(results: showcase.Results) -> int:
     """Fail the run when ours fails a showcase property; the other chips'
     outcomes are reported only."""
@@ -181,11 +191,13 @@ def main(argv: list[str]) -> int:
 
 
 def exit_status(result: Bench, results: showcase.Results, *, whole: bool) -> int:
-    """The run's exit status: broken rules always count; uncovered code and
-    failed showcase properties only on a run of every scenario."""
+    """The run's exit status: broken rules and a skipped ours always count;
+    uncovered code and failed showcase properties only on a run of every
+    scenario."""
+    always = max(verdict(result.findings), ran_ours(result.skips))
     if not whole:
-        return verdict(result.findings)
-    return max(verdict(result.findings), reached(result.coverages), showcased(results))
+        return always
+    return max(always, reached(result.coverages), showcased(results))
 
 
 if __name__ == "__main__":
