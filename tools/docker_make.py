@@ -9,15 +9,15 @@ import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 IMAGE_INPUTS = ("Dockerfile", "docker/requirements-tools.txt")
 IMAGE_NAME = "openscex-modchip-toolchain"
 TAG_LENGTH = 12
 
-# How the wrapper starts a process: subprocess.run, or a stand-in in tests.
-Runner = Callable[..., subprocess.CompletedProcess[Any]]
+# How the wrapper starts a process: subprocess.run, or a stand-in in tests. No
+# call captures text, so the output, when captured, is bytes.
+Runner = Callable[..., subprocess.CompletedProcess[bytes]]
 
 
 def image_tag(root: Path) -> str:

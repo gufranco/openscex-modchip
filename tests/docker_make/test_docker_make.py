@@ -24,7 +24,7 @@ class FakeDocker:
 
     def __call__(
         self, args: list[str], **_kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
+    ) -> subprocess.CompletedProcess[bytes]:
         self.calls.append(args)
         if args[:3] == ["docker", "image", "inspect"]:
             return subprocess.CompletedProcess(args, 0 if self.present else 1)
