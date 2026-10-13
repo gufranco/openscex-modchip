@@ -527,3 +527,39 @@ void scenario_region(
                  matched);
   check((g_data_bursts == REGION_CAP) && (matched == REGION_CAP), label);
 }
+
+// The boot detection window is 10000 WFCK samples; engine.c states its length
+// in time from the cycles one sample takes. Timed in the built image by the
+// program counter, from the first read of WFCK to the 10000th.
+#define DETECT_SAMPLES 10000U
+#define DETECT_LIMIT_MS 1500U
+// The 42 cycles engine.c and board_mode.h state, give or take two.
+#define DETECT_CYCLES_MIN 40U
+#define DETECT_CYCLES_MAX 44U
+
+void scenario_detect_timing(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  avr_raise_irq(pin_irq(avr, t, t->wfck), 1U);
+  uint64_t limit = avr->cycle + ms_cycles(DETECT_LIMIT_MS);
+  uint64_t first = 0U;
+  uint64_t last = 0U;
+  unsigned reads = 0U;
+  while ((avr->cycle < limit) && (reads < DETECT_SAMPLES)) {
+    if (avr->pc == g_addr_read_wfck) {
+      first = (reads == 0U) ? avr->cycle : first;
+      last = avr->cycle;
+      reads++;
+    }
+    avr_run(avr);
+  }
+  uint64_t per_sample = (reads > 1U) ? ((last - first) / (reads - 1U)) : 0U;
+  char label[112];
+  (void)snprintf(label,
+                 sizeof(label),
+                 "%s: one boot WFCK sample takes %llu cycles",
+                 t->mcu,
+                 (unsigned long long)per_sample);
+  check((reads == DETECT_SAMPLES) && (per_sample >= DETECT_CYCLES_MIN) &&
+            (per_sample <= DETECT_CYCLES_MAX),
+        label);
+}

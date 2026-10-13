@@ -51,6 +51,7 @@ int main(int argc, char *argv[]) {
   scenario_gate(&t85, elf, freq, 1);
   scenario_string_gap(&t85, elf, freq);
   scenario_gap_check(&t85, elf, freq);
+  scenario_detect_timing(&t85, elf, freq);
   scenario_bad_crc(&t85, elf, freq);
   scenario_slow_sqck(&t85, elf, freq);
   scenario_trim(&t85, elf, freq);

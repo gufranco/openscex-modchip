@@ -123,6 +123,7 @@ extern int g_seal_frames;
 // scenario can time firmware code; zero when absent.
 extern uint32_t g_addr_read_sqck;
 extern uint32_t g_addr_capture;
+extern uint32_t g_addr_read_wfck;
 
 void check(int cond, const char *name);
 uint64_t ms_cycles(uint32_t ms);

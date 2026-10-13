@@ -17,8 +17,9 @@
 #include "pscu/supply.h"
 #include "pscu/trim.h"
 
-// WFCK samples at boot: 37.5 ms at 30 cycles a sample, about 275 carrier edges
-// (PsNee V9.0 uses the same 10000).
+// WFCK samples at boot: 52.5 ms at 42 cycles a sample, measured in simavr
+// (scenario_detect_timing), about 386 falling edges of a 7.35 kHz carrier.
+// PsNee V9.0 counts the same 10000 samples in its own loop.
 #define PSCU_DETECT_WINDOW ((uint16_t)10000U)
 // Edge run that proves a carrier (mayumi_v4_12c508a_any.asm:566,
 // multimode_v3_12c508a_any.asm:626).
@@ -120,8 +121,8 @@ pscu_board_mode_t pscu_engine_detect_board(bool lamp) {
 }
 
 // Before each string on a gate board, check WFCK again so a carrier that started
-// late is never driven. 2500 samples, 9.4 ms, under one frame; a carrier gives
-// about 69 edges.
+// late is never driven. 2500 samples, 13.1 ms at 42 cycles a sample, under one
+// 13.3 ms frame; a carrier gives about 96 edges.
 pscu_board_mode_t pscu_engine_confirm_board(pscu_board_mode_t board) {
   pscu_board_mode_t confirmed = board;
   if (board == PSCU_BOARD_MODE_GATE) {

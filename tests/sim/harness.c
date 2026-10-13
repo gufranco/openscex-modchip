@@ -53,6 +53,7 @@ static int64_t g_min_free = INT64_MAX;
 // Where two port functions sit in the loaded image (see harness.h).
 uint32_t g_addr_read_sqck = 0U;
 uint32_t g_addr_capture = 0U;
+uint32_t g_addr_read_wfck = 0U;
 // When nonzero, frames start this many nanoseconds apart; when zero, each frame
 // is followed by FRAME_GAP_CYCLES.
 uint64_t g_frame_period_ns = 0U;
@@ -345,6 +346,7 @@ avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
   g_ram_floor = ram_floor(&firmware);
   g_addr_read_sqck = symbol_addr(&firmware, "pscu_port_read_sqck");
   g_addr_capture = symbol_addr(&firmware, "pscu_port_capture_frame");
+  g_addr_read_wfck = symbol_addr(&firmware, "pscu_port_read_wfck");
 
   avr_t *avr = avr_make_mcu_by_name(t->mcu);
   avr_init(avr);

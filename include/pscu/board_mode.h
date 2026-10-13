@@ -10,9 +10,11 @@
 // WFCK: PU-22 and later, WFCK is a carrier and a one mirrors it.
 typedef enum { PSCU_BOARD_MODE_GATE = 0, PSCU_BOARD_MODE_WFCK = 1 } pscu_board_mode_t;
 
-// Most samples between two falling edges of one carrier run: 360 us at 30
-// cycles a sample. A 7.35 kHz carrier falls every 136 us, about 36 samples.
-#define PSCU_BOARD_EDGE_GAP_MAX ((uint8_t)96U)
+// Most samples between two falling edges of one carrier run: 360 us, the gap
+// MultiMode 3 and Mayumi V4 allow, at 42 cycles a sample, 5.25 us at 8 MHz
+// (measured in simavr; scenario_detect_timing fails if it moves). A 7.35 kHz
+// carrier falls every 136 us, about 26 samples.
+#define PSCU_BOARD_EDGE_GAP_MAX ((uint8_t)69U)
 
 // Detector state. `pulses` counts falling edges in the current run; a gap over
 // PSCU_BOARD_EDGE_GAP_MAX starts a new run, so stray edges never add up.

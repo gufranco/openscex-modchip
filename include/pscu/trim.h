@@ -19,8 +19,10 @@
 // accuracy).
 #define PSCU_TRIM_DEADBAND_DIVISOR ((uint32_t)100U)
 
-// Most OSCCAL may move from factory: half the datasheet's 0x20, keeping under
-// the 8.8 MHz EEPROM write limit.
+// Most OSCCAL may move from factory: half the datasheet's 0x20. The trim steers
+// the clock to 8 MHz within 1 percent, far under the 8.8 MHz above which the
+// datasheet says EEPROM writes may fail (2586Q, OSCCAL); the bound only stops a
+// runaway trim, which at 1 percent a notch could otherwise climb past it.
 #define PSCU_TRIM_MAX_OFFSET ((int8_t)16)
 
 // Largest step per batch, in notches: one per percent of error past the dead

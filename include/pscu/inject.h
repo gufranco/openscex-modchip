@@ -59,7 +59,11 @@ typedef struct {
 } pscu_confirm_step_t;
 
 // No valid SUBQ frame for this long means the disc is gone: opening the lid
-// stops the spindle. Longer than a seek, shorter than a disc swap (chosen).
+// stops the spindle. A seek keeps SUBQ frames coming, since the drive decodes
+// subchannel position data while seeking (psx-spx cdromdrive.md L899), so only a
+// stopped spindle goes this long without one; 1.5 s also clears the more than
+// one second a seek or spin-up can take to answer (L1846) and stays under a
+// disc swap.
 #define PSCU_DISC_GONE_MS ((uint32_t)1500U)
 
 typedef struct {
