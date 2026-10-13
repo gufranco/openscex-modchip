@@ -27,7 +27,7 @@
 
 </div>
 
-[**5806**](Makefile) bytes of flash · [**8**](assets/psnee) board families, PU-7 to PM-41(2) · [**3**](src/region.c) regions · [**0**](AGENTS.md) MISRA deviations · [**100%**](tests/host) host line and branch coverage · [**422/422**](tools/mutate.py) mutants killed
+[**5924**](Makefile) bytes of flash · [**8**](assets/psnee) board families, PU-7 to PM-41(2) · [**3**](src/region.c) regions · [**0**](AGENTS.md) MISRA deviations · [**100%**](tests/host) host line and branch coverage · [**423/423**](tools/mutate.py) mutants killed
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -287,7 +287,7 @@ The chip learns how this console reads the region string and keeps the result in
 | Board | the board detected at boot | a different board shows code 6 once and restarts the start point | [src/calib.c](src/calib.c), [src/indicator.c](src/indicator.c) |
 | Oscillator | single-speed frame spacing, 75 Hz from the console's crystal, in the lead-in and in play, only while the supply check passes, since the oscillator's rate follows its supply | each 64-frame batch moves OSCCAL one notch per percent of error beyond a 1% dead band, rounded up, at most 4, one notch per write; the trim belongs to the chip, so a board change keeps it | [src/trim.c](src/trim.c), [src/run.c](src/run.c) |
 
-The chip writes only changed bytes, only at boot, after a disc's check resolves or when the oscillator trim moves, and never during a string, so a settled console with a settled trim writes nothing; cell endurance is 100,000 writes. A check byte makes a record cut short by power-off read as the defaults. Reflashing erases the record, because both fuse sets leave EESAVE unprogrammed (datasheet Table 20-4, high fuse bit 3). The 2-frame step and the 20-frame bound are not yet tuned on a console. The trim targets the datasheet's 1% after user calibration, against 10% from the factory (Table 21-2). Source: [src/calib.c](src/calib.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf).
+The chip writes only changed bytes, only at boot, after a disc's check resolves or when the oscillator trim moves, never while the stealth window is open or held, and a write that cannot finish is kept and retried, so a settled console with a settled trim writes nothing; cell endurance is 100,000 writes. A check byte makes a record cut short by power-off read as the defaults. Reflashing erases the record, because both fuse sets leave EESAVE unprogrammed (datasheet Table 20-4, high fuse bit 3). The 2-frame step and the 20-frame bound are not yet tuned on a console. The trim targets the datasheet's 1% after user calibration, against 10% from the factory (Table 21-2). Source: [src/calib.c](src/calib.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf).
 
 ## Configuration
 

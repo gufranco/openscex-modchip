@@ -64,14 +64,15 @@ pscu_port_reset_was_watchdog:
 	.endfunc
 
 // Wait for EEPE to clear, up to 10 ms; a write takes 3.4 ms (datasheet 2586Q,
-// Table 5-1). One pass is 7 cycles (wdr 1, sbis 2, sbiw 2, brne 2). A spoiled
-// byte fails the record's check byte.
+// Table 5-1). One pass is 7 cycles (wdr 1, sbis 2, sbiw 2, brne 2). r25 is 1
+// once EEPE is clear and 0 on a timeout; r24, a caller's address, is kept.
 #define PSCU_EEPROM_WAIT_POLLS ((F_CPU * 10UL) / (1000UL * 7UL))
 
 	.func pscu_port_eeprom_wait
 pscu_port_eeprom_wait:
 	ldi r26, lo8(PSCU_EEPROM_WAIT_POLLS)
 	ldi r27, hi8(PSCU_EEPROM_WAIT_POLLS)
+	ldi r25, 1
 15:
 	wdr
 	sbis _SFR_IO_ADDR(EECR), EEPE
@@ -79,6 +80,7 @@ pscu_port_eeprom_wait:
 // coverage: unreachable block: simavr finishes EEPROM writes at once.
 	sbiw r26, 1
 	brne 15b
+	ldi r25, 0
 	ret
 	.endfunc
 
@@ -95,17 +97,25 @@ pscu_port_eeprom_read:
 
 // Clear EECR first: EEPM1:0 reset to an undefined value (datasheet 2586Q,
 // EECR), and anything but 00 would only erase or only program the byte. Then set
-// EEMPE, then EEPE within four cycles; interrupts are never enabled. Returns once
-// the write has started.
+// EEMPE, then EEPE within four cycles; interrupts are never enabled. Returns 1
+// once the write has started, or 0 without touching EEAR or EEDR when the
+// previous write never finished, which would corrupt both.
 	.global pscu_port_eeprom_write
 	.func pscu_port_eeprom_write
 pscu_port_eeprom_write:
 	rcall pscu_port_eeprom_wait
+	tst r25
+	breq 21f
 	out _SFR_IO_ADDR(EECR), r1
 	out _SFR_IO_ADDR(EEARH), r1
 	out _SFR_IO_ADDR(EEARL), r24
 	out _SFR_IO_ADDR(EEDR), r22
 	sbi _SFR_IO_ADDR(EECR), EEMPE
 	sbi _SFR_IO_ADDR(EECR), EEPE
+	ldi r24, 1
+	ret
+// coverage: unreachable block: simavr finishes EEPROM writes at once.
+21:
+	ldi r24, 0
 	ret
 	.endfunc

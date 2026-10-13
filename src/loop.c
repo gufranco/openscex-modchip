@@ -23,6 +23,7 @@ typedef struct {
   bool reached;
   bool program;
   bool fire;
+  pscu_window_t window;
 } pscu_loop_pass_t;
 
 // What the session and the calibration made of the pass.
@@ -90,6 +91,7 @@ static void pscu_loop_burst(pscu_loop_t *next, bool supply_ok, pscu_loop_pass_t 
   pscu_window_t below = rearm ? PSCU_WINDOW_CLOSED : PSCU_WINDOW_HELD;
   pscu_window_t open = supply_ok ? PSCU_WINDOW_OPEN : PSCU_WINDOW_HELD;
   pscu_window_t window = pass->reached ? open : below;
+  pass->window = window;
   pscu_stealth_step_t step = pscu_stealth_step(next->stealth,
                                                window,
                                                pass->program,
@@ -182,7 +184,7 @@ static bool pscu_loop_show(pscu_loop_t *next,
 pscu_loop_out_t pscu_loop_step(pscu_loop_t *state, const pscu_loop_in_t *in) {
   PSCU_ASSERT((state != NULL) && (in != NULL) && (in->frame != NULL));
 
-  pscu_loop_pass_t pass = { false, false, 0U, false, false, false };
+  pscu_loop_pass_t pass = { false, false, 0U, false, false, false, PSCU_WINDOW_CLOSED };
   pscu_loop_out_t out;
   bool settled = state->since.ms >= PSCU_LOOP_TRIM_SETTLE_MS;
   pscu_loop_read(state, in, &pass);
@@ -196,6 +198,6 @@ pscu_loop_out_t pscu_loop_step(pscu_loop_t *state, const pscu_loop_in_t *in) {
   out.trim_sample = timed && !pass.fire;
   out.fire = pass.fire;
   out.store = learned.store;
-  out.quiet = !pass.reached;
+  out.quiet = pass.window == PSCU_WINDOW_CLOSED;
   return out;
 }

@@ -64,9 +64,10 @@ void pscu_port_osccal_write(uint8_t value);
 
 // One EEPROM byte. Each call first waits up to 10 ms for a pending write; a
 // write takes 3.4 ms (datasheet) and is never issued inside the injection
-// window.
+// window. The write returns nonzero once started, zero when the pending write
+// never finished and nothing was written.
 uint8_t pscu_port_eeprom_read(uint8_t address);
 
-void pscu_port_eeprom_write(uint8_t address, uint8_t value);
+uint8_t pscu_port_eeprom_write(uint8_t address, uint8_t value);
 
 #endif

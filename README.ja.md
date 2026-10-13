@@ -27,7 +27,7 @@
 
 </div>
 
-フラッシュ [**5806**](Makefile) バイト · 基板 [**8**](assets/psnee) 系統、PU-7 から PM-41(2) · リージョン [**3**](src/region.c) 種 · MISRA 逸脱 [**0**](AGENTS.md) · ホストの行と分岐カバレッジ [**100%**](tests/host) · ミュータント [**422/422**](tools/mutate.py) 撃破
+フラッシュ [**5924**](Makefile) バイト · 基板 [**8**](assets/psnee) 系統、PU-7 から PM-41(2) · リージョン [**3**](src/region.c) 種 · MISRA 逸脱 [**0**](AGENTS.md) · ホストの行と分岐カバレッジ [**100%**](tests/host) · ミュータント [**423/423**](tools/mutate.py) 撃破
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -287,7 +287,7 @@ graph LR
 | 基板 | 起動時に判別した基板 | 基板が違えばコード 6 を 1 回示し、開始位置をやり直す | [src/calib.c](src/calib.c), [src/indicator.c](src/indicator.c) |
 | 発振器 | コンソールの水晶による 75 Hz の等速フレーム間隔、リードイン中もプレイ中も。発振器の速さは電源電圧に左右されるので、電源チェックが通っている間だけ | 64 フレームのバッチごとに、1% の不感帯を超えた誤差 1% ごとに 1 段（切り上げ）、最大 4 段、書き込みごとに 1 段ずつ OSCCAL を動かす。補正はチップのものなので、基板が変わっても保つ | [src/trim.c](src/trim.c), [src/run.c](src/run.c) |
 
-チップは値が変わったバイトだけを、起動時、ディスクのチェックが決着した後、または発振器のトリムが動いたときにだけ書き、文字列の送信中には書かないので、トリムも落ち着いたコンソールでは何も書きません。セルの書き換え寿命は 100,000 回です。電源断で途中まで書かれたレコードはチェックバイトで検出し、既定値として読みます。どちらのヒューズ設定も EESAVE を未プログラムのままにするので、書き直すとレコードも消えます（データシート Table 20-4、ハイヒューズのビット 3）。2 フレームの刻みと 20 フレームの上限は、まだコンソールで調整していません。補正の目標はデータシートのユーザー校正後の精度 1% で、工場出荷時は 10% です（Table 21-2）。 出典: [src/calib.c](src/calib.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
+チップは値が変わったバイトだけを、起動時、ディスクのチェックが決着した後、または発振器のトリムが動いたときにだけ書き、ステルス窓が開いているか保持されている間は書かず、書けなかった記録は保持して再試行するので、トリムも落ち着いたコンソールでは何も書きません。セルの書き換え寿命は 100,000 回です。電源断で途中まで書かれたレコードはチェックバイトで検出し、既定値として読みます。どちらのヒューズ設定も EESAVE を未プログラムのままにするので、書き直すとレコードも消えます（データシート Table 20-4、ハイヒューズのビット 3）。2 フレームの刻みと 20 フレームの上限は、まだコンソールで調整していません。補正の目標はデータシートのユーザー校正後の精度 1% で、工場出荷時は 10% です（Table 21-2）。 出典: [src/calib.c](src/calib.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
 
 ## 設定
 

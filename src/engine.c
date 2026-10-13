@@ -181,17 +181,22 @@ pscu_calib_t pscu_engine_load_calib(void) {
 }
 
 // Write only changed bytes, check byte last, so a torn write fails the check.
-// Nothing is written on a low supply, the usual cause of a torn record.
-void pscu_engine_store_calib(pscu_calib_t calib) {
-  if (pscu_supply_ok(pscu_port_supply_raw())) {
+// Nothing is written on a low supply, the usual cause of a torn record, and the
+// writes stop at the first byte that could not start, so the check byte never
+// lands over a stale byte.
+bool pscu_engine_store_calib(pscu_calib_t calib) {
+  bool written = pscu_supply_ok(pscu_port_supply_raw());
+  if (written) {
     pscu_calib_record_t record;
     record = pscu_calib_encode(calib);
-    for (uint8_t at = 0U; at < PSCU_CALIB_BYTES; at++) {
+    for (uint8_t at = 0U; (at < PSCU_CALIB_BYTES) && written; at++) {
       if (pscu_port_eeprom_read(at) != record.bytes[at]) {
-        pscu_port_eeprom_write(at, record.bytes[at]);
+        uint8_t started = pscu_port_eeprom_write(at, record.bytes[at]);
+        written = started != 0U;
       }
     }
   }
+  return written;
 }
 
 // Replay the stored trim one notch at a time through the same bounds as a live

@@ -26,8 +26,10 @@ void pscu_engine_inject(pscu_board_mode_t board, bool lamp);
 // defaults.
 pscu_calib_t pscu_engine_load_calib(void);
 
-// Store a calibration, writing only the bytes that differ from EEPROM.
-void pscu_engine_store_calib(pscu_calib_t calib);
+// Store a calibration, writing only the bytes that differ from EEPROM. Returns
+// whether the record is now in EEPROM: false on a low supply or a write that
+// could not start, so the caller keeps it to store again.
+bool pscu_engine_store_calib(pscu_calib_t calib);
 
 // Step OSCCAL from the factory value to the stored trim; returns the factory
 // value that bounds later trims.

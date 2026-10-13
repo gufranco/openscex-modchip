@@ -96,7 +96,8 @@ static void pscu_run_show(bool on) {
 static pscu_calib_boot_t pscu_calib_start(pscu_calib_t stored, pscu_board_mode_t board) {
   uint8_t detected = (board == PSCU_BOARD_MODE_WFCK) ? 1U : 0U;
   pscu_calib_boot_t boot = pscu_calib_boot(stored, detected);
-  pscu_engine_store_calib(boot.calib);
+  // A boot record that cannot be written now is written with the next store.
+  (void)pscu_engine_store_calib(boot.calib);
   return boot;
 }
 
@@ -132,15 +133,15 @@ static pscu_osc_t pscu_osc_step(pscu_osc_t osc, uint8_t stamp, bool hit) {
   return next;
 }
 
-// A new trim is stored only outside the injection window.
+// A new trim is stored only outside the injection window, and stays dirty
+// until a store succeeds.
 static pscu_osc_store_t pscu_osc_store(pscu_osc_t osc, pscu_calib_t calib, bool quiet) {
   pscu_osc_store_t out;
   out.osc = osc;
   out.calib = calib;
   if (osc.dirty && quiet) {
     out.calib.trim = (int8_t)((int16_t)osc.osccal - (int16_t)osc.factory);
-    out.osc.dirty = false;
-    pscu_engine_store_calib(out.calib);
+    out.osc.dirty = !pscu_engine_store_calib(out.calib);
   }
   return out;
 }
@@ -178,6 +179,8 @@ void pscu_run(void) {
       pscu_indicator_init((board == PSCU_BOARD_MODE_WFCK) ? 2U : 1U, boot_code, PSCU_RUN_PROFILE);
   pscu_loop_t loop = pscu_loop_init(boot.calib, indicator, PSCU_VCD_FILTER_ENABLED);
   pscu_clock_t clock = { pscu_port_ticks(), 0U };
+  // A learned record waits here until the window is closed and a store succeeds.
+  bool store_due = false;
 #if PSCU_PROFILE_TRACE
   // A serial line idles high.
   pscu_port_indicator_on();
@@ -198,8 +201,9 @@ void pscu_run(void) {
       board = pscu_engine_confirm_board(board);
       pscu_engine_inject(board, PSCU_LAMP_STRINGS);
     }
-    if (out.store) {
-      pscu_engine_store_calib(loop.calib);
+    store_due = store_due || out.store;
+    if (store_due && out.quiet) {
+      store_due = !pscu_engine_store_calib(loop.calib);
     }
     pscu_osc_store_t kept = pscu_osc_store(osc, loop.calib, out.quiet);
     // Anything learned this pass gets a debug tick.

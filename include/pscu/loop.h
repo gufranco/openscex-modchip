@@ -69,7 +69,8 @@ typedef struct {
 } pscu_loop_in_t;
 
 // One pass's decisions. store: write the calibration. trim_sample: this frame
-// may time the oscillator. quiet: outside the window, so a trim may be stored.
+// may time the oscillator. quiet: the stealth window is closed, neither open
+// nor held, so a record may be stored.
 typedef struct {
   bool fire;
   bool store;

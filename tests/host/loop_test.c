@@ -104,9 +104,11 @@ static void test_init(void) {
 // The window opens on the frame that brings the counter to the start point,
 // not one frame before.
 static void test_fire_at_trigger(void) {
+  step_t idle = pass(fresh(calib_with(TRIGGER, false)), LEAD_OUT);
+  g_check(idle.quiet, "loop: a counter far below the start leaves the window closed for stores");
   step_t before = feed(fresh(calib_with(TRIGGER, false)), LEAD_IN, TRIGGER - 1U);
-  g_check(!before.fire && before.quiet && (before.state.counter == TRIGGER - 1U),
-          "loop: no string one frame before the start point");
+  g_check(!before.fire && !before.quiet && (before.state.counter == TRIGGER - 1U),
+          "loop: no string and no store one frame before the start point, the window held");
   step_t fired = pass(before.state, LEAD_IN);
   g_check(fired.fire && !fired.quiet && (fired.state.stealth.sent == 1U),
           "loop: the frame reaching the start point sends a string");
@@ -114,6 +116,9 @@ static void test_fire_at_trigger(void) {
       (fired.state.session.injects == 1U) && (fired.state.indicator.stage == PSCU_INDICATOR_INJECT),
       "loop: a string opens the session and hands the indicator to injection");
   g_check(fired.state.since.armed && !fired.indicator_on, "loop: a string marks the disc armed");
+  step_t dipped = pass(fired.state, LEAD_OUT);
+  g_check(!dipped.fire && !dipped.quiet,
+          "loop: a counter dipping just under the start keeps the window held, so no store");
 }
 
 // A low supply inside the window holds the burst and shows code 7; the next

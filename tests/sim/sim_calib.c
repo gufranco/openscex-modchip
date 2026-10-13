@@ -24,6 +24,8 @@
 #define CALIB_SETTLE_FRAMES 120
 #define CALIB_LONG_TOC_FRAMES 700
 #define CALIB_REPLAY_MS 10000U
+// Program-area frames that empty the counter and close the window.
+#define CALIB_CLOSE_FRAMES 20
 
 static void read_calib(avr_t *avr, uint8_t *raw) {
   avr_eeprom_desc_t desc = { .ee = raw, .offset = 0, .size = CALIB_BYTES };
@@ -75,6 +77,13 @@ void scenario_calib_cap(const target_t *t, const char *elf, uint32_t freq) {
   swap_disc(avr);
   int disc2 = strings_while(avr, t, toc, CALIB_LONG_TOC_FRAMES);
   calib_check(t, disc2 == CALIB_STEALTH_STRINGS, "a refused disc gets the whole stealth cap");
+  // The refusal is decided while the lead-in is still being read, inside the
+  // window, so nothing is written yet; it is written once the window closes.
+  read_calib(avr, raw);
+  calib_check(t,
+              raw[2] == (CALIB_TRIGGER + CALIB_TRIGGER_STEP),
+              "nothing is written while the lead-in is still read");
+  clock_frames(avr, t, play, CALIB_CLOSE_FRAMES);
   read_calib(avr, raw);
   calib_check(
       t, (raw[2] == CALIB_TRIGGER) && (raw[3] == 1U), "a refusal steps the start back, frozen");
@@ -372,6 +381,14 @@ void scenario_store_low_supply(const target_t *t, const char *elf, uint32_t freq
   calib_check(t,
               calib_valid(raw) && (raw[2] == CALIB_TRIGGER) && (raw[3] == 0U),
               "a session resolved at 2.6 V writes nothing to EEPROM");
+
+  // What that session learned is kept and written once the supply is back.
+  set_supply(avr, GOOD_SUPPLY_MV);
+  clock_frames(avr, t, play, CALIB_SETTLE_FRAMES);
+  read_calib(avr, raw);
+  calib_check(t,
+              calib_valid(raw) && (raw[2] == (CALIB_TRIGGER + CALIB_TRIGGER_STEP)),
+              "the record learned at 2.6 V is written once the supply recovers");
 }
 
 // A torn record, a new trigger and trim under the old check byte, is ignored:
