@@ -55,8 +55,45 @@ static void test_presence(void) {
           "disc: the silence count saturates");
 }
 
+// A CXD2938Q (PU-23, PM-41) also clocks "New SCEx" packets out on the SUBQ
+// line: three header bytes, one SCEx character ORed into bytes 3 to 9, two
+// level bytes (psx-spx, CXD2938Q New SCEx). None may pass as a disc frame,
+// count toward the lead-in, or look like the program area that closes the
+// window. The header and level bytes are undocumented, so the worst case
+// copies a lead-in header and leaves the ZERO byte clear.
+static void test_scex_packets(void) {
+  uint8_t letters[4] = { 0x53U, 0x43U, 0x45U, 0x41U };
+  uint8_t headers[3][3] = { { 0x00U, 0x00U, 0x00U },
+                            { 0xFFU, 0xFFU, 0xFFU },
+                            { 0x41U, 0x00U, 0xA0U } };
+  bool any_valid = false;
+  bool any_program = false;
+  bool any_hit = false;
+
+  for (uint8_t h = 0U; h < 3U; h++) {
+    for (uint8_t c = 0U; c < 4U; c++) {
+      uint8_t packet[PSCU_SUBQ_FRAME_BYTES] = { 0 };
+      packet[0] = headers[h][0];
+      packet[1] = headers[h][1];
+      packet[2] = headers[h][2];
+      packet[3] = letters[c];
+      packet[9] = letters[c];
+      packet[10] = 0x7FU;
+      packet[11] = 0x7FU;
+      any_valid = any_valid || pscu_subq_is_valid(packet);
+      any_program = any_program || pscu_subq_is_program_area(packet);
+      any_hit = any_hit || (pscu_subq_update_counter(packet, 5U, false, 0xFFU) != 4U);
+    }
+  }
+
+  g_check(!any_valid, "disc: a New SCEx packet is not a disc frame");
+  g_check(!any_program, "disc: a New SCEx packet is not the program area");
+  g_check(!any_hit, "disc: a New SCEx packet counts as a lead-in miss");
+}
+
 void disc_tests(pscu_check_fn check) {
   g_check = check;
   test_valid_frames();
   test_presence();
+  test_scex_packets();
 }
