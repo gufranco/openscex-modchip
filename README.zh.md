@@ -42,7 +42,7 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 
 | | | 出处 |
 |:--|:--|:--|
-| **接受后保持静默**<br>第一个程序区帧即停止注入，字符串中途也一样。只有新的导入区读取，例如反改机的 TOC 重读，才会再次得到响应。 | **无需光驱盖线的换盘**<br>SUBQ 帧中断 1.5 s 即视为换盘，并为下一张光盘重新武装。 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [src/run.c](src/run.c) |
+| **接受后保持静默**<br>第一个程序区帧之后不再开始新的字符串；正在发送的字符串会发完，最长 176 ms。只有新的导入区读取，例如反改机的 TOC 重读，才会再次得到响应。 | **无需光驱盖线的换盘**<br>SUBQ 帧中断 1.5 s 即视为换盘，并为下一张光盘重新武装。 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [src/run.c](src/run.c) |
 | **自校正的时序**<br>芯片对主机 75 Hz 的 SUBQ 帧计时，把内部振荡器校正到 1% 以内，无需时钟线。 | **一个区域，一个窗口**<br>只送出配置的区域字符串，只在 SUBQ 区域检查窗口内，每次武装最多 16 次。 | [src/trim.c](src/trim.c), [src/region.c](src/region.c), [include/pscu/config.h](include/pscu/config.h) |
 | **状态 LED 或蜂鸣器**<br>一个引脚显示启动阶段、每张光盘的结果和接线故障；final 构建只发短响，每个故障只报一次。 | **代码实证**<br>MISRA C:2012 合规，主机覆盖率 100%，simavr 主机模型，变异测试，逐字节一致的重新构建。 | [src/indicator.c](src/indicator.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
 
@@ -266,7 +266,7 @@ graph LR
 | 电源保护 | 每个字符串前芯片用 1.1 V 带隙测量自身电源；低于约 2.75 V 或读数不可能时，不发送任何内容并显示代码 7。短暂的电压下降只暂停一轮发送而不重新计数，被关闭的窗口不会让校准学到任何东西 | [src/supply.c](src/supply.c), [src/port_chip.S](src/port_chip.S), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 振荡器校正 | 在导入区与游戏中对主机 75 Hz 的 SUBQ 帧计时，每批最多调 4 级、每次写入一级，直到误差在 1% 以内，且离出厂值不超过 16 级；校正值保存在 EEPROM 中，启动时应用 | [src/trim.c](src/trim.c), [src/run.c](src/run.c), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 换盘 | 无需光驱盖线：只有停转的光驱会带来 1.5 s 没有有效 SUBQ 帧，这会重新武装芯片；寻道和重读会持续产生帧。SUBQ 计数器最多比起始位置高 8 帧，因此即使光盘被拒绝，打开光驱盖后约半秒窗口就会关闭。每张光盘都可以得到整个 16 个字符串的上限 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/loop.h](include/pscu/loop.h) |
-| 隐身 | 只在 SUBQ 区域检查窗口内、每次武装有上限地注入，与 PsNee 和 Mayumi V4 一样在字符串之间间隔 5 帧（67 ms）；其余时间 DATA 高阻、指示引脚关闭。主机读到程序区即停止。之后的导入区读取，例如反改机 v2 的 TOC 重读，会在同一上限下再次得到响应。计数略低于起始点时上限与间隔保持不变，只有低于起始点 8 帧才重新武装 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/config.h](include/pscu/config.h), [PsNee PSNee.ino L53](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L53), [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
+| 隐身 | 只在 SUBQ 区域检查窗口内、每次武装有上限地注入，与 PsNee 和 Mayumi V4 一样在字符串之间间隔 5 帧（67 ms）；其余时间 DATA 高阻、指示引脚关闭。主机读到程序区后不再开始新的字符串，正在发送的字符串会发完。之后的导入区读取，例如反改机 v2 的 TOC 重读，会在同一上限下再次得到响应。计数略低于起始点时上限与间隔保持不变，只有低于起始点 8 帧才重新武装 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/config.h](include/pscu/config.h), [PsNee PSNee.ino L53](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L53), [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
 | 单一区域 | 只送出 `REGION`，从不送出全部三个 | [src/region.c](src/region.c) |
 | 自适应时序 | 在 WFCK 载波主板上每个注入位持续 30 个 WFCK 周期，因此在单倍速和倍速下都跟随主机的时钟；在静态门控主板上由校正后的振荡器计时 | [src/port.S](src/port.S), [src/trim.c](src/trim.c) |
 | 自我恢复 | 每次 SUBQ 采集都在帧间空隙重新对齐，并在 30 ms 后放弃；注入中 WFCK 停止时看门狗会释放 DATA。没有引脚需要上拉：SQCK、SUBQ、WFCK 是主机的线，DATA 释放时是主机的线，PB3 是输出 | [src/engine.c](src/engine.c), [src/port.S](src/port.S), [include/port/registers.h](include/port/registers.h) |
