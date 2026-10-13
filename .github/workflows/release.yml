@@ -133,7 +133,8 @@ jobs:
         run: |
           set -euo pipefail
           make image
-          tag="$(python3 -c 'from pathlib import Path; from tools.docker_make import image_tag; print(image_tag(Path(".")))')"
+          code='from pathlib import Path; from tools.docker_make import image_tag'
+          tag="$(python3 -c "$code; print(image_tag(Path('.')))")"
           echo "image=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Describe the toolchain image as SPDX
