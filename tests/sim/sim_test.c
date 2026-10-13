@@ -55,6 +55,7 @@ int main(int argc, char *argv[]) {
   scenario_bad_crc(&t85, elf, freq);
   scenario_slow_sqck(&t85, elf, freq);
   scenario_trim(&t85, elf, freq);
+  scenario_trim_cal7(&t85, elf, freq);
 
   // The SCPH-5903 Video-CD image.
   scenario_vcd(argv[3], freq);

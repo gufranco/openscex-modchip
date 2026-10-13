@@ -32,6 +32,7 @@ void scenario_store_low_supply(const target_t *t, const char *elf, uint32_t freq
 void scenario_torn_record(const target_t *t, const char *elf, uint32_t freq);
 void scenario_eeprom_mode(const target_t *t, const char *elf, uint32_t freq);
 void scenario_trim(const target_t *t, const char *elf, uint32_t freq);
+void scenario_trim_cal7(const target_t *t, const char *elf, uint32_t freq);
 void scenario_gate(const target_t *t, const char *elf, uint32_t freq, int modern);
 void scenario_string_gap(const target_t *t, const char *elf, uint32_t freq);
 void scenario_gap_check(const target_t *t, const char *elf, uint32_t freq);

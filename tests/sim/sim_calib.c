@@ -202,11 +202,9 @@ static void watch_osccal_hook(avr_t *avr, void *param) {
   watch_osccal(avr, (osccal_watch_t *)param);
 }
 
-static void trim_case(const target_t *t, const char *elf, uint32_t freq, int percent) {
-  uint32_t actual = (uint32_t)(((uint64_t)freq * (uint64_t)(100 + percent)) / 100U);
-  avr_t *avr = build_avr(t, elf, actual);
-  osccal_watch_t watch = { 0U, 0U, 0U, 0U, 0U };
-  watch_osccal(avr, &watch);
+// A disc read long enough for the trim to settle, then silence so the window
+// closes and the trim is stored.
+static void trim_disc(avr_t *avr, const target_t *t) {
   wfck_ctx_t ctx = { NULL, 1U, 0U };
   boot_quiet(avr, t, 0, &ctx);
   const uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -220,6 +218,17 @@ static void trim_case(const target_t *t, const char *elf, uint32_t freq, int per
   clock_frames(avr, t, toc, TRIM_TOC_FRAMES);
   clock_frames(avr, t, silence, TRIM_DECAY_FRAMES);
   g_frame_period_ns = 0U;
+}
+
+static uint32_t rc_speed(uint32_t freq, int percent) {
+  return (uint32_t)(((uint64_t)freq * (uint64_t)(100 + percent)) / 100U);
+}
+
+static void trim_case(const target_t *t, const char *elf, uint32_t freq, int percent) {
+  avr_t *avr = build_avr(t, elf, rc_speed(freq, percent));
+  osccal_watch_t watch = { 0U, 0U, 0U, 0U, 0U };
+  watch_osccal(avr, &watch);
+  trim_disc(avr, t);
   uint8_t raw[CALIB_BYTES] = { 0 };
   read_calib(avr, raw);
   int8_t stored = (int8_t)raw[4];
@@ -247,6 +256,65 @@ static void trim_case(const target_t *t, const char *elf, uint32_t freq, int per
                 (watch.largest_step == 1U) && (watch.writes == walked) && (watch.longest_run > 1U),
                 what);
   }
+}
+
+// A factory OSCCAL a few notches from CAL7, the bit that picks one of the two
+// overlapping ranges (datasheet 2586Q, OSCCAL). The trim walks toward the
+// boundary and must stop at the last value of the factory's half, never write
+// across it, and store only the distance it walked.
+typedef struct {
+  uint8_t factory;
+  uint8_t lowest;
+  uint8_t highest;
+} cal7_watch_t;
+
+static void cal7_write(struct avr_t *avr, avr_io_addr_t addr, uint8_t v, void *param) {
+  cal7_watch_t *watch = (cal7_watch_t *)param;
+  watch->lowest = (v < watch->lowest) ? v : watch->lowest;
+  watch->highest = (v > watch->highest) ? v : watch->highest;
+  avr->data[addr] = v;
+}
+
+// Runs before the first instruction, so the firmware reads this as its
+// factory value.
+static void cal7_hook(avr_t *avr, void *param) {
+  cal7_watch_t *watch = (cal7_watch_t *)param;
+  avr->data[SIM_OSCCAL_ADDR] = watch->factory;
+  avr->io[AVR_DATA_TO_IO(SIM_OSCCAL_ADDR)].w.c = cal7_write;
+  avr->io[AVR_DATA_TO_IO(SIM_OSCCAL_ADDR)].w.param = watch;
+}
+
+static void cal7_case(
+    const target_t *t, const char *elf, uint32_t freq, uint8_t factory, int percent) {
+  cal7_watch_t watch = { factory, factory, factory };
+  g_on_build = cal7_hook;
+  g_on_build_param = &watch;
+  avr_t *avr = build_avr(t, elf, rc_speed(freq, percent));
+  g_on_build = NULL;
+  g_on_build_param = NULL;
+  trim_disc(avr, t);
+  uint8_t raw[CALIB_BYTES] = { 0 };
+  read_calib(avr, raw);
+  bool upward = percent < 0;
+  uint8_t edge = upward ? (uint8_t)0x7FU : (uint8_t)0x80U;
+  int expected = (int)edge - (int)factory;
+  char what[96];
+  (void)snprintf(what,
+                 sizeof(what),
+                 "a trim from OSCCAL 0x%02X stops at 0x%02X (now 0x%02X)",
+                 factory,
+                 edge,
+                 osccal(avr));
+  bool stayed = upward ? (watch.highest == edge) : (watch.lowest == edge);
+  calib_check(
+      t,
+      calib_valid(raw) && (osccal(avr) == edge) && stayed && ((int8_t)raw[4] == (int8_t)expected),
+      what);
+}
+
+void scenario_trim_cal7(const target_t *t, const char *elf, uint32_t freq) {
+  cal7_case(t, elf, freq, 0x7DU, -5);
+  cal7_case(t, elf, freq, 0x82U, 5);
 }
 
 void scenario_trim(const target_t *t, const char *elf, uint32_t freq) {
