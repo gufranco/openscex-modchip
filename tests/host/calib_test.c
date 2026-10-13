@@ -17,15 +17,15 @@
 
 static pscu_check_fn g_check;
 
-// The defaults are what an erased chip decodes to.
-static pscu_calib_t defaults(void) {
-  pscu_calib_record_t erased = { { 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU } };
-  return pscu_calib_decode(erased);
-}
-
 static pscu_calib_t make(uint8_t board, uint8_t trigger, bool frozen) {
   pscu_calib_t calib = { board, trigger, frozen, 0 };
   return calib;
+}
+
+// The defaults, written out: no board seen, the earliest trigger, not frozen
+// and no trim, which is what a chip with no usable record must run with.
+static pscu_calib_t defaults(void) {
+  return make(PSCU_CALIB_BOARD_NONE, MIN_T, false);
 }
 
 static bool same(pscu_calib_t a, pscu_calib_t b) {
@@ -44,9 +44,8 @@ static bool is_default(pscu_calib_t calib) {
 }
 
 static void test_record_round_trip(void) {
-  pscu_calib_t erased = defaults();
-  g_check((erased.board == PSCU_CALIB_BOARD_NONE) && (erased.trigger == MIN_T) && !erased.frozen,
-          "calib: an erased chip reads as defaults");
+  pscu_calib_record_t blank = { { 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU, 0xFFU } };
+  g_check(is_default(pscu_calib_decode(blank)), "calib: an erased chip reads as defaults");
   g_check(accepted_record(make(1U, (uint8_t)(MIN_T + 4U), true)),
           "calib: a learned record reads back unchanged");
   g_check(accepted_record(make(PSCU_CALIB_BOARD_NONE, MIN_T, false)),

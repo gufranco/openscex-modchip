@@ -81,8 +81,9 @@ static void test_scex_packets(void) {
       packet[0] = headers[h][0];
       packet[1] = headers[h][1];
       packet[2] = headers[h][2];
-      packet[3] = letters[c];
-      packet[9] = letters[c];
+      for (uint8_t at = 3U; at <= 9U; at++) {
+        packet[at] = letters[c];
+      }
       packet[10] = 0x7FU;
       packet[11] = 0x7FU;
       any_valid = any_valid || pscu_subq_is_valid(packet);
