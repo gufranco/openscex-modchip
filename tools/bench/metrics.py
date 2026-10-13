@@ -5,7 +5,9 @@
 
 Strings belong to the phase they start in. A string is accepted only if it is
 the expected region and ends before the program area. Drive time outside
-strings is what a detector could see.
+strings is what a detector could see. Play resumes three ways: after a swap's
+second lead-in, after a re-read and after the anti-mod probe; strings there are
+second_play, and strings while the drive is stopped for a swap are during_swap.
 """
 
 from dataclasses import dataclass
@@ -40,6 +42,8 @@ class Metrics:
     reread_valid: int = 0
     gate_driven_outside_ns: int = 0
     pulled_ns: int = 0
+    second_play: int = 0
+    during_swap: int = 0
 
 
 def _segment(start_ns: int, phases: dict[Phase, int]) -> Phase | None:
@@ -113,4 +117,6 @@ def measure(trace: Trace, phases: dict[Phase, int], region: Region) -> Metrics:
         reread_valid=sum(
             1 for s in valid if _segment(s.start_ns, phases) is Phase.REREAD
         ),
+        second_play=counts[Phase.SECOND_PROGRAM] + counts[Phase.AFTER_PROBE],
+        during_swap=counts[Phase.SWAP],
     )

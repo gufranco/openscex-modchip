@@ -192,3 +192,39 @@ class FramedTest(unittest.TestCase):
         merged = framed(spans)
 
         self.assertEqual(len(merged), 2)
+
+    def test_strings_in_play_after_a_second_lead_in_or_the_probe_count_as_second_play(
+        self,
+    ) -> None:
+        # Arrange
+        phases = {
+            **PHASES,
+            Phase.SECOND_PROGRAM: 8 * SECOND,
+            Phase.PROBE: 10 * SECOND,
+            Phase.AFTER_PROBE: 12 * SECOND,
+        }
+        data = (
+            string_at(2 * SECOND)
+            + string_at(int(8.5 * SECOND))
+            + string_at(int(10.5 * SECOND))
+            + string_at(13 * SECOND)
+        )
+
+        # Act
+        metrics = measure(Trace(data, [], 14 * SECOND), phases, Region.AMERICA)
+
+        # Assert
+        self.assertEqual(metrics.second_play, 2)
+        self.assertEqual(metrics.probe_strings, 1)
+
+    def test_strings_while_the_drive_is_stopped_for_a_swap_count_apart(self) -> None:
+        # Arrange
+        phases = {**PHASES, Phase.SWAP: 8 * SECOND, Phase.SECOND_LEAD_IN: 10 * SECOND}
+        data = string_at(int(8.5 * SECOND)) + string_at(int(10.5 * SECOND))
+
+        # Act
+        metrics = measure(Trace(data, [], 12 * SECOND), phases, Region.AMERICA)
+
+        # Assert
+        self.assertEqual(metrics.during_swap, 1)
+        self.assertEqual(metrics.second_window, 1)

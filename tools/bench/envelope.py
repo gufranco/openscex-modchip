@@ -9,7 +9,8 @@ Per scenario, the field-proven chips' metrics bound ours:
 - bit cell: within their range, give or take one 14.6 kHz WFCK period, 68.5 us;
 - first string: no later than the slowest, give or take two SUBQ frames,
   26.7 ms, for sampling phase and a frame ours can miss between captures;
-- strings sent and drive outside strings: at most their maximum.
+- strings sent, in every phase including play after a swap, a re-read or the
+  anti-mod probe, and drive outside strings: at most their maximum.
 
 A rule with nothing to compare against is unchecked, never passed.
 """
@@ -82,6 +83,8 @@ RULES: tuple[tuple[str, Check], ...] = (
     ("during_play", _at_most),
     ("during_reread", _at_most),
     ("second_window", _at_most),
+    ("second_play", _at_most),
+    ("during_swap", _at_most),
     ("data_driven_outside_ns", _at_most),
     ("gate_driven_ns", _at_most),
 )

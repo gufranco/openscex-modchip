@@ -162,3 +162,23 @@ class EnvelopeTest(unittest.TestCase):
         result = verdicts(BASE, [])
 
         self.assertEqual(set(result.values()), {Verdict.UNCHECKED})
+
+    def test_more_strings_after_play_resumes_than_any_proven_chip_fails(self) -> None:
+        # Arrange
+        ours = replace(BASE, second_play=3)
+
+        # Act
+        result = verdicts(ours, [BASE])
+
+        # Assert
+        self.assertIs(result["second_play"], Verdict.BROKEN)
+
+    def test_a_string_during_a_swap_no_proven_chip_sends_fails(self) -> None:
+        # Arrange
+        ours = replace(BASE, during_swap=1)
+
+        # Act
+        result = verdicts(ours, [BASE])
+
+        # Assert
+        self.assertIs(result["during_swap"], Verdict.BROKEN)

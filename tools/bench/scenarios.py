@@ -179,7 +179,7 @@ SCENARIOS = (
         "carrier-reread",
         "anti-mod check: the lead-in is read again during play",
         _REREAD_END + PLAY_FRAMES * FRAME_NS + TAIL_NS,
-        {**_ACCEPT_PHASES, Phase.REREAD: _PLAY_END},
+        {**_ACCEPT_PHASES, Phase.REREAD: _PLAY_END, Phase.SECOND_PROGRAM: _REREAD_END},
         _reread,
         CARRIER_BOARDS,
     ),

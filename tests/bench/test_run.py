@@ -97,6 +97,31 @@ class OursTest(unittest.TestCase):
         self.assertTrue(result.metrics.carrier)
         self.assertGreater(len(result.executed), 100)
 
+    def test_ours_stays_silent_once_play_resumes_after_a_swap(self) -> None:
+        # Arrange
+        chip = by_name("ours")
+
+        # Act
+        with tempfile.TemporaryDirectory() as work:
+            result = run(ROOT, chip, scenario("carrier-swap"), Path(work))
+
+        # Assert
+        self.assertGreaterEqual(result.metrics.second_window, 1)
+        self.assertEqual(result.metrics.second_play, 0)
+        self.assertEqual(result.metrics.during_swap, 0)
+
+    def test_ours_stays_silent_once_play_resumes_after_a_reread(self) -> None:
+        # Arrange
+        chip = by_name("ours")
+
+        # Act
+        with tempfile.TemporaryDirectory() as work:
+            result = run(ROOT, chip, scenario("carrier-reread"), Path(work))
+
+        # Assert
+        self.assertGreaterEqual(result.metrics.during_reread, 1)
+        self.assertEqual(result.metrics.second_play, 0)
+
     def test_ours_program_addresses_hold_every_instruction_start(self) -> None:
         addresses = program_addresses(ROOT, by_name("ours"))
 
