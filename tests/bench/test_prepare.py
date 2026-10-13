@@ -150,7 +150,6 @@ class BuildTest(unittest.TestCase):
         return source(sketch_repo, "ubernee", "UberNee/U.ino"), core
 
     def test_a_pic_source_assembles_with_its_defines(self) -> None:
-        (self.root / "crow.asm").write_text(PIC_SOURCE)
         artifact = Artifact(
             "crow",
             "pic-source",
@@ -162,25 +161,23 @@ class BuildTest(unittest.TestCase):
         )
         chip = by_name("old-crow-12c508")
 
-        reason = assemble(self.root, artifact, chip)
+        reason = assemble(self.root, artifact, chip, PIC_SOURCE.encode(), self.work)
 
         self.assertIsNone(reason)
         self.assertTrue((self.root / chip.firmware).is_file())
 
     def test_a_pic_source_that_fails_says_why(self) -> None:
-        (self.root / "crow.asm").write_text("\tbogus\n")
         artifact = Artifact("crow", "pic-source", "none", False, "t", path="crow.asm")
+        chip = by_name("old-crow-12c508")
 
-        reason = assemble(self.root, artifact, by_name("old-crow-12c508"))
+        reason = assemble(self.root, artifact, chip, b"\tbogus\n", self.work)
 
         self.assertIn("gpasm", str(reason))
 
     def test_an_avr_source_assembles_into_an_elf_holding_its_code(self) -> None:
-        (self.root / "liss.asm").write_text(AVR_SOURCE)
-        artifact = Artifact("liss", "avr-source", "none", False, "t", path="liss.asm")
         chip = by_name("liss-at90s1200")
 
-        reason = assemble_avr(self.root, artifact, chip, self.work)
+        reason = assemble_avr(self.root, chip, AVR_SOURCE.encode(), self.work)
 
         listing = subprocess.run(
             ["avr-objdump", "-d", str(self.root / chip.firmware)],
@@ -192,28 +189,23 @@ class BuildTest(unittest.TestCase):
         self.assertIn("rjmp", listing)
 
     def test_an_avr_source_that_fails_says_why(self) -> None:
-        (self.root / "liss.asm").write_text(".device AT90S1200\n\tbogus\n")
-        artifact = Artifact("liss", "avr-source", "none", False, "t", path="liss.asm")
+        text = b".device AT90S1200\n\tbogus\n"
 
-        reason = assemble_avr(self.root, artifact, by_name("liss-at90s1200"), self.work)
+        reason = assemble_avr(self.root, by_name("liss-at90s1200"), text, self.work)
 
         self.assertIn("avra", str(reason))
 
     def test_an_avr_source_keeps_its_part_instruction_check(self) -> None:
-        text = AVR_SOURCE.replace("\trjmp start", "\tpush A1")
-        (self.root / "liss.asm").write_text(text)
-        artifact = Artifact("liss", "avr-source", "none", False, "t", path="liss.asm")
+        text = AVR_SOURCE.replace("\trjmp start", "\tpush A1").encode()
 
-        reason = assemble_avr(self.root, artifact, by_name("liss-at90s1200"), self.work)
+        reason = assemble_avr(self.root, by_name("liss-at90s1200"), text, self.work)
 
         self.assertIn("avra", str(reason))
 
     def test_an_avr_image_becomes_an_elf_holding_its_code(self) -> None:
-        (self.root / "m.hex").write_text(AVR_HEX)
-        artifact = Artifact("m", "avr-image", "none", False, "t", path="m.hex")
         chip = by_name("modavr-attiny13")
 
-        avr_elf(self.root, artifact, chip, self.work)
+        avr_elf(self.root, chip, AVR_HEX.encode(), self.work)
 
         listing = subprocess.run(
             ["avr-objdump", "-d", str(self.root / chip.firmware)],

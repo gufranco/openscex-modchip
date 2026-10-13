@@ -291,8 +291,9 @@ class PrepareTest(unittest.TestCase):
 
         self.assertIn("quade.co", str(reason))
 
-    def test_a_present_image_with_the_right_bytes_is_ready(self) -> None:
+    def test_a_verified_image_is_copied_to_the_chip_firmware(self) -> None:
         with tempfile.TemporaryDirectory() as work:
+            # Arrange
             root = Path(work)
             target = root / "image.hex"
             target.write_bytes(b"bytes")
@@ -308,11 +309,16 @@ class PrepareTest(unittest.TestCase):
             (root / "artifacts.manifest.json").write_text(
                 json.dumps({"artifacts": [entry]})
             )
-            chip = replace(by_name("mayumi-v4"), artifact="img", firmware="image.hex")
+            chip = replace(
+                by_name("mayumi-v4"), artifact="img", firmware="build/bench/copy.hex"
+            )
 
+            # Act
             reason = prepare(root, chip, root)
 
-        self.assertIsNone(reason)
+            # Assert
+            copied = (root / "build" / "bench" / "copy.hex").read_bytes()
+            self.assertEqual((reason, copied), (None, b"bytes"))
 
     def manifest(self, root: Path, entry: dict[str, object]) -> None:
         (root / "artifacts.manifest.json").write_text(

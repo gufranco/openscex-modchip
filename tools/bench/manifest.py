@@ -60,11 +60,14 @@ class Artifact:
 
 @dataclass(frozen=True, slots=True)
 class Check:
-    """The verdict on one artifact and what to tell the user."""
+    """The verdict on one artifact and what to tell the user. data holds the
+    exact bytes that were hashed, so nothing reads the file a second time and
+    uses bytes that were never checked."""
 
     artifact: Artifact
     status: Status
     message: str
+    data: bytes = b""
 
 
 def _text(entry: dict[str, object], key: str, where: str) -> str | None:
@@ -152,7 +155,8 @@ def check(root: Path, artifact: Artifact) -> Check:
             Status.MISSING,
             f"{artifact.id}: {artifact.path} is absent. To run it: {artifact.obtain}.",
         )
-    actual = hashlib.sha256(target.read_bytes()).hexdigest()
+    data = target.read_bytes()
+    actual = hashlib.sha256(data).hexdigest()
     if actual != artifact.sha256:
         return Check(
             artifact,
@@ -161,4 +165,4 @@ def check(root: Path, artifact: Artifact) -> Check:
             f"manifest expects {artifact.sha256}. It is a different build or "
             f"an edited copy; replace it with the original: {artifact.obtain}.",
         )
-    return Check(artifact, Status.READY, f"{artifact.id}: verified")
+    return Check(artifact, Status.READY, f"{artifact.id}: verified", data)

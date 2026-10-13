@@ -142,16 +142,21 @@ def _from_source(
 
 
 def _from_file(root: Path, artifact: Artifact, chip: Chip, workdir: Path) -> str | None:
-    """Check a file's bytes, then assemble or convert it if its kind asks."""
+    """Check a file's bytes, then turn exactly those bytes into the chip's
+    image: assembled, converted, or for a PIC image copied as it is."""
     result = check(root, artifact)
     if result.status is not Status.READY:
         return result.message
     if artifact.kind == "pic-source":
-        return assemble(root, artifact, chip)
+        return assemble(root, artifact, chip, result.data, workdir)
     if artifact.kind == "avr-source":
-        return assemble_avr(root, artifact, chip, workdir)
+        return assemble_avr(root, chip, result.data, workdir)
     if artifact.kind == "avr-image":
-        avr_elf(root, artifact, chip, workdir)
+        avr_elf(root, chip, result.data, workdir)
+        return None
+    image = root / chip.firmware
+    image.parent.mkdir(parents=True, exist_ok=True)
+    image.write_bytes(result.data)
     return None
 
 

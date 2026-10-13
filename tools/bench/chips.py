@@ -26,7 +26,9 @@ class Simulator(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class Chip:
-    """One firmware under test; firmware is a path under the repository."""
+    """One firmware under test; firmware is a path under the repository. A
+    third-party image is copied there from the bytes its manifest entry
+    verified, so the runner never reads an unchecked file."""
 
     name: str
     simulator: Simulator
@@ -109,7 +111,7 @@ CHIPS = (
         cpu="p12c508",
         clock_hz=4_233_600,
         pins=_MAYUMI_PINS,
-        firmware="docs/research/sources/mayumi_v4_12c508a_usa.hex",
+        firmware="build/bench/mayumi-v4.hex",
         artifact="mayumi-v4-12c508a-usa",
         field_proven=True,
         origin="Mayumi V4 USA image; pins from its disassembly, named after the "
@@ -123,7 +125,7 @@ CHIPS = (
         cpu="p12c508",
         clock_hz=4_000_000,
         pins=_MAYUMI_PINS,
-        firmware="docs/research/sources/multimode_v3_12c508a_usa.hex",
+        firmware="build/bench/mm3-12c508a.hex",
         artifact="mm3-12c508a-usa",
         field_proven=True,
         origin="MultiMode 3 USA image; same pins as Mayumi V4 (aligned "
@@ -150,7 +152,7 @@ CHIPS = (
         cpu="p12c508",
         clock_hz=4_000_000,
         pins="data=6,gate=5",
-        firmware="docs/research/sources/oldcrow_v5.4f_12c508_all.hex",
+        firmware="build/bench/old-crow-12c508-v54f.hex",
         artifact="old-crow-12c508-v54f",
         field_proven=False,
         origin="Old Crow v5.4F, his last 4-wire 12C508 code (14-JUN-98), "
@@ -163,7 +165,7 @@ CHIPS = (
         cpu="p16c84",
         clock_hz=4_000_000,
         pins="data=7,gate=8",
-        firmware="docs/research/sources/oldcrow_v1.01_16c84_all.hex",
+        firmware="build/bench/old-crow-16c84.hex",
         artifact="old-crow-16c84-v101",
         field_proven=False,
         origin="Old Crow v1.01 for the PIC16C84 (19-JAN-97), the first public "
@@ -179,7 +181,7 @@ CHIPS = (
         cpu="p16c54",
         clock_hz=4_000_000,
         pins="data=7,gate=8",
-        firmware="docs/research/sources/oldcrow_v1.01_16c54_all.hex",
+        firmware="build/bench/old-crow-16c54.hex",
         artifact="old-crow-16c54-v101",
         field_proven=False,
         origin="Old Crow v1.01 for the PIC16C54, published image; the same "
@@ -219,7 +221,7 @@ CHIPS = (
         cpu="p12c508",
         clock_hz=4_000_000,
         pins="lid=7,wfck=5,data=6,reset=4",
-        firmware="docs/research/sources/onechip_v1.00_12c508a_eur.hex",
+        firmware="build/bench/onechip-12c508a.hex",
         artifact="onechip-12c508a-pal",
         field_proven=False,
         origin="ONEchip V1.00 PAL image, no source; pins from its "

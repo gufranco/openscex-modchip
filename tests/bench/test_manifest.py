@@ -162,12 +162,15 @@ class CheckTest(unittest.TestCase):
     def tearDown(self) -> None:
         self._dir.cleanup()
 
-    def test_matching_bytes_are_ready(self) -> None:
+    def test_matching_bytes_are_ready_with_the_bytes_hashed(self) -> None:
+        # Arrange
         (self.root / "images" / "chip.hex").write_bytes(b"good image")
 
+        # Act
         result = check(self.root, load(self.root)["chip-x"])
 
-        self.assertIs(result.status, Status.READY)
+        # Assert
+        self.assertEqual((result.status, result.data), (Status.READY, b"good image"))
 
     def test_a_missing_file_says_where_and_how_to_get_it(self) -> None:
         result = check(self.root, load(self.root)["chip-x"])

@@ -77,9 +77,14 @@ def edit_sketch(text: str) -> str:
     return edited
 
 
-def assemble(root: Path, artifact: Artifact, chip: Chip) -> str | None:
-    """Assemble a PIC source into the chip's image; None, or gpasm's error."""
+def assemble(
+    root: Path, artifact: Artifact, chip: Chip, source: bytes, workdir: Path
+) -> str | None:
+    """Assemble a PIC source's verified bytes into the chip's image; None, or
+    gpasm's error. Its include files are gputils' own, so a copy assembles."""
     defines = [arg for define in artifact.defines or () for arg in ("-D", define)]
+    copy = workdir / f"{chip.name}.asm"
+    copy.write_bytes(source)
     result = subprocess.run(
         [
             "gpasm",
@@ -88,7 +93,7 @@ def assemble(root: Path, artifact: Artifact, chip: Chip) -> str | None:
             *defines,
             "-o",
             str(root / chip.firmware),
-            str(root / str(artifact.path)),
+            str(copy),
         ],
         capture_output=True,
         timeout=TOOL_TIMEOUT_S,
@@ -100,18 +105,17 @@ def assemble(root: Path, artifact: Artifact, chip: Chip) -> str | None:
     return None
 
 
-def avr_elf(root: Path, artifact: Artifact, chip: Chip, workdir: Path) -> None:
-    """Wrap an AVR Intel HEX image in the ELF simavr loads."""
-    _wrap_hex((root / str(artifact.path)).read_text(), root, chip, workdir)
+def avr_elf(root: Path, chip: Chip, image: bytes, workdir: Path) -> None:
+    """Wrap an AVR Intel HEX image's verified bytes in the ELF simavr loads."""
+    _wrap_hex(image.decode("ascii"), root, chip, workdir)
 
 
-def assemble_avr(
-    root: Path, artifact: Artifact, chip: Chip, workdir: Path
-) -> str | None:
-    """Assemble an Atmel-syntax AVR source with avra; None, or avra's error."""
+def assemble_avr(root: Path, chip: Chip, text: bytes, workdir: Path) -> str | None:
+    """Assemble an Atmel-syntax AVR source's verified bytes with avra; None, or
+    avra's error."""
     source = workdir / f"{chip.name}.asm"
-    text = (root / str(artifact.path)).read_text(encoding="latin-1")
-    source.write_text(DEVICE_LINE.sub(r";\1", text), encoding="latin-1")
+    decoded = text.decode("latin-1")
+    source.write_text(DEVICE_LINE.sub(r";\1", decoded), encoding="latin-1")
     result = subprocess.run(
         ["avra", "-I", AVRA_INCLUDES, source.name],
         cwd=workdir,
