@@ -109,7 +109,7 @@
     {
       "id": "liss-v14-at90s1200",
       "kind": "avr-source",
-      "path": "docs/research/sources/liss-stealth_v1.4_at90s1200_all.asm",
+      "path": "docs/research/sources/original/liss-stealth_v1.4_at90s1200_all.asm",
       "sha256": "976941c51b17a3b182933d6f8e230ff73fd88fcec5cd49b2cf3da1e929c9bdf9",
       "license": "none stated",
       "redistributable": false,
