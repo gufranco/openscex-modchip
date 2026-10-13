@@ -77,7 +77,7 @@ The PU-7 and PU-8 use the static-gate method, as in PsNee V9.0. Dev boards (DTL-
 
 ## Quick start
 
-Each [release](../../releases) carries prebuilt images: `us`, `eu`, `jp`, `jp-vcd` for the SCPH-5903, a quiet `-final` variant of each (see [Status indicator](#status-indicator)), a `SHA256SUMS` file, the license and a build-provenance attestation. Check a download before flashing it:
+Each [release](../../releases) carries prebuilt images: `us`, `eu`, `jp`, `jp-vcd` for the SCPH-5903, a quiet `-final` variant of each (see [Status indicator](#status-indicator)), a `SHA256SUMS` file, the license, `toolchain.spdx.json`, an SPDX bill of materials of the toolchain that built them, and build-provenance and SBOM attestations. Check a download before flashing it:
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing

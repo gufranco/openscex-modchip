@@ -77,7 +77,7 @@ PU-7 与 PU-8 与 PsNee V9.0 一样使用静态门控方式。开发机（DTL-H1
 
 ## 快速开始
 
-每个[发布](../../releases)都附有预构建镜像：`us`、`eu`、`jp`、SCPH-5903 用的 `jp-vcd`、它们各自安静的 `-final` 版本（见[状态指示](#状态指示)）、`SHA256SUMS` 文件、许可证与构建来源证明。烧录前请先校验下载文件：
+每个[发布](../../releases)都附有预构建镜像：`us`、`eu`、`jp`、SCPH-5903 用的 `jp-vcd`、它们各自安静的 `-final` 版本（见[状态指示](#状态指示)）、`SHA256SUMS` 文件、许可证、构建它们的工具链的 SPDX 物料清单 `toolchain.spdx.json`，以及构建来源与物料清单证明。烧录前请先校验下载文件：
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing
