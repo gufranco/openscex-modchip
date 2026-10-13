@@ -16,6 +16,12 @@
 // drives whole passes with console frames; a pass is one 13 ms frame unless a
 // case needs longer.
 
+// The stealth gap and cap are requirements, not tuning: rule 5 and PsNee V9.0's
+// REQUEST_INJECT_GAP 5. Pinning the values here makes a change to either one
+// fail the build instead of passing every case that uses the symbol.
+_Static_assert(PSCU_STEALTH_GAP_FRAMES == 5U, "the stealth gap is five frames");
+_Static_assert(PSCU_STEALTH_STRINGS == 16U, "the stealth cap is sixteen strings");
+
 static pscu_check_fn g_check;
 
 #define FRAME_MS 13U

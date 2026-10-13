@@ -376,10 +376,12 @@ void scenario_gate(const target_t *t, const char *elf, uint32_t freq, int modern
   check(after == 0U, label);
 }
 
-// Strings are spaced by the stealth gap: the quiet time between the first two
-// must exceed four frame periods.
+// Strings are spaced by the stealth gap of five frames: the chip lets five
+// frames pass after a string and fires on the sixth, so the quiet time between
+// two strings is at least five of this harness's 12.2 ms frames (96 SQCK bits of
+// 28.3 us plus the 9.45 ms idle gap). The exact count is pinned in the host test.
 #define GAP_TOC_FRAMES 80
-#define GAP_MIN_MS 45U
+#define GAP_MIN_MS 60U
 
 void scenario_string_gap(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
