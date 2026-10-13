@@ -342,7 +342,7 @@ Combinations that booted out-of-region discs on a real console with the console-
 
 That firmware predates the lid-wire-free swap detection, the trimmed oscillator, program-area silence, re-read handling and the bounded SUBQ waits; the current firmware has not yet run on a console. Untested on hardware: PU-7, PU-8, PU-20, PU-22, PU-23, PM-41(2), and PAL or NTSC-J on any family. Source: [compatibility reports](https://github.com/gufranco/openscex-modchip/issues?q=label%3Acompatibility), [AGENTS.md](AGENTS.md).
 
-To add your console, open a [compatibility report](../../issues/new?template=compatibility.yml).
+To add your console, open a [compatibility report](../../issues/new?template=compatibility.yml). A disc with anti-mod protection, APv1 or APv2, tests the stealth window hardest: it boots only if the chip stays silent once the console reads the game. The form asks for one; the [tonyhax international anti-piracy table](https://github.com/alex-free/tonyhax/blob/7fd1825740c670bd4612db5db999ebd285c66796/anti-piracy-bypass.md) lists 57 APv1 and 200 APv2 discs. Source: [tonyhax international anti-piracy table](https://github.com/alex-free/tonyhax/blob/7fd1825740c670bd4612db5db999ebd285c66796/anti-piracy-bypass.md), [src/inject.c](src/inject.c).
 
 ## Versioning
 

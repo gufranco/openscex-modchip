@@ -342,7 +342,7 @@ graph LR
 
 このファームウェアは、蓋線なしのディスク交換検出、補正付きの内蔵発振器、プログラム領域での沈黙、再読み取りの扱い、上限付きの SUBQ 待ちより前のもので、現在のファームウェアはまだ実機で動かしていません。実機未試験: PU-7、PU-8、PU-20、PU-22、PU-23、PM-41(2)、どの基板でも PAL と NTSC-J。 出典: [compatibility reports](https://github.com/gufranco/openscex-modchip/issues?q=label%3Acompatibility), [AGENTS.md](AGENTS.md)。
 
-あなたの機種を加えるには、[互換性レポート](../../issues/new?template=compatibility.yml)を開いてください。
+あなたの機種を加えるには、[互換性レポート](../../issues/new?template=compatibility.yml)を開いてください。APv1 または APv2 のアンチ改造プロテクトを持つディスクは、ステルス窓を最も厳しく試します。本体がゲームを読み始めた後もチップが黙っている場合にだけ起動するからです。フォームはその結果を尋ねます。[tonyhax international のアンチ海賊版表](https://github.com/alex-free/tonyhax/blob/7fd1825740c670bd4612db5db999ebd285c66796/anti-piracy-bypass.md)には APv1 が 57 枚、APv2 が 200 枚載っています。出典: [tonyhax international のアンチ海賊版表](https://github.com/alex-free/tonyhax/blob/7fd1825740c670bd4612db5db999ebd285c66796/anti-piracy-bypass.md)、[src/inject.c](src/inject.c)。
 
 ## バージョニング
 

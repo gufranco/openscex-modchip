@@ -342,7 +342,7 @@ graph LR
 
 该固件早于无需光驱盖线的换盘检测、带校正的内部振荡器、程序区静默、重读处理与有上限的 SUBQ 等待；当前固件尚未在实机上运行。尚未在实机测试：PU-7、PU-8、PU-20、PU-22、PU-23、PM-41(2)，以及任何主板上的 PAL 与 NTSC-J。 出处：[compatibility reports](https://github.com/gufranco/openscex-modchip/issues?q=label%3Acompatibility), [AGENTS.md](AGENTS.md)。
 
-要添加你的主机，请提交[兼容性报告](../../issues/new?template=compatibility.yml)。
+要添加你的主机，请提交[兼容性报告](../../issues/new?template=compatibility.yml)。带有 APv1 或 APv2 反改装保护的光盘最严格地考验隐身窗口：只有当主机开始读取游戏后芯片保持静默，它才会启动。表单会询问这类结果；[tonyhax international 反盗版表](https://github.com/alex-free/tonyhax/blob/7fd1825740c670bd4612db5db999ebd285c66796/anti-piracy-bypass.md)列出了 57 张 APv1 光盘和 200 张 APv2 光盘。来源：[tonyhax international 反盗版表](https://github.com/alex-free/tonyhax/blob/7fd1825740c670bd4612db5db999ebd285c66796/anti-piracy-bypass.md)、[src/inject.c](src/inject.c)。
 
 ## 版本
 

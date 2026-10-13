@@ -66,6 +66,24 @@ body:
         - label: Out-of-region original disc
         - label: Backup / CD-R
         - label: Disc-swap re-arm worked
+  - type: dropdown
+    id: protection
+    attributes:
+      label: Anti-mod protected title tested
+      description: Titles that check for a modchip are listed by protection type in the tonyhax international anti-piracy table (https://github.com/alex-free/tonyhax/blob/7fd1825740c670bd4612db5db999ebd285c66796/anti-piracy-bypass.md). LibCrypt discs are out of scope for this chip.
+      options:
+        - None tested
+        - APv1 title, passed
+        - APv1 title, anti-piracy screen
+        - APv2 title, passed
+        - APv2 title, anti-piracy screen
+    validations:
+      required: true
+  - type: input
+    id: protected_titles
+    attributes:
+      label: Protected titles and serials (optional)
+      placeholder: "e.g. Dino Crisis (USA), Legend of Dragoon (Europe)"
   - type: input
     id: voltage
     attributes:
