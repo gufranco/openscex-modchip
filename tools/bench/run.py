@@ -10,6 +10,7 @@ other tool has TOOL_TIMEOUT_S.
 
 import json
 import subprocess
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,6 +28,7 @@ from tools.bench.prepare import (
 )
 from tools.bench.reach import Entry, Line, by_line, by_table, markers
 from tools.bench.scenarios import Scenario
+from tools.bench.shapes import items, mapping
 from tools.bench.trace import parse
 
 RUNNERS = {
@@ -308,19 +310,40 @@ def _source_lines(
     return parse_lines(addresses, printed, root)
 
 
+# The ways an exclusion names what it excuses: a source line, an address
+# range, or a whole file.
+EXCLUSION_SHAPES = (
+    frozenset({"line", "reason"}),
+    frozenset({"start", "end", "reason"}),
+    frozenset({"file", "reason"}),
+)
+
+
+def _entry(item: Mapping[str, object], where: str) -> Entry:
+    """One exclusion checked for its shape; addresses are hex strings."""
+    if frozenset(item) not in EXCLUSION_SHAPES or not all(
+        isinstance(value, str) for value in item.values()
+    ):
+        raise ValueError(
+            f"{where}: needs reason and a line, a start and end, or a file"
+        )
+    text = {key: str(value) for key, value in item.items()}
+    return Entry(
+        line=text.get("line"),
+        start=int(text["start"], 16) if "start" in text else None,
+        end=int(text["end"], 16) if "end" in text else None,
+        reason=text["reason"],
+        file=text.get("file"),
+    )
+
+
 def load_exclusions(root: Path) -> dict[str, list[Entry]]:
     """The committed exclusion table for third-party images, by artifact id."""
-    raw = json.loads((root / EXCLUSIONS).read_text())
+    raw = mapping(json.loads((root / EXCLUSIONS).read_text()), EXCLUSIONS)
     return {
         artifact: [
-            Entry(
-                line=item.get("line"),
-                start=int(item["start"], 16) if "start" in item else None,
-                end=int(item["end"], 16) if "end" in item else None,
-                reason=item["reason"],
-                file=item.get("file"),
-            )
-            for item in entries
+            _entry(item, f"{artifact}[{index}]")
+            for index, item in enumerate(items(entries, artifact))
         ]
         for artifact, entries in raw.items()
     }

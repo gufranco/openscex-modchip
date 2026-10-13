@@ -21,6 +21,7 @@ from pathlib import Path
 from tools.bench.chips import CHIPS
 from tools.bench.metrics import Metrics
 from tools.bench.run import Run
+from tools.bench.shapes import mapping, texts
 
 START = "<!-- showcase:start -->"
 END = "<!-- showcase:end -->"
@@ -156,18 +157,56 @@ PROPERTIES = (
 Results = dict[str, dict[str, Outcome]]
 
 
+def _per_language(value: object, where: str) -> dict[str, str]:
+    said = texts(value, where)
+    missing = sorted(set(READMES) - set(said))
+    if missing:
+        raise ValueError(f"{where}: no text for {missing}")
+    return said
+
+
+def parse_words(raw: object) -> Words:
+    """TEXT's content checked: every phrase, outcome and property title and
+    mechanism in every README language."""
+    top = mapping(raw, "showcase text")
+    outcome = mapping(top.get("outcome"), "outcome")
+    properties = mapping(top.get("properties"), "properties")
+    phrases = {
+        key: _per_language(top.get(key), key)
+        for key in ("heading", "source", "stop", "colon")
+    }
+    return Words(
+        heading=phrases["heading"],
+        source=phrases["source"],
+        stop=phrases["stop"],
+        colon=phrases["colon"],
+        outcome={
+            lang: _outcomes(outcome.get(lang), f"outcome.{lang}") for lang in READMES
+        },
+        properties={p.key: _property(properties.get(p.key), p.key) for p in PROPERTIES},
+    )
+
+
+def _property(value: object, key: str) -> dict[str, dict[str, str]]:
+    said = mapping(value, key)
+    return {
+        field: _per_language(said.get(field), f"{key}.{field}")
+        for field in ("title", "mechanism")
+    }
+
+
+def _outcomes(value: object, where: str) -> dict[str, str]:
+    said = texts(value, where)
+    missing = sorted({str(o) for o in Outcome} - set(said))
+    if missing:
+        raise ValueError(f"{where}: no text for {missing}")
+    return said
+
+
 @cache
 def words() -> Words:
-    """The README-facing words, read once on first use."""
-    raw = json.loads(TEXT.read_text())
-    return Words(
-        raw["heading"],
-        raw["source"],
-        raw["stop"],
-        raw["colon"],
-        raw["outcome"],
-        raw["properties"],
-    )
+    """The README-facing words, read and checked once on first use."""
+    return parse_words(json.loads(TEXT.read_text()))
 
 
 def _judge(prop: Property, runs: list[Run]) -> Outcome:
@@ -205,9 +244,17 @@ def to_json(results: Results) -> str:
 
 
 def from_json(raw_text: str) -> Results:
-    """Read results written by to_json."""
-    raw: dict[str, dict[str, str]] = json.loads(raw_text)
-    return {chip: {k: Outcome(v) for k, v in row.items()} for chip, row in raw.items()}
+    """Read results written by to_json; refuse an unknown property or
+    outcome."""
+    keys = {p.key for p in PROPERTIES}
+    results: Results = {}
+    for chip, row in mapping(json.loads(raw_text), "results").items():
+        said = texts(row, chip)
+        unknown = sorted(set(said) - keys)
+        if unknown:
+            raise ValueError(f"{chip}: unknown properties {unknown}")
+        results[chip] = {k: Outcome(v) for k, v in said.items()}
+    return results
 
 
 def table(results: Results, lang: str) -> list[str]:
