@@ -35,6 +35,16 @@ class MemoryTest(unittest.TestCase):
         # Assert
         self.assertEqual(filled, {0x10: 0x22})
 
+    def test_a_start_address_record_places_nothing(self) -> None:
+        # Arrange
+        text = ":04000005000000CD2A\n:0100020011EC\n" + END
+
+        # Act
+        filled = memory(text)
+
+        # Assert
+        self.assertEqual(filled, {0x02: 0x11})
+
     def test_records_after_the_end_record_are_ignored(self) -> None:
         # Arrange
         text = ":0100020011EC\n" + END + "trailing text\n"
