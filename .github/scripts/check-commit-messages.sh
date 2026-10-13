@@ -10,7 +10,8 @@
 set -eu
 
 types='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
-subject_pattern="^(${types})(\([a-z0-9-]+\))?: [a-z][^.]*$"
+# The subject may name a version such as 0.18.0; only a trailing period fails.
+subject_pattern="^(${types})(\([a-z0-9-]+\))?: [a-z](.*[^.])?$"
 max_length=50
 zero_sha='0000000000000000000000000000000000000000'
 
