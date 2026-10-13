@@ -65,6 +65,16 @@ void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq) {
   swap_disc(avr);
   int disc3 = strings_while(avr, t, toc, MD_TOC_FRAMES);
   md_check(t, disc3 >= 1, "disc 3 after another swap is injected", disc3);
+  clock_frames(avr, t, play, MD_SETTLE_FRAMES);
+  // Rule 5 seen from the console: across three discs, a re-read and play, DATA
+  // was driven only inside whole strings, and the debug lamp was lit as each
+  // one began. Lamp pulses are not counted as strings: one can run into a result
+  // code and outlast any string.
+  md_check(t, data_strays(avr) == 0, "DATA is driven only inside whole strings", g_strings);
+  md_check(t,
+           (g_data_bursts > 0) && (g_lit_bursts == g_data_bursts),
+           "the lamp is lit as each string starts on DATA",
+           g_strings);
 }
 
 // Without a lid wire, a swap is a stretch with no valid SUBQ frame. A pause

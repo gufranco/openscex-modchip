@@ -26,6 +26,10 @@ uint64_t g_pulse_len[MAX_PULSES];
 int g_pulses = 0;
 uint64_t g_rise = 0;
 int g_strings = 0;
+int g_data_drives = 0;
+int g_data_strays = 0;
+int g_data_bursts = 0;
+int g_lit_bursts = 0;
 uint32_t g_freq = 8000000U;
 // The SQCK half-period the harness clocks frames with, normally EDGE_NS.
 uint64_t g_edge_ns = EDGE_NS;
@@ -69,8 +73,77 @@ uint64_t ns_cycles(uint64_t ns) {
   return ((uint64_t)g_freq * ns) / 1000000000ULL;
 }
 
-// The first indicator rise after boot marks the first region string. Pulses as long
-// as a string are counted as strings.
+// DATA as the console sees it, read from its direction bit: a string is the only
+// time the chip drives DATA, so strings are counted here, not from the lamp. On a
+// gate board a one cell is high-Z, so a string is a run of drives with gaps of up
+// to five one cells, 20 ms; drives closer than DATA_GAP_MS belong to one burst.
+// A burst of 80 to 200 ms is a string; anything else is a stray drive.
+#define DATA_GAP_MS 40U
+#define DATA_STRING_MIN_MS 80U
+#define DATA_STRING_MAX_MS 200U
+static uint8_t g_data_bit = 0U;
+static uint8_t g_lamp_bit = 0U;
+static uint32_t g_port = 0U;
+static int g_data_driven = 0;
+static int g_data_open = 0;
+static int g_data_counted = 0;
+static uint64_t g_data_start = 0U;
+static uint64_t g_data_last = 0U;
+
+// Close the open burst: it was a string, or it was stray.
+static void close_burst(void) {
+  if (g_data_open == 0) {
+    return;
+  }
+  uint64_t span = g_data_last - g_data_start;
+  if ((span < ms_cycles(DATA_STRING_MIN_MS)) || (span > ms_cycles(DATA_STRING_MAX_MS))) {
+    g_data_strays++;
+  }
+  g_data_open = 0;
+}
+
+static void on_data_direction(struct avr_irq_t *irq, uint32_t value, void *param) {
+  avr_t *avr = param;
+  (void)irq;
+  int driven = (int)((value >> g_data_bit) & 1U);
+  if ((driven == g_data_driven) || (avr->cycle < DETECT_CYCLES)) {
+    g_data_driven = driven;
+    return;
+  }
+  g_data_driven = driven;
+  if (driven != 0) {
+    g_data_drives++;
+    if ((g_data_open != 0) && ((avr->cycle - g_data_last) > ms_cycles(DATA_GAP_MS))) {
+      close_burst();
+    }
+    if (g_data_open == 0) {
+      g_data_open = 1;
+      g_data_counted = 0;
+      g_data_start = avr->cycle;
+      g_data_bursts++;
+      avr_ioport_state_t state;
+      (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE(g_port), &state);
+      g_lit_bursts += (int)((state.port >> g_lamp_bit) & 1U);
+    }
+    return;
+  }
+  g_data_last = avr->cycle;
+  if ((g_data_counted == 0) && ((g_data_last - g_data_start) >= ms_cycles(DATA_STRING_MIN_MS))) {
+    g_strings++;
+    g_data_counted = 1;
+  }
+}
+
+int data_strays(const avr_t *avr) {
+  if ((g_data_open != 0) && (g_data_driven == 0) &&
+      ((avr->cycle - g_data_last) > ms_cycles(DATA_GAP_MS))) {
+    close_burst();
+  }
+  return g_data_strays;
+}
+
+// The first indicator rise after boot marks the first region string; every
+// pulse is recorded for the indicator-code checks.
 void on_indicator(struct avr_irq_t *irq, uint32_t value, void *param) {
   avr_t *avr = param;
   (void)irq;
@@ -90,11 +163,6 @@ void on_indicator(struct avr_irq_t *irq, uint32_t value, void *param) {
     g_pulse_rise[g_pulses] = g_rise;
     g_pulse_len[g_pulses] = len;
     g_pulses++;
-  }
-  // A string lasts 90 to 181 ms; the 40 ms heartbeat, stretched by one loop
-  // pass, stays under 75 ms.
-  if ((g_rise >= DETECT_CYCLES) && (len >= ms_cycles(80U)) && (len <= ms_cycles(200U))) {
-    g_strings++;
   }
   g_rise = 0U;
 }
@@ -205,6 +273,20 @@ avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
   g_pulses = 0;
   g_rise = 0U;
   g_strings = 0;
+  g_data_drives = 0;
+  g_data_strays = 0;
+  g_data_bursts = 0;
+  g_lit_bursts = 0;
+  g_data_bit = t->data;
+  g_lamp_bit = t->indicator;
+  g_port = (uint32_t)t->port;
+  g_data_driven = 0;
+  g_data_open = 0;
+  g_data_counted = 0;
+  avr_irq_register_notify(
+      avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ((uint32_t)t->port), IOPORT_IRQ_DIRECTION_ALL),
+      on_data_direction,
+      avr);
   run_cycles(avr, PORT_INIT_CYCLES);
   return avr;
 }

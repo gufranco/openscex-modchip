@@ -114,7 +114,9 @@ void scenario_calib_missed(const target_t *t, const char *elf, uint32_t freq) {
   clock_frames(avr, t, toc, MISSED_TOC_FRAMES);
   clock_frames(avr, t, silence, MISSED_DECAY_FRAMES);
   run_cycles(avr, ms_cycles(4000U));
-  calib_check(t, g_strings == 0, "a start later than the lead-in read sends nothing");
+  calib_check(t,
+              (g_strings == 0) && (g_data_drives == 0),
+              "a start later than the lead-in read never drives DATA");
   calib_check(t, code_after(mark) == 2, "a missed window shows code 2");
   uint8_t raw[CALIB_BYTES] = { 0 };
   read_calib(avr, raw);

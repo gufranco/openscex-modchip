@@ -91,7 +91,14 @@ extern uint64_t g_pulse_rise[MAX_PULSES];
 extern uint64_t g_pulse_len[MAX_PULSES];
 extern int g_pulses;
 extern uint64_t g_rise;
+// Strings counted from DATA's direction bit; DATA drives after boot; DATA
+// bursts that are not string-shaped.
 extern int g_strings;
+extern int g_data_drives;
+extern int g_data_strays;
+// DATA bursts, and those that began with the lamp already lit.
+extern int g_data_bursts;
+extern int g_lit_bursts;
 extern uint32_t g_freq;
 extern uint64_t g_edge_ns;
 extern uint64_t g_frame_period_ns;
@@ -121,6 +128,9 @@ int strings_while(avr_t *avr, const target_t *t, const uint8_t *frame, int count
 void swap_disc(avr_t *avr);
 void boot_quiet(avr_t *avr, const target_t *t, int modern, wfck_ctx_t *ctx);
 void decode_region(avr_t *avr, const target_t *t, int modern, uint64_t bit_cycles, char *out);
+// The DATA bursts so far that were not one string: shorter than 80 ms, longer
+// than 200 ms, or two strings run together. Closes a burst that has ended.
+int data_strays(const avr_t *avr);
 
 // Check that the stack never came within SIM_STACK_MARGIN bytes of the data.
 void check_stack(void);

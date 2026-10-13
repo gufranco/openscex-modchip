@@ -57,7 +57,7 @@ static void scenario_inject(const target_t *t,
     }
   } else {
     (void)snprintf(label, sizeof(label), "%s: non-TOC does not inject at %u Hz", tag, freq);
-    check(g_indicator_seen == 0, label);
+    check((g_indicator_seen == 0) && (g_data_drives == 0), label);
   }
 }
 
@@ -307,7 +307,7 @@ static void vcd_case(
   char label[96];
   (void)snprintf(label, sizeof(label), "vcd build: %s at %u Hz", what, freq);
   if (expect == NULL) {
-    check(g_indicator_seen == 0, label);
+    check((g_indicator_seen == 0) && (g_data_drives == 0), label);
     return;
   }
   check(g_indicator_seen != 0, label);
@@ -448,7 +448,7 @@ void scenario_bad_crc(const target_t *t, const char *elf, uint32_t freq) {
   g_seal_frames = 1;
   char label[96];
   (void)snprintf(label, sizeof(label), "%s: a lead-in failing its CRC never arms", t->mcu);
-  check(g_indicator_seen == 0, label);
+  check((g_indicator_seen == 0) && (g_data_drives == 0), label);
   clock_until_inject(avr, t, toc);
   uint64_t deadline = avr->cycle + INDICATOR_DEADLINE;
   while ((g_indicator_seen == 0) && (avr->cycle < deadline)) {
