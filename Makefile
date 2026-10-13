@@ -108,15 +108,18 @@ WARNINGS := -Wall -Wextra -Wpedantic -Werror -Wconversion -Wsign-conversion -Wsh
 HOST_CFLAGS := $(C_STD) -Iinclude $(WARNINGS)
 
 LOGIC_C := src/region.c src/subq.c src/board_mode.c src/inject.c src/indicator.c src/calib.c src/trim.c src/supply.c src/loop.c
-HOST_LOGIC_C := $(LOGIC_C)
+# The trace text is logic too, host-tested with the rest, but only the trace
+# image links it, so the other images and their MISRA runs never see it.
+TRACE_C := src/trace.c
+HOST_LOGIC_C := $(LOGIC_C) $(TRACE_C)
 
-FIRMWARE_C := $(LOGIC_C) src/engine.c src/run.c src/main.c
+FIRMWARE_C := $(LOGIC_C) $(if $(filter trace,$(PROFILE)),$(TRACE_C)) src/engine.c src/run.c src/main.c
 CPPCHECK_MCU_DEF := -D__AVR_ATtiny85__
 
-ALL_SRC_C := $(FIRMWARE_C)
+ALL_SRC_C := $(LOGIC_C) $(TRACE_C) src/engine.c src/run.c src/main.c
 FIRMWARE_S := src/port.S src/port_chip.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
-HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_test.c tests/host/trim_test.c tests/host/disc_test.c tests/host/indicator_test.c tests/host/loop_test.c
+HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_test.c tests/host/trim_test.c tests/host/disc_test.c tests/host/indicator_test.c tests/host/loop_test.c tests/host/trace_test.c
 SIM_TEST_C := tests/sim/sim_test.c tests/sim/harness.c tests/sim/sim_inject.c tests/sim/sim_disc.c tests/sim/sim_calib.c tests/sim/sim_profile.c tests/sim/sim_trace.c
 SIM_TEST_H := tests/sim/harness.h tests/sim/scenarios.h tests/sim/sim_t85.h
 BENCH_SRC := bench/pic_runner.cc bench/avr_runner.c
@@ -136,7 +139,22 @@ RELEASE_OBJECTS := $(patsubst src/%,$(RELEASE)/%.o,$(FIRMWARE_C) $(FIRMWARE_S))
 # -g adds a line table without changing the code; the bench uses it to map
 # addresses to source lines. The link step needs it too, because of LTO.
 AVR_DEBUG := -g
-AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(VCD_DEF) $(PROFILE_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
+# The trace image names its commit on its BOOT line: the first 4 hex digits of
+# HEAD, or 0 outside a git checkout. Only that image carries it, so the
+# released images stay byte-identical across commits that do not change them.
+# A stamp file rewritten only when the id changes rebuilds its objects. The
+# trace text's switch must stay code: switch conversion would turn it into a
+# table of constants copied into RAM (src/trace.c).
+ifeq ($(PROFILE),trace)
+BUILD_ID := $(shell git rev-parse HEAD 2>/dev/null | cut -c1-4)
+BUILD_ID_DEF := -DPSCU_BUILD_ID=0x$(if $(BUILD_ID),$(BUILD_ID),0)U -fno-tree-switch-conversion
+BUILD_ID_STAMP := $(RELEASE)/build-id
+else
+BUILD_ID_DEF :=
+BUILD_ID_STAMP :=
+endif
+
+AVR_CFLAGS := -mmcu=$(MCU) -DF_CPU=$(F_CPU) $(REGION_DEF) $(VCD_DEF) $(PROFILE_DEF) $(BUILD_ID_DEF) $(C_STD) -Os -flto -ffat-lto-objects -Iinclude \
 	$(WARNINGS) -fno-common -ffunction-sections -fdata-sections $(AVR_DEBUG)
 AVR_ASFLAGS := -mmcu=$(MCU) -x assembler-with-cpp -DF_CPU=$(F_CPU) $(PROFILE_DEF) -Iinclude -Wall -Wextra -Werror $(AVR_DEBUG)
 AVR_LDFLAGS := -mmcu=$(MCU) -Os -flto -Wl,--gc-sections $(AVR_DEBUG)
@@ -154,8 +172,17 @@ all: image
 
 image: $(RELEASE_HEX)
 
+ifneq ($(BUILD_ID_STAMP),)
+$(BUILD_ID_STAMP): FORCE
+	@mkdir -p $(@D)
+	@echo '$(BUILD_ID)' | cmp -s - $@ || echo '$(BUILD_ID)' > $@
+
+.PHONY: FORCE
+FORCE:
+endif
+
 # Objects depend on this Makefile, since the build knobs are -D flags here.
-$(RELEASE)/%.c.o: src/%.c $(FIRMWARE_H) Makefile
+$(RELEASE)/%.c.o: src/%.c $(FIRMWARE_H) Makefile $(BUILD_ID_STAMP)
 	@mkdir -p $(@D)
 	$(AVR_CC) $(AVR_CFLAGS) -c -o $@ $<
 

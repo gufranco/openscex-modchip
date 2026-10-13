@@ -27,7 +27,7 @@
 
 </div>
 
-フラッシュ [**5928**](Makefile) バイト · 基板 [**8**](assets/psnee) 系統、PU-7 から PM-41(2) · リージョン [**3**](src/region.c) 種 · MISRA 逸脱 [**0**](AGENTS.md) · ホストの行と分岐カバレッジ [**100%**](tests/host) · ミュータント [**423/423**](tools/mutate.py) 撃破
+フラッシュ [**5902**](Makefile) バイト · 基板 [**8**](assets/psnee) 系統、PU-7 から PM-41(2) · リージョン [**3**](src/region.c) 種 · MISRA 逸脱 [**0**](AGENTS.md) · ホストの行と分岐カバレッジ [**100%**](tests/host) · ミュータント [**598/598**](tools/mutate.py) 撃破
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -99,7 +99,7 @@ cd openscex-modchip
 make REGION=us                                        # アメリカ
 make REGION=jp VCD_FILTER=on                          # SCPH-5903
 make REGION=us PROFILE=final                          # アメリカ、静かな表示
-make REGION=us PROFILE=trace                          # アメリカ、ピン 2 に SUBQ フレーム
+make REGION=us PROFILE=trace                          # アメリカ、ピン 2 にデバッグトレース
 avrdude -c <programmer> -p attiny85 -U flash:w:build/attiny85/release/openscex-modchip-attiny85.hex:i
 avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
 ```
@@ -230,7 +230,38 @@ PB3 には任意で LED かアクティブブザーをつなぎ、これがチ�
 
 ### シリアルトレース
 
-`make PROFILE=trace` は、ピン 2 (PB3) を表示の代わりにシリアル線にするイメージをビルドします。チップが取り込んだ 12 バイトの SUBQ バーストは、正しいかどうかに関係なく、すべて 115200 baud、8N1 の 24 桁の 16 進数 1 行として送られます。取り込みに失敗した場合はすべて `F` になります。キャリアでは SW2 を TRACE 側にし、TTL-232R ケーブルを黒線が GND に来る向きでトレース用ヘッダに挿します。ほかの基板では、ピン 2 を USB シリアルアダプタの RX 入力に、アダプタの GND をコンソールの GND につなぎます。mini では線が待機している間 LED が点いたままです。線は 0 とコンソールの 3.5 V ロジック電源の間で振れるので、TTL-232R-3V3 のような 3.3 V アダプタで読めます。行は各フレームの後の空き時間に送られるので、DATA はほかの 2 つのイメージと同じタイミングを保ち、シミュレータがそれをエッジ単位で確かめます。 出典: [src/run.c](src/run.c), [src/port.S](src/port.S), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c), [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795)。
+`make PROFILE=trace` は、ピン 2 (PB3) を表示の代わりに 115200 baud、8N1 のシリアル線にするイメージをビルドします。オシロスコープなしで故障を突き止めるのに必要なものがすべて流れます。起動レポート、チップが取り込んだすべての SUBQ フレーム、そしてチップが下した判断ごとの 1 行で、どれにも電源投入からの時刻が付きます。行は各フレームの後の空き時間に、1 回の空き時間につき判断 1 行までで送られるので、DATA はほかの 2 つのイメージと同じタイミングを保ち、シミュレータがそれをエッジ単位で確かめます。 出典: [src/trace.c](src/trace.c), [src/run.c](src/run.c), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
+
+キャリアでは SW2 を TRACE 側にし、TTL-232R ケーブルを黒線が GND に来る向きでトレース用ヘッダに挿します。ほかの基板では、ピン 2 を USB シリアルアダプタの RX 入力に、アダプタの GND をコンソールの GND につなぎます。mini では線が待機している間 LED が点いたままです。線は 0 とコンソールの 3.5 V ロジック電源の間で振れるので、TTL-232R-3V3 のような 3.3 V アダプタで読めます。起動レポートが入るように、コンソールの電源を入れる前に取り込みを始めてください。 出典: [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795)。
+
+```sh
+# Linux。macOS ではポートが /dev/cu.usbserial-* で、stty は -f を使う
+stty -F /dev/ttyUSB0 115200 raw && cat /dev/ttyUSB0 | tee capture.txt
+python3 tools/serial_trace.py capture.txt
+```
+
+フレームの行は SUBQ の 12 バイトを 16 進数で表したもので、取り込みに失敗した場合はすべて `F` になります。それ以外の行は `@` と時刻で始まり、`@1.460 OPEN 0A 0A` のように電源投入からの秒とミリ秒が付きます。 出典: [src/trace.c](src/trace.c)。
+
+| 行 | 意味 | 出典 |
+|:--|:--|:--|
+| `BOOT US 1A2B` | ビルドに組み込んだ地域と、コミットの先頭 16 進 4 桁。末尾の `V` は Video CD フィルタ | [src/trace.c](src/trace.c), [Makefile](Makefile) |
+| `RST PWR`、`RST WDT` | 電源投入から始まったか、メインループが止まってウォッチドッグで再起動したか | [src/trace.c](src/trace.c), [src/port_chip.S](src/port_chip.S) |
+| `BRD W D` | 基板。`W` は WFCK キャリア、`G` は固定ゲート。続く `D` は検出、`K` はウォッチドッグ再起動後に記録から引き継ぎ、`C` は検出したが記録と違う基板 | [src/trace.c](src/trace.c), [src/calib.c](src/calib.c) |
+| `OSC 50>4E` | OSCCAL の工場出荷値から適用値まで。その後は 75 Hz のフレーム周期に合わせた各トリム段階 | [src/trace.c](src/trace.c), [src/trim.c](src/trim.c) |
+| `REC W 0C P -2` | 較正記録。基板、16 進の開始値、`F` 固定済みか `P` 探索中か、トリム。起動時は EEPROM から読んだ値、その後は学習するたびに | [src/trace.c](src/trace.c), [src/calib.c](src/calib.c) |
+| `SUP OK 3303mV`、`SUP LOW 2601mV` | 起動時の電源電圧と、2.75 V の保護値をまたぐたびの電圧。下回ると文字列も記録の書き込みも行わない | [src/trace.c](src/trace.c), [src/supply.c](src/supply.c) |
+| `DISC`、`GONE` | 正しい SUBQ フレームが再び来た、または 1.5 s 来ていない | [src/trace.c](src/trace.c), [src/inject.c](src/inject.c) |
+| `OPEN 0A 0A` | ウィンドウが開いた。SUBQ カウンタと到達した開始値を 16 進で | [src/trace.c](src/trace.c), [src/loop.c](src/loop.c) |
+| `HOLD 03 0A 3303mV` | ウィンドウを保持し送信しない。電源保護値の下か、開いた後に開始値をわずかに下回ったとき | [src/trace.c](src/trace.c), [src/loop.c](src/loop.c) |
+| `SHUT P 00` | ウィンドウが閉じた。`P` はプログラム領域のフレーム、`G` はディスクが外れた、`D` はカウンタが下がった | [src/trace.c](src/trace.c), [src/loop.c](src/loop.c) |
+| `SCEX 3 W` | この開放での最大 16 本のうち 3 本目の文字列と、送ったときの基板モード | [src/trace.c](src/trace.c), [src/engine.c](src/engine.c) |
+| `PASS`、`FAIL` | 文字列の後にコンソールがプログラム領域へ進んだか、時間内に進まなかったか | [src/trace.c](src/trace.c), [src/loop.c](src/loop.c) |
+| `MISS 0B 0C` | ウィンドウが開く前にリードインが終わった。カウンタの到達値と必要な開始値。次のディスクでは開始値が早まる | [src/trace.c](src/trace.c), [src/calib.c](src/calib.c) |
+| `SAVE OK`、`SAVE NO 2601mV` | 記録を EEPROM に書いた、または電源不足で書かずに保持して再試行する | [src/trace.c](src/trace.c), [src/engine.c](src/engine.c) |
+| `LOST 2` | 4 件のキューに収まらないほど続いて捨てたイベントの数 | [src/trace.c](src/trace.c), [include/pscu/trace.h](include/pscu/trace.h) |
+
+`tools/serial_trace.py` は保存した取り込み、またはパイプで渡した端末の出力を読み、時系列を言葉で表示します。各フレームはディスク上の位置と CRC の確認付きで、同じフレームの連続は 1 行にまとめます。最後に、考えられる故障と確認すべき点を示す診断を出します。フレームがない、またはすべての取り込みが失敗したなら SQCK と SUBQ の配線、CRC 不良が多いならその配線のノイズ、ウォッチドッグ再起動なら止まった SQCK、電源投入の繰り返しや電源不足なら電源の取り出し点、ウィンドウを開かないリードインなら学習した開始値、`PASS` のない文字列なら DATA と WFCK の配線か地域の不一致、`PASS` の後もゲームが止まるならアンチ改造チェックかブート ROM の地域チェックです。`--summary` は診断だけを表示します。 出典: [tools/serial_trace.py](tools/serial_trace.py), [tests/serial_trace/test_serial_trace.py](tests/serial_trace/test_serial_trace.py)。
+
 
 ## 仕組み
 
@@ -296,7 +327,7 @@ graph LR
 | ノブ | 値 | 既定 | 選ぶもの | 出典 |
 |:-----|:---|:-----|:---------|:--|
 | `REGION` | `jp`、`us`、`eu` | `us` | チップが送る唯一のリージョン文字列 | [Makefile](Makefile), [src/region.c](src/region.c) |
-| `PROFILE` | `debug`、`final`、`trace` | `debug` | 2 番ピンの役割。debug はすべての段階、文字列、異常を示し、final は電源投入時と受理時に短く鳴り、各異常を 1 回だけ示す。trace はピンを 115200 baud のシリアル線にして各 SUBQ フレームを送る。DATA は 3 つとも同じ | [Makefile](Makefile), [src/run.c](src/run.c), [include/pscu/indicator.h](include/pscu/indicator.h) |
+| `PROFILE` | `debug`、`final`、`trace` | `debug` | 2 番ピンの役割。debug はすべての段階、文字列、異常を示し、final は電源投入時と受理時に短く鳴り、各異常を 1 回だけ示す。trace はピンを 115200 baud のシリアル線にして、起動レポート、各 SUBQ フレーム、チップの各判断を送る。DATA は 3 つとも同じ | [Makefile](Makefile), [src/run.c](src/run.c), [src/trace.c](src/trace.c), [include/pscu/indicator.h](include/pscu/indicator.h) |
 | `VCD_FILTER` | `off`、`on` | `off` | SCPH-5903 専用で on。PsNee V9.0 の SCPH-5903 フィルタと同じく、注入はゲームのリードイン TOC でのみ起動し、ビデオ CD では起動しない | [Makefile](Makefile), [src/subq.c](src/subq.c), [PsNee PSNee.ino L456-L490](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L456-L490) |
 
 既定以外のリージョン、フィルタ、プロファイルは成果物名にタグを付けます。例 `openscex-modchip-attiny85-jp.hex`、`openscex-modchip-attiny85-jp-vcd.hex`、`openscex-modchip-attiny85-final.hex`。 出典: [Makefile](Makefile)。

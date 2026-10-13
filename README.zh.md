@@ -27,7 +27,7 @@
 
 </div>
 
-闪存 [**5928**](Makefile) 字节 · [**8**](assets/psnee) 个主板系列，PU-7 至 PM-41(2) · [**3**](src/region.c) 个区域 · MISRA 偏离 [**0**](AGENTS.md) · 主机测试行与分支覆盖率 [**100%**](tests/host) · 变异体 [**423/423**](tools/mutate.py) 被杀死
+闪存 [**5902**](Makefile) 字节 · [**8**](assets/psnee) 个主板系列，PU-7 至 PM-41(2) · [**3**](src/region.c) 个区域 · MISRA 偏离 [**0**](AGENTS.md) · 主机测试行与分支覆盖率 [**100%**](tests/host) · 变异体 [**598/598**](tools/mutate.py) 被杀死
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -99,7 +99,7 @@ cd openscex-modchip
 make REGION=us                                        # 美洲
 make REGION=jp VCD_FILTER=on                          # SCPH-5903
 make REGION=us PROFILE=final                          # 美洲，安静的指示
-make REGION=us PROFILE=trace                          # 美洲，SUBQ 帧输出到引脚 2
+make REGION=us PROFILE=trace                          # 美洲，调试跟踪输出到引脚 2
 avrdude -c <programmer> -p attiny85 -U flash:w:build/attiny85/release/openscex-modchip-attiny85.hex:i
 avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
 ```
@@ -230,7 +230,38 @@ PB3 可选接一个 LED 或有源蜂鸣器，这是芯片唯一的诊断手段�
 
 ### 串口跟踪
 
-`make PROFILE=trace` 构建的镜像把引脚 2 (PB3) 改作串口线，不再驱动指示。芯片捕获的每个 12 字节 SUBQ 数据块，无论是否有效，都以一行 24 位十六进制数字发出，115200 baud，8N1；捕获失败时整行为 `F`。在载板上把 SW2 拨到 TRACE，并把 TTL-232R 线缆插到跟踪插针上，黑线对准 GND；在其他板上，把引脚 2 接到 USB 串口适配器的 RX 输入，适配器的地接主机的地，mini 板上的 LED 在线路空闲时保持点亮。线路在 0 与主机的 3.5 V 逻辑电源之间摆动，TTL-232R-3V3 这样的 3.3 V 适配器即可读取。每行在每帧之后的空隙中发出，所以 DATA 与另外两种镜像保持相同的时序，模拟器逐个边沿核对这一点。 出处：[src/run.c](src/run.c), [src/port.S](src/port.S), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c), [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795)。
+`make PROFILE=trace` 构建的镜像把引脚 2 (PB3) 改作 115200 baud、8N1 的串口线，不再驱动指示。它带出不用示波器就能查出故障所需的全部信息：启动报告、芯片捕获的每个 SUBQ 帧，以及芯片每做一个决定就发出的一行，每行都带有从上电起的时间。各行在每帧之后的空隙中发出，每个空隙最多一行决定，所以 DATA 与另外两种镜像保持相同的时序，模拟器逐个边沿核对这一点。 出处：[src/trace.c](src/trace.c), [src/run.c](src/run.c), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
+
+在载板上把 SW2 拨到 TRACE，并把 TTL-232R 线缆插到跟踪插针上，黑线对准 GND；在其他板上，把引脚 2 接到 USB 串口适配器的 RX 输入，适配器的地接主机的地，mini 板上的 LED 在线路空闲时保持点亮。线路在 0 与主机的 3.5 V 逻辑电源之间摆动，TTL-232R-3V3 这样的 3.3 V 适配器即可读取。请在给主机上电之前开始捕获，这样启动报告也会被记录。 出处：[hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795)。
+
+```sh
+# Linux；macOS 上端口是 /dev/cu.usbserial-*，stty 用 -f
+stty -F /dev/ttyUSB0 115200 raw && cat /dev/ttyUSB0 | tee capture.txt
+python3 tools/serial_trace.py capture.txt
+```
+
+帧行是 12 个 SUBQ 字节的十六进制；捕获失败时整行为 `F`。其余每行都以 `@` 和时间开头，例如 `@1.460 OPEN 0A 0A`，即从上电起的秒和毫秒。 出处：[src/trace.c](src/trace.c)。
+
+| 行 | 含义 | 出处 |
+|:--|:--|:--|
+| `BOOT US 1A2B` | 编译进去的区域，以及提交哈希的前 4 位十六进制；末尾的 `V` 表示 Video CD 过滤 | [src/trace.c](src/trace.c), [Makefile](Makefile) |
+| `RST PWR`、`RST WDT` | 从上电开始，或主循环停住后被看门狗重启 | [src/trace.c](src/trace.c), [src/port_chip.S](src/port_chip.S) |
+| `BRD W D` | 主板：`W` 为 WFCK 载波，`G` 为静态门控；随后 `D` 为检测所得，`K` 为看门狗重启后沿用记录，`C` 为检测所得且与记录的主板不同 | [src/trace.c](src/trace.c), [src/calib.c](src/calib.c) |
+| `OSC 50>4E` | OSCCAL 从出厂值到应用值，之后是按 75 Hz 帧率做的每一步微调 | [src/trace.c](src/trace.c), [src/trim.c](src/trim.c) |
+| `REC W 0C P -2` | 校准记录：主板、十六进制的起点、`F` 已固定或 `P` 仍在探测、微调值；启动时为从 EEPROM 读出的值，之后每次学习时发出 | [src/trace.c](src/trace.c), [src/calib.c](src/calib.c) |
+| `SUP OK 3303mV`、`SUP LOW 2601mV` | 启动时的电源电压，以及每次越过 2.75 V 保护值时的电压；低于该值时既不发送字符串也不写记录 | [src/trace.c](src/trace.c), [src/supply.c](src/supply.c) |
+| `DISC`、`GONE` | 重新收到有效的 SUBQ 帧，或 1.5 s 内一帧也没有 | [src/trace.c](src/trace.c), [src/inject.c](src/inject.c) |
+| `OPEN 0A 0A` | 窗口打开：SUBQ 计数器和它到达的起点，十六进制 | [src/trace.c](src/trace.c), [src/loop.c](src/loop.c) |
+| `HOLD 03 0A 3303mV` | 窗口保持但不发送：低于电源保护值，或打开后略低于起点 | [src/trace.c](src/trace.c), [src/loop.c](src/loop.c) |
+| `SHUT P 00` | 窗口关闭：`P` 为程序区帧，`G` 为光盘离开，`D` 为计数器回落 | [src/trace.c](src/trace.c), [src/loop.c](src/loop.c) |
+| `SCEX 3 W` | 本次打开中最多 16 个字符串里的第 3 个，以及发送时的主板模式 | [src/trace.c](src/trace.c), [src/engine.c](src/engine.c) |
+| `PASS`、`FAIL` | 字符串之后主机进入了程序区，或没有及时进入 | [src/trace.c](src/trace.c), [src/loop.c](src/loop.c) |
+| `MISS 0B 0C` | 窗口打开之前导入区就结束了：计数器到达的值和所需的起点；下一张光盘的起点会提前 | [src/trace.c](src/trace.c), [src/calib.c](src/calib.c) |
+| `SAVE OK`、`SAVE NO 2601mV` | 记录已写入 EEPROM，或因电压不足未写入并保留重试 | [src/trace.c](src/trace.c), [src/engine.c](src/engine.c) |
+| `LOST 2` | 连续事件超出 4 条队列容量而丢弃的数量 | [src/trace.c](src/trace.c), [include/pscu/trace.h](include/pscu/trace.h) |
+
+`tools/serial_trace.py` 读取保存的捕获，或通过管道传入的终端输出，用文字打印时间线：每帧都标出在光盘上的位置并核对 CRC，相同帧的连续段合并为一行。最后给出诊断，指出可能的故障和应检查之处：没有帧或每次捕获都失败指向 SQCK 与 SUBQ 接线，CRC 错误多指向这些线上的噪声，看门狗重启指向卡住的 SQCK，反复上电或电压不足指向取电点，导入区从未打开窗口指向学习到的起点，发送了字符串却没有 `PASS` 指向 DATA 与 WFCK 接线或区域不符，`PASS` 之后游戏仍停住则是防改机检查或启动 ROM 的区域检查。`--summary` 只打印诊断。 出处：[tools/serial_trace.py](tools/serial_trace.py), [tests/serial_trace/test_serial_trace.py](tests/serial_trace/test_serial_trace.py)。
+
 
 ## 工作原理
 
@@ -296,7 +327,7 @@ graph LR
 | 参数 | 取值 | 默认 | 选择 | 出处 |
 |:-----|:-----|:-----|:-----|:--|
 | `REGION` | `jp`、`us`、`eu` | `us` | 芯片送出的唯一区域字符串 | [Makefile](Makefile), [src/region.c](src/region.c) |
-| `PROFILE` | `debug`、`final`、`trace` | `debug` | 2 号引脚的作用：debug 显示每个阶段、字符串和故障；final 在上电和光盘被接受时短响，每个故障只显示一次；trace 把该引脚变成 115200 baud 的串口线，发出每个 SUBQ 帧；三者的 DATA 相同 | [Makefile](Makefile), [src/run.c](src/run.c), [include/pscu/indicator.h](include/pscu/indicator.h) |
+| `PROFILE` | `debug`、`final`、`trace` | `debug` | 2 号引脚的作用：debug 显示每个阶段、字符串和故障；final 在上电和光盘被接受时短响，每个故障只显示一次；trace 把该引脚变成 115200 baud 的串口线，发出启动报告、每个 SUBQ 帧和芯片的每个决定；三者的 DATA 相同 | [Makefile](Makefile), [src/run.c](src/run.c), [src/trace.c](src/trace.c), [include/pscu/indicator.h](include/pscu/indicator.h) |
 | `VCD_FILTER` | `off`、`on` | `off` | 仅 SCPH-5903 设为 on：与 PsNee V9.0 的 SCPH-5903 过滤器一样，注入只在游戏的导入区 TOC 触发，不在 Video CD 上触发 | [Makefile](Makefile), [src/subq.c](src/subq.c), [PsNee PSNee.ino L456-L490](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L456-L490) |
 
 非默认区域、过滤器或配置会在产物名上加标签，例如 `openscex-modchip-attiny85-jp.hex`、`openscex-modchip-attiny85-jp-vcd.hex` 或 `openscex-modchip-attiny85-final.hex`。 出处：[Makefile](Makefile)。

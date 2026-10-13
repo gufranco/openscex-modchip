@@ -16,6 +16,9 @@
 #include "pscu/subq.h"
 #include "pscu/supply.h"
 #include "pscu/trim.h"
+#if PSCU_PROFILE_TRACE
+#include "pscu/trace.h"
+#endif
 
 // Converts Timer1 ticks (16384 clocks each) to milliseconds.
 #define PSCU_CLOCKS_PER_MS (F_CPU / 1000UL)
@@ -66,21 +69,65 @@ typedef struct {
 #endif
 
 #if PSCU_PROFILE_TRACE
-// A hex digit in ASCII: '0' is 0x30, and 'A' less ten is 0x37.
-static uint8_t pscu_trace_digit(uint8_t nibble) {
-  return (nibble < 10U) ? (uint8_t)(0x30U + nibble) : (uint8_t)(0x37U + nibble);
+static void pscu_run_trace_send(const uint8_t *line, uint8_t len) {
+  for (uint8_t at = 0U; at < len; at++) {
+    pscu_port_trace_byte(line[at]);
+  }
 }
 
-// One captured frame as a text line: 24 upper-case hex digits and a newline,
-// 25 bytes, 2.2 ms at 115200 baud. A failed capture shows as all FF. The line
-// goes out after the pass's decisions and any string, inside the gap before the
-// next frame, so captures and DATA keep the debug image's timing.
-static void pscu_trace_frame(const uint8_t *frame) {
-  for (uint8_t byte = 0U; byte < PSCU_SUBQ_FRAME_BYTES; byte++) {
-    pscu_port_trace_byte(pscu_trace_digit((uint8_t)(frame[byte] >> 4U)));
-    pscu_port_trace_byte(pscu_trace_digit((uint8_t)(frame[byte] & 0x0FU)));
+// After every pass, in the gap before the next frame: the frame as 24 hex
+// digits, 2.2 ms at 115200 baud, then at most one queued event, under 2.8 ms.
+// A failed capture shows as all FF. Both go out after the pass's decisions and
+// any string, so captures and DATA keep the debug image's timing.
+static void pscu_run_trace_after_pass(pscu_trace_t *trace, const uint8_t *frame, uint8_t *line) {
+  uint8_t len = pscu_trace_format_frame(frame, line);
+  pscu_run_trace_send(line, len);
+  pscu_trace_event_t event;
+  if (pscu_trace_pop(trace, &event)) {
+    len = pscu_trace_format(&event, line);
+    pscu_run_trace_send(line, len);
   }
-  pscu_port_trace_byte(0x0AU);
+}
+
+// Fold one pass into the trace: the loop's decisions, the counter and string
+// count behind them, the record and oscillator after the pass, and the store.
+static void pscu_run_trace_note(pscu_trace_t *trace,
+                                const pscu_loop_t *loop,
+                                const pscu_loop_out_t *out,
+                                uint32_t elapsed_ms,
+                                pscu_board_mode_t board,
+                                uint8_t osccal,
+                                pscu_trace_store_t store,
+                                bool supply_ok) {
+  pscu_trace_pass_t pass;
+  pass.elapsed_ms = elapsed_ms;
+  pass.window = out->window;
+  pass.fire = out->fire;
+  pass.program = out->program;
+  pass.disc_gone = out->disc_gone;
+  pass.event = out->event;
+  pass.missed = out->missed;
+  pass.supply_ok = supply_ok;
+  pass.counter = loop->counter;
+  pass.sent = loop->stealth.sent;
+  pass.board = (uint8_t)board;
+  pass.calib = loop->calib;
+  pass.osccal = osccal;
+  pass.store = store;
+  pass.supply_raw = pscu_port_supply_raw();
+  pscu_trace_pass(trace, &pass);
+}
+
+// A store this pass and whether it held: a refusal outweighs a success.
+static pscu_trace_store_t pscu_run_trace_merge(pscu_trace_store_t so_far,
+                                               bool tried,
+                                               bool written) {
+  pscu_trace_store_t now = written ? PSCU_TRACE_STORE_DONE : PSCU_TRACE_STORE_REFUSED;
+  pscu_trace_store_t merged = so_far;
+  if (tried && (so_far != PSCU_TRACE_STORE_REFUSED)) {
+    merged = now;
+  }
+  return merged;
 }
 #else
 static void pscu_run_show(bool on) {
@@ -167,7 +214,8 @@ void pscu_run(void) {
   pscu_osc_t osc = pscu_osc_init(pscu_engine_apply_trim(stored.trim));
   bool watchdog = pscu_port_reset_was_watchdog() != 0U;
   pscu_board_mode_t board = PSCU_BOARD_MODE_GATE;
-  if (pscu_calib_keeps_board(stored, watchdog)) {
+  bool board_kept = pscu_calib_keeps_board(stored, watchdog);
+  if (board_kept) {
     board = pscu_calib_stored_board(stored);
   } else {
     board = pscu_engine_detect_board(PSCU_LAMP_STRINGS);
@@ -182,8 +230,28 @@ void pscu_run(void) {
   // A learned record waits here until the window is closed and a store succeeds.
   bool store_due = false;
 #if PSCU_PROFILE_TRACE
-  // A serial line idles high.
+  // A serial line idles high. The boot line goes out before the first frame
+  // is awaited, so it never collides with SUBQ. One buffer serves every line.
   pscu_port_indicator_on();
+  uint8_t line[PSCU_TRACE_LINE_MAX];
+  pscu_trace_boot_t report;
+  report.build_id = (uint16_t)PSCU_BUILD_ID;
+  report.region = (uint8_t)PSCU_CONFIGURED_REGION;
+  report.vcd_filter = PSCU_VCD_FILTER_ENABLED;
+  report.watchdog = watchdog;
+  report.board = (uint8_t)board;
+  report.board_kept = board_kept;
+  report.board_changed = boot.board_changed;
+  report.factory = osc.factory;
+  report.osccal = osc.osccal;
+  report.calib = stored;
+  report.supply_raw = pscu_port_supply_raw();
+  for (uint8_t index = 0U; index < PSCU_TRACE_BOOT_LINES; index++) {
+    uint8_t len = pscu_trace_boot_line(&report, index, line);
+    pscu_run_trace_send(line, len);
+  }
+  pscu_trace_t trace;
+  pscu_trace_init(&trace, stored, osc.osccal);
 #endif
 
   for (;;) {
@@ -202,17 +270,28 @@ void pscu_run(void) {
       pscu_engine_inject(board, PSCU_LAMP_STRINGS);
     }
     store_due = store_due || out.store;
-    if (store_due && out.quiet) {
+    bool record_tried = store_due && out.quiet;
+    if (record_tried) {
       store_due = !pscu_engine_store_calib(loop.calib);
     }
+    bool trim_tried = osc.dirty && out.quiet;
     pscu_osc_store_t kept = pscu_osc_store(osc, loop.calib, out.quiet);
     // Anything learned this pass gets a debug tick.
     bool learned = out.store || (osc.osccal != osccal_before) || (kept.osc.dirty != osc.dirty);
+#if PSCU_PROFILE_TRACE
+    pscu_trace_store_t store =
+        pscu_run_trace_merge(PSCU_TRACE_STORE_NONE, record_tried, !store_due);
+    store = pscu_run_trace_merge(store, trim_tried, !kept.osc.dirty);
+#else
+    (void)record_tried;
+    (void)trim_tried;
+#endif
     osc = kept.osc;
     loop.calib = kept.calib;
     loop.indicator = learned ? pscu_indicator_note(loop.indicator) : loop.indicator;
 #if PSCU_PROFILE_TRACE
-    pscu_trace_frame(frame);
+    pscu_run_trace_note(&trace, &loop, &out, tick.elapsed_ms, board, osc.osccal, store, supply_ok);
+    pscu_run_trace_after_pass(&trace, frame, line);
 #else
     pscu_run_show(out.indicator_on);
 #endif

@@ -23,6 +23,7 @@ LOGIC_FILES = (
     "src/trim.c",
     "src/supply.c",
     "src/loop.c",
+    "src/trace.c",
 )
 TEST_FILES = (
     "tests/host/host_assert.c",
@@ -32,13 +33,20 @@ TEST_FILES = (
     "tests/host/disc_test.c",
     "tests/host/indicator_test.c",
     "tests/host/loop_test.c",
+    "tests/host/trace_test.c",
 )
 CC = "gcc"
 # A backstop per compile and per run: the unmutated host suite builds and runs
 # in under 2 s, so a mutant still running after a minute is stuck in a loop it
 # made, which the suite has caught.
 STEP_TIMEOUT_S = 60
-CFLAGS = ("-std=c17", "-pedantic-errors", "-Iinclude", "-O0", "-DPSCU_DEBUG")
+CFLAGS = (
+    "-std=c17",
+    "-pedantic-errors",
+    "-Iinclude",
+    "-O0",
+    "-DPSCU_DEBUG",
+)
 
 
 def _bump(match: re.Match[str]) -> str:
@@ -94,6 +102,9 @@ _UNREAD = "code and live are read only in the CODE and DARK stages, live only in
 _CARRIER = "carrier is only ever compared with zero"
 _TOLD_ZERO = "told bit 0 names no code; codes start at 1"
 _ASSIGNED_FIRST = "pscu_loop_read and pscu_loop_burst assign every field before use"
+_SHORT_TAGS = (
+    "every tag ends in a zero byte by its seventh letter, so the bound is never met"
+)
 
 EQUIVALENTS: tuple[Equivalent, ...] = (
     Equivalent(
@@ -200,6 +211,41 @@ EQUIVALENTS: tuple[Equivalent, ...] = (
         "literal+1",
         1,
         "a track number 0x9A already fails the units-digit check",
+    ),
+    Equivalent(
+        "src/trace.c",
+        "trace->head = 0U;",
+        "literal+1",
+        0,
+        "an empty ring behaves the same from any starting slot",
+    ),
+    Equivalent(
+        "src/trace.c",
+        "if (whole >= (uint32_t)room) {",
+        "ge->gt",
+        0,
+        "at whole == room both branches set the seconds to 65535",
+    ),
+    Equivalent(
+        "src/trace.c",
+        "for (uint8_t n = 0U; (n < 8U) && going; n++) {",
+        "and->or",
+        0,
+        _SHORT_TAGS,
+    ),
+    Equivalent(
+        "src/trace.c",
+        "for (uint8_t n = 0U; (n < 8U) && going; n++) {",
+        "lt->le",
+        0,
+        _SHORT_TAGS,
+    ),
+    Equivalent(
+        "src/trace.c",
+        "for (uint8_t n = 0U; (n < 8U) && going; n++) {",
+        "literal+1",
+        1,
+        _SHORT_TAGS,
     ),
 )
 

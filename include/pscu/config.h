@@ -47,6 +47,13 @@
 #endif
 #define PSCU_LAMP_STRINGS ((PSCU_PROFILE_FINAL == 0) && (PSCU_PROFILE_TRACE == 0))
 
+// The commit the image was built from, the first 4 hex digits of its hash, set
+// by the Makefile so the trace's BOOT line names the firmware on the chip. 0
+// outside a git checkout.
+#ifndef PSCU_BUILD_ID
+#define PSCU_BUILD_ID 0x0U
+#endif
+
 // Most region strings per arming: a safety cap so a stuck window cannot drive
 // the bus forever. The console latches the region within a few reads.
 #define PSCU_STEALTH_STRINGS ((uint8_t)16U)

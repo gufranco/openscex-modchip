@@ -7,9 +7,10 @@
 #include "harness.h"
 #include "scenarios.h"
 
-// The trace profile (PROFILE=trace) sends every captured SUBQ frame on PB3 as
-// 8N1 serial at 115200 baud, one line of 24 hex digits each. This decodes the
-// pin the way a USB serial adapter would and checks the lines.
+// The trace profile (PROFILE=trace) sends, as 8N1 serial at 115200 baud on PB3,
+// a six-line boot report, then every captured SUBQ frame as 24 hex digits and
+// the chip's decisions as event lines starting with '@' (src/trace.c). This
+// decodes the pin the way a USB serial adapter would and checks the lines.
 
 #define TRACE_BAUD 115200U
 #define TRACE_EDGES_MAX 65536
@@ -87,19 +88,58 @@ static int decode_serial(const trace_edges_t *edges, double bit_cycles, char *te
   return framing_ok ? len : -1;
 }
 
-// Count the decoded lines, how many are the lead-in frame, and whether every one
-// is 24 upper-case hex digits. strtok consumes text.
+// The event lines of the last decode, in order, for the checks that follow.
+#define TRACE_EVENTS_MAX 128
+#define TRACE_EVENT_CHARS 40
+static char g_events[TRACE_EVENTS_MAX][TRACE_EVENT_CHARS];
+static int g_event_count;
+
+// A frame line is 24 upper-case hex digits; an event line is "@<s>.<ms> " and
+// a tag of capitals.
+static int is_frame(const char *line) {
+  return (strlen(line) == TRACE_LINE_CHARS) &&
+         (strspn(line, "0123456789ABCDEF") == TRACE_LINE_CHARS);
+}
+
+static int is_event(const char *line) {
+  const char *space = strchr(line, ' ');
+  return (line[0] == '@') && (space != NULL) && (strlen(line) < TRACE_EVENT_CHARS) &&
+         (space[1] >= 'A') && (space[1] <= 'Z');
+}
+
+// Count the decoded lines and how many are the lead-in frame, keep the event
+// lines, and say whether every line is a frame or an event. strtok consumes
+// text.
 static int read_lines(char *text, int *lines, int *toc_lines) {
   int well_formed = 1;
   *lines = 0;
   *toc_lines = 0;
+  g_event_count = 0;
   for (char *line = strtok(text, "\n"); line != NULL; line = strtok(NULL, "\n")) {
     (*lines)++;
-    well_formed = well_formed && (strlen(line) == TRACE_LINE_CHARS) &&
-                  (strspn(line, "0123456789ABCDEF") == TRACE_LINE_CHARS);
+    int event = is_event(line);
+    well_formed = well_formed && (is_frame(line) || event);
     *toc_lines += (strcmp(line, TRACE_TOC_HEX) == 0) ? 1 : 0;
+    if (event && (g_event_count < TRACE_EVENTS_MAX)) {
+      (void)snprintf(g_events[g_event_count], TRACE_EVENT_CHARS, "%s", line);
+      g_event_count++;
+    }
   }
   return well_formed;
+}
+
+// The tag of event n, the text after "@<s>.<ms> ".
+static const char *event_tag(int n) {
+  const char *space = strchr(g_events[n], ' ');
+  return (space != NULL) ? (space + 1) : "";
+}
+
+static int events_starting(const char *prefix) {
+  int count = 0;
+  for (int i = 0; i < g_event_count; i++) {
+    count += (strncmp(event_tag(i), prefix, strlen(prefix)) == 0) ? 1 : 0;
+  }
+  return count;
 }
 
 static avr_t *trace_boot(const target_t *t, const char *elf, uint32_t freq) {
@@ -132,6 +172,19 @@ void scenario_trace(const target_t *t, const char *elf, uint32_t freq) {
   (void)snprintf(
       label, sizeof(label), "trace: the lead-in frames arrive as sent (%d lines)", toc_lines);
   check((toc_lines >= TRACE_TOC_LINES_MIN) && (toc_lines <= TRACE_TOC_FRAMES), label);
+
+  // The boot report comes first: the build in this US image, a power-on reset,
+  // the static gate detected (trace_boot drives no WFCK carrier), OSCCAL from
+  // factory to now, the erased record and a good supply.
+  static const char *const boot[] = {
+    "BOOT US ", "RST PWR", "BRD G D", "OSC ", "REC - ", "SUP OK "
+  };
+  int in_order = g_event_count >= 6;
+  for (int i = 0; in_order && (i < 6); i++) {
+    in_order = (strncmp(event_tag(i), boot[i], strlen(boot[i])) == 0) &&
+               (strncmp(g_events[i], "@0.000 ", 7U) == 0);
+  }
+  check(in_order, "trace: the boot report comes first, at time zero, in order");
 }
 
 // A lead-in long enough for several strings: the line must stay idle-high
@@ -139,10 +192,15 @@ void scenario_trace(const target_t *t, const char *elf, uint32_t freq) {
 // still decodes (rule 7: the trace goes out in the gap after a frame, never
 // inside a string).
 #define TRACE_STRING_FRAMES 60
+#define TRACE_DRAIN_FRAMES 8
 
 void scenario_trace_strings(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = trace_boot(t, elf, freq);
   clock_frames(avr, t, TRACE_TOC, TRACE_STRING_FRAMES);
+  // One event leaves per frame, so a few more frames carry out what is still
+  // queued after the last string.
+  const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
+  clock_frames(avr, t, silence, TRACE_DRAIN_FRAMES);
   run_cycles(avr, ms_cycles(TRACE_TAIL_MS));
 
   int inside = 0;
@@ -165,4 +223,24 @@ void scenario_trace_strings(const target_t *t, const char *elf, uint32_t freq) {
   (void)snprintf(
       label, sizeof(label), "trace: no line goes out inside a string (%d edges inside)", inside);
   check(inside == 0, label);
+
+  // Each string sent shows as one SCEX event, numbered from 1, after the window
+  // opened; the static gate gives G.
+  int scex = events_starting("SCEX ");
+  int numbered = 1;
+  int seen = 0;
+  for (int i = 0; i < g_event_count; i++) {
+    if (strncmp(event_tag(i), "SCEX ", 5U) == 0) {
+      seen++;
+      char want[24];
+      (void)snprintf(want, sizeof(want), "SCEX %d G", seen);
+      numbered = numbered && (strcmp(event_tag(i), want) == 0);
+    }
+  }
+  (void)snprintf(label,
+                 sizeof(label),
+                 "trace: one numbered SCEX event per string (%d events, %d strings)",
+                 scex,
+                 g_data_bursts);
+  check((scex == g_data_bursts) && numbered && (events_starting("OPEN ") >= 1), label);
 }

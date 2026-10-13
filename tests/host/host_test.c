@@ -14,6 +14,7 @@
 #include "pscu/inject.h"
 #include "pscu/region.h"
 #include "pscu/subq.h"
+#include "trace_test.h"
 #include "trim_test.h"
 
 // Host tests for the pure logic layer, run with assertions on. SUBQ frame bytes:
@@ -514,6 +515,7 @@ int main(void) {
   disc_tests(check);
   indicator_tests(check);
   loop_tests(check);
+  trace_tests(check);
 
   (void)printf("%d checks, %d failures\n", g_checks, g_failures);
   return (g_failures == 0) ? 0 : 1;

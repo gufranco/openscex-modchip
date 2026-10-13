@@ -27,7 +27,7 @@
 
 </div>
 
-[**5928**](Makefile) bytes of flash · [**8**](assets/psnee) board families, PU-7 to PM-41(2) · [**3**](src/region.c) regions · [**0**](AGENTS.md) MISRA deviations · [**100%**](tests/host) host line and branch coverage · [**423/423**](tools/mutate.py) mutants killed
+[**5902**](Makefile) bytes of flash · [**8**](assets/psnee) board families, PU-7 to PM-41(2) · [**3**](src/region.c) regions · [**0**](AGENTS.md) MISRA deviations · [**100%**](tests/host) host line and branch coverage · [**598/598**](tools/mutate.py) mutants killed
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -99,7 +99,7 @@ cd openscex-modchip
 make REGION=us                                        # America
 make REGION=jp VCD_FILTER=on                          # SCPH-5903
 make REGION=us PROFILE=final                          # America, quiet indicator
-make REGION=us PROFILE=trace                          # America, SUBQ frames on pin 2
+make REGION=us PROFILE=trace                          # America, debug trace on pin 2
 avrdude -c <programmer> -p attiny85 -U flash:w:build/attiny85/release/openscex-modchip-attiny85.hex:i
 avrdude -c <programmer> -p attiny85 -U lfuse:w:0xE2:m -U hfuse:w:0xDD:m -U efuse:w:0xFF:m
 ```
@@ -230,7 +230,37 @@ Codes are long 700 ms flashes, 300 ms apart, with a 2 s pause before the code re
 
 ### Serial trace
 
-`make PROFILE=trace` builds an image that turns pin 2 (PB3) into a serial line instead of the indicator. Every 12-byte SUBQ burst the chip captures, valid or not, goes out as one line of 24 hex digits at 115200 baud, 8N1; a failed capture reads as all `F`. On the carrier, slide SW2 to TRACE and plug a TTL-232R cable onto the trace header, black wire on GND; on the other boards, wire pin 2 to the RX input of a USB serial adapter and its ground to the console's ground, and on the mini the LED stays lit while the line idles. The line swings between 0 and the console's 3.5 V logic supply, which a 3.3 V adapter such as the TTL-232R-3V3 reads. The line goes out in the gap after each frame, so DATA keeps the timing of the other two images, which the simulator checks edge by edge. Source: [src/run.c](src/run.c), [src/port.S](src/port.S), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c), [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795).
+`make PROFILE=trace` builds an image that turns pin 2 (PB3) into a serial line instead of the indicator, at 115200 baud, 8N1. It carries everything needed to find a fault without an oscilloscope: a boot report, every SUBQ frame the chip captured, and a line for every decision it took, each with its time since power-on. The lines go out in the gap after each frame, at most one decision per gap, so DATA keeps the timing of the other two images, which the simulator checks edge by edge. Source: [src/trace.c](src/trace.c), [src/run.c](src/run.c), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c).
+
+To connect it on the carrier, slide SW2 to TRACE and plug a TTL-232R cable onto the trace header, black wire on GND. On the other boards, wire pin 2 to the RX input of a USB serial adapter and its ground to the console's ground; on the mini the LED stays lit while the line idles. The line swings between 0 and the console's 3.5 V logic supply, which a 3.3 V adapter such as the TTL-232R-3V3 reads. Start the capture before powering the console, so the boot report is in it. Source: [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795).
+
+```sh
+# Linux; on macOS the port is /dev/cu.usbserial-*, and stty takes -f
+stty -F /dev/ttyUSB0 115200 raw && cat /dev/ttyUSB0 | tee capture.txt
+python3 tools/serial_trace.py capture.txt
+```
+
+Each frame line is the 12 SUBQ bytes in hex; a failed capture reads as all `F`. Every other line starts with `@` and the time, such as `@1.460 OPEN 0A 0A`, in seconds and milliseconds since power-on. Source: [src/trace.c](src/trace.c).
+
+| Line | Meaning | Source |
+|:--|:--|:--|
+| `BOOT US 1A2B` | the region built in and the first four hex digits of the commit; a trailing `V` means the Video CD filter | [src/trace.c](src/trace.c), [Makefile](Makefile) |
+| `RST PWR`, `RST WDT` | started from power-on, or restarted by the watchdog after the main loop stalled | [src/trace.c](src/trace.c), [src/port_chip.S](src/port_chip.S) |
+| `BRD W D` | the board: `W` WFCK carrier or `G` static gate; then `D` detected, `K` kept from the record after a watchdog reset, or `C` detected and not the board recorded | [src/trace.c](src/trace.c), [src/calib.c](src/calib.c) |
+| `OSC 50>4E` | OSCCAL from its factory value to the value applied, and later each trim step against the 75 Hz frame rate | [src/trace.c](src/trace.c), [src/trim.c](src/trim.c) |
+| `REC W 0C P -2` | the calibration record: board, start in hex, `F` frozen or `P` still probing, and the trim; at boot as read from EEPROM, later each time it is learned | [src/trace.c](src/trace.c), [src/calib.c](src/calib.c) |
+| `SUP OK 3303mV`, `SUP LOW 2601mV` | the supply at boot and each time it crosses the 2.75 V guard; below it no string is sent and no record written | [src/trace.c](src/trace.c), [src/supply.c](src/supply.c) |
+| `DISC`, `GONE` | valid SUBQ frames again, or none for 1.5 s | [src/trace.c](src/trace.c), [src/inject.c](src/inject.c) |
+| `OPEN 0A 0A` | the window opened: the SUBQ counter and the start it reached, in hex | [src/trace.c](src/trace.c), [src/loop.c](src/loop.c) |
+| `HOLD 03 0A 3303mV` | the window held without sending: under the supply guard, or just below the start after it opened | [src/trace.c](src/trace.c), [src/loop.c](src/loop.c) |
+| `SHUT P 00` | the window shut: `P` a program-area frame, `G` the disc left, `D` the counter fell back | [src/trace.c](src/trace.c), [src/loop.c](src/loop.c) |
+| `SCEX 3 W` | string 3 of at most 16 in this opening, and the board mode it was sent in | [src/trace.c](src/trace.c), [src/engine.c](src/engine.c) |
+| `PASS`, `FAIL` | the console went on to the program area after the strings, or did not in time | [src/trace.c](src/trace.c), [src/loop.c](src/loop.c) |
+| `MISS 0B 0C` | the lead-in ended before the window opened: how far the counter got and the start it needed; the start moves earlier for the next disc | [src/trace.c](src/trace.c), [src/calib.c](src/calib.c) |
+| `SAVE OK`, `SAVE NO 2601mV` | the record written to EEPROM, or refused for a low supply and kept to try again | [src/trace.c](src/trace.c), [src/engine.c](src/engine.c) |
+| `LOST 2` | events dropped because more came in a row than the four-event queue holds | [src/trace.c](src/trace.c), [include/pscu/trace.h](include/pscu/trace.h) |
+
+`tools/serial_trace.py` reads a saved capture, or the terminal piped into it, and prints the timeline in words, with each frame's place on the disc and its CRC checked and runs of the same frame folded into one line. It ends with a diagnosis that names the likely fault and what to check: no frame or every capture failed points to the SQCK and SUBQ wires, many bad CRCs to noise on them, watchdog restarts to a stuck SQCK, repeated power-on starts or a low supply to the power tap, a lead-in that never opens the window to the learned start, strings without `PASS` to the DATA and WFCK wires or a region mismatch, and `PASS` with a game that still stops to an anti-mod check or a boot-ROM region check. `--summary` prints the diagnosis alone. Source: [tools/serial_trace.py](tools/serial_trace.py), [tests/serial_trace/test_serial_trace.py](tests/serial_trace/test_serial_trace.py).
 
 ## How it works
 
@@ -296,7 +326,7 @@ One source builds every variant; the knobs are passed to `make`. Source: [Makefi
 | Knob | Values | Default | Selects | Source |
 |:-----|:-------|:--------|:--------|:--|
 | `REGION` | `jp`, `us`, `eu` | `us` | the one region string the chip emits | [Makefile](Makefile), [src/region.c](src/region.c) |
-| `PROFILE` | `debug`, `final`, `trace` | `debug` | what pin 2 does: debug lights or sounds every stage, string and fault; final chirps at power-on and on an accepted disc, and shows each fault once; trace makes it a 115200-baud serial line carrying each SUBQ frame; DATA is the same in all three | [Makefile](Makefile), [src/run.c](src/run.c), [include/pscu/indicator.h](include/pscu/indicator.h) |
+| `PROFILE` | `debug`, `final`, `trace` | `debug` | what pin 2 does: debug lights or sounds every stage, string and fault; final chirps at power-on and on an accepted disc, and shows each fault once; trace makes it a 115200-baud serial line carrying a boot report, each SUBQ frame and each decision the chip takes; DATA is the same in all three | [Makefile](Makefile), [src/run.c](src/run.c), [src/trace.c](src/trace.c), [include/pscu/indicator.h](include/pscu/indicator.h) |
 | `VCD_FILTER` | `off`, `on` | `off` | on for the SCPH-5903 only: injection arms on a game's lead-in TOC, never on a Video CD's, as PsNee V9.0's SCPH-5903 filter does | [Makefile](Makefile), [src/subq.c](src/subq.c), [PsNee PSNee.ino L456-L490](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L456-L490) |
 
 A non-default region, filter or profile tags the artifact name, for example `openscex-modchip-attiny85-jp.hex`, `openscex-modchip-attiny85-jp-vcd.hex` or `openscex-modchip-attiny85-final.hex`. Source: [Makefile](Makefile).

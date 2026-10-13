@@ -70,13 +70,20 @@ typedef struct {
 
 // One pass's decisions. store: write the calibration. trim_sample: this frame
 // may time the oscillator. quiet: the stealth window is closed, neither open
-// nor held, so a record may be stored.
+// nor held, so a record may be stored. The rest is what the pass saw, for the
+// trace profile: the window, a program-area frame, the disc gone, the outcome
+// shown, and a lead-in that missed the start.
 typedef struct {
   bool fire;
   bool store;
   bool trim_sample;
   bool quiet;
   bool indicator_on;
+  pscu_window_t window;
+  bool program;
+  bool disc_gone;
+  pscu_indicator_event_t event;
+  bool missed;
 } pscu_loop_out_t;
 
 pscu_loop_t pscu_loop_init(pscu_calib_t calib, pscu_indicator_t indicator, bool vcd_filter);

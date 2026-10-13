@@ -157,11 +157,13 @@ static pscu_since_disc_t pscu_loop_since(pscu_since_disc_t since,
   return next;
 }
 
-// Draw this pass's indicator state. A missed window shows as a refusal.
-static bool pscu_loop_show(pscu_loop_t *next,
+// Draw this pass's indicator state. A missed window shows as a refusal, and the
+// outcome shown is reported in out.
+static void pscu_loop_show(pscu_loop_t *next,
                            const pscu_loop_in_t *in,
                            pscu_loop_learned_t learned,
-                           const pscu_loop_pass_t *pass) {
+                           const pscu_loop_pass_t *pass,
+                           pscu_loop_out_t *out) {
   next->since = pscu_loop_since(next->since, pass, in->elapsed_ms);
   uint8_t fault = pscu_indicator_fault(!in->supply_ok,
                                        next->presence.seen,
@@ -178,7 +180,8 @@ static bool pscu_loop_show(pscu_loop_t *next,
   pscu_indicator_step_t step = pscu_indicator_step(indicator, shown, fault, in->elapsed_ms);
   next->indicator = step.state;
   next->was_gone = pass->disc_gone;
-  return step.on;
+  out->indicator_on = step.on;
+  out->event = shown;
 }
 
 pscu_loop_out_t pscu_loop_step(pscu_loop_t *state, const pscu_loop_in_t *in) {
@@ -193,11 +196,15 @@ pscu_loop_out_t pscu_loop_step(pscu_loop_t *state, const pscu_loop_in_t *in) {
   bool timed = settled && pass.valid && in->supply_ok;
   pscu_loop_burst(state, in->supply_ok, &pass);
   pscu_loop_learned_t learned = pscu_loop_learn(state, &pass);
-  out.indicator_on = pscu_loop_show(state, in, learned, &pass);
+  pscu_loop_show(state, in, learned, &pass, &out);
   // A pass that fires blocks for the whole string, so it times nothing.
   out.trim_sample = timed && !pass.fire;
   out.fire = pass.fire;
   out.store = learned.store;
   out.quiet = pass.window == PSCU_WINDOW_CLOSED;
+  out.window = pass.window;
+  out.program = pass.program;
+  out.disc_gone = pass.disc_gone;
+  out.missed = learned.missed;
   return out;
 }
