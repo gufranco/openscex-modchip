@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: MIT
 #
 # Every Python tool in the image, with its dependencies, pinned by version and
-# hash. Regenerate after changing a top-level pin with:
+# hash, compiled from tools.in. Regenerate after changing a pin there, from this
+# directory, with:
 #   uv pip compile tools.in --universal --generate-hashes --python-version 3.13 \
 #     --no-header --no-annotate
-# where tools.in lists coverage, reuse, ruff, mypy and yamllint at exact versions.
 
 ast-serialize==0.12.1 \
     --hash=sha256:09cc4d3103c1fc97f6845ba307af1db9cde5226bef47f8843220dde83f2276ba \
