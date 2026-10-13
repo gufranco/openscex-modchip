@@ -155,7 +155,7 @@ class BuildTest(unittest.TestCase):
             False,
             "t",
             path="crow.asm",
-            defines=["MY_OSC=_IntRC_OSC"],
+            defines=("MY_OSC=_IntRC_OSC",),
         )
         chip = by_name("old-crow-12c508")
 
