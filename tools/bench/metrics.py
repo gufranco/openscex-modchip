@@ -8,6 +8,8 @@ the expected region and ends before the program area. Drive time outside
 strings is what a detector could see. Play resumes three ways: after a swap's
 second lead-in, after a re-read and after the anti-mod probe; strings there are
 second_play, and strings while the drive is stopped for a swap are during_swap.
+reread_valid and second_window_valid count only strings of the expected region,
+since a garbled string re-authenticates nothing.
 """
 
 from dataclasses import dataclass
@@ -44,6 +46,7 @@ class Metrics:
     pulled_ns: int = 0
     second_play: int = 0
     during_swap: int = 0
+    second_window_valid: int = 0
 
 
 def _segment(start_ns: int, phases: dict[Phase, int]) -> Phase | None:
@@ -116,6 +119,9 @@ def measure(trace: Trace, phases: dict[Phase, int], region: Region) -> Metrics:
         pulled_ns=pulled_ns(trace),
         reread_valid=sum(
             1 for s in valid if _segment(s.start_ns, phases) is Phase.REREAD
+        ),
+        second_window_valid=sum(
+            1 for s in valid if _segment(s.start_ns, phases) is Phase.SECOND_LEAD_IN
         ),
         second_play=counts[Phase.SECOND_PROGRAM] + counts[Phase.AFTER_PROBE],
         during_swap=counts[Phase.SWAP],

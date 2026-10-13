@@ -149,7 +149,7 @@ PROPERTIES = (
         "swap",
         (_CORE_FILE,),
         ("carrier-swap",),
-        lambda m: m.second_window >= 1,
+        lambda m: m.second_window_valid >= 1,
     ),
 )
 

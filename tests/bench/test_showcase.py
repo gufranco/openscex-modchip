@@ -91,6 +91,17 @@ class EvaluateTest(unittest.TestCase):
             outcome(results, "onechip-12c508a", "antimod-v1"), Outcome.FAILED
         )
 
+    def test_only_a_valid_string_after_a_swap_rearms(self) -> None:
+        # Arrange
+        garbled = replace(BASE, second_window=2, second_window_valid=0)
+        runs = [run("ours", "carrier-swap", garbled)]
+
+        # Act
+        results = evaluate(runs)
+
+        # Assert
+        self.assertEqual(outcome(results, "ours", "swap"), Outcome.FAILED)
+
     def test_a_property_with_no_run_is_not_applicable(self) -> None:
         results = evaluate([run("ours", "antimod-v1-carrier")])
 

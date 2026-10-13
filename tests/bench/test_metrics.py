@@ -228,3 +228,14 @@ class FramedTest(unittest.TestCase):
         # Assert
         self.assertEqual(metrics.during_swap, 1)
         self.assertEqual(metrics.second_window, 1)
+
+    def test_a_wrong_region_string_after_a_swap_is_not_a_valid_one(self) -> None:
+        # Arrange
+        phases = {**PHASES, Phase.SWAP: 8 * SECOND, Phase.SECOND_LEAD_IN: 10 * SECOND}
+        data = string_at(int(10.5 * SECOND), region_bits(Region.EUROPE))
+
+        # Act
+        metrics = measure(Trace(data, [], 12 * SECOND), phases, Region.AMERICA)
+
+        # Assert
+        self.assertEqual((metrics.second_window, metrics.second_window_valid), (1, 0))
