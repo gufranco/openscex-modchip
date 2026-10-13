@@ -57,9 +57,11 @@ REGION_TAG := -jp
 else ifeq ($(REGION),eu)
 REGION_DEF := -DPSCU_REGION_EU
 REGION_TAG := -eu
-else
+else ifeq ($(REGION),us)
 REGION_DEF :=
 REGION_TAG :=
+else
+$(error unknown REGION '$(REGION)'; use jp, us or eu)
 endif
 
 # Separate object directories per region, filter and profile. The default
