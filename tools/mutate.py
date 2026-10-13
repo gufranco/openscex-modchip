@@ -235,6 +235,26 @@ class Suite:
 SUITE = Suite(LOGIC_FILES, TEST_FILES, CC, CFLAGS)
 
 
+@dataclass(frozen=True, slots=True)
+class CommandSuite:
+    """Files the host suite cannot reach, and the command that must fail for
+    each of their mutants. PLATFORM is the platform C, killed by the simulator."""
+
+    logic: tuple[str, ...]
+    command: tuple[str, ...]
+    timeout_s: int
+
+
+# The platform C drives the port and the run loop, which only the simulator
+# exercises. One simulator run builds the six images it needs and plays every
+# scenario in about a minute; a mutant still running after 15 minutes is stuck.
+PLATFORM = CommandSuite(
+    ("src/run.c", "src/engine.c"),
+    ("make", "--no-print-directory", "simtest"),
+    900,
+)
+
+
 @dataclass(frozen=True)
 class Result:
     total: int
@@ -316,6 +336,46 @@ def _mutant_killed(
         path.write_text(original)
 
 
+def _command_passes(root: Path, suite: CommandSuite) -> bool:
+    """Run the suite's command; True only if it exits 0 within its limit."""
+    try:
+        done = subprocess.run(
+            list(suite.command),
+            cwd=root,
+            capture_output=True,
+            check=False,
+            timeout=suite.timeout_s,
+        )
+    except subprocess.TimeoutExpired:
+        return False
+    return done.returncode == 0
+
+
+def run_command_suite(root: Path, suite: CommandSuite = PLATFORM) -> Result:
+    """Mutate each file the command must defend, restoring it after every
+    mutant. The unmutated command must pass first."""
+    if not _command_passes(root, suite):
+        raise RuntimeError("baseline command does not pass; cannot mutate")
+    total = 0
+    killed = 0
+    survivors: list[str] = []
+    for name in suite.logic:
+        path = root / name
+        original = path.read_text()
+        for mutant in generate_mutants(original, name):
+            total += 1
+            try:
+                path.write_text(mutant.source)
+                caught = not _command_passes(root, suite)
+            finally:
+                path.write_text(original)
+            if caught:
+                killed += 1
+            else:
+                survivors.append(f"{name}: {mutant.label}")
+    return Result(total, killed, tuple(survivors))
+
+
 def run(root: Path, suite: Suite = SUITE) -> Result:
     """Mutate every logic file and tally killed versus survivors. The
     unmutated suite must pass first."""
@@ -337,8 +397,16 @@ def run(root: Path, suite: Suite = SUITE) -> Result:
         return Result(total, killed, tuple(survivors))
 
 
-def main(_argv: list[str], root: Path = ROOT, suite: Suite = SUITE) -> int:
-    result = run(root, suite)
+def main(
+    argv: list[str],
+    root: Path = ROOT,
+    suite: Suite = SUITE,
+    platform: CommandSuite = PLATFORM,
+) -> int:
+    """Run the host suite, or with --platform the simulator-killed one."""
+    result = (
+        run_command_suite(root, platform) if "--platform" in argv else run(root, suite)
+    )
     for survivor in result.survivors:
         print(f"SURVIVED {survivor}")
     print(f"mutation score {result.killed}/{result.total} killed")

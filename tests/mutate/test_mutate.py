@@ -309,5 +309,72 @@ class MainTest(ProjectTestCase):
         self.assertEqual((code, output.getvalue()), (1, "mutation score 0/0 killed\n"))
 
 
+def command_suite(command: str, timeout_s: int = 60) -> mutate.CommandSuite:
+    """A suite over logic.c whose verdict is a shell command run in the project."""
+    return mutate.CommandSuite(("logic.c",), ("sh", "-c", command), timeout_s)
+
+
+# Fails once logic.c no longer holds the original comparison.
+STRONG_COMMAND = "grep -q 'a > 3' logic.c"
+
+
+class CommandSuiteTest(ProjectTestCase):
+    def test_a_command_that_sees_the_mutant_kills_it(self) -> None:
+        # Arrange
+        root = self.make(STRONG_TEST)
+
+        # Act
+        result = mutate.run_command_suite(root, command_suite(STRONG_COMMAND))
+
+        # Assert
+        self.assertEqual(result, mutate.Result(total=1, killed=1, survivors=()))
+        self.assertEqual((root / "logic.c").read_text(), LOGIC)
+
+    def test_a_command_blind_to_the_mutant_reports_it(self) -> None:
+        # Arrange
+        root = self.make(STRONG_TEST)
+
+        # Act
+        result = mutate.run_command_suite(root, command_suite("true"))
+
+        # Assert
+        self.assertEqual(result.survivors, ("logic.c: L1 gt->ge col29",))
+
+    def test_a_failing_baseline_command_stops_the_run(self) -> None:
+        # Arrange
+        root = self.make(STRONG_TEST)
+
+        # Act
+        def act() -> None:
+            mutate.run_command_suite(root, command_suite("false"))
+
+        # Assert
+        self.assertRaises(RuntimeError, act)
+
+    def test_a_command_past_its_limit_counts_as_failing(self) -> None:
+        # Arrange
+        root = self.make(STRONG_TEST)
+
+        # Act
+        passed = mutate._command_passes(root, command_suite("sleep 5", 1))
+
+        # Assert
+        self.assertFalse(passed)
+
+    def test_main_runs_the_command_suite_when_asked(self) -> None:
+        # Arrange
+        root = self.make(STRONG_TEST)
+        output = io.StringIO()
+
+        # Act
+        with contextlib.redirect_stdout(output):
+            code = mutate.main(
+                ["mutate.py", "--platform"], root, SUITE, command_suite(STRONG_COMMAND)
+            )
+
+        # Assert
+        self.assertEqual((code, output.getvalue()), (0, "mutation score 1/1 killed\n"))
+
+
 if __name__ == "__main__":
     unittest.main()

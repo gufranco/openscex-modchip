@@ -66,7 +66,7 @@ endif
 # build has an empty VARIANT and the plain artifact name the sim uses.
 VARIANT := $(REGION_TAG)$(VCD_TAG)$(PROFILE_TAG)
 
-CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate format \
+CONTAINER_TARGETS := all size hosttest simtest analyse test misra repro mutate mutate_platform format \
 	precommit image image_size image_misra bench_runners bench bench_ci showcase
 
 .PHONY: $(CONTAINER_TARGETS) clean hooks
@@ -282,5 +282,10 @@ repro:
 
 mutate:
 	$(PYTHON) tools/mutate.py
+
+# The platform C, run.c and engine.c, mutated and killed by the simulator: about
+# a minute per mutant, so it runs as its own CI job rather than in the gate.
+mutate_platform:
+	$(PYTHON) tools/mutate.py --platform
 
 endif
