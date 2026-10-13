@@ -36,7 +36,9 @@ static bool pscu_subq_crc_ok(const uint8_t *frame) {
   return (frame[10] == (uint8_t)(crc >> 8U)) && (frame[11] == (uint8_t)(crc & 0xFFU));
 }
 
-// Data track, ignoring the copy and pre-emphasis flags.
+// Data track: the data bit set, and the pre-emphasis and four-channel bits
+// clear, as they must be on data (psx-spx cdromformat.md, ADR/Control); the copy
+// bit and the ADR nibble are ignored.
 static bool pscu_subq_is_data_sector(uint8_t control) {
   return (uint8_t)(control & 0xD0U) == 0x40U;
 }
