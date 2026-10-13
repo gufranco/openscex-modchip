@@ -167,7 +167,7 @@ make bench_ci    # コンソールベンチ: 同じ模擬コンソールでこ�
 
 | 基板 | 部品 | 寸法 | 出典 |
 |:--|:--|:--|:--|
-| キャリア | ソケット、100 nF デカップリング、キー付き ISP ヘッダ、10 kΩ RESET プルアップ、表示回路: PB3 が 2N3904 を駆動し、2 極 DIP スイッチの設定で 1 kΩ 抵抗付き LED、ブザー、両方、またはどちらも鳴らさない。ブザーは 10 Ω と 100 µF のフィルタから給電され、1N4148 が並列に入る | 35.7 × 43.2 mm | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb) |
+| キャリア | ソケット、100 nF デカップリング、キー付き ISP ヘッダ、10 kΩ RESET プルアップ、表示回路: PB3 が 2N3904 を駆動し、2 極 DIP スイッチの設定で 1 kΩ 抵抗付き LED、ブザー、両方、またはどちらも鳴らさない。ブザーは 10 Ω と 100 µF のフィルタから給電され、1N4148 が並列に入る。スライドスイッチが PB3 を表示回路か、1 kΩ を介して 6 ピンのシリアルトレース用ヘッダにつなぐ | 35.7 × 52.2 mm | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb) |
 | ミニ | ソケット、100 nF デカップリング、10 kΩ RESET プルアップ、PB3 に直接つなぐ 1 kΩ 抵抗付き LED、キー付き ISP ヘッダ | 35.7 × 25.2 mm | [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [hardware/openscex-mini.kicad_pcb](hardware/openscex-mini.kicad_pcb) |
 | ベア | ソケット、100 nF デカップリング、10 kΩ RESET プルアップのみ | 35.7 × 21.7 mm | [hardware/openscex-bare.kicad_sch](hardware/openscex-bare.kicad_sch), [hardware/openscex-bare.kicad_pcb](hardware/openscex-bare.kicad_pcb) |
 
@@ -181,11 +181,13 @@ make bench_ci    # コンソールベンチ: 同じ模擬コンソールでこ�
 
 ISP ヘッダは AVR の 6 ピン配列に従います: 1 MISO が SUBQ、2 VCC、3 SCK が DATA、4 MOSI が SQCK、5 RESET、6 GND。キー付きシュラウドは他の部品から 1.5 mm 離しています。書き換えは基板をコンソールから外すか配線を外して行ってください。取り付けたままでは、ライタがコンソールの電源に給電し、SQCK と SUBQ でコンソールのドライバと衝突します。出典: [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
 
+キャリアのトレース用ヘッダ J2 には FTDI TTL-232R ケーブルの 6 ピンソケットが挿さります。1 番ピンが GND、5 番ピンがケーブルの RXD 入力で、2、3、4、6 番ピンは未接続のままなので、ケーブルの 5 V 出力がコンソールに届くことはありません。スライドスイッチ SW2 (C&K OS102011MS2QN1) は、つまみを IND 側にすると PB3 を表示回路へ、TRACE 側にするとヘッダへつなぎます。接点はブレーク・ビフォア・メイクなので、トレース中に表示回路が動くことはありません。直列の 1 kΩ 抵抗は、片側の電源が入っていないときに反対側へ流れ込む電流を制限します。ヘッダは基板の端に置き、周囲 2 mm を空けているので、ソケットやそこに挿したアダプタがほかの部品に当たりません。出典: [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [C&K OS series datasheet](https://www.littelfuse.com/assetdocs/littelfuse-c-k-slide-os-series-datasheet?assetguid=f8954ac2-65ba-431f-af55-b0493370575e)。
+
 各基板には部品表と、基板メーカーにそのまま渡せる Gerber とドリルのアーカイブがあり、どちらも KiCad 10.0.6 で出力しました。ティアドロップは基板自体に描き込んであるので、KiCad での再充填は不要です。出典: [hardware/openscex-carrier-bom.csv](hardware/openscex-carrier-bom.csv), [hardware/fab/openscex-carrier-gerbers.zip](hardware/fab/openscex-carrier-gerbers.zip), [hardware/openscex-mini-bom.csv](hardware/openscex-mini-bom.csv), [hardware/fab/openscex-mini-gerbers.zip](hardware/fab/openscex-mini-gerbers.zip), [hardware/openscex-bare-bom.csv](hardware/openscex-bare-bom.csv), [hardware/fab/openscex-bare-gerbers.zip](hardware/fab/openscex-bare-gerbers.zip)。
 
 ## 安全
 
-- 配線前に、すべてのタップ位置の論理電圧を測ってください。PsNee と Mayumi の取り付けでは、フット機は約 5 V、PSone PM-41(2) は低めでノイズに敏感です。 出典: [quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/)。
+- 配線前に、すべてのタップ位置の電圧を測ってください。PU-7 から PM-41(2) まで、どの基板もほとんどの IC を +3.5 V で動かしており、チップの電源もこれです。基板の +5 V は AV マルチ出力、オーディオアンプ、サウンドと CD 用電源のレギュレータなど一部の部品に使われるだけで、PsNee はチップをそこにつながないよう警告しています。 出典: [psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795), [PsNee changelog](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/changelog#L38)。
 - コンソールを開けて CD サブシステムにはんだ付けすると壊すことがあります。自己責任で作ってください。 出典: [quade.co PS1 modchip guide](https://quade.co/ps1-modchip-guide/)。
 
 ## ステータス表示
@@ -194,10 +196,10 @@ PB3 には任意で LED かアクティブブザーをつなぎ、これがチ�
 
 | 部品 | 選び方 | 出典 |
 |:-----|:-------|:--|
-| LED | 3 mm か 5 mm の赤、橙、黄、緑の LED、順方向電圧約 2 V。青や白は順方向電圧が 3 V あり、PSone の低めの電源では抵抗にほとんど電圧が残らないので不可 | [Kingbright WP7113ID datasheet](https://www.kingbrightusa.com/images/catalog/SPEC/WP7113ID.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 抵抗 | 1 kΩ、ワット数は問わない。5 V で約 3 mA、3.5 V で約 1.5 mA で、ピンの絶対最大定格 40 mA を大きく下回る | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
+| LED | 3 mm か 5 mm の赤、橙、黄、緑の LED、順方向電圧約 2 V。青や白は順方向電圧が 3 V あり、コンソールの 3.5 V 電源では抵抗にほとんど電圧が残らないので不可 | [Kingbright WP7113ID datasheet](https://www.kingbrightusa.com/images/catalog/SPEC/WP7113ID.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
+| 抵抗 | 1 kΩ、ワット数は問わない。コンソールの 3.5 V で約 1.5 mA で、ピンの絶対最大定格 40 mA を大きく下回る | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | LED の配線 | 2 番ピン（PB3）から抵抗、抵抗から LED のアノード（長い足）、カソード（平らな側）を GND へ | [include/port/registers.h](include/port/registers.h) |
-| ブザー | LED の代わりに、直流をかけるだけで鳴るアクティブ圧電ブザー。例えば PUI Audio AI-3035-TWT-3V-R: 2 から 5 V、3 V で最大 9 mA、約 3.5 kHz、直径 30 mm。5 V のフット機では電流を確認すること | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
+| ブザー | LED の代わりに、直流をかけるだけで鳴るアクティブ圧電ブザー。例えば PUI Audio AI-3035-TWT-3V-R: 2 から 5 V、3 V で最大 9 mA、約 3.5 kHz、直径 30 mm | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | ブザーの配線 | 2 番ピン（PB3）をブザーの + 端子へ、- 端子を GND へ。抵抗もダイオードも不要: 圧電素子はコイルではないので、切っても電圧スパイクを返さない。コイルである電磁ブザーには対応しない | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [include/port/registers.h](include/port/registers.h) |
 
 ピンを駆動するビルドは 2 種類あります。既定の `debug` は下の表のすべてを示し、`make PROFILE=final` でビルドして `-final` イメージとして配布する `final` は静かです。取り付けと不具合調査には `debug`、遊ぶときは `final` を書き込みます。違うのはピンだけで、両者が同じ文字列を同じ時刻に送ることをシミュレータがエッジ単位で確かめます。 出典: [include/pscu/indicator.h](include/pscu/indicator.h), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
@@ -225,7 +227,7 @@ PB3 には任意で LED かアクティブブザーをつなぎ、これがチ�
 
 ### シリアルトレース
 
-`make PROFILE=trace` は、ピン 2 (PB3) を表示の代わりにシリアル線にするイメージをビルドします。チップが取り込んだ 12 バイトの SUBQ バーストは、正しいかどうかに関係なく、すべて 115200 baud、8N1 の 24 桁の 16 進数 1 行として送られます。取り込みに失敗した場合はすべて `F` になります。ピン 2 を USB シリアルアダプタの RX 入力に、アダプタの GND をコンソールの GND につなぎ、キャリアボードのスイッチはどちらの部品も使わない位置にします。mini では線が待機している間 LED が点いたままです。アダプタはコンソールのロジックレベル、ファット基板では約 5 V を受けられる必要があります。行は各フレームの後の空き時間に送られるので、DATA はほかの 2 つのイメージと同じタイミングを保ち、シミュレータがそれをエッジ単位で確かめます。 出典: [src/run.c](src/run.c), [src/port.S](src/port.S), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
+`make PROFILE=trace` は、ピン 2 (PB3) を表示の代わりにシリアル線にするイメージをビルドします。チップが取り込んだ 12 バイトの SUBQ バーストは、正しいかどうかに関係なく、すべて 115200 baud、8N1 の 24 桁の 16 進数 1 行として送られます。取り込みに失敗した場合はすべて `F` になります。キャリアでは SW2 を TRACE 側にし、TTL-232R ケーブルを黒線が GND に来る向きでトレース用ヘッダに挿します。ほかの基板では、ピン 2 を USB シリアルアダプタの RX 入力に、アダプタの GND をコンソールの GND につなぎます。mini では線が待機している間 LED が点いたままです。線は 0 とコンソールの 3.5 V ロジック電源の間で振れるので、TTL-232R-3V3 のような 3.3 V アダプタで読めます。行は各フレームの後の空き時間に送られるので、DATA はほかの 2 つのイメージと同じタイミングを保ち、シミュレータがそれをエッジ単位で確かめます。 出典: [src/run.c](src/run.c), [src/port.S](src/port.S), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c), [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795)。
 
 ## 仕組み
 

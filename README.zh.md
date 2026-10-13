@@ -167,7 +167,7 @@ make bench_ci    # 主机测试台：在同一个模拟主机中对比本固件�
 
 | 板 | 元件 | 尺寸 | 来源 |
 |:--|:--|:--|:--|
-| 载板 | 插座、100 nF 去耦电容、防呆 ISP 插座、10 kΩ RESET 上拉，以及指示电路：PB3 驱动一个 2N3904，按两位拨码开关的设置驱动带 1 kΩ 电阻的 LED、蜂鸣器、两者或都不驱动；蜂鸣器经 10 Ω 与 100 µF 滤波供电，并联一个 1N4148 | 35.7 × 43.2 mm | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb) |
+| 载板 | 插座、100 nF 去耦电容、防呆 ISP 插座、10 kΩ RESET 上拉，以及指示电路：PB3 驱动一个 2N3904，按两位拨码开关的设置驱动带 1 kΩ 电阻的 LED、蜂鸣器、两者或都不驱动；蜂鸣器经 10 Ω 与 100 µF 滤波供电，并联一个 1N4148；一个拨动开关把 PB3 接到指示电路，或经 1 kΩ 接到 6 针串口跟踪插针 | 35.7 × 52.2 mm | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb) |
 | 迷你板 | 插座、100 nF 去耦电容、10 kΩ RESET 上拉、直接接在 PB3 上带 1 kΩ 电阻的 LED、防呆 ISP 插座 | 35.7 × 25.2 mm | [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [hardware/openscex-mini.kicad_pcb](hardware/openscex-mini.kicad_pcb) |
 | 裸板 | 只有插座、100 nF 去耦电容和 10 kΩ RESET 上拉 | 35.7 × 21.7 mm | [hardware/openscex-bare.kicad_sch](hardware/openscex-bare.kicad_sch), [hardware/openscex-bare.kicad_pcb](hardware/openscex-bare.kicad_pcb) |
 
@@ -181,11 +181,13 @@ make bench_ci    # 主机测试台：在同一个模拟主机中对比本固件�
 
 ISP 插座采用 AVR 六针排列：1 MISO 接 SUBQ，2 VCC，3 SCK 接 DATA，4 MOSI 接 SQCK，5 RESET，6 GND。防呆护套与其他元件保持 1.5 mm 间距。请在载板离开主机或拆下导线后再烧录：装在主机上时，编程器会向主机电源供电，并在 SQCK 和 SUBQ 上与主机的驱动器冲突。来源：[hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
 
+载板上的跟踪插针 J2 可直接插上 FTDI TTL-232R 线缆的 6 孔插座：1 脚为 GND，5 脚为线缆的 RXD 输入，2、3、4、6 脚悬空，因此线缆的 5 V 输出不会接到主机。拨动开关 SW2 (C&K OS102011MS2QN1) 拨向 IND 时把 PB3 接到指示电路，拨向 TRACE 时接到插针；它的触点先断后通，所以跟踪时指示电路保持静默。串联的 1 kΩ 电阻在一侧未上电时限制流入另一侧的电流。插针位于板边，四周留出 2 mm 空隙，所以插座或插在上面的适配器不会碰到其他元件。来源：[hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [C&K OS series datasheet](https://www.littelfuse.com/assetdocs/littelfuse-c-k-slide-os-series-datasheet?assetguid=f8954ac2-65ba-431f-af55-b0493370575e)。
+
 每块板都附有物料清单，以及可直接交给制板厂的 Gerber 和钻孔压缩包，均由 KiCad 10.0.6 导出。泪滴直接画在电路板中，无需在 KiCad 中重新填充。来源：[hardware/openscex-carrier-bom.csv](hardware/openscex-carrier-bom.csv), [hardware/fab/openscex-carrier-gerbers.zip](hardware/fab/openscex-carrier-gerbers.zip), [hardware/openscex-mini-bom.csv](hardware/openscex-mini-bom.csv), [hardware/fab/openscex-mini-gerbers.zip](hardware/fab/openscex-mini-gerbers.zip), [hardware/openscex-bare-bom.csv](hardware/openscex-bare-bom.csv), [hardware/fab/openscex-bare-gerbers.zip](hardware/fab/openscex-bare-gerbers.zip)。
 
 ## 安全
 
-- 接线前测量每个接点的逻辑电压。在 PsNee 与 Mayumi 的安装中，厚机约 5 V，PSone PM-41(2) 较低且对噪声敏感。 出处：[quade.co PsNee guide](https://quade.co/ps1-modchip-guide/psnee/), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/)。
+- 接线前测量每个接点的电压。从 PU-7 到 PM-41(2)，每块主板的大多数芯片都由 +3.5 V 供电，这也是芯片的电源；主板的 +5 V 只供少数元件，例如 AV 多路输出、音频放大器以及声音与 CD 电源的稳压器，PsNee 也警告不要把芯片接到那里。 出处：[psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795), [PsNee changelog](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/changelog#L38)。
 - 打开主机并焊接 CD 子系统可能损坏主机。风险自负。 出处：[quade.co PS1 modchip guide](https://quade.co/ps1-modchip-guide/)。
 
 ## 状态指示
@@ -194,10 +196,10 @@ PB3 可选接一个 LED 或有源蜂鸣器，这是芯片唯一的诊断手段�
 
 | 部件 | 选择 | 出处 |
 |:-----|:-----|:--|
-| LED | 3 mm 或 5 mm 的红、橙、黄、绿 LED，正向电压约 2 V；不要用蓝色或白色，其 3 V 正向电压在 PSone 较低的电源下几乎不给电阻留电压 | [Kingbright WP7113ID datasheet](https://www.kingbrightusa.com/images/catalog/SPEC/WP7113ID.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 电阻 | 1 kΩ，功率不限：5 V 时约 3 mA，3.5 V 时约 1.5 mA，远低于引脚 40 mA 的绝对最大值 | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
+| LED | 3 mm 或 5 mm 的红、橙、黄、绿 LED，正向电压约 2 V；不要用蓝色或白色，其 3 V 正向电压在主机的 3.5 V 电源下几乎不给电阻留电压 | [Kingbright WP7113ID datasheet](https://www.kingbrightusa.com/images/catalog/SPEC/WP7113ID.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
+| 电阻 | 1 kΩ，功率不限：在主机的 3.5 V 下约 1.5 mA，远低于引脚 40 mA 的绝对最大值 | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | LED 接线 | 2 号引脚（PB3）接电阻，电阻接 LED 阳极（长脚），阴极（平边）接地 | [include/port/registers.h](include/port/registers.h) |
-| 蜂鸣器 | 代替 LED 的有源压电蜂鸣器，通直流就响，例如 PUI Audio AI-3035-TWT-3V-R：2 至 5 V，3 V 时最大 9 mA，约 3.5 kHz，直径 30 mm；在 5 V 的厚机上请实测电流 | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
+| 蜂鸣器 | 代替 LED 的有源压电蜂鸣器，通直流就响，例如 PUI Audio AI-3035-TWT-3V-R：2 至 5 V，3 V 时最大 9 mA，约 3.5 kHz，直径 30 mm | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 蜂鸣器接线 | 2 号引脚（PB3）接蜂鸣器 + 端，- 端接地，不需要电阻或二极管：压电元件不是线圈，关断时不会送回电压尖峰。电磁蜂鸣器是线圈，不支持 | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [include/port/registers.h](include/port/registers.h) |
 
 驱动该引脚的构建有两种。默认的 `debug` 显示下表全部内容；用 `make PROFILE=final` 构建、以 `-final` 镜像发布的 `final` 保持安静。安装和排查故障时烧录 `debug`，玩游戏时换成 `final`。只有该引脚不同：模拟器逐个边沿核对两者在同一时刻发送相同的字符串。 出处：[include/pscu/indicator.h](include/pscu/indicator.h), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
@@ -225,7 +227,7 @@ PB3 可选接一个 LED 或有源蜂鸣器，这是芯片唯一的诊断手段�
 
 ### 串口跟踪
 
-`make PROFILE=trace` 构建的镜像把引脚 2 (PB3) 改作串口线，不再驱动指示。芯片捕获的每个 12 字节 SUBQ 数据块，无论是否有效，都以一行 24 位十六进制数字发出，115200 baud，8N1；捕获失败时整行为 `F`。把引脚 2 接到 USB 串口适配器的 RX 输入，适配器的地接主机的地，并把载板的开关拨到两个器件都不用的位置；mini 板上的 LED 在线路空闲时保持点亮。适配器必须能接受主机的逻辑电平，厚机主板约为 5 V。每行在每帧之后的空隙中发出，所以 DATA 与另外两种镜像保持相同的时序，模拟器逐个边沿核对这一点。 出处：[src/run.c](src/run.c), [src/port.S](src/port.S), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
+`make PROFILE=trace` 构建的镜像把引脚 2 (PB3) 改作串口线，不再驱动指示。芯片捕获的每个 12 字节 SUBQ 数据块，无论是否有效，都以一行 24 位十六进制数字发出，115200 baud，8N1；捕获失败时整行为 `F`。在载板上把 SW2 拨到 TRACE，并把 TTL-232R 线缆插到跟踪插针上，黑线对准 GND；在其他板上，把引脚 2 接到 USB 串口适配器的 RX 输入，适配器的地接主机的地，mini 板上的 LED 在线路空闲时保持点亮。线路在 0 与主机的 3.5 V 逻辑电源之间摆动，TTL-232R-3V3 这样的 3.3 V 适配器即可读取。每行在每帧之后的空隙中发出，所以 DATA 与另外两种镜像保持相同的时序，模拟器逐个边沿核对这一点。 出处：[src/run.c](src/run.c), [src/port.S](src/port.S), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c), [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795)。
 
 ## 工作原理
 
