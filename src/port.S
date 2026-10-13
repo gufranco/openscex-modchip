@@ -188,11 +188,15 @@ pscu_port_delay_ms:
 // Clock r22 SUBQ bytes into r25:r24, LSB first, sampling after each SQCK rising
 // edge. Returns 1 for a whole frame, 0 on any edge timeout. In assembly to follow
 // a fast SQCK. The watchdog is kicked once, so a frame slower than 0.5 s resets.
+// A count of 0 captures nothing: the byte loop counts down after each byte, so
+// without the guard it would run 256 times into the caller's buffer.
 	.global pscu_port_capture_frame
 	.func pscu_port_capture_frame
 pscu_port_capture_frame:
 	wdr
 	movw r26, r24
+	tst r22
+	breq 37f
 30:
 	ldi r21, 8
 	clr r18
@@ -223,6 +227,7 @@ pscu_port_capture_frame:
 	st X+, r18
 	dec r22
 	brne 30b
+37:
 	ldi r24, 1
 	ret
 36:
