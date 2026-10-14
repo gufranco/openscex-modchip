@@ -39,8 +39,8 @@ jobs:
   mutate-platform:
     name: Platform mutation
     runs-on: ubuntu-26.04
-    # Backstop: one local run of 75 mutants took 77 min on two CPUs, image
-    # build included; doubled, with no CI run measured yet.
+    # Backstop: the first CI run of 75 mutants took 74 min, image build
+    # included, and a local run on two CPUs 77 min; about double the slower.
     timeout-minutes: 160
     steps:
       - name: Checkout
