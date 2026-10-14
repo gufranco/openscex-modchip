@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
+# SPDX-License-Identifier: MIT
+
+# Mutation of the platform C, run.c and engine.c, each mutant killed by the
+# simulator suite. It plays every scenario once per mutant, so it runs only
+# when the code it defends, the suite that kills it, or the tool changes.
+name: Platform mutation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "include/**"
+      - "tests/sim/**"
+      - "tools/mutate.py"
+      - "Makefile"
+      - "docker/**"
+      - ".github/workflows/mutation.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "include/**"
+      - "tests/sim/**"
+      - "tools/mutate.py"
+      - "Makefile"
+      - "docker/**"
+      - ".github/workflows/mutation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutate-platform:
+    name: Platform mutation
+    runs-on: ubuntu-26.04
+    # Backstop: one local run of 75 mutants took 77 min on two CPUs, image
+    # build included; doubled, with no CI run measured yet.
+    timeout-minutes: 160
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Mutate run.c and engine.c against the simulator suite
+        run: make mutate_platform

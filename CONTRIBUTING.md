@@ -33,6 +33,8 @@ The showcase judges every chip on named properties: silence in the two anti-mod 
 
 The bench also measures instruction coverage: every instruction of this firmware must be executed by some scenario or excused. A line no console input can reach carries `coverage: unreachable: <reason>` above it, or `coverage: unreachable block: <reason>` above a stretch of assembly running to the next blank line; the bench maps instructions to lines through the image's debug information. A full `make bench_ci` fails on any instruction that is neither. Reasons for third-party images live in [`bench/coverage-exclusions.json`](bench/coverage-exclusions.json).
 
+`make mutate_platform` plays the whole simulator suite once per mutant, so CI runs it in its own workflow, [`.github/workflows/mutation.yml`](.github/workflows/mutation.yml), only when the firmware, the simulator suite or the mutation tool changes; it must also kill every mutant.
+
 A change is ready when `make all size analyse test repro mutate` passes with 100 percent host line and branch coverage, every mutant killed, zero warnings, at least 256 bytes of flash free and at least 96 bytes of RAM left between the stack and the static data in every simulated scenario. A bug fix adds a test that fails without it.
 
 ## Commits and pull requests
