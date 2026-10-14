@@ -1,3 +1,35 @@
+# [0.18.0](https://github.com/gufranco/openscex-modchip/compare/v0.17.0...v0.18.0) (2026-10-14)
+
+
+### Bug Fixes
+
+* **bench:** bound every tool the bench calls ([164f876](https://github.com/gufranco/openscex-modchip/commit/164f876ef565b04f89d81eaac0d4f83d97e9ef90))
+* **bench:** check the shape of committed JSON ([047cea5](https://github.com/gufranco/openscex-modchip/commit/047cea53269bc51cde584a08c2467ae4a32404f4))
+* **bench:** decode each burst in its own mode ([04b9bab](https://github.com/gufranco/openscex-modchip/commit/04b9bab16481dda501da23006894df93063c6128))
+* **bench:** fail a run whose AVR image crashes ([cb5e6e0](https://github.com/gufranco/openscex-modchip/commit/cb5e6e05686ff397155c168d5e6407a2b8f491fd))
+* **bench:** fail when ours could not run ([3a9ea60](https://github.com/gufranco/openscex-modchip/commit/3a9ea6090fb794e06cf942e8bc3253c3005204e6))
+* **bench:** judge the cells of garbled strings ([35e1200](https://github.com/gufranco/openscex-modchip/commit/35e12004b263be429bff6ef434387a33550834eb))
+* **bench:** read every event of a long timeline ([e1cc787](https://github.com/gufranco/openscex-modchip/commit/e1cc7875c8e01e2ce571f50b36faf9155741257e))
+* **bench:** read Liss V1.4 from its original copy ([129e882](https://github.com/gufranco/openscex-modchip/commit/129e8822e1cd8c2d8ecd119849ea76d79c802029))
+* **bench:** rearm only on a valid second string ([a99812e](https://github.com/gufranco/openscex-modchip/commit/a99812e7f86014b65f43d918d576dc24737146b7))
+* **bench:** rebuild a source image from a new tree ([a62d36b](https://github.com/gufranco/openscex-modchip/commit/a62d36bf3f52ed9217ad99bf5826fc1b12a023ce))
+* **bench:** refuse a trace with no end line ([9997626](https://github.com/gufranco/openscex-modchip/commit/9997626b25f15f90aa6c6c219473898f93e95ac6))
+* **bench:** use the bytes the manifest verified ([c3c9e3e](https://github.com/gufranco/openscex-modchip/commit/c3c9e3e33869f3515ccfaef5d097e06cbfb2362a))
+* **bench:** validate the artifact manifest on load ([95286b8](https://github.com/gufranco/openscex-modchip/commit/95286b8187cf9a4748791ac3e86806e58f6956ca))
+* guard the frame capture against a zero count ([633a3de](https://github.com/gufranco/openscex-modchip/commit/633a3de591a4cf5c918e7c29127601e387794418))
+* keep the trace line idle after a string ([c87c91b](https://github.com/gufranco/openscex-modchip/commit/c87c91b902f11992db284b6195fd83b7aff55925))
+* measure the WFCK sample, keep the 360 us gap ([04f5e8f](https://github.com/gufranco/openscex-modchip/commit/04f5e8f7a62f47484d2271691b931e2a06a67df8))
+* start every EEPROM write in erase-and-write ([ac755de](https://github.com/gufranco/openscex-modchip/commit/ac755de3b390cbfffb95803c7c33c458ee4a17f9))
+* store learned values only outside the window ([3672fe5](https://github.com/gufranco/openscex-modchip/commit/3672fe58a3880507f142a10dc508ce420b93657f))
+
+
+### Features
+
+* add a serial SUBQ trace profile ([187c2a6](https://github.com/gufranco/openscex-modchip/commit/187c2a698720e0c599f430e11115ffc919908999))
+* **bench:** judge strings after play resumes ([6c90d0e](https://github.com/gufranco/openscex-modchip/commit/6c90d0e20ab7ce1fd2e5e2ccc526629da1432b14))
+* explain each decision on the serial trace ([fdf17ce](https://github.com/gufranco/openscex-modchip/commit/fdf17ce96789789402eb54fa6205c63da0b9dcaf))
+* **hardware:** add a serial trace header ([d53ce93](https://github.com/gufranco/openscex-modchip/commit/d53ce930b79ee7ccdf9abfba47b6cf3899b7f080))
+
 # [0.17.0](https://github.com/gufranco/openscex-modchip/compare/v0.16.0...v0.17.0) (2026-10-11)
 
 
