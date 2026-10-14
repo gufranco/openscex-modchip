@@ -247,6 +247,63 @@ EQUIVALENTS: tuple[Equivalent, ...] = (
         1,
         _SHORT_TAGS,
     ),
+    Equivalent(
+        "src/run.c",
+        "osc.hit = false;",
+        "false->true",
+        0,
+        "the first pass is never timed: the loop's settle time starts at zero",
+    ),
+    Equivalent(
+        "src/run.c",
+        "(n < (uint8_t)PSCU_TRIM_MAX_STEP) && (next.osccal != target)",
+        "lt->le",
+        0,
+        "the target is at most PSCU_TRIM_MAX_STEP notches away, so it ends the walk",
+    ),
+    Equivalent(
+        "src/run.c",
+        "(target > next.osccal) ?",
+        "gt->ge",
+        0,
+        "the walk runs only while OSCCAL differs from the target",
+    ),
+    Equivalent(
+        "src/run.c",
+        "pscu_clock_t clock = { pscu_port_ticks(), 0U };",
+        "literal+1",
+        0,
+        "at 8 MHz a millisecond is 8000 clocks and every tick count is even, "
+        "so one clock of carry never reaches the next millisecond",
+    ),
+    Equivalent(
+        "src/engine.c",
+        "(1000UL * PSCU_SQCK_IDLE_POLL_CYCLES) - 1UL) /",
+        "sub->add",
+        0,
+        "8 MHz leaves 2000 over a multiple of 43000, so both ceilings give 187",
+    ),
+    Equivalent(
+        "src/engine.c",
+        "bool idle = false;",
+        "false->true",
+        0,
+        "the wait budget is never zero, so the loop assigns idle before it returns",
+    ),
+    Equivalent(
+        "src/engine.c",
+        "int8_t step = (trim < 0) ?",
+        "lt->le",
+        0,
+        "a zero trim takes no steps, so its direction is never used",
+    ),
+    Equivalent(
+        "src/engine.c",
+        "uint8_t steps = (uint8_t)((trim < 0) ? -trim : trim);",
+        "lt->le",
+        0,
+        "minus zero is zero",
+    ),
 )
 
 
