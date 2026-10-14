@@ -54,5 +54,15 @@ void scenario_profiles(const target_t *t,
 void scenario_trace(const target_t *t, const char *elf, uint32_t freq);
 // The trace line across a burst of strings.
 void scenario_trace_strings(const target_t *t, const char *elf, uint32_t freq);
+// The trace with nothing learned, after a trim step, and across a disc leaving.
+void scenario_trace_quiet(const target_t *t, const char *elf, uint32_t freq);
+void scenario_trace_trim(const target_t *t, const char *elf, uint32_t freq);
+void scenario_trace_clock(const target_t *t, const char *elf, uint32_t freq);
+// Exact counts and lengths in the platform C (tests/sim/sim_timing.c).
+void scenario_gap_polls(const target_t *t, const char *elf, uint32_t freq);
+void scenario_detect_samples(const target_t *t, const char *elf, uint32_t freq);
+void scenario_string_cells(const target_t *t, const char *elf, uint32_t freq);
+void scenario_dark_play(const target_t *t, const char *elf, uint32_t freq);
+void scenario_trim_outage(const target_t *t, const char *elf, uint32_t freq);
 
 #endif

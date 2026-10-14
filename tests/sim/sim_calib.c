@@ -169,6 +169,8 @@ static uint8_t osccal(avr_t *avr) {
 // 2586Q, OSCCAL), so the firmware steps one notch per write. Writes in one
 // pass sit a few dozen cycles apart; passes sit about 100000 cycles apart.
 #define TRIM_SAME_PASS_CYCLES 1000U
+// The most notches one batch moves (include/pscu/trim.h PSCU_TRIM_MAX_STEP).
+#define TRIM_MAX_STEP 4U
 
 typedef struct {
   unsigned writes;
@@ -245,7 +247,8 @@ static void trim_case(const target_t *t, const char *elf, uint32_t freq, int per
     calib_check(t, (moved == 0) && (stored == 0), "a nominal RC leaves OSCCAL alone");
   }
   // The sim's speed never follows OSCCAL, so every batch asks for the largest
-  // step, and each must still land one notch per write.
+  // step, PSCU_TRIM_MAX_STEP notches, and each must still land one notch per
+  // write, all of them in the pass that decided it.
   if (percent != 0) {
     unsigned walked = (unsigned)((moved < 0) ? -moved : moved);
     (void)snprintf(what,
@@ -253,7 +256,8 @@ static void trim_case(const target_t *t, const char *elf, uint32_t freq, int per
                    "every OSCCAL write moves one notch, %u in one pass",
                    watch.longest_run);
     calib_check(t,
-                (watch.largest_step == 1U) && (watch.writes == walked) && (watch.longest_run > 1U),
+                (watch.largest_step == 1U) && (watch.writes == walked) &&
+                    (watch.longest_run == TRIM_MAX_STEP),
                 what);
   }
 }

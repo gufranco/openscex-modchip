@@ -14,7 +14,7 @@
 
 #define TRACE_BAUD 115200U
 #define TRACE_EDGES_MAX 65536
-#define TRACE_TEXT_MAX 4096
+#define TRACE_TEXT_MAX 16384
 #define TRACE_LINE_CHARS 24
 #define TRACE_TOC_FRAMES 12
 #define TRACE_TAIL_MS 50U
@@ -57,6 +57,10 @@ static uint8_t level_at(const trace_edges_t *edges, int *cursor, uint64_t cycle)
   return edges->level[*cursor];
 }
 
+// The cycle each decoded character's start bit fell on, so a line's arrival
+// can be set against the time stamp it carries.
+static uint64_t g_char_cycle[TRACE_TEXT_MAX];
+
 // Decode 8N1 from the first time the line idles high (the pin powers up low):
 // a falling edge starts a byte, each bit is sampled mid-cell, and the stop bit
 // must be high. Returns the characters, or -1 on a framing error.
@@ -81,6 +85,7 @@ static int decode_serial(const trace_edges_t *edges, double bit_cycles, char *te
       busy_until = start + (uint64_t)(bit_cycles * 9.5);
       framing_ok = level_at(edges, &cursor, busy_until) == 1U;
       text[len] = (char)byte;
+      g_char_cycle[len] = start;
       len++;
     }
   }
@@ -92,7 +97,10 @@ static int decode_serial(const trace_edges_t *edges, double bit_cycles, char *te
 #define TRACE_EVENTS_MAX 128
 #define TRACE_EVENT_CHARS 40
 static char g_events[TRACE_EVENTS_MAX][TRACE_EVENT_CHARS];
+static uint64_t g_event_cycle[TRACE_EVENTS_MAX];
 static int g_event_count;
+// Frame lines that read as a failed capture, all F.
+static int g_failed_lines;
 
 // A frame line is 24 upper-case hex digits; an event line is "@<s>.<ms> " and
 // a tag of capitals.
@@ -115,13 +123,16 @@ static int read_lines(char *text, int *lines, int *toc_lines) {
   *lines = 0;
   *toc_lines = 0;
   g_event_count = 0;
+  g_failed_lines = 0;
   for (char *line = strtok(text, "\n"); line != NULL; line = strtok(NULL, "\n")) {
     (*lines)++;
     int event = is_event(line);
     well_formed = well_formed && (is_frame(line) || event);
     *toc_lines += (strcmp(line, TRACE_TOC_HEX) == 0) ? 1 : 0;
+    g_failed_lines += (is_frame(line) && (strspn(line, "F") == TRACE_LINE_CHARS)) ? 1 : 0;
     if (event && (g_event_count < TRACE_EVENTS_MAX)) {
       (void)snprintf(g_events[g_event_count], TRACE_EVENT_CHARS, "%s", line);
+      g_event_cycle[g_event_count] = g_char_cycle[line - text];
       g_event_count++;
     }
   }
@@ -243,4 +254,127 @@ void scenario_trace_strings(const target_t *t, const char *elf, uint32_t freq) {
                  scex,
                  g_data_bursts);
   check((scex == g_data_bursts) && numbered && (events_starting("OPEN ") >= 1), label);
+}
+
+// Decode the whole capture so far into g_events. Returns whether every line
+// was framed and well formed.
+static int trace_read(uint32_t freq) {
+  static char text[TRACE_TEXT_MAX];
+  int len = decode_serial(&g_edges, (double)freq / (double)TRACE_BAUD, text, TRACE_TEXT_MAX);
+  int lines = 0;
+  int toc_lines = 0;
+  return (len > 0) && (len < (TRACE_TEXT_MAX - 1)) && read_lines(text, &lines, &toc_lines);
+}
+
+// The time stamp of event n, in milliseconds.
+static uint64_t event_ms(int n) {
+  unsigned s = 0U;
+  unsigned ms = 0U;
+  (void)sscanf(g_events[n], "@%u.%u", &s, &ms);
+  return ((uint64_t)s * 1000U) + ms;
+}
+
+static int event_index(const char *prefix) {
+  int found = -1;
+  for (int i = 0; (i < g_event_count) && (found < 0); i++) {
+    found = (strncmp(event_tag(i), prefix, strlen(prefix)) == 0) ? i : -1;
+  }
+  return found;
+}
+
+static int events_at_zero(void) {
+  int count = 0;
+  for (int i = 0; i < g_event_count; i++) {
+    count += (strncmp(g_events[i], "@0.000 ", 7U) == 0) ? 1 : 0;
+  }
+  return count;
+}
+
+// A disc that never reads a lead-in, on a chip at nominal speed: nothing is
+// learned, so no pass reports a store, and the boot report is the only thing
+// at time zero, exactly six lines.
+#define TRACE_QUIET_FRAMES 150
+
+void scenario_trace_quiet(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = trace_boot(t, elf, freq);
+  const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
+  g_frame_period_ns = SIM_SECTOR_NS;
+  clock_frames(avr, t, silence, TRACE_QUIET_FRAMES);
+  g_frame_period_ns = 0U;
+  run_cycles(avr, ms_cycles(TRACE_TAIL_MS));
+  int framed = trace_read(freq);
+
+  char label[112];
+  (void)snprintf(label,
+                 sizeof(label),
+                 "trace: the boot report is six lines at time zero (%d)",
+                 events_at_zero());
+  check(framed && (events_at_zero() == 6), label);
+  (void)snprintf(label,
+                 sizeof(label),
+                 "trace: nothing learned shows no store (%d SAVE events)",
+                 events_starting("SAVE "));
+  check(framed && (events_starting("SAVE ") == 0), label);
+}
+
+// An RC 5 percent fast, timed against valid program-area frames: the first
+// batch steps OSCCAL down, and with the window closed the trim is stored at
+// once, which the trace reports as SAVE OK.
+#define TRACE_TRIM_FRAMES 200
+#define TRACE_RC_FAST_PERCENT 105U
+
+void scenario_trace_trim(const target_t *t, const char *elf, uint32_t freq) {
+  uint32_t fast = (uint32_t)(((uint64_t)freq * TRACE_RC_FAST_PERCENT) / 100U);
+  avr_t *avr = trace_boot(t, elf, fast);
+  const uint8_t play[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00U, 0x02U, 0,
+                                           0,     0,     0x02U, 0,     0,     0 };
+  g_frame_period_ns = SIM_SECTOR_NS;
+  clock_frames(avr, t, play, TRACE_TRIM_FRAMES);
+  g_frame_period_ns = 0U;
+  run_cycles(avr, ms_cycles(TRACE_TAIL_MS));
+  // The chip sends at its own 8 MHz count, so the line decodes at the
+  // nominal rate whatever the simulated speed.
+  int framed = trace_read(freq);
+
+  char label[112];
+  (void)snprintf(label,
+                 sizeof(label),
+                 "trace: a trim step is stored and reported (%d OSC, %d SAVE OK)",
+                 events_starting("OSC "),
+                 events_starting("SAVE OK"));
+  check(framed && (events_starting("OSC ") >= 2) && (events_starting("SAVE OK") >= 1), label);
+}
+
+// Each event carries the time since power-on, kept from Timer1 across every
+// pass. From the boot report to the disc leaving, a few seconds later, the
+// stamps must match the simulated time between those lines to within the few
+// milliseconds a line waits for its gap. With SQCK gone, every failed capture
+// shows as an all-F frame line.
+#define TRACE_CLOCK_FRAMES 150
+#define TRACE_CLOCK_GONE_MS 2500U
+#define TRACE_CLOCK_TOLERANCE_MS 20U
+
+void scenario_trace_clock(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = trace_boot(t, elf, freq);
+  const uint8_t silence[SUBQ_FRAME_BYTES] = { 0 };
+  g_frame_period_ns = SIM_SECTOR_NS;
+  clock_frames(avr, t, silence, TRACE_CLOCK_FRAMES);
+  g_frame_period_ns = 0U;
+  run_cycles(avr, ms_cycles(TRACE_CLOCK_GONE_MS));
+  int framed = trace_read(freq);
+
+  int gone = event_index("GONE");
+  uint64_t stamped = (gone > 0) ? event_ms(gone) : 0U;
+  uint64_t seen = (gone > 0) ? (((g_event_cycle[gone] - g_event_cycle[0]) * 1000U) / freq) : 0U;
+  uint64_t apart = (stamped > seen) ? (stamped - seen) : (seen - stamped);
+  char label[112];
+  (void)snprintf(label,
+                 sizeof(label),
+                 "trace: event stamps keep time (GONE at %llu ms, seen at %llu ms)",
+                 (unsigned long long)stamped,
+                 (unsigned long long)seen);
+  check(framed && (gone > 0) && (apart <= TRACE_CLOCK_TOLERANCE_MS), label);
+  (void)snprintf(
+      label, sizeof(label), "trace: a failed capture reads as all F (%d lines)", g_failed_lines);
+  check(framed && (g_failed_lines > 0), label);
 }

@@ -33,6 +33,11 @@
 #define PSCU_TRIM_HIGH ((F_CPU * 7UL) / (PSCU_TRIM_TICK_HZ * 5UL))
 #define PSCU_TRIM_EXPECTED \
   ((((uint32_t)PSCU_TRIM_FRAMES * F_CPU) + (PSCU_TRIM_TICK_HZ / 2UL)) / PSCU_TRIM_TICK_HZ)
+#if F_CPU == 8000000UL
+// 64 frames at 8 MHz are 416.7 ticks; the dead band is measured from the
+// nearest whole tick, never from a truncated 416.
+_Static_assert(PSCU_TRIM_EXPECTED == 417UL, "the batch reference rounds to 417 ticks");
+#endif
 
 // The last Timer1 reading and the clocks left over below one millisecond.
 typedef struct {

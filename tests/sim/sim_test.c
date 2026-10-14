@@ -56,6 +56,11 @@ int main(int argc, char *argv[]) {
   scenario_slow_sqck(&t85, elf, freq);
   scenario_trim(&t85, elf, freq);
   scenario_trim_cal7(&t85, elf, freq);
+  scenario_gap_polls(&t85, elf, freq);
+  scenario_detect_samples(&t85, elf, freq);
+  scenario_string_cells(&t85, elf, freq);
+  scenario_dark_play(&t85, elf, freq);
+  scenario_trim_outage(&t85, elf, freq);
 
   // The SCPH-5903 Video-CD image.
   scenario_vcd(argv[3], freq);
@@ -66,6 +71,9 @@ int main(int argc, char *argv[]) {
   scenario_profiles(&t85, elf, argv[4], argv[5], freq);
   scenario_trace(&t85, argv[5], freq);
   scenario_trace_strings(&t85, argv[5], freq);
+  scenario_trace_quiet(&t85, argv[5], freq);
+  scenario_trace_trim(&t85, argv[5], freq);
+  scenario_trace_clock(&t85, argv[5], freq);
 
   // One image per region; the default image is the American one.
   scenario_region(&t85, elf, SCEA_BITS, "us", freq);
