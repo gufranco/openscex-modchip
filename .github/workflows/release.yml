@@ -139,6 +139,11 @@ jobs:
 
       - name: Describe the toolchain image as SPDX
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c  # v0.24.3
+        env:
+          # Syft's package-to-file links list every file each Debian package
+          # owns: 20 MB for this image, over the 16 MiB an SBOM attestation
+          # takes. Without them it is 1.9 MB and names the same 333 packages.
+          SYFT_RELATIONSHIPS_PACKAGE_FILE_OWNERSHIP: "false"
         with:
           image: ${{ steps.toolchain.outputs.image }}
           format: spdx-json
@@ -189,7 +194,7 @@ jobs:
           path: release-artifacts
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6  # v4.2.2
         with:
           subject-path: |
             release-artifacts/*.hex
@@ -197,7 +202,7 @@ jobs:
             release-artifacts/LICENSE.txt
 
       - name: Attest the toolchain SBOM for the images
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e  # v4.1.0
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6  # v4.2.2
         with:
           subject-path: release-artifacts/*.hex
           sbom-path: release-artifacts/toolchain.spdx.json
