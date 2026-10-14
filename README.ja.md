@@ -27,7 +27,7 @@
 
 </div>
 
-フラッシュ [**5902**](Makefile) バイト · 基板 [**8**](assets/psnee) 系統、PU-7 から PM-41(2) · リージョン [**3**](src/region.c) 種 · MISRA 逸脱 [**0**](AGENTS.md) · ホストの行と分岐カバレッジ [**100%**](tests/host) · ミュータント [**598/598**](tools/mutate.py) 撃破
+フラッシュ [**5942**](Makefile) バイト · 基板 [**8**](assets/psnee) 系統、PU-7 から PM-41(2) · リージョン [**3**](src/region.c) 種 · MISRA 逸脱 [**0**](AGENTS.md) · ホストの行と分岐カバレッジ [**100%**](tests/host) · ミュータント [**598/598**](tools/mutate.py) 撃破
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -127,7 +127,7 @@ make mutate_platform  # run.c と engine.c のミューテーション、シミ�
 make bench_ci    # コンソールベンチ: 同じ模擬コンソールでこのファームウェアと PsNee を比較
 ```
 
-同じゲートが push とプルリクエストごとに CI で走ります。定義は [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。`make hooks` でコミットメッセージと整形のチェックをローカルで有効にできます。
+同じゲートが push とプルリクエストごとに CI で走ります。定義は [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。`make mutate_platform` は別のワークフロー [`.github/workflows/mutation.yml`](.github/workflows/mutation.yml) で、ファームウェア、シミュレータのテスト、ミューテーションツールのいずれかが変わるたびに走ります。`make hooks` でコミットメッセージと整形のチェックをローカルで有効にできます。
 
 ## MCU ピン配置
 

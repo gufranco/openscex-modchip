@@ -27,7 +27,7 @@
 
 </div>
 
-[**5902**](Makefile) bytes of flash · [**8**](assets/psnee) board families, PU-7 to PM-41(2) · [**3**](src/region.c) regions · [**0**](AGENTS.md) MISRA deviations · [**100%**](tests/host) host line and branch coverage · [**598/598**](tools/mutate.py) mutants killed
+[**5942**](Makefile) bytes of flash · [**8**](assets/psnee) board families, PU-7 to PM-41(2) · [**3**](src/region.c) regions · [**0**](AGENTS.md) MISRA deviations · [**100%**](tests/host) host line and branch coverage · [**598/598**](tools/mutate.py) mutants killed
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -127,7 +127,7 @@ make mutate_platform  # mutation of run.c and engine.c, killed by the simulator
 make bench_ci    # console bench: this firmware against PsNee in the same simulated console
 ```
 
-CI runs the same gates on every push and pull request, as defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml). `make hooks` enables the commit-message and formatting checks locally.
+CI runs the same gates on every push and pull request, as defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml). `make mutate_platform` runs in its own workflow, [`.github/workflows/mutation.yml`](.github/workflows/mutation.yml), whenever the firmware, the simulator suite or the mutation tool changes. `make hooks` enables the commit-message and formatting checks locally.
 
 ## MCU pinout
 

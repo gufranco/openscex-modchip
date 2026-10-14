@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "port/port.h"
 #include "pscu/assert.h"
@@ -52,7 +53,7 @@ static bool pscu_wait_sqck_idle(void) {
   bool idle = false;
   // One exit test: reaching the quiet count empties the budget. A second loop
   // condition would add a branch no test can reach.
-  while (left > 0U) {
+  while (left != 0U) {
     if (pscu_port_read_sqck() != 0U) {
       quiet = quiet + 1U;
     } else {
@@ -141,9 +142,7 @@ bool pscu_engine_capture_frame(uint8_t *frame) {
     ok = pscu_port_capture_frame(frame, PSCU_SUBQ_FRAME_BYTES) != 0U;
   }
   if (!ok) {
-    for (uint8_t byte = 0U; byte < PSCU_SUBQ_FRAME_BYTES; byte++) {
-      frame[byte] = PSCU_SUBQ_FAILED_BYTE;
-    }
+    (void)memset(frame, (int)PSCU_SUBQ_FAILED_BYTE, PSCU_SUBQ_FRAME_BYTES);
   }
   return ok;
 }

@@ -27,7 +27,7 @@
 
 </div>
 
-闪存 [**5902**](Makefile) 字节 · [**8**](assets/psnee) 个主板系列，PU-7 至 PM-41(2) · [**3**](src/region.c) 个区域 · MISRA 偏离 [**0**](AGENTS.md) · 主机测试行与分支覆盖率 [**100%**](tests/host) · 变异体 [**598/598**](tools/mutate.py) 被杀死
+闪存 [**5942**](Makefile) 字节 · [**8**](assets/psnee) 个主板系列，PU-7 至 PM-41(2) · [**3**](src/region.c) 个区域 · MISRA 偏离 [**0**](AGENTS.md) · 主机测试行与分支覆盖率 [**100%**](tests/host) · 变异体 [**598/598**](tools/mutate.py) 被杀死
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -127,7 +127,7 @@ make mutate_platform  # run.c 与 engine.c 的变异测试，由模拟器捕获
 make bench_ci    # 主机测试台：在同一个模拟主机中对比本固件与 PsNee
 ```
 
-同样的关卡在每次 push 与拉取请求时于 CI 运行，定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。`make hooks` 可在本地启用提交信息与格式检查。
+同样的关卡在每次 push 与拉取请求时于 CI 运行，定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。`make mutate_platform` 在单独的工作流 [`.github/workflows/mutation.yml`](.github/workflows/mutation.yml) 中运行，每当固件、模拟器测试或变异工具改变时触发。`make hooks` 可在本地启用提交信息与格式检查。
 
 ## MCU 引脚
 
