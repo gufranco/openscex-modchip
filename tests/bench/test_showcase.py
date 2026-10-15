@@ -118,6 +118,34 @@ class EvaluateTest(unittest.TestCase):
         # Assert
         self.assertEqual(outcome(results, "ours", "swap"), Outcome.FAILED)
 
+    def test_each_property_fails_on_the_one_behaviour_it_judges(self) -> None:
+        # Arrange
+        holds = {prop.key: prop.holds for prop in PROPERTIES}
+        failing = [
+            ("antimod-v1", replace(BASE, probe_strings=1)),
+            ("antimod-v2", replace(BASE, probe_strings=1)),
+            ("antimod-v2-reauth", replace(BASE, reread_valid=0)),
+            ("silent-in-play", replace(BASE, during_play=1)),
+            ("pins-float", replace(BASE, data_driven_outside_ns=1)),
+            ("pins-float", replace(BASE, gate_driven_outside_ns=1)),
+            ("pins-float", replace(BASE, pulled_ns=1)),
+            ("stuck-sqck", replace(BASE, would_accept=False)),
+            ("watchdog", replace(BASE, would_accept=False)),
+            ("watchdog", replace(BASE, gate_driven_ns=1)),
+            ("swap", replace(BASE, second_window_valid=0)),
+        ]
+        passing = replace(BASE, reread_valid=1, second_window_valid=1)
+
+        # Act
+        judged = [(key, holds[key](metrics)) for key, metrics in failing]
+        held = {key: check(passing) for key, check in holds.items()}
+
+        # Assert
+        self.assertEqual(
+            (judged, held),
+            ([(key, False) for key, _ in failing], dict.fromkeys(holds, True)),
+        )
+
     def test_a_property_with_no_run_is_not_applicable(self) -> None:
         # Act
         results = evaluate([run("ours", "antimod-v1-carrier")])
