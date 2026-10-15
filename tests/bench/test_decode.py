@@ -219,9 +219,12 @@ class GateSpreadTest(unittest.TestCase):
 
         # Act
         strings = decode(stretched, 1_000_000_000)
+        even = decode(changes, 1_000_000_000)
 
         # Assert
+        self.assertEqual(even[0].cell_spread_ns, 0)
         self.assertGreater(strings[0].cell_spread_ns, 0)
+        self.assertLessEqual(strings[0].cell_spread_ns, 200_000)
 
 
 class MixedModeTest(unittest.TestCase):
