@@ -22,8 +22,11 @@
 
 // Most OSCCAL may move from factory: half the datasheet's 0x20. The trim steers
 // the clock to 8 MHz within 1 percent, far under the 8.8 MHz above which the
-// datasheet says EEPROM writes may fail (2586Q, OSCCAL); the bound only stops a
-// runaway trim, which at 1 percent a notch could otherwise climb past it.
+// datasheet says EEPROM writes may fail (2586Q, OSCCAL). The bound limits a
+// runaway trim but does not keep it under 8.8 MHz: 16 notches at 0.5 to 1
+// percent a notch is 8 to 16 percent. A write that fails there leaves a record
+// whose check byte no longer matches, so the next boot falls back to the
+// defaults instead of reading it.
 #define PSCU_TRIM_MAX_OFFSET ((int8_t)16)
 
 // Largest step per batch, in notches: one per percent of error past the dead
