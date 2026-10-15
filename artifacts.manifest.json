@@ -24,9 +24,10 @@
       "url": "https://github.com/kalymos/PsNee.git",
       "commit": "df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7",
       "tree": "dee75deee9e8cb18e101a4be5413f30dc0ea00e8",
+      "sha256": "abc5f61b9768467381c5fad4ac9c852578c750231766ebe29b481373f094c5df",
       "license": "Unlicense",
       "redistributable": true,
-      "obtain": "fetched by the bench at the commit above; the tree id is checked before building"
+      "obtain": "fetched by the bench at the commit above; the tree id and the SHA-256 of its files are checked before building"
     },
     {
       "id": "old-crow-12c508",
@@ -64,10 +65,11 @@
       "url": "https://github.com/L10N37/tehUberChip_Another_PSX_Modchip.git",
       "commit": "357607fa2401ec36ceafb23cc085d447a268dd69",
       "tree": "af72ca0e317b74ff287eebe832005c446976cab3",
+      "sha256": "b8d5ce5b20704b01586503042c9aa01e9357837ebb827d0d6cd9ee0aa8e4ead7",
       "sketch": "UberNee/UberNeeV1.42.ino",
       "license": "MIT",
       "redistributable": true,
-      "obtain": "fetched by the bench at the commit above; the tree id is checked before building"
+      "obtain": "fetched by the bench at the commit above; the tree id and the SHA-256 of its files are checked before building"
     },
     {
       "id": "arduino-core-avr",
@@ -75,9 +77,10 @@
       "url": "https://github.com/arduino/ArduinoCore-avr.git",
       "commit": "86df345b3cf46754a5db38fb983ec2808ce31303",
       "tree": "e1c0e830bf07688ee0f1f68c273f0dc8fa21cf52",
+      "sha256": "267192d483d919f492aab015c85510f800c9e43fff9badd6643d67732d4fe0f0",
       "license": "LGPL-2.1-or-later",
       "redistributable": true,
-      "obtain": "fetched by the bench at release 1.8.8; the tree id is checked before building"
+      "obtain": "fetched by the bench at release 1.8.8; the tree id and the SHA-256 of its files are checked before building"
     },
     {
       "id": "old-crow-16c84-v101",

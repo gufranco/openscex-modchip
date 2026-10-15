@@ -22,7 +22,7 @@ from tests.bench.test_prepare import CORE_FILES, SKETCH, repository
 from tests.bench.test_prepare import source as fixture_source
 from tools.bench.chips import Chip, Simulator, by_name
 from tools.bench.manifest import ROOT, Artifact, load
-from tools.bench.prepare import ARDUINO_CORE
+from tools.bench.prepare import ARDUINO_CORE, tree_sha256
 from tools.bench.run import (
     END_TOLERANCE_NS,
     RUN_TIMEOUT_PER_SIM_S,
@@ -559,8 +559,8 @@ class PrepareTest(unittest.TestCase):
         self.assertIn("SHA-256", str(reason))
 
     def test_an_image_from_another_tree_is_built_again(self) -> None:
+        # Arrange
         with tempfile.TemporaryDirectory() as work:
-            # Arrange
             root = Path(work)
             (root / "build" / "bench").mkdir(parents=True)
             core = fixture_source(
@@ -581,8 +581,39 @@ class PrepareTest(unittest.TestCase):
 
             # Assert
             self.assertIsNone(reason)
-            self.assertEqual(tree_stamp(root, chip).read_text(), stamp_for(sketch))
-            self.assertNotEqual((root / chip.firmware).read_bytes(), b"old build")
+            image = (root / chip.firmware).read_bytes()
+            self.assertEqual(
+                tree_stamp(root, chip).read_text(),
+                f"{stamp_for(sketch)} {hashlib.sha256(image).hexdigest()}",
+            )
+            self.assertNotEqual(image, b"old build")
+
+    def test_an_image_changed_after_its_stamp_is_built_again(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as work:
+            root = Path(work)
+            (root / "build" / "bench").mkdir(parents=True)
+            core = fixture_source(
+                repository(root / "core", CORE_FILES), ARDUINO_CORE, None
+            )
+            sketch = fixture_source(
+                repository(root / "ub", {"U.ino": SKETCH}), "ub", "U.ino"
+            )
+            (root / "artifacts.manifest.json").write_text(
+                json.dumps({"artifacts": [asdict(core), asdict(sketch)]})
+            )
+            chip = replace(by_name("ubernee-atmega328p"), artifact="ub")
+            prepare(root, chip, root)
+            (root / chip.firmware).write_bytes(b"edited after the build")
+
+            # Act
+            reason = prepare(root, chip, root)
+
+            # Assert
+            self.assertIsNone(reason)
+            self.assertNotEqual(
+                (root / chip.firmware).read_bytes(), b"edited after the build"
+            )
 
     def test_a_source_that_fails_its_tree_check_leaves_no_stamp(self) -> None:
         with tempfile.TemporaryDirectory() as work:
@@ -691,6 +722,7 @@ class PsneeBuildTest(unittest.TestCase):
             url=str(self.repo),
             commit=git(self.repo, "rev-parse", "HEAD"),
             tree=tree,
+            sha256=tree_sha256(self.repo),
         )
 
     def test_the_pinned_tree_builds_both_targets(self) -> None:

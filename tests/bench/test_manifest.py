@@ -104,6 +104,7 @@ class ParseEntryTest(unittest.TestCase):
                     "kind": "git-source",
                     "url": "https://example.invalid/x.git",
                     "commit": "1" * 40,
+                    "sha256": "2" * 64,
                     "license": "MIT",
                     "redistributable": True,
                     "obtain": "fetched",

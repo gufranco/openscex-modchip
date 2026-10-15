@@ -22,6 +22,7 @@ from tools.bench.prepare import (
     build_ubernee,
     edit_sketch,
     hex_image,
+    tree_sha256,
 )
 
 PIC_SOURCE = """\
@@ -99,6 +100,7 @@ def source(repo: Path, artifact_id: str, sketch: str | None = None) -> Artifact:
         url=str(repo),
         commit=git(repo, "rev-parse", "HEAD"),
         tree=git(repo, "rev-parse", "HEAD^{tree}"),
+        sha256=tree_sha256(repo),
         sketch=sketch,
     )
 
@@ -267,7 +269,7 @@ class BuildTest(unittest.TestCase):
             (True, True),
         )
 
-    def test_a_second_build_reuses_the_clones(self) -> None:
+    def test_a_second_build_reuses_the_clones_without_their_strays(self) -> None:
         # Arrange
         sketch, core = self.sources()
         chip = by_name("ubernee-atmega328p")
@@ -283,8 +285,21 @@ class BuildTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(
-            (reason, [marker.is_file() for marker in markers]), (None, [True, True])
+            (reason, [marker.is_file() for marker in markers]), (None, [False, False])
         )
+
+    def test_a_core_whose_files_differ_is_refused(self) -> None:
+        # Arrange
+        sketch, core = self.sources()
+        wrong = replace(core, sha256="0" * 64)
+
+        # Act
+        reason = build_ubernee(
+            self.root, sketch, wrong, by_name("ubernee-atmega328p"), self.work
+        )
+
+        # Assert
+        self.assertIn("SHA-256", str(reason))
 
     def test_a_core_with_a_different_tree_is_refused(self) -> None:
         # Arrange

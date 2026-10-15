@@ -17,6 +17,7 @@ under build/bench:
   the LGT8F328P switch off.
 """
 
+import hashlib
 import re
 import subprocess
 from pathlib import Path
@@ -165,8 +166,22 @@ def _git(args: list[str], cwd: Path) -> str:
     ).stdout.strip()
 
 
+def tree_sha256(target: Path) -> str:
+    """The SHA-256 of a checkout's tracked files: each path, its length and its
+    bytes, in path order, so the same content always gives the same digest
+    whatever git and whatever file times."""
+    digest = hashlib.sha256()
+    names = sorted(_git(["ls-files", "-z"], target).split("\0"))
+    for name in (n for n in names if n):
+        data = (target / name).read_bytes()
+        digest.update(name.encode() + b"\0" + str(len(data)).encode() + b"\0" + data)
+    return digest.hexdigest()
+
+
 def checkout(artifact: Artifact, target: Path) -> str | None:
-    """Clone once, check out the pinned commit, and confirm its tree."""
+    """Clone once, check out the pinned commit, clear every file the commit
+    does not hold, and confirm its tree id and the SHA-256 of its files, read
+    from disk, which decides."""
     if not target.is_dir():
         subprocess.run(
             ["git", "clone", "--quiet", str(artifact.url), str(target)],
@@ -175,11 +190,15 @@ def checkout(artifact: Artifact, target: Path) -> str | None:
             timeout=TOOL_TIMEOUT_S,
         )
     _git(["checkout", "--quiet", "--force", str(artifact.commit)], target)
+    _git(["clean", "-ffdxq"], target)
     tree = _git(["rev-parse", "HEAD^{tree}"], target)
     if tree != artifact.tree:
         return (
             f"{artifact.id}: tree {tree} at {artifact.commit}, expected {artifact.tree}"
         )
+    content = tree_sha256(target)
+    if content != artifact.sha256:
+        return f"{artifact.id}: SHA-256 {content}, expected {artifact.sha256}"
     return None
 
 

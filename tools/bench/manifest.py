@@ -4,8 +4,8 @@
 """Third-party firmware the bench may run, identified by the bytes alone.
 
 `artifacts.manifest.json` gives each image or source its location or commit,
-its SHA-256 or git tree id, and its licence. A missing or different file is
-skipped with a message saying how to obtain it.
+its SHA-256, a source also its git tree id, and its licence. A missing or
+different file is skipped with a message saying how to obtain it.
 """
 
 import hashlib
@@ -21,12 +21,13 @@ REQUIRED_TEXT = ("id", "kind", "license", "obtain")
 OPTIONAL_TEXT = ("path", "sha256", "url", "commit", "tree", "sketch")
 FIELDS = frozenset((*REQUIRED_TEXT, *OPTIONAL_TEXT, "redistributable", "defines"))
 # What each kind must carry: a file is found by path and identified by its
-# SHA-256; a fetched source by its commit and the git tree id checked after it.
+# SHA-256; a fetched source by its commit, the git tree id checked after it,
+# and the SHA-256 of every file it holds, which decides (prepare.tree_sha256).
 FILE_KINDS = frozenset({"pic-image", "pic-source", "avr-image", "avr-source"})
 SOURCE_KIND = "git-source"
 NEEDS = {
     **dict.fromkeys(FILE_KINDS, ("path", "sha256")),
-    SOURCE_KIND: ("url", "commit", "tree"),
+    SOURCE_KIND: ("url", "commit", "tree", "sha256"),
 }
 SHA256 = re.compile(r"[0-9a-f]{64}")
 
@@ -98,7 +99,7 @@ def _fields(entry: dict[str, object], where: str) -> dict[str, str | None]:
     absent += [key for key in NEEDS[kind] if text[key] is None]
     if absent:
         raise ValueError(f"{where}: {kind} needs {absent}")
-    if kind in FILE_KINDS and not SHA256.fullmatch(str(text["sha256"])):
+    if not SHA256.fullmatch(str(text["sha256"])):
         raise ValueError(f"{where}: sha256 must be 64 lowercase hex digits")
     return text
 

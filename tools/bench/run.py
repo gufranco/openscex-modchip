@@ -31,6 +31,7 @@ from tools.bench.prepare import (
     assemble_avr,
     avr_elf,
     build_ubernee,
+    checkout,
 )
 from tools.bench.reach import Entry, Line, by_line, by_table, markers
 from tools.bench.scenarios import Scenario
@@ -73,35 +74,17 @@ class Run:
     executed: frozenset[int]
 
 
-def _git(args: list[str], cwd: Path) -> str:
-    return subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        check=True,
-        capture_output=True,
-        timeout=TOOL_TIMEOUT_S,
-        text=True,
-    ).stdout.strip()
-
-
 def build_psnee(root: Path, artifact: Artifact, workdir: Path) -> str | None:
     """Fetch PsNee at its pinned commit and build it for every target.
 
-    Returns None on success, else the reason. The tree id is checked after
-    checkout. Built with -g so instructions map to sketch lines.
+    Returns None on success, else the reason. The checkout is checked by its
+    tree id and its SHA-256 first. Built with -g so instructions map to sketch
+    lines.
     """
     source = workdir / "psnee-src"
-    if not source.is_dir():
-        subprocess.run(
-            ["git", "clone", "--quiet", str(artifact.url), str(source)],
-            check=True,
-            capture_output=True,
-            timeout=TOOL_TIMEOUT_S,
-        )
-    _git(["checkout", "--quiet", "--force", str(artifact.commit)], source)
-    tree = _git(["rev-parse", "HEAD^{tree}"], source)
-    if tree != artifact.tree:
-        return f"psnee: tree {tree} at {artifact.commit}, expected {artifact.tree}"
+    refused = checkout(artifact, source)
+    if refused is not None:
+        return refused
     wrapper = workdir / "psnee-main.cpp"
     sketch = (source / "PSNee" / "PSNee.ino").resolve()
     wrapper.write_text(PSNEE_PRELUDE + f'#include "{sketch}"\n')
@@ -166,8 +149,12 @@ def _from_source(
     core."""
     stamp = tree_stamp(root, chip)
     expected = stamp_for(artifact)
-    built = (root / chip.firmware).is_file()
-    if built and stamp.is_file() and stamp.read_text() == expected:
+    image = root / chip.firmware
+    if (
+        image.is_file()
+        and stamp.is_file()
+        and stamp.read_text() == _stamped(expected, image)
+    ):
         return None
     if artifact.sketch is not None:
         core = load(root)[ARDUINO_CORE]
@@ -175,8 +162,14 @@ def _from_source(
     else:
         reason = build_psnee(root, artifact, workdir)
     if reason is None:
-        stamp.write_text(expected)
+        stamp.write_text(_stamped(expected, image))
     return reason
+
+
+def _stamped(expected: str, image: Path) -> str:
+    """The stamp an image carries: its source and recipe, then the SHA-256 of
+    the image itself, so a reused image is the one that was built."""
+    return f"{expected} {hashlib.sha256(image.read_bytes()).hexdigest()}"
 
 
 def _from_file(root: Path, artifact: Artifact, chip: Chip, workdir: Path) -> str | None:
