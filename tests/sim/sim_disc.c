@@ -44,15 +44,23 @@ void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq) {
   int disc1 = strings_while(avr, t, toc, MD_TOC_FRAMES);
   md_check(t, disc1 >= 1, "disc 1 is injected", disc1);
 
+  // A string already under way began before play and only finishes in it, so
+  // play is judged by the strings that begin on DATA once it starts: none.
+  int bursts_before_play = g_data_bursts;
   clock_frames(avr, t, play, MD_SETTLE_FRAMES);
   int after_accept = strings_while(avr, t, play, MD_PLAY_FRAMES);
+  int begun = g_data_bursts - bursts_before_play;
+  md_check(t, begun == 0, "no string starts once the program area is read", begun);
   md_check(t, after_accept == 0, "no string once the program area is read", after_accept);
 
   int reread = strings_while(avr, t, toc, MD_REREAD_FRAMES);
   md_check(
       t, reread == MD_CAP, "a long TOC re-read of the same disc gets the whole cap again", reread);
+  int bursts_before_replay = g_data_bursts;
   clock_frames(avr, t, play, MD_SETTLE_FRAMES);
   int replay = strings_while(avr, t, play, MD_PLAY_FRAMES);
+  int rebegun = g_data_bursts - bursts_before_replay;
+  md_check(t, rebegun == 0, "no string starts in play after the re-read", rebegun);
   md_check(t, replay == 0, "play after the re-read stays silent", replay);
 
   swap_disc(avr);
