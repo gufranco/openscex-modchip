@@ -42,4 +42,4 @@ A change is ready when `make all size analyse test repro mutate` passes with 100
 - Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org/) and stay within 50 characters; the hook and CI enforce both, and releases are versioned from them.
 - Keep one concern per commit, and update [`README.md`](README.md) and its Japanese and Chinese versions when behaviour changes.
 
-Security problems go through the [security policy](SECURITY.md), not a public issue.
+Security problems go through the [security policy](SECURITY.md), not a public issue. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).

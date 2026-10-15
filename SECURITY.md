@@ -18,4 +18,4 @@ Ordinary bugs, such as a console that does not boot an import, belong in a [bug 
 
 Report privately through GitHub's [private vulnerability reporting](../../security/advisories/new). Do not open a public issue for a security problem.
 
-Include the release or commit, the console model and board, what you observed, and how to reproduce it. A confirmed issue is fixed in a new release, and the advisory credits you unless you ask otherwise.
+Include the release or commit, the console model and board, what you observed, and how to reproduce it. A report gets a first reply within seven days. A confirmed issue is fixed in a new release within 30 days, or the advisory says why it needs longer, and it credits you unless you ask otherwise.

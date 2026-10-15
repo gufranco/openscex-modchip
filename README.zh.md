@@ -397,6 +397,7 @@ graph LR
 | 你的主机上的结果 | [兼容性报告](../../issues/new?template=compatibility.yml) |
 | 安全报告 | [安全策略](SECURITY.md)，私下报告 |
 | 贡献 | [贡献指南](CONTRIBUTING.md) |
+| 行为准则 | [行为准则](CODE_OF_CONDUCT.md) |
 
 ## 许可证
 

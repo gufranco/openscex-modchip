@@ -397,6 +397,7 @@ graph LR
 | あなたの機種での結果 | [互換性レポート](../../issues/new?template=compatibility.yml) |
 | セキュリティ報告 | [セキュリティポリシー](SECURITY.md)、非公開で報告 |
 | 貢献 | [コントリビューションガイド](CONTRIBUTING.md) |
+| 行動規範 | [行動規範](CODE_OF_CONDUCT.md) |
 
 ## ライセンス
 

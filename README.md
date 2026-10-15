@@ -396,6 +396,7 @@ Releases follow [Semantic Versioning](https://semver.org/) on the `0.x` line, so
 | Result on your console | [compatibility report](../../issues/new?template=compatibility.yml) |
 | Security report | [security policy](SECURITY.md), reported privately |
 | Contributing | [contribution guide](CONTRIBUTING.md) |
+| Code of conduct | [code of conduct](CODE_OF_CONDUCT.md) |
 
 ## License
 
