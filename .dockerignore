@@ -1,15 +1,2 @@
-.git
-.work
-.work-local
-build
-node_modules
-**/__pycache__
-.ruff_cache
-docs
-specs
-*.md
-.mypy_cache
-.coverage
-.coverage.*
-.claude
-.vscode
+*
+!docker/requirements-tools.txt
