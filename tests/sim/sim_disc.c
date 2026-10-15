@@ -84,7 +84,10 @@ void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq) {
 }
 
 // Without a lid wire, a swap is a stretch with no valid SUBQ frame. A pause
-// under the 1.5 s bound keeps the disc and its session.
+// under the 1.5 s bound keeps the disc and its session, and the bound itself,
+// which the built image cannot show apart from a plain re-read, is pinned on
+// the host (tests/host/loop_test.c, test_disc_gone and the short pause after
+// it). Here the built image only has to serve a re-read after the pause.
 #define SHORT_PAUSE_MS 800U
 
 void scenario_disc_presence(const target_t *t, const char *elf, uint32_t freq) {
@@ -102,20 +105,21 @@ void scenario_disc_presence(const target_t *t, const char *elf, uint32_t freq) {
   char label[96];
   (void)snprintf(label,
                  sizeof(label),
-                 "disc %s: a lead-in read after a short pause is served (%d strings)",
+                 "disc %s: a lead-in re-read after an 800 ms pause gets strings (%d)",
                  t->mcu,
                  reread);
   check((g_indicator_seen != 0) && (reread >= 1), label);
 
-  // After a swap the next disc's first frames are not lead-in; with the counter
-  // emptied they must not open the window.
+  // After a swap the next disc's first frames are lead-out, which never count
+  // toward the start, so they must not open the window. Whether the swap
+  // itself emptied the counter is pinned on the host (test_disc_gone).
   const uint8_t lead_out[SUBQ_FRAME_BYTES] = { 0x41U, 0xAAU, 0x01U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   clock_frames(avr, t, toc, MD_REREAD_FRAMES);
   swap_disc(avr);
   int spin_up = strings_while(avr, t, lead_out, MD_TOC_FRAMES);
   (void)snprintf(label,
                  sizeof(label),
-                 "disc %s: a new disc's spin-up opens no window (%d strings)",
+                 "disc %s: lead-out frames after a swap open no window (%d strings)",
                  t->mcu,
                  spin_up);
   check(spin_up == 0, label);
