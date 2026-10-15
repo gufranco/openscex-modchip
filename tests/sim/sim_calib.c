@@ -352,6 +352,30 @@ void scenario_trim(const target_t *t, const char *elf, uint32_t freq) {
               (osccal(avr) == (uint8_t)(SIM_OSCCAL_FACTORY - 16U)) && (boot.largest_step == 1U) &&
                   (boot.writes == 16U),
               what);
+
+  // The live trim's 16-notch bound (rule 8), counted from the factory value and
+  // never from the replayed one: a stored -12 and a fast RC would walk two
+  // batches, 8 notches, to -20, so OSCCAL must stop at factory - 16, no write
+  // may go below it, and the record must store -16.
+  seed_calib(0U, CALIB_TRIGGER, 0U, -12);
+  cal7_watch_t clamp = { SIM_OSCCAL_FACTORY, SIM_OSCCAL_FACTORY, SIM_OSCCAL_FACTORY };
+  g_on_build = cal7_hook;
+  g_on_build_param = &clamp;
+  avr_t *fast = build_avr(t, elf, rc_speed(freq, 5));
+  g_on_build = NULL;
+  g_on_build_param = NULL;
+  trim_disc(fast, t);
+  uint8_t raw[CALIB_BYTES] = { 0 };
+  read_calib(fast, raw);
+  uint8_t bound = (uint8_t)(SIM_OSCCAL_FACTORY - 16U);
+  (void)snprintf(what,
+                 sizeof(what),
+                 "a trim from a stored -12 stops at the 16-notch bound (now 0x%02X)",
+                 osccal(fast));
+  calib_check(t,
+              calib_valid(raw) && (osccal(fast) == bound) && (clamp.lowest == bound) &&
+                  ((int8_t)raw[4] == -16),
+              what);
 }
 
 // The supply guard. simavr's bandgap reads 225 at 5 V, 341 at 3.3 V and 401 at
