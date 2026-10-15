@@ -44,7 +44,7 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 |:--|:--|:--|
 | **接受后保持静默**<br>第一个程序区帧之后不再开始新的字符串；正在发送的字符串会发完，最长 181 ms。只有新的导入区读取，例如反改机的 TOC 重读，才会再次得到响应。 | **无需光驱盖线的换盘**<br>SUBQ 帧中断 1.5 s 即视为换盘，并为下一张光盘重新武装。 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [src/run.c](src/run.c) |
 | **自校正的时序**<br>芯片对主机 75 Hz 的 SUBQ 帧计时，把内部振荡器校正到 1% 以内，无需时钟线。 | **一个区域，一个窗口**<br>只送出配置的区域字符串，只在 SUBQ 区域检查窗口内，每次武装最多 16 次。 | [src/trim.c](src/trim.c), [src/region.c](src/region.c), [include/pscu/config.h](include/pscu/config.h) |
-| **状态 LED 或蜂鸣器**<br>一个引脚显示启动阶段、每张光盘的结果和接线故障；final 构建只发短响，每个故障只报一次。 | **代码实证**<br>MISRA C:2012 合规，主机覆盖率 100%，simavr 主机模型，变异测试，逐字节一致的重新构建。 | [src/indicator.c](src/indicator.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
+| **状态 LED**<br>一个引脚显示启动阶段、每张光盘的结果和接线故障；final 构建只短闪，每个故障只报一次。 | **代码实证**<br>MISRA C:2012 合规，主机覆盖率 100%，simavr 主机模型，变异测试，逐字节一致的重新构建。 | [src/indicator.c](src/indicator.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
 
 ## 概览
 
@@ -55,7 +55,7 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 | 方式 | SCEx 注入 | [src/inject.c](src/inject.c), [psx-spx cdromdrive.md, SCEx](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromdrive.md#L1211-L1230) |
 | 区域 | 每次构建一个，`REGION=jp\|us\|eu`（默认 us） | [Makefile](Makefile), [src/region.c](src/region.c) |
 | 时钟 | 内部 8 MHz RC 振荡器，按主机的 SUBQ 帧率校正 | [src/trim.c](src/trim.c), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 连线 | 4 根信号线（SQCK、SUBQ、DATA、WFCK）加电源；LED 或有源蜂鸣器可选 | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
+| 连线 | 4 根信号线（SQCK、SUBQ、DATA、WFCK）加电源；LED 可选 | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
 | 工具链 | C17，MISRA C:2012 零偏离，版本固定的 Docker 镜像 | [Dockerfile](Dockerfile), [AGENTS.md](AGENTS.md) |
 
 ## 各机型的构建
@@ -136,7 +136,7 @@ make bench_ci    # 主机测试台：在同一个模拟主机中对比本固件�
 | DIP 脚 | 端口 | 信号 | 方向 | 连接到 | 出处 |
 |:------:|:-----|:-----|:-----|:-------|:--|
 | 1 | PB5 | RESET | - | 保持为复位 | [include/port/registers.h](include/port/registers.h), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 2 | PB3 | INDICATOR | 输出，可选 | 经 1 kΩ 电阻的状态 LED、有源蜂鸣器，或不接 | [include/port/registers.h](include/port/registers.h), [PsNee PSNee.ino L64](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L64) |
+| 2 | PB3 | INDICATOR | 输出，可选 | 经 1 kΩ 电阻的状态 LED，或不接 | [include/port/registers.h](include/port/registers.h), [PsNee PSNee.ino L64](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L64) |
 | 3 | PB4 | WFCK | 输入输出 | 静态门控，或 PU-22 及以后的实时载波 | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
 | 4 | GND | GND | - | 主机地 | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 5 | PB0 | SQCK | 输入 | SUBQ 串行时钟 | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
@@ -164,29 +164,33 @@ make bench_ci    # 主机测试台：在同一个模拟主机中对比本固件�
 
 没有时钟线和光驱盖线，因此芯片可以放在 4 根信号线够得着的任何位置。请让这些线尽量短：长线会拾取噪声，这是 Mayumi V4 故障的已知原因（quade.co）。为早期版本安装的芯片在写入本固件前必须拆掉时钟线与光驱盖线，因为 2 号脚现在是 PB3（指示输出），会与留在上面的主机时钟反向驱动。 出处：[src/trim.c](src/trim.c), [src/loop.c](src/loop.c), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/), [include/port/registers.h](include/port/registers.h)。
 
-## 载板
+## 电路板
 
-三块可选的载板把芯片装在 DIP-8 插座上，便于取下重新烧录。主机导线接在一条边上六个无孔的正面焊盘上，焊盘 4 × 4 mm、间距 6 mm，依次为 WFCK、SQCK、SUBQ、DATA、VCC 和 GND。所有元件都是直插件；芯片内置的上拉对主机噪声太弱，因此用 10 kΩ 上拉把 RESET 保持为高电平。每块板都是包含原理图、布局和设计规则的 KiCad 10 工程。来源：[hardware](hardware)。
+一块可选的电路板把芯片装在 DIP-8 插座上，便于取下重新烧录。主机导线焊在下边六个无孔的正面焊盘上，焊盘 4 × 4 mm、间距 6 mm，依次为 WFCK、SQCK、SUBQ、DATA、VCC 和 GND。所有元件都是直插件。插座、100 nF 去耦电容、220 µF 储能电容和 10 kΩ RESET 上拉总是安装，上拉是因为芯片内部的上拉抵不住主机的噪声。三个插针可选，板上标有 "opt"，只装用得到的即可。电路板是 KiCad 10 工程，含原理图、布局和设计规则，尺寸 35.6 × 34.3 mm。 出处：[hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [hardware/openscex.kicad_pcb](hardware/openscex.kicad_pcb)。
 
-| 板 | 元件 | 尺寸 | 来源 |
+| 元件 | 安装 | 用途 | 出处 |
 |:--|:--|:--|:--|
-| 载板 | 插座、100 nF 去耦电容、防呆 ISP 插座、10 kΩ RESET 上拉，以及指示电路：PB3 驱动一个 2N3904，按两位拨码开关的设置驱动带 1 kΩ 电阻的 LED、蜂鸣器、两者或都不驱动；蜂鸣器经 10 Ω 与 100 µF 滤波供电，并联一个 1N4148；一个拨动开关把 PB3 接到指示电路，或经 1 kΩ 接到 6 针串口跟踪插针 | 35.7 × 52.2 mm | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb) |
-| 迷你板 | 插座、100 nF 去耦电容、10 kΩ RESET 上拉、直接接在 PB3 上带 1 kΩ 电阻的 LED、防呆 ISP 插座 | 35.7 × 25.2 mm | [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [hardware/openscex-mini.kicad_pcb](hardware/openscex-mini.kicad_pcb) |
-| 裸板 | 只有插座、100 nF 去耦电容和 10 kΩ RESET 上拉 | 35.7 × 21.7 mm | [hardware/openscex-bare.kicad_sch](hardware/openscex-bare.kicad_sch), [hardware/openscex-bare.kicad_pcb](hardware/openscex-bare.kicad_pcb) |
+| U1，DIP-8 插座 | 总是 | 固定 ATtiny85 | [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch) |
+| C1，100 nF 陶瓷 | 总是 | 在电源引脚处应对芯片的快速电流变化 | [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch) |
+| C2，220 µF 电解 | 总是 | 在 J2 接有脉冲负载（如有源蜂鸣器）时稳住电源，免得电流脉冲经细电源线拉低电压；高 11.2 mm，可弯脚平放 | [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [Panasonic FC series](https://industrial.panasonic.com/cdbs/www-data/pdf/RDF0000/ABA0000C1209.pdf) |
+| R1，10 kΩ | 总是 | 使 RESET 保持高电平 | [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch) |
+| J1，防呆 2×3 ISP 插座 | 可选 | 重新烧录芯片 | [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch) |
+| J2，防呆 JST XH 3 针插座 | 可选 | 1 脚 GND，2 脚 VCC，3 脚 PB3（板上标为 SIG），接到自选指示器的线缆：带电阻的 LED、有源蜂鸣器或自制的电路板 | [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [JST XH datasheet](https://www.jst-mfg.com/product/pdf/eng/eXH.pdf) |
+| J3，6 针插针 | 可选 | trace 镜像的串口线，接 FTDI TTL-232R 线缆 | [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch) |
 
 <table>
-<tr><td align="center" width="33%"><a href="assets/boards/carrier-3d.png"><img src="assets/boards/carrier-3d.png" alt="载板, 3D 视图" width="260"></a><br><sub><b>载板</b>, 3D 视图</sub></td><td align="center" width="33%"><a href="assets/boards/carrier-top.png"><img src="assets/boards/carrier-top.png" alt="载板, 正面" width="260"></a><br><sub><b>载板</b>, 正面</sub></td><td align="center" width="33%"><a href="assets/boards/carrier-bottom.png"><img src="assets/boards/carrier-bottom.png" alt="载板, 背面，接地层" width="260"></a><br><sub><b>载板</b>, 背面，接地层</sub></td></tr>
-<tr><td align="center" width="33%"><a href="assets/boards/mini-3d.png"><img src="assets/boards/mini-3d.png" alt="迷你板, 3D 视图" width="260"></a><br><sub><b>迷你板</b>, 3D 视图</sub></td><td align="center" width="33%"><a href="assets/boards/mini-top.png"><img src="assets/boards/mini-top.png" alt="迷你板, 正面" width="260"></a><br><sub><b>迷你板</b>, 正面</sub></td><td align="center" width="33%"><a href="assets/boards/mini-bottom.png"><img src="assets/boards/mini-bottom.png" alt="迷你板, 背面，接地层" width="260"></a><br><sub><b>迷你板</b>, 背面，接地层</sub></td></tr>
-<tr><td align="center" width="33%"><a href="assets/boards/bare-3d.png"><img src="assets/boards/bare-3d.png" alt="裸板, 3D 视图" width="260"></a><br><sub><b>裸板</b>, 3D 视图</sub></td><td align="center" width="33%"><a href="assets/boards/bare-top.png"><img src="assets/boards/bare-top.png" alt="裸板, 正面" width="260"></a><br><sub><b>裸板</b>, 正面</sub></td><td align="center" width="33%"><a href="assets/boards/bare-bottom.png"><img src="assets/boards/bare-bottom.png" alt="裸板, 背面，接地层" width="260"></a><br><sub><b>裸板</b>, 背面，接地层</sub></td></tr>
+<tr><td align="center" width="33%"><a href="assets/boards/openscex-3d.png"><img src="assets/boards/openscex-3d.png" alt="电路板 3D 视图" width="260"></a><br><sub><b>电路板</b>，3D 视图</sub></td><td align="center" width="33%"><a href="assets/boards/openscex-top.png"><img src="assets/boards/openscex-top.png" alt="电路板正面" width="260"></a><br><sub><b>电路板</b>，正面</sub></td><td align="center" width="33%"><a href="assets/boards/openscex-bottom.png"><img src="assets/boards/openscex-bottom.png" alt="电路板背面，接地层" width="260"></a><br><sub><b>电路板</b>，背面接地层</sub></td></tr>
 </table>
 
-三块都是按抗噪设计的双层板。走线尽量放在正面，使背面在主机信号线下方保持为接地层；两层都铺地，并用 0.6 mm 过孔缝合；没有走线的弯折超过 45 度；不同网络的走线彼此相距 1 mm，与焊盘相距 0.8 mm。载板上的蜂鸣器以 2.4 kHz 脉冲最多吸取 30 mA，放在离主机信号线最远的角落，滤波器把其纹波挡在芯片电源之外。来源：[hardware/openscex-carrier.kicad_dru](hardware/openscex-carrier.kicad_dru), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb), [CMI-1295IC-0385T datasheet](https://www.sameskydevices.com/product/resource/cmi-1295ic-0385t.pdf)。
+电路板关于竖直中心线对称：芯片、串口插针和焊盘排都位于这条线上，左侧的 ISP 插座与右侧的指示插座、R1 和 C1 相互平衡。它是按抗噪设计的双层板。每条走线都在路径允许的范围内尽量加宽，本板为 1.0 mm；走线尽量放在正面，使背面在主机信号线下方保持为接地层；两层都铺地，并用 0.6 mm 过孔缝合；每个弯折都是不超过 45 度的相切圆弧；不同网络的走线彼此相距 1 mm，与焊盘相距 0.8 mm。 出处：[hardware/openscex.kicad_pcb](hardware/openscex.kicad_pcb), [hardware/openscex.kicad_dru](hardware/openscex.kicad_dru)。
 
-ISP 插座采用 AVR 六针排列：1 MISO 接 SUBQ，2 VCC，3 SCK 接 DATA，4 MOSI 接 SQCK，5 RESET，6 GND。防呆护套与其他元件保持 1.5 mm 间距。请在载板离开主机或拆下导线后再烧录：装在主机上时，编程器会向主机电源供电，并在 SQCK 和 SUBQ 上与主机的驱动器冲突。来源：[hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
+ISP 插座采用 AVR 六针排列：1 MISO 接 SUBQ，2 VCC，3 SCK 接 DATA，4 MOSI 接 SQCK，5 RESET，6 GND。防呆护套与其他所有元件保持 1.5 mm 间距。请把电路板从主机上取下或拆下导线后再烧录；装在主机上时，编程器会给主机电源供电，并在 SQCK 和 SUBQ 上与主机的驱动器冲突。 出处：[hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
 
-载板上的跟踪插针 J2 可直接插上 FTDI TTL-232R 线缆的 6 孔插座：1 脚为 GND，5 脚为线缆的 RXD 输入，2、3、4、6 脚悬空，因此线缆的 5 V 输出不会接到主机。拨动开关 SW2 (C&K OS102011MS2QN1) 拨向 IND 时把 PB3 接到指示电路，拨向 TRACE 时接到插针；它的触点先断后通，所以跟踪时指示电路保持静默。串联的 1 kΩ 电阻在一侧未上电时限制流入另一侧的电流。插针位于板边，四周留出 2 mm 空隙，所以插座或插在上面的适配器不会碰到其他元件。来源：[hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [C&K OS series datasheet](https://www.littelfuse.com/assetdocs/littelfuse-c-k-slide-os-series-datasheet?assetguid=f8954ac2-65ba-431f-af55-b0493370575e)。
+J2 是防呆的 JST XH 插座，插头只能以一个方向插入。针脚按 RC 舵机的 GND、VCC、信号顺序排列，中间的 VCC 不会碰到地线，所以即使强行反插也不会反向供电。VCC 为线缆另一端供电，例如蜂鸣器模块或自制的电路板；普通 LED 只需 GND 和 SIG。VCC 是主机的 3.5 V 电源，线缆绝不能把它接到 GND。 出处：[hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [JST XH datasheet](https://www.jst-mfg.com/product/pdf/eng/eXH.pdf)。
 
-每块板都附有物料清单，以及可直接交给制板厂的 Gerber 和钻孔压缩包，均由 KiCad 10.0.6 导出。泪滴直接画在电路板中，无需在 KiCad 中重新填充。来源：[hardware/openscex-carrier-bom.csv](hardware/openscex-carrier-bom.csv), [hardware/fab/openscex-carrier-gerbers.zip](hardware/fab/openscex-carrier-gerbers.zip), [hardware/openscex-mini-bom.csv](hardware/openscex-mini-bom.csv), [hardware/fab/openscex-mini-gerbers.zip](hardware/fab/openscex-mini-gerbers.zip), [hardware/openscex-bare-bom.csv](hardware/openscex-bare-bom.csv), [hardware/fab/openscex-bare-gerbers.zip](hardware/fab/openscex-bare-gerbers.zip)。
+串口插针 J3 可直接插上 FTDI TTL-232R 线缆的 6 孔插座：1 脚为 GND，5 脚为线缆的 RXD 输入，2、3、4、6 脚悬空，因此线缆的 5 V 输出不会接到主机。它位于上边，周围留出 2 mm，插座不会碰到其他元件。J2 和 J3 都接 PB3，而 PB3 的用途由烧录的镜像决定，所以只插与之相符的线缆：`debug` 或 `final` 用指示器线缆，`trace` 用串口线缆。 出处：[hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [hardware/openscex.kicad_pcb](hardware/openscex.kicad_pcb), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf)。
+
+电路板附有物料清单，其 Fit 列标明可选元件，以及可直接交给制板厂的 Gerber 和钻孔压缩包，均由 KiCad 10.0.6 导出。泪滴直接画在电路板中，无需在 KiCad 中重新填充。 出处：[hardware/openscex-bom.csv](hardware/openscex-bom.csv), [hardware/fab/openscex-gerbers.zip](hardware/fab/openscex-gerbers.zip)。
 
 ## 安全
 
@@ -195,25 +199,23 @@ ISP 插座采用 AVR 六针排列：1 MISO 接 SUBQ，2 VCC，3 SCK 接 DATA，4
 
 ## 状态指示
 
-PB3 可选接一个 LED 或有源蜂鸣器，这是芯片唯一的诊断手段。它显示当前阶段、每张光盘是否通过区域检查，以及出问题时该检查哪根线。它从不延迟或阻碍任何功能，也不保存历史，所以除两个启动代码外，代码都反映当前状态。 出处：[src/indicator.c](src/indicator.c)。
+PB3 可选接一个指示器（通常是 LED），这是芯片唯一的诊断手段。它显示当前阶段、每张光盘是否通过区域检查，以及出问题时该检查哪根线。它从不延迟或阻碍任何功能，也不保存历史，所以除两个启动代码外，代码都反映当前状态。 出处：[src/indicator.c](src/indicator.c)。
 
 | 部件 | 选择 | 出处 |
 |:-----|:-----|:--|
 | LED | 3 mm 或 5 mm 的红、橙、黄、绿 LED，正向电压约 2 V；不要用蓝色或白色，其 3 V 正向电压在主机的 3.5 V 电源下几乎不给电阻留电压 | [Kingbright WP7113ID datasheet](https://www.kingbrightusa.com/images/catalog/SPEC/WP7113ID.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 电阻 | 1 kΩ，功率不限：在主机的 3.5 V 下约 1.5 mA，远低于引脚 40 mA 的绝对最大值 | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| LED 接线 | 2 号引脚（PB3）接电阻，电阻接 LED 阳极（长脚），阴极（平边）接地 | [include/port/registers.h](include/port/registers.h) |
-| 蜂鸣器 | 代替 LED 的有源压电蜂鸣器，通直流就响，例如 PUI Audio AI-3035-TWT-3V-R：2 至 5 V，3 V 时最大 9 mA，约 3.5 kHz，直径 30 mm | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 蜂鸣器接线 | 2 号引脚（PB3）接蜂鸣器 + 端，- 端接地，不需要电阻或二极管：压电元件不是线圈，关断时不会送回电压尖峰。电磁蜂鸣器是线圈，不支持直接接到引脚；载板通过 Q1 并带续流二极管驱动它 | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch),  [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [include/port/registers.h](include/port/registers.h) |
+| LED 接线 | 2 号引脚（PB3）或电路板插座 J2 的 3 脚接电阻，电阻接 LED 阳极（长脚），阴极（平边）接地或 J2 的 1 脚；在电路板上，LED 和电阻装在线缆上，LED 可以放在机壳内任何位置 | [include/port/registers.h](include/port/registers.h), [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch) |
 
 驱动该引脚的构建有两种。默认的 `debug` 显示下表全部内容；用 `make PROFILE=final` 构建、以 `-final` 镜像发布的 `final` 保持安静。安装和排查故障时烧录 `debug`，玩游戏时换成 `final`。只有该引脚不同：模拟器逐个边沿核对两者在同一时刻发送相同的字符串。 出处：[include/pscu/indicator.h](include/pscu/indicator.h), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
 
 | 阶段 | debug | final | 出处 |
 |:-----|:------|:------|:--|
 | 主板识别 | 上电后点亮约 0.4 s | 熄灭 | [src/engine.c](src/engine.c) |
-| 主板确定 | 静态门控主板（PU-18、PU-20）闪 1 次 300 ms，WFCK 载波主板（PU-22 及以后）闪 2 次 | 静态门控主板短响 1 次 60 ms，WFCK 载波主板 2 次 | [src/indicator.c](src/indicator.c) |
+| 主板确定 | 静态门控主板（PU-18、PU-20）闪 1 次 300 ms，WFCK 载波主板（PU-22 及以后）闪 2 次 | 静态门控主板短闪 1 次 60 ms，WFCK 载波主板 2 次 | [src/indicator.c](src/indicator.c) |
 | 等待光盘 | 每 2 s 短闪 40 ms | 熄灭 | [src/indicator.c](src/indicator.c) |
 | 注入中 | 每个区域字符串闪 90 至 181 ms | 熄灭 | [src/engine.c](src/engine.c) |
-| 结果 | 代码显示 3 次，之后熄灭 | 被接受的光盘短响 1 次 60 ms，被拒绝的光盘显示代码 2 两次；之后熄灭 | [src/indicator.c](src/indicator.c) |
+| 结果 | 代码显示 3 次，之后熄灭 | 被接受的光盘短闪 1 次 60 ms，被拒绝的光盘显示代码 2 两次；之后熄灭 | [src/indicator.c](src/indicator.c) |
 | 游戏中 | 熄灭；每次 OSCCAL 变动或写入校准值时闪 40 ms | 熄灭 | [src/indicator.c](src/indicator.c), [src/run.c](src/run.c) |
 
 代码是 700 ms 的长闪，间隔 300 ms，暂停 2 s 后重复。`final` 中代码 3 和 4 每张光盘只显示一次，代码 7 在持续期间每 30 s 重复一次。 出处：[src/indicator.c](src/indicator.c)。
@@ -232,7 +234,7 @@ PB3 可选接一个 LED 或有源蜂鸣器，这是芯片唯一的诊断手段�
 
 `make PROFILE=trace` 构建的镜像把引脚 2 (PB3) 改作 115200 baud、8N1 的串口线，不再驱动指示。它带出不用示波器就能查出故障所需的全部信息：启动报告、芯片捕获的每个 SUBQ 帧，以及芯片每做一个决定就发出的一行，每行都带有从上电起的时间。各行在每帧之后的空隙中发出，每个空隙最多一行决定，所以 DATA 与另外两种镜像保持相同的时序，模拟器逐个边沿核对这一点。 出处：[src/trace.c](src/trace.c), [src/run.c](src/run.c), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
 
-在载板上把 SW2 拨到 TRACE，并把 TTL-232R 线缆插到跟踪插针上，黑线对准 GND；在其他板上，把引脚 2 接到 USB 串口适配器的 RX 输入，适配器的地接主机的地，mini 板上的 LED 在线路空闲时保持点亮。线路在 0 与主机的 3.5 V 逻辑电源之间摆动，TTL-232R-3V3 这样的 3.3 V 适配器即可读取。请在给主机上电之前开始捕获，这样启动报告也会被记录。 出处：[hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795)。
+在电路板上，J2 不插指示器线缆，把 TTL-232R 线缆插到串口插针 J3 上，黑线对准 GND；单独使用芯片时，把引脚 2 接到 USB 串口适配器的 RX 输入，适配器的地接主机的地。线路在 0 与主机的 3.5 V 逻辑电源之间摆动，TTL-232R-3V3 这样的 3.3 V 适配器即可读取。请在给主机上电之前开始捕获，这样启动报告也会被记录。 出处：[hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795)。
 
 ```sh
 # Linux；macOS 上端口是 /dev/cu.usbserial-*，stty 用 -f
@@ -302,7 +304,7 @@ graph LR
 | 自适应时序 | 在 WFCK 载波主板上每个注入位持续 30 个 WFCK 周期，因此在单倍速和倍速下都跟随主机的时钟；在静态门控主板上由校正后的振荡器计时 | [src/port.S](src/port.S), [src/trim.c](src/trim.c) |
 | 自我恢复 | 每次 SUBQ 采集都在帧间空隙重新对齐，30 ms 内没有边沿或比特超过 16 ms（长于一帧）时放弃，因此悬空的 SQCK 显示代码 3，而不是让芯片重启；超过 8 ms 的载波比特单元会结束字符串并释放 DATA，因此注入中 WFCK 变慢或停止都不会占住 DATA；停住 0.5 s 的主循环由看门狗重启。没有引脚需要上拉：SQCK、SUBQ、WFCK 是主机的线，DATA 释放时是主机的线，PB3 是输出 | [src/engine.c](src/engine.c), [src/port.S](src/port.S), [include/port/registers.h](include/port/registers.h) |
 | 帧完整性 | 只有 CRC-16 匹配的 SUBQ 帧才计入，因此损坏或错位的帧既不会触发字符串，也不会被算作光盘仍在，更不会被当作程序区 | [src/subq.c](src/subq.c), [ECMA-130, Q-channel CRC](https://ecma-international.org/publications-and-standards/standards/ecma-130/) |
-| 状态指示 | 可选的 LED 或有源蜂鸣器显示启动阶段、每张光盘的结果和当前故障；固件从不等待它，什么都不接也正确运行 | [src/indicator.c](src/indicator.c) |
+| 状态指示 | 可选的 LED 显示启动阶段、每张光盘的结果和当前故障；固件从不等待它，什么都不接也正确运行 | [src/indicator.c](src/indicator.c) |
 | 现场诊断 | 代码指出失败的阶段，从没有时钟的 SUBQ 到始终没有区域检查的 SUBQ；无需编程器 | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
 | 按主机校准 | 学习本主机的起始位置与自身振荡器的快慢，保存在 6 字节的 EEPROM 记录中，缺失或损坏时回退到默认值 | [src/calib.c](src/calib.c) |
 | 闭环确认 | 注入后，芯片等待程序区帧（真实的音轨号），机芯控制器只有在接受字符串后才允许读取它，并显示结果 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c) |
@@ -327,7 +329,7 @@ graph LR
 | 参数 | 取值 | 默认 | 选择 | 出处 |
 |:-----|:-----|:-----|:-----|:--|
 | `REGION` | `jp`、`us`、`eu` | `us` | 芯片送出的唯一区域字符串 | [Makefile](Makefile), [src/region.c](src/region.c) |
-| `PROFILE` | `debug`、`final`、`trace` | `debug` | 2 号引脚的作用：debug 显示每个阶段、字符串和故障；final 在上电和光盘被接受时短响，每个故障只显示一次；trace 把该引脚变成 115200 baud 的串口线，发出启动报告、每个 SUBQ 帧和芯片的每个决定；三者的 DATA 相同 | [Makefile](Makefile), [src/run.c](src/run.c), [src/trace.c](src/trace.c), [include/pscu/indicator.h](include/pscu/indicator.h) |
+| `PROFILE` | `debug`、`final`、`trace` | `debug` | 2 号引脚的作用：debug 显示每个阶段、字符串和故障；final 在上电和光盘被接受时短闪，每个故障只显示一次；trace 把该引脚变成 115200 baud 的串口线，发出启动报告、每个 SUBQ 帧和芯片的每个决定；三者的 DATA 相同 | [Makefile](Makefile), [src/run.c](src/run.c), [src/trace.c](src/trace.c), [include/pscu/indicator.h](include/pscu/indicator.h) |
 | `VCD_FILTER` | `off`、`on` | `off` | 仅 SCPH-5903 设为 on：与 PsNee V9.0 的 SCPH-5903 过滤器一样，注入只在游戏的导入区 TOC 触发，不在 Video CD 上触发 | [Makefile](Makefile), [src/subq.c](src/subq.c), [PsNee PSNee.ino L456-L490](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L456-L490) |
 
 非默认区域、过滤器或配置会在产物名上加标签，例如 `openscex-modchip-attiny85-jp.hex`、`openscex-modchip-attiny85-jp-vcd.hex` 或 `openscex-modchip-attiny85-final.hex`。 出处：[Makefile](Makefile)。

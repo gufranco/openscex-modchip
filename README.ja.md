@@ -44,7 +44,7 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 |:--|:--|:--|
 | **受け入れ後は沈黙**<br>最初のプログラム領域フレーム以降は文字列を始めません。送信中の文字列は最後まで送り、長くても 181 ms で終わります。再び応じるのは、アンチモッドの TOC 再読み取りのような新しいリードイン読み取りだけです。 | **蓋線なしのディスク交換**<br>SUBQ フレームが 1.5 s 途絶えると交換とみなし、次のディスクに向けて再武装します。 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [src/run.c](src/run.c) |
 | **自己補正のタイミング**<br>コンソールの 75 Hz の SUBQ フレームを計時し、内蔵発振器を 1% 以内に補正します。クロック線は不要です。 | **1 リージョン、1 つの窓**<br>設定したリージョン文字列だけを、SUBQ リージョンチェックの窓の間だけ、武装ごとに最大 16 回。 | [src/trim.c](src/trim.c), [src/region.c](src/region.c), [include/pscu/config.h](include/pscu/config.h) |
-| **ステータス LED またはブザー**<br>1 本のピンで起動の段階、ディスクごとの結果、配線の異常を示す。final ビルドは短く鳴るだけで、異常は 1 回だけ知らせる。 | **コードで実証**<br>MISRA C:2012 準拠、ホストカバレッジ 100%、simavr コンソールモデル、ミューテーションテスト、バイト一致の再ビルド。 | [src/indicator.c](src/indicator.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
+| **ステータス LED**<br>1 本のピンで起動の段階、ディスクごとの結果、配線の異常を示す。final ビルドは短く点滅するだけで、異常は 1 回だけ知らせる。 | **コードで実証**<br>MISRA C:2012 準拠、ホストカバレッジ 100%、simavr コンソールモデル、ミューテーションテスト、バイト一致の再ビルド。 | [src/indicator.c](src/indicator.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
 
 ## 概要
 
@@ -55,7 +55,7 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 | 方式 | SCEx 注入 | [src/inject.c](src/inject.c), [psx-spx cdromdrive.md, SCEx](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromdrive.md#L1211-L1230) |
 | リージョン | ビルドごとに 1 つ、`REGION=jp\|us\|eu`（既定 us） | [Makefile](Makefile), [src/region.c](src/region.c) |
 | クロック | 内蔵 8 MHz RC 発振器。コンソールの SUBQ フレームレートで補正 | [src/trim.c](src/trim.c), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 配線 | 信号 4 本（SQCK、SUBQ、DATA、WFCK）と電源、LED かアクティブブザーは任意 | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
+| 配線 | 信号 4 本（SQCK、SUBQ、DATA、WFCK）と電源、LED は任意 | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
 | ツールチェーン | C17、MISRA C:2012 逸脱ゼロ、バージョン固定の Docker イメージ | [Dockerfile](Dockerfile), [AGENTS.md](AGENTS.md) |
 
 ## 機種ごとのビルド
@@ -136,7 +136,7 @@ make bench_ci    # コンソールベンチ: 同じ模擬コンソールでこ�
 | DIP ピン | ポート | 信号 | 方向 | 接続先 | 出典 |
 |:--------:|:-------|:-----|:-----|:-------|:--|
 | 1 | PB5 | RESET | - | リセットのまま | [include/port/registers.h](include/port/registers.h), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| 2 | PB3 | INDICATOR | 出力、任意 | 1 kΩ の抵抗経由の状態 LED、アクティブブザー、または付けない | [include/port/registers.h](include/port/registers.h), [PsNee PSNee.ino L64](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L64) |
+| 2 | PB3 | INDICATOR | 出力、任意 | 1 kΩ の抵抗経由の状態 LED、または付けない | [include/port/registers.h](include/port/registers.h), [PsNee PSNee.ino L64](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L64) |
 | 3 | PB4 | WFCK | 入出力 | 静的ゲート、または PU-22 以降のライブキャリア | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
 | 4 | GND | GND | - | コンソールのグランド | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 5 | PB0 | SQCK | 入力 | SUBQ シリアルクロック | [include/port/registers.h](include/port/registers.h), [PsNee MCU.h L453-L530](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/MCU.h#L453-L530) |
@@ -164,29 +164,33 @@ make bench_ci    # コンソールベンチ: 同じ模擬コンソールでこ�
 
 クロック線も蓋線もないので、4 本の信号線が届く場所ならどこにでも置けます。線は短く保ってください。長い線はノイズを拾い、Mayumi V4 の不具合の既知の原因です（quade.co）。以前のリリース向けの取り付けは、このファームウェアを書き込む前にクロック線と蓋線を外してください。2 番ピンはいまは PB3 (インジケーター出力) なので、残したコンソールのクロックと逆に駆動します。 出典: [src/trim.c](src/trim.c), [src/loop.c](src/loop.c), [quade.co Mayumi V4 guide](https://quade.co/ps1-modchip-guide/mayumi-v4/), [include/port/registers.h](include/port/registers.h)。
 
-## キャリア基板
+## 基板
 
-3 種類の任意の基板が、チップを DIP-8 ソケットに保持して書き換え時に取り外せるようにします。コンソールからの配線は、一辺に 6 mm 間隔で並ぶ 4 × 4 mm の穴なし表面パッド 6 個で受けます。順に WFCK、SQCK、SUBQ、DATA、VCC、GND です。部品はすべてスルーホールで、チップ内蔵のプルアップはコンソールのノイズに弱いため、10 kΩ プルアップで RESET を High に保ちます。各基板は回路図、レイアウト、デザインルールを含む KiCad 10 プロジェクトです。出典: [hardware](hardware)。
+任意の基板 1 枚がチップを DIP-8 ソケットで保持するので、書き直しのために外せます。コンソールからの線は、下辺に 6 mm 間隔で並ぶ 4 × 4 mm の穴なし表面パッド 6 個にはんだ付けします: WFCK、SQCK、SUBQ、DATA、VCC、GND。部品はすべてスルーホールです。ソケット、100 nF のデカップリングコンデンサ、220 µF のバルクコンデンサ、10 kΩ の RESET プルアップは常に実装します。プルアップは、チップ内蔵のものがコンソールのノイズに弱いためです。3 つのヘッダは任意で、基板上に「opt」と表示されているので、使うものだけを実装できます。基板は回路図、レイアウト、デザインルールを含む KiCad 10 プロジェクトで、大きさは 35.6 × 34.3 mm です。 出典: [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [hardware/openscex.kicad_pcb](hardware/openscex.kicad_pcb)。
 
-| 基板 | 部品 | 寸法 | 出典 |
+| 部品 | 実装 | 用途 | 出典 |
 |:--|:--|:--|:--|
-| キャリア | ソケット、100 nF デカップリング、キー付き ISP ヘッダ、10 kΩ RESET プルアップ、表示回路: PB3 が 2N3904 を駆動し、2 極 DIP スイッチの設定で 1 kΩ 抵抗付き LED、ブザー、両方、またはどちらも鳴らさない。ブザーは 10 Ω と 100 µF のフィルタから給電され、1N4148 が並列に入る。スライドスイッチが PB3 を表示回路か、1 kΩ を介して 6 ピンのシリアルトレース用ヘッダにつなぐ | 35.7 × 52.2 mm | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb) |
-| ミニ | ソケット、100 nF デカップリング、10 kΩ RESET プルアップ、PB3 に直接つなぐ 1 kΩ 抵抗付き LED、キー付き ISP ヘッダ | 35.7 × 25.2 mm | [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [hardware/openscex-mini.kicad_pcb](hardware/openscex-mini.kicad_pcb) |
-| ベア | ソケット、100 nF デカップリング、10 kΩ RESET プルアップのみ | 35.7 × 21.7 mm | [hardware/openscex-bare.kicad_sch](hardware/openscex-bare.kicad_sch), [hardware/openscex-bare.kicad_pcb](hardware/openscex-bare.kicad_pcb) |
+| U1、DIP-8 ソケット | 常に | ATtiny85 を保持する | [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch) |
+| C1、100 nF セラミック | 常に | 電源ピンでチップの速い電流変化に応える | [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch) |
+| C2、220 µF 電解 | 常に | アクティブブザーなど J2 のパルス状の負荷で電源が細い電源線越しに落ちないよう支える。高さ 11.2 mm で、足を曲げて寝かせてもよい | [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [Panasonic FC series](https://industrial.panasonic.com/cdbs/www-data/pdf/RDF0000/ABA0000C1209.pdf) |
+| R1、10 kΩ | 常に | RESET を High に保つ | [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch) |
+| J1、キー付き 2×3 ISP ヘッダ | 任意 | チップの書き直し | [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch) |
+| J2、キー付き JST XH 3 ピンヘッダ | 任意 | 1 番 GND、2 番 VCC、3 番 PB3（基板上の表記は SIG）。好きな表示器へのケーブル用: 抵抗付き LED、アクティブブザー、自作の基板など | [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [JST XH datasheet](https://www.jst-mfg.com/product/pdf/eng/eXH.pdf) |
+| J3、6 ピンヘッダ | 任意 | trace イメージのシリアル線。FTDI TTL-232R ケーブル用 | [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch) |
 
 <table>
-<tr><td align="center" width="33%"><a href="assets/boards/carrier-3d.png"><img src="assets/boards/carrier-3d.png" alt="キャリア基板, 3D 表示" width="260"></a><br><sub><b>キャリア基板</b>, 3D 表示</sub></td><td align="center" width="33%"><a href="assets/boards/carrier-top.png"><img src="assets/boards/carrier-top.png" alt="キャリア基板, 表面" width="260"></a><br><sub><b>キャリア基板</b>, 表面</sub></td><td align="center" width="33%"><a href="assets/boards/carrier-bottom.png"><img src="assets/boards/carrier-bottom.png" alt="キャリア基板, 裏面、グラウンドプレーン" width="260"></a><br><sub><b>キャリア基板</b>, 裏面、グラウンドプレーン</sub></td></tr>
-<tr><td align="center" width="33%"><a href="assets/boards/mini-3d.png"><img src="assets/boards/mini-3d.png" alt="ミニ基板, 3D 表示" width="260"></a><br><sub><b>ミニ基板</b>, 3D 表示</sub></td><td align="center" width="33%"><a href="assets/boards/mini-top.png"><img src="assets/boards/mini-top.png" alt="ミニ基板, 表面" width="260"></a><br><sub><b>ミニ基板</b>, 表面</sub></td><td align="center" width="33%"><a href="assets/boards/mini-bottom.png"><img src="assets/boards/mini-bottom.png" alt="ミニ基板, 裏面、グラウンドプレーン" width="260"></a><br><sub><b>ミニ基板</b>, 裏面、グラウンドプレーン</sub></td></tr>
-<tr><td align="center" width="33%"><a href="assets/boards/bare-3d.png"><img src="assets/boards/bare-3d.png" alt="ベア基板, 3D 表示" width="260"></a><br><sub><b>ベア基板</b>, 3D 表示</sub></td><td align="center" width="33%"><a href="assets/boards/bare-top.png"><img src="assets/boards/bare-top.png" alt="ベア基板, 表面" width="260"></a><br><sub><b>ベア基板</b>, 表面</sub></td><td align="center" width="33%"><a href="assets/boards/bare-bottom.png"><img src="assets/boards/bare-bottom.png" alt="ベア基板, 裏面、グラウンドプレーン" width="260"></a><br><sub><b>ベア基板</b>, 裏面、グラウンドプレーン</sub></td></tr>
+<tr><td align="center" width="33%"><a href="assets/boards/openscex-3d.png"><img src="assets/boards/openscex-3d.png" alt="基板の 3D 表示" width="260"></a><br><sub><b>基板</b>、3D 表示</sub></td><td align="center" width="33%"><a href="assets/boards/openscex-top.png"><img src="assets/boards/openscex-top.png" alt="基板の表面" width="260"></a><br><sub><b>基板</b>、表面</sub></td><td align="center" width="33%"><a href="assets/boards/openscex-bottom.png"><img src="assets/boards/openscex-bottom.png" alt="基板の裏面、グラウンドプレーン" width="260"></a><br><sub><b>基板</b>、裏面のグラウンドプレーン</sub></td></tr>
 </table>
 
-3 枚ともノイズ対策を施した 2 層基板です。配線は可能な限り表面を通し、裏面はコンソール信号線の下のグラウンドプレーンとして残します。両面にグラウンドを流し込み、0.6 mm のビアで縫い合わせています。45 度を超えて曲がる配線はなく、異なるネットの配線は互いに 1 mm、パッドから 0.8 mm 離しています。キャリア基板では、2.4 kHz のパルスで最大 30 mA を流すブザーをコンソール信号線から最も遠い角に置き、そのリップルをフィルタでチップの電源から遠ざけます。出典: [hardware/openscex-carrier.kicad_dru](hardware/openscex-carrier.kicad_dru), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb), [CMI-1295IC-0385T datasheet](https://www.sameskydevices.com/product/resource/cmi-1295ic-0385t.pdf)。
+基板は縦の中心線に対して対称です。チップ、シリアルヘッダ、パッドの列はその線上にあり、左の ISP ヘッダと右の表示用ヘッダ、R1、C1 が釣り合っています。ノイズ対策を施した 2 層基板です。配線はどれも経路が許す限り太く、この基板では 1.0 mm です。配線は可能な限り表面を通し、裏面はコンソール信号線の下のグラウンドプレーンとして残します。両面にグラウンドを流し込み、0.6 mm のビアで縫い合わせ、曲がり角はすべて 45 度以下の接線円弧で、異なるネットは互いに 1 mm、パッドから 0.8 mm 離します。 出典: [hardware/openscex.kicad_pcb](hardware/openscex.kicad_pcb), [hardware/openscex.kicad_dru](hardware/openscex.kicad_dru)。
 
-ISP ヘッダは AVR の 6 ピン配列に従います: 1 MISO が SUBQ、2 VCC、3 SCK が DATA、4 MOSI が SQCK、5 RESET、6 GND。キー付きシュラウドは他の部品から 1.5 mm 離しています。書き換えは基板をコンソールから外すか配線を外して行ってください。取り付けたままでは、ライタがコンソールの電源に給電し、SQCK と SUBQ でコンソールのドライバと衝突します。出典: [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-mini.kicad_sch](hardware/openscex-mini.kicad_sch), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
+ISP ヘッダは AVR の 6 ピン配列に従います: 1 MISO が SUBQ、2 VCC、3 SCK が DATA、4 MOSI が SQCK、5 RESET、6 GND。キー付きのシュラウドはほかのすべての部品から 1.5 mm 離れています。書き直しは基板をコンソールから外すか線を外してから行ってください。取り付けたままでは、書き込み器がコンソールの電源に給電し、SQCK と SUBQ でコンソールのドライバとぶつかります。 出典: [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf)。
 
-キャリアのトレース用ヘッダ J2 には FTDI TTL-232R ケーブルの 6 ピンソケットが挿さります。1 番ピンが GND、5 番ピンがケーブルの RXD 入力で、2、3、4、6 番ピンは未接続のままなので、ケーブルの 5 V 出力がコンソールに届くことはありません。スライドスイッチ SW2 (C&K OS102011MS2QN1) は、つまみを IND 側にすると PB3 を表示回路へ、TRACE 側にするとヘッダへつなぎます。接点はブレーク・ビフォア・メイクなので、トレース中に表示回路が動くことはありません。直列の 1 kΩ 抵抗は、片側の電源が入っていないときに反対側へ流れ込む電流を制限します。ヘッダは基板の端に置き、周囲 2 mm を空けているので、ソケットやそこに挿したアダプタがほかの部品に当たりません。出典: [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [hardware/openscex-carrier.kicad_pcb](hardware/openscex-carrier.kicad_pcb), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [C&K OS series datasheet](https://www.littelfuse.com/assetdocs/littelfuse-c-k-slide-os-series-datasheet?assetguid=f8954ac2-65ba-431f-af55-b0493370575e)。
+J2 はキー付きの JST XH ヘッダなので、プラグは一方向にしか挿さりません。ピンは RC サーボと同じ GND、VCC、信号の順で、中央の VCC はグラウンド線と出会わないので、無理に逆向きに挿しても逆電圧はかかりません。VCC はブザーモジュールや自作の基板など、ケーブルの先の電源用で、普通の LED には GND と SIG だけで足ります。VCC はコンソールの 3.5 V 電源なので、ケーブルで GND とつながないでください。 出典: [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [JST XH datasheet](https://www.jst-mfg.com/product/pdf/eng/eXH.pdf)。
 
-各基板には部品表と、基板メーカーにそのまま渡せる Gerber とドリルのアーカイブがあり、どちらも KiCad 10.0.6 で出力しました。ティアドロップは基板自体に描き込んであるので、KiCad での再充填は不要です。出典: [hardware/openscex-carrier-bom.csv](hardware/openscex-carrier-bom.csv), [hardware/fab/openscex-carrier-gerbers.zip](hardware/fab/openscex-carrier-gerbers.zip), [hardware/openscex-mini-bom.csv](hardware/openscex-mini-bom.csv), [hardware/fab/openscex-mini-gerbers.zip](hardware/fab/openscex-mini-gerbers.zip), [hardware/openscex-bare-bom.csv](hardware/openscex-bare-bom.csv), [hardware/fab/openscex-bare-gerbers.zip](hardware/fab/openscex-bare-gerbers.zip)。
+シリアルヘッダ J3 には FTDI TTL-232R ケーブルの 6 ピンソケットが挿さります。1 番ピンが GND、5 番ピンがケーブルの RXD 入力で、2、3、4、6 番ピンは未接続なので、ケーブルの 5 V 出力がコンソールに届くことはありません。上辺にあり周囲 2 mm を空けているので、ソケットがほかの部品に当たりません。J2 と J3 はどちらも PB3 につながり、PB3 の役割は書き込んだイメージで決まるので、それに合うケーブルだけを挿してください: `debug` か `final` なら表示器のケーブル、`trace` ならシリアルケーブルです。 出典: [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [hardware/openscex.kicad_pcb](hardware/openscex.kicad_pcb), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf)。
+
+基板には、Fit 列で任意部品を示す部品表と、基板メーカーにそのまま渡せる Gerber とドリルのアーカイブがあり、どちらも KiCad 10.0.6 で出力しました。ティアドロップは基板自体に描かれているので、アーカイブを KiCad で再充填する必要はありません。 出典: [hardware/openscex-bom.csv](hardware/openscex-bom.csv), [hardware/fab/openscex-gerbers.zip](hardware/fab/openscex-gerbers.zip)。
 
 ## 安全
 
@@ -195,25 +199,23 @@ ISP ヘッダは AVR の 6 ピン配列に従います: 1 MISO が SUBQ、2 VCC�
 
 ## ステータス表示
 
-PB3 には任意で LED かアクティブブザーをつなぎ、これがチップ唯一の診断手段です。現在の段階、各ディスクがリージョンチェックを通ったか、問題があればどの配線を見るべきかを示します。どの機能も遅らせず妨げず、履歴も持たないので、起動時の 2 つを除くコードは現在の状態を示します。 出典: [src/indicator.c](src/indicator.c)。
+PB3 には任意で表示器（ふつうは LED）をつなぎ、これがチップ唯一の診断手段です。現在の段階、各ディスクがリージョンチェックを通ったか、問題があればどの配線を見るべきかを示します。どの機能も遅らせず妨げず、履歴も持たないので、起動時の 2 つを除くコードは現在の状態を示します。 出典: [src/indicator.c](src/indicator.c)。
 
 | 部品 | 選び方 | 出典 |
 |:-----|:-------|:--|
 | LED | 3 mm か 5 mm の赤、橙、黄、緑の LED、順方向電圧約 2 V。青や白は順方向電圧が 3 V あり、コンソールの 3.5 V 電源では抵抗にほとんど電圧が残らないので不可 | [Kingbright WP7113ID datasheet](https://www.kingbrightusa.com/images/catalog/SPEC/WP7113ID.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
 | 抵抗 | 1 kΩ、ワット数は問わない。コンソールの 3.5 V で約 1.5 mA で、ピンの絶対最大定格 40 mA を大きく下回る | [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| LED の配線 | 2 番ピン（PB3）から抵抗、抵抗から LED のアノード（長い足）、カソード（平らな側）を GND へ | [include/port/registers.h](include/port/registers.h) |
-| ブザー | LED の代わりに、直流をかけるだけで鳴るアクティブ圧電ブザー。例えば PUI Audio AI-3035-TWT-3V-R: 2 から 5 V、3 V で最大 9 mA、約 3.5 kHz、直径 30 mm | [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [ATtiny25/45/85 datasheet 2586Q](https://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-2586-AVR-8-bit-Microcontroller-ATtiny25-ATtiny45-ATtiny85_Datasheet.pdf) |
-| ブザーの配線 | 2 番ピン（PB3）をブザーの + 端子へ、- 端子を GND へ。抵抗もダイオードも不要: 圧電素子はコイルではないので、切っても電圧スパイクを返さない。電磁ブザーはコイルなので、ピンへの直結には対応しない。キャリア基板は Q1 とフライバックダイオードを介して駆動する | [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch),  [AI-3035-TWT-3V-R datasheet](https://api.puiaudio.com/filename/AI-3035-TWT-3V-R.pdf), [include/port/registers.h](include/port/registers.h) |
+| LED の配線 | 2 番ピン（PB3）、または基板のヘッダ J2 の 3 番ピンから抵抗、抵抗から LED のアノード（長い足）、カソード（平らな側）を GND か J2 の 1 番ピンへ。基板では LED と抵抗はケーブル側に付くので、LED はケースのどこにでも置ける | [include/port/registers.h](include/port/registers.h), [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch) |
 
 ピンを駆動するビルドは 2 種類あります。既定の `debug` は下の表のすべてを示し、`make PROFILE=final` でビルドして `-final` イメージとして配布する `final` は静かです。取り付けと不具合調査には `debug`、遊ぶときは `final` を書き込みます。違うのはピンだけで、両者が同じ文字列を同じ時刻に送ることをシミュレータがエッジ単位で確かめます。 出典: [include/pscu/indicator.h](include/pscu/indicator.h), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
 
 | 段階 | debug | final | 出典 |
 |:-----|:------|:------|:--|
 | 基板判別 | 電源投入後約 0.4 s 点灯 | 消灯 | [src/engine.c](src/engine.c) |
-| 基板確定 | 静的ゲート基板（PU-18、PU-20）なら 300 ms の点滅 1 回、WFCK キャリア基板（PU-22 以降）なら 2 回 | 静的ゲート基板なら 60 ms の短音 1 回、WFCK キャリア基板なら 2 回 | [src/indicator.c](src/indicator.c) |
+| 基板確定 | 静的ゲート基板（PU-18、PU-20）なら 300 ms の点滅 1 回、WFCK キャリア基板（PU-22 以降）なら 2 回 | 静的ゲート基板なら 60 ms の点滅 1 回、WFCK キャリア基板なら 2 回 | [src/indicator.c](src/indicator.c) |
 | ディスク待ち | 2 s ごとに 40 ms の短い点灯 | 消灯 | [src/indicator.c](src/indicator.c) |
 | 注入中 | リージョン文字列 1 本ごとに 90 から 181 ms の点灯 | 消灯 | [src/engine.c](src/engine.c) |
-| 結果 | コードを 3 回示し、その後消灯 | 受理されたディスクは 60 ms の短音 1 回、拒否されたディスクはコード 2 を 2 回。その後消灯 | [src/indicator.c](src/indicator.c) |
+| 結果 | コードを 3 回示し、その後消灯 | 受理されたディスクは 60 ms の点滅 1 回、拒否されたディスクはコード 2 を 2 回。その後消灯 | [src/indicator.c](src/indicator.c) |
 | プレイ中 | 消灯。OSCCAL が動くか校正値を書き込むたびに 40 ms の点灯 | 消灯 | [src/indicator.c](src/indicator.c), [src/run.c](src/run.c) |
 
 コードは 700 ms の長い点灯を 300 ms 間隔で数え、2 s 休んでから繰り返します。`final` ではコード 3 と 4 はディスクごとに 1 回だけ示し、コード 7 は続く間 30 s ごとに繰り返します。 出典: [src/indicator.c](src/indicator.c)。
@@ -232,7 +234,7 @@ PB3 には任意で LED かアクティブブザーをつなぎ、これがチ�
 
 `make PROFILE=trace` は、ピン 2 (PB3) を表示の代わりに 115200 baud、8N1 のシリアル線にするイメージをビルドします。オシロスコープなしで故障を突き止めるのに必要なものがすべて流れます。起動レポート、チップが取り込んだすべての SUBQ フレーム、そしてチップが下した判断ごとの 1 行で、どれにも電源投入からの時刻が付きます。行は各フレームの後の空き時間に、1 回の空き時間につき判断 1 行までで送られるので、DATA はほかの 2 つのイメージと同じタイミングを保ち、シミュレータがそれをエッジ単位で確かめます。 出典: [src/trace.c](src/trace.c), [src/run.c](src/run.c), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
 
-キャリアでは SW2 を TRACE 側にし、TTL-232R ケーブルを黒線が GND に来る向きでトレース用ヘッダに挿します。ほかの基板では、ピン 2 を USB シリアルアダプタの RX 入力に、アダプタの GND をコンソールの GND につなぎます。mini では線が待機している間 LED が点いたままです。線は 0 とコンソールの 3.5 V ロジック電源の間で振れるので、TTL-232R-3V3 のような 3.3 V アダプタで読めます。起動レポートが入るように、コンソールの電源を入れる前に取り込みを始めてください。 出典: [hardware/openscex-carrier.kicad_sch](hardware/openscex-carrier.kicad_sch), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795)。
+基板では、J2 に表示器のケーブルを挿さずに、TTL-232R ケーブルを黒線が GND に来る向きでシリアルヘッダ J3 に挿します。チップ単体では、ピン 2 を USB シリアルアダプタの RX 入力に、アダプタの GND をコンソールの GND につなぎます。線は 0 とコンソールの 3.5 V ロジック電源の間で振れるので、TTL-232R-3V3 のような 3.3 V アダプタで読めます。起動レポートが入るように、コンソールの電源を入れる前に取り込みを始めてください。 出典: [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795)。
 
 ```sh
 # Linux。macOS ではポートが /dev/cu.usbserial-* で、stty は -f を使う
@@ -302,7 +304,7 @@ graph LR
 | 適応タイミング | WFCK キャリア基板では注入ビットを WFCK の 30 周期で計時するので、等速でも倍速でもコンソールのクロックに従う。静的ゲート基板では補正済みの発振器で計時する | [src/port.S](src/port.S), [src/trim.c](src/trim.c) |
 | 自己回復 | 各 SUBQ 取得はフレーム間の隙間で再同期し、エッジが 30 ms 来ないか、ビットが 1 フレームより長い 16 ms を超えると諦めるので、浮いた SQCK はチップを再起動させずにコード 3 を示す。8 ms を超えたキャリアのビットセルは文字列を終えて DATA を解放するので、注入中に WFCK が遅くなっても止まっても DATA を保持せず、0.5 s 止まったメインループはウォッチドッグが再起動する。プルアップが必要なピンはない: SQCK、SUBQ、WFCK はコンソールの線、DATA は解放中はコンソールの線、PB3 は出力 | [src/engine.c](src/engine.c), [src/port.S](src/port.S), [include/port/registers.h](include/port/registers.h) |
 | フレームの完全性 | SUBQ フレームは CRC-16 が一致するときだけ数えるので、壊れたフレームやずれたフレームは文字列を起動せず、ディスクの存在とも、プログラム領域とも見なされない | [src/subq.c](src/subq.c), [ECMA-130, Q-channel CRC](https://ecma-international.org/publications-and-standards/standards/ecma-130/) |
-| ステータス表示 | 任意の LED かアクティブブザーが起動の段階、ディスクごとの結果、現在の異常を示す。ファームウェアはそれを待たず、何もつながなくても正しく動く | [src/indicator.c](src/indicator.c) |
+| ステータス表示 | 任意の LED が起動の段階、ディスクごとの結果、現在の異常を示す。ファームウェアはそれを待たず、何もつながなくても正しく動く | [src/indicator.c](src/indicator.c) |
 | 現場診断 | コードが、クロックが来ない SUBQ からリージョンチェックが来ない SUBQ まで、失敗した段階を示す。プログラマは不要 | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
 | コンソールごとのキャリブレーション | このコンソールの開始位置と自分の発振器の速さを学び、6 バイトの EEPROM レコードに保存する。無いか壊れていれば既定値に戻る | [src/calib.c](src/calib.c) |
 | 閉ループ確認 | 注入後、プログラム領域のフレーム（実在のトラック番号）を待つ。メカコンは文字列を受け入れた後でしかそれを許さないので、その結果を示す | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c) |
@@ -327,7 +329,7 @@ graph LR
 | ノブ | 値 | 既定 | 選ぶもの | 出典 |
 |:-----|:---|:-----|:---------|:--|
 | `REGION` | `jp`、`us`、`eu` | `us` | チップが送る唯一のリージョン文字列 | [Makefile](Makefile), [src/region.c](src/region.c) |
-| `PROFILE` | `debug`、`final`、`trace` | `debug` | 2 番ピンの役割。debug はすべての段階、文字列、異常を示し、final は電源投入時と受理時に短く鳴り、各異常を 1 回だけ示す。trace はピンを 115200 baud のシリアル線にして、起動レポート、各 SUBQ フレーム、チップの各判断を送る。DATA は 3 つとも同じ | [Makefile](Makefile), [src/run.c](src/run.c), [src/trace.c](src/trace.c), [include/pscu/indicator.h](include/pscu/indicator.h) |
+| `PROFILE` | `debug`、`final`、`trace` | `debug` | 2 番ピンの役割。debug はすべての段階、文字列、異常を示し、final は電源投入時と受理時に短く点滅し、各異常を 1 回だけ示す。trace はピンを 115200 baud のシリアル線にして、起動レポート、各 SUBQ フレーム、チップの各判断を送る。DATA は 3 つとも同じ | [Makefile](Makefile), [src/run.c](src/run.c), [src/trace.c](src/trace.c), [include/pscu/indicator.h](include/pscu/indicator.h) |
 | `VCD_FILTER` | `off`、`on` | `off` | SCPH-5903 専用で on。PsNee V9.0 の SCPH-5903 フィルタと同じく、注入はゲームのリードイン TOC でのみ起動し、ビデオ CD では起動しない | [Makefile](Makefile), [src/subq.c](src/subq.c), [PsNee PSNee.ino L456-L490](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L456-L490) |
 
 既定以外のリージョン、フィルタ、プロファイルは成果物名にタグを付けます。例 `openscex-modchip-attiny85-jp.hex`、`openscex-modchip-attiny85-jp-vcd.hex`、`openscex-modchip-attiny85-final.hex`。 出典: [Makefile](Makefile)。
