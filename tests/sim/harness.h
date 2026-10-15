@@ -152,6 +152,10 @@ void decode_region(avr_t *avr, const target_t *t, int modern, uint64_t bit_cycle
 // The DATA bursts so far that were not one string: shorter than 80 ms, longer
 // than 200 ms, or two strings run together. Closes a burst that has ended.
 int data_strays(const avr_t *avr);
+// Judge the run that just ended for DATA driven outside whole strings; set
+// g_strays_expected first when a scenario cuts a string short on purpose.
+extern int g_strays_expected;
+void sim_end_run(void);
 // Decode every gate-board DATA burst of the run into a 44-bit word, one sample
 // per bit cell from the lamp rise that opened it, and count those equal to
 // `expect`.

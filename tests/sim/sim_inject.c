@@ -275,6 +275,7 @@ void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
 
   avr_cycle_timer_cancel(avr, wfck_tick, &ctx);
   run_cycles(avr, STALL_RELEASE_CYCLES);
+  g_strays_expected = 1;
   (void)snprintf(label, sizeof(label), "stall %s: DATA released within a cell of the stall", tag);
   check(data_ddr(avr, t) == 0U, label);
 
@@ -321,6 +322,7 @@ void scenario_carrier_after_boot_stall(const target_t *t, const char *elf, uint3
   run_to(avr, g_indicator_cycle + STALL_AFTER_CYCLES);
   avr_cycle_timer_cancel(avr, wfck_tick, &ctx);
   run_cycles(avr, STALL_RELEASE_CYCLES);
+  g_strays_expected = 1;
   uint8_t released = data_ddr(avr, t);
   uint8_t record[2] = { 0U, 0U };
   avr_eeprom_desc_t desc = { .ee = record, .offset = 0, .size = 2 };

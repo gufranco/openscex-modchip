@@ -232,6 +232,34 @@ int in_burst(uint64_t cycle, uint64_t lead) {
   return 0;
 }
 
+// Every run ends with DATA driven only inside whole strings (rule 5): a burst
+// that closed lasted a string, and DATA still driven when the run stops, which
+// may be a string the run cut off, has not outlasted the longest string. A scenario that cuts a
+// string short on purpose sets g_strays_expected before its run ends. Judged when the next chip is
+// built, and once more at the end of the suite.
+int g_strays_expected = 0;
+static avr_t *g_last_avr = NULL;
+static int g_runs = 0;
+
+void sim_end_run(void) {
+  if (g_last_avr == NULL) {
+    return;
+  }
+  avr_t *avr = g_last_avr;
+  g_last_avr = NULL;
+  (void)data_strays(avr);
+  if ((g_data_driven != 0) && ((avr->cycle - g_data_start) > ms_cycles(DATA_STRING_MAX_MS))) {
+    g_data_strays++;
+  }
+  if (g_strays_expected == 0) {
+    char label[96];
+    (void)snprintf(
+        label, sizeof(label), "run %d: DATA is driven only inside whole strings", g_runs);
+    check(g_data_strays == 0, label);
+  }
+  g_strays_expected = 0;
+}
+
 int data_strays(const avr_t *avr) {
   if ((g_data_open != 0) && (g_data_driven == 0) &&
       ((avr->cycle - g_data_last) > ms_cycles(DATA_GAP_MS))) {
@@ -360,6 +388,7 @@ static uint32_t symbol_addr(const elf_firmware_t *firmware, const char *name) {
 }
 
 avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
+  sim_end_run();
   elf_firmware_t firmware;
   memset(&firmware, 0, sizeof(firmware));
   if (elf_read_firmware(elf, &firmware) != 0) {
@@ -413,6 +442,8 @@ avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
     g_on_build(avr, g_on_build_param);
   }
   run_cycles(avr, PORT_INIT_CYCLES);
+  g_last_avr = avr;
+  g_runs++;
   return avr;
 }
 

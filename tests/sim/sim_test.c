@@ -93,6 +93,7 @@ int main(int argc, char *argv[]) {
   scenario_region(&t85, argv[6], SCEE_BITS, "eu", freq);
   scenario_region(&t85, argv[7], SCEI_BITS, "jp", freq);
 
+  sim_end_run();
   check(g_record_overflows == 0, "no recorder dropped a change at its buffer's end");
   check_stack();
   return sim_report();
