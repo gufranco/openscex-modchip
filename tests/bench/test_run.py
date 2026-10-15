@@ -703,7 +703,17 @@ class ExclusionsTest(unittest.TestCase):
         table = load_exclusions(ROOT)
 
         # Assert
-        self.assertTrue(all(isinstance(k, str) for k in table))
+        self.assertEqual(
+            sorted(table),
+            [
+                "mayumi-v4-12c508a-usa",
+                "mm3-12c508a-usa",
+                "old-crow-12c508",
+                "onechip-12c508a-pal",
+                "psnee-v9",
+                "ubernee-v142",
+            ],
+        )
         self.assertTrue(any(e.file for e in table["ubernee-v142"]))
 
     def test_nothing_uncovered_needs_no_excuse(self) -> None:

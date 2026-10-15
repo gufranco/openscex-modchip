@@ -272,12 +272,19 @@ class BuildTest(unittest.TestCase):
         sketch, core = self.sources()
         chip = by_name("ubernee-atmega328p")
         build_ubernee(self.root, sketch, core, chip, self.work)
+        markers = [
+            self.work / folder / "kept" for folder in ("arduino-core", "ubernee-src")
+        ]
+        for marker in markers:
+            marker.write_text("from the first build")
 
         # Act
         reason = build_ubernee(self.root, sketch, core, chip, self.work)
 
         # Assert
-        self.assertIsNone(reason)
+        self.assertEqual(
+            (reason, [marker.is_file() for marker in markers]), (None, [True, True])
+        )
 
     def test_a_core_with_a_different_tree_is_refused(self) -> None:
         # Arrange
