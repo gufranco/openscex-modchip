@@ -211,12 +211,17 @@ static void test_outcomes(void) {
   refused.event = PSCU_INDICATOR_EVENT_REFUSED;
   g_check(tells(&refused, "@0.000 FAIL\n", NULL), "trace: a refused disc is FAIL");
 
+  pscu_trace_pass_t climbing = still();
+  climbing.counter = 0x0BU;
   pscu_trace_pass_t missed = still();
   missed.event = PSCU_INDICATOR_EVENT_REFUSED;
   missed.missed = true;
-  missed.counter = 0x0BU;
-  g_check(tells(&missed, "@0.000 MISS 0B 0C\n", NULL),
-          "trace: a lead-in that missed the start gives how far it got");
+  missed.counter = 0x02U;
+  pscu_trace_t after_climb = fresh();
+  pscu_trace_pass(&after_climb, &climbing);
+  pscu_trace_pass(&after_climb, &missed);
+  g_check(next_is(&after_climb, "@0.000 MISS 0B 0C\n") && drained(&after_climb),
+          "trace: a lead-in that missed the start gives how far it got before it fell");
 
   pscu_trace_pass_t fired = still();
   fired.event = PSCU_INDICATOR_EVENT_FIRED;
@@ -380,7 +385,7 @@ static void test_event_values(void) {
   closed.event = PSCU_INDICATOR_EVENT_REFUSED;
   closed.osccal = 0x4CU;
   pscu_trace_pass(&shut, &closed);
-  g_check(popped(&shut, (uint8_t)'D', 0x01U, 0U) && popped(&shut, 0x01U, 0x0CU, 0U),
+  g_check(popped(&shut, (uint8_t)'D', 0x01U, 0U) && popped(&shut, 0x0DU, 0x0CU, 0U),
           "trace: SHUT and MISS carry two values and no voltage");
 
   pscu_trace_t fail = fresh();

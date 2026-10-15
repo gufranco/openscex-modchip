@@ -348,6 +348,7 @@ void pscu_trace_init(pscu_trace_t *trace, pscu_calib_t calib, uint8_t osccal) {
   trace->supply_ok = true;
   trace->calib = calib;
   trace->osccal = osccal;
+  trace->counter = 0U;
 }
 
 // Queue one event at the current time; a full queue counts it as lost, and the
@@ -458,7 +459,7 @@ static void pscu_trace_disc(pscu_trace_t *trace, const pscu_trace_pass_t *pass) 
 
 // A string with its number and board mode, then the disc's outcome: accepted,
 // refused, or a lead-in that never reached the start, with the counter it got
-// to and the start it needed. String PSCU_STEALTH_STRINGS is the last one this
+// to before it fell and the start it needed. String PSCU_STEALTH_STRINGS is the last one this
 // opening allows.
 static void pscu_trace_session(pscu_trace_t *trace, const pscu_trace_pass_t *pass) {
   if (pass->fire) {
@@ -467,7 +468,7 @@ static void pscu_trace_session(pscu_trace_t *trace, const pscu_trace_pass_t *pas
   if (pass->event == PSCU_INDICATOR_EVENT_ACCEPTED) {
     pscu_trace_note(trace, PSCU_TRACE_PASS);
   } else if (pass->missed) {
-    pscu_trace_note2(trace, PSCU_TRACE_MISS, pass->counter, trace->calib.trigger);
+    pscu_trace_note2(trace, PSCU_TRACE_MISS, trace->counter, trace->calib.trigger);
   } else if (pass->event == PSCU_INDICATOR_EVENT_REFUSED) {
     pscu_trace_note(trace, PSCU_TRACE_FAIL);
   } else {
@@ -519,6 +520,7 @@ void pscu_trace_pass(pscu_trace_t *trace, const pscu_trace_pass_t *pass) {
   pscu_trace_disc(trace, pass);
   pscu_trace_session(trace, pass);
   pscu_trace_chip(trace, pass);
+  trace->counter = pass->counter;
 }
 
 uint8_t pscu_trace_format(const pscu_trace_event_t *event, uint8_t *line) {

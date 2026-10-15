@@ -119,6 +119,9 @@ typedef struct {
   bool supply_ok;
   pscu_calib_t calib;
   uint8_t osccal;
+  // The SUBQ counter after the previous pass: on the pass a lead-in ends, the
+  // counter has already fallen, and this is how far it got.
+  uint8_t counter;
 } pscu_trace_t;
 
 // What the boot report says: the build, the reset, the board and how it was
