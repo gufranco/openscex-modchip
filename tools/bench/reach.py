@@ -99,12 +99,16 @@ def by_line(
     uncovered: Iterable[int],
     lines: Mapping[int, Line | None],
     marked: dict[Line, str],
+    runtime: frozenset[int] | None = None,
 ) -> dict[int, str]:
-    """Excuse uncovered instructions on marked lines, and those with no source."""
+    """Excuse uncovered instructions on marked lines, and those with no source.
+    Given runtime, the addresses inside avr-libc and libgcc code, an instruction
+    with no source is excused only there, so a file of this firmware built
+    without line information never passes as runtime code."""
     excluded: dict[int, str] = {}
     for address in uncovered:
         line = lines.get(address)
-        if line is None:
+        if line is None and (runtime is None or address in runtime):
             excluded[address] = RUNTIME_REASON
         elif line in marked:
             excluded[address] = marked[line]

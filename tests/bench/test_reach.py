@@ -96,6 +96,16 @@ class ByLineTest(unittest.TestCase):
         # Assert
         self.assertEqual(excluded, {0x2: RUNTIME_REASON, 0x44: RUNTIME_REASON})
 
+    def test_a_sourceless_instruction_outside_runtime_code_is_not_excused(self) -> None:
+        # Arrange
+        lines = {0x2: None, 0x300: None}
+
+        # Act
+        excluded = by_line([0x2, 0x300], lines, {}, frozenset({0x2}))
+
+        # Assert
+        self.assertEqual(excluded, {0x2: RUNTIME_REASON})
+
 
 class ByTableTest(unittest.TestCase):
     def test_a_line_entry_and_an_address_entry_each_exclude(self) -> None:

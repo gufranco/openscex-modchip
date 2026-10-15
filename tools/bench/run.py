@@ -8,8 +8,10 @@ subprocess has a time limit: a runner's grows with the simulated time, every
 other tool has TOOL_TIMEOUT_S.
 """
 
+import bisect
 import hashlib
 import json
+import re
 import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -55,6 +57,8 @@ NANOSECONDS_PER_SECOND = 1_000_000_000
 # A runner stops within one instruction of the scenario's end; 10 us covers the
 # slowest simulated instruction, 1 us on a 4 MHz PIC, many times over.
 END_TOLERANCE_NS = 10_000
+# avr-nm -n prints a defined symbol as its address, its type and its name.
+NM_FIELDS = 3
 EXCLUSIONS = "bench/coverage-exclusions.json"
 SOURCE_GLOBS = ("src/*.c", "src/*.S", "include/**/*.h")
 
@@ -338,6 +342,35 @@ def parse_lines(
     return lines
 
 
+def _runtime_addresses(root: Path, chip: Chip, addresses: list[int]) -> frozenset[int]:
+    """The addresses inside avr-libc and libgcc code: those whose nearest code
+    symbol at or below them starts with an underscore, a name C reserves for
+    the implementation and this firmware never uses (MISRA C:2012 rule 21.2).
+    Local labels and weak aliases are not symbols here."""
+    listed = subprocess.run(
+        ["avr-nm", "-n", "--defined-only", str(root / chip.firmware)],
+        check=True,
+        capture_output=True,
+        timeout=TOOL_TIMEOUT_S,
+        text=True,
+    ).stdout.splitlines()
+    symbols = sorted(
+        (int(fields[0], 16), fields[2])
+        for fields in (line.split() for line in listed)
+        if len(fields) == NM_FIELDS
+        and fields[1] in ("T", "t")
+        and not fields[2].startswith(".")
+        and not re.fullmatch(r"L\d*", fields[2])
+    )
+    starts = [start for start, _ in symbols]
+    return frozenset(
+        address
+        for address in addresses
+        if (index := bisect.bisect_right(starts, address) - 1) >= 0
+        and symbols[index][1].startswith("_")
+    )
+
+
 def _source_lines(
     root: Path, chip: Chip, addresses: list[int]
 ) -> dict[int, Line | None]:
@@ -434,5 +467,10 @@ def excuse(root: Path, chip: Chip, uncovered: frozenset[int]) -> dict[int, str]:
     if chip.artifact is None:
         _require_line_table(root, chip)
     lines = _source_lines(root, chip, ordered)
-    marked = _markers(root) if chip.artifact is None else {}
-    return {**by_line(ordered, lines, marked), **by_table(ordered, lines, table)}
+    ours = chip.artifact is None
+    marked = _markers(root) if ours else {}
+    runtime = _runtime_addresses(root, chip, ordered) if ours else None
+    return {
+        **by_line(ordered, lines, marked, runtime),
+        **by_table(ordered, lines, table),
+    }
