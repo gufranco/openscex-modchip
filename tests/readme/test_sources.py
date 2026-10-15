@@ -4,7 +4,9 @@
 """Every claim in the three READMEs links to its source (AGENTS rule 15).
 
 A claim is a table row past the header, a list item, or a paragraph line
-outside code, HTML and headings; each needs a Markdown link or an href.
+outside code, HTML blocks and headings; each needs a Markdown link or an href.
+A link into the tree must name a file that exists, and a link to a file on
+GitHub must be a permalink pinned to a 40-digit commit.
 """
 
 import re
@@ -16,28 +18,38 @@ READMES = ("README.md", "README.ja.md", "README.zh.md")
 LINK = re.compile(r"\]\([^)]+\)|href=\"[^\"]+\"")
 SEPARATOR = re.compile(r"^\|(\s*:?-+:?\s*\|)+$")
 ALERT = re.compile(r"^> \[!\w+\]$")
+# Block tags that open and close an HTML region; a line may hold both.
+OPEN_BLOCK = re.compile(r"<(div|p|table)[\s>]")
+CLOSE_BLOCK = re.compile(r"</(div|p|table)>")
+TAG = re.compile(r"<[^>]*>")
+TARGET = re.compile(r"\]\(([^)\s]+)[^)]*\)|href=\"([^\"]+)\"")
+# GitHub file links must pin a commit, so the cited line cannot move under them.
+GITHUB_FILE = re.compile(r"https://github\.com/[^/]+/[^/]+/(blob|tree)/([^/]+)/")
+PINNED = re.compile(r"[0-9a-f]{40}")
 
 
 def claims(text: str) -> list[tuple[int, str]]:
     """The lines of a README that state something, with their line numbers."""
     found: list[tuple[int, str]] = []
     in_code = False
-    in_html = False
+    depth = 0
     header_next = True
     for number, raw in enumerate(text.splitlines(), start=1):
         line = raw.strip()
         if line.startswith("```"):
             in_code = not in_code
             continue
-        if line.startswith(("<div", "<p ", "<table")):
-            in_html = True
-        if in_html:
-            in_html = not line.startswith(("</div>", "</p>", "</table>"))
+        opened = len(OPEN_BLOCK.findall(line)) if not in_code else 0
+        closed = len(CLOSE_BLOCK.findall(line)) if not in_code else 0
+        inside = depth > 0 or opened > 0
+        depth = max(depth + opened - closed, 0)
+        if inside:
             continue
         if (
             in_code
             or not line
-            or line.startswith(("#", "<!--", "<"))
+            or line.startswith(("#", "<!--"))
+            or (line.startswith("<") and not TAG.sub("", line).strip())
             or ALERT.match(line)
         ):
             header_next = True
@@ -57,6 +69,26 @@ def claims(text: str) -> list[tuple[int, str]]:
 def unsourced(text: str) -> list[int]:
     """Line numbers of claims that carry no link."""
     return [number for number, line in claims(text) if not LINK.search(line)]
+
+
+def bad_targets(text: str, base: Path) -> list[str]:
+    """Link targets that cannot be a source: a path into the tree that does
+    not exist, or a GitHub file link that does not pin a commit. Routes into
+    the GitHub UI, such as ../../releases, and anchors are not files."""
+    bad: list[str] = []
+    for match in TARGET.finditer(text):
+        target = match.group(1) or match.group(2)
+        github = GITHUB_FILE.match(target)
+        if github is not None:
+            if not PINNED.fullmatch(github.group(2)):
+                bad.append(target)
+            continue
+        local = target.split("#")[0]
+        if re.match(r"[a-z]+:", target) or not local or local.startswith("../../"):
+            continue
+        if not (base / local).exists():
+            bad.append(target)
+    return bad
 
 
 class ClaimsTest(unittest.TestCase):
@@ -110,6 +142,62 @@ class ClaimsTest(unittest.TestCase):
         # Assert
         self.assertEqual(found, [(2, "> fact [a](b)")])
 
+    def test_a_one_line_html_block_does_not_hide_the_lines_after_it(self) -> None:
+        # Arrange
+        text = '<p align="center">x</p>\nunsourced claim\n'
+
+        # Act
+        missing = unsourced(text)
+
+        # Assert
+        self.assertEqual(missing, [2])
+
+    def test_lines_inside_nested_html_blocks_are_not_claims(self) -> None:
+        # Arrange
+        text = "<div>\n<p>\nplain\n</p>\nplain\n</div>\nfact\n"
+
+        # Act
+        found = claims(text)
+
+        # Assert
+        self.assertEqual(found, [(7, "fact")])
+
+    def test_inline_html_with_text_is_a_claim(self) -> None:
+        # Arrange
+        text = "<b>unsourced</b>\n<br>\n"
+
+        # Act
+        missing = unsourced(text)
+
+        # Assert
+        self.assertEqual(missing, [1])
+
+
+class TargetsTest(unittest.TestCase):
+    def test_a_missing_file_is_a_bad_target(self) -> None:
+        # Arrange
+        text = "[a](src/region.c) [b](src/absent.c) [c](../../releases) [d](#top)"
+
+        # Act
+        bad = bad_targets(text, ROOT)
+
+        # Assert
+        self.assertEqual(bad, ["src/absent.c"])
+
+    def test_a_github_file_link_must_pin_a_commit(self) -> None:
+        # Arrange
+        sha = "6d91e5d1859700000000000000000000000000ab"
+        text = (
+            f"[a](https://github.com/o/r/blob/{sha}/f.c#L1) "
+            "[b](https://github.com/o/r/blob/main/f.c)"
+        )
+
+        # Act
+        bad = bad_targets(text, ROOT)
+
+        # Assert
+        self.assertEqual(bad, ["https://github.com/o/r/blob/main/f.c"])
+
 
 class ReadmeTest(unittest.TestCase):
     def test_every_claim_in_every_readme_links_to_its_source(self) -> None:
@@ -118,3 +206,10 @@ class ReadmeTest(unittest.TestCase):
 
         # Assert
         self.assertEqual({k: v for k, v in missing.items() if v}, {})
+
+    def test_every_readme_link_resolves_or_pins_a_commit(self) -> None:
+        # Act
+        bad = {name: bad_targets((ROOT / name).read_text(), ROOT) for name in READMES}
+
+        # Assert
+        self.assertEqual({k: v for k, v in bad.items() if v}, {})
