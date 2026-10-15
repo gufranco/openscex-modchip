@@ -193,7 +193,8 @@ static void test_strings(void) {
   gate.fire = true;
   gate.sent = (uint8_t)(PSCU_STEALTH_STRINGS - 1U);
   gate.board = (uint8_t)PSCU_BOARD_MODE_GATE;
-  g_check(tells(&gate, "@0.000 SCEX 15 G\n", NULL), "trace: a string below the cap is not the cap");
+  g_check(tells(&gate, "@0.000 SCEX 15 G\n", NULL),
+          "trace: a gate-board string gives its number and G");
 
   pscu_trace_pass_t last = still();
   last.fire = true;
