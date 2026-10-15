@@ -222,6 +222,12 @@ static void trim_disc(avr_t *avr, const target_t *t) {
   g_frame_period_ns = 0U;
 }
 
+// simavr ignores OSCCAL, so a trimmed clock never reads as corrected and
+// every batch moves the full 4 notches (include/pscu/trim.h); the disc read
+// here holds two whole batches of 64 timed frames, so the trim ends 8 notches
+// from factory, short of its 16-notch bound.
+#define TRIM_TWO_BATCHES 8
+
 static uint32_t rc_speed(uint32_t freq, int percent) {
   return (uint32_t)(((uint64_t)freq * (uint64_t)(100 + percent)) / 100U);
 }
@@ -239,10 +245,10 @@ static void trim_case(const target_t *t, const char *elf, uint32_t freq, int per
   char what[96];
   if (percent > 0) {
     (void)snprintf(what, sizeof(what), "a fast RC steps OSCCAL down and stores it (%d)", moved);
-    calib_check(t, calib_valid(raw) && (moved < 0) && (stored == moved), what);
+    calib_check(t, calib_valid(raw) && (moved == -TRIM_TWO_BATCHES) && (stored == moved), what);
   } else if (percent < 0) {
     (void)snprintf(what, sizeof(what), "a slow RC steps OSCCAL up and stores it (%d)", moved);
-    calib_check(t, calib_valid(raw) && (moved > 0) && (stored == moved), what);
+    calib_check(t, calib_valid(raw) && (moved == TRIM_TWO_BATCHES) && (stored == moved), what);
   } else {
     calib_check(t, (moved == 0) && (stored == 0), "a nominal RC leaves OSCCAL alone");
   }

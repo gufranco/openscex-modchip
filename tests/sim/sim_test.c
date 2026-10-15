@@ -75,6 +75,7 @@ int main(int argc, char *argv[]) {
   // The SCPH-5903 Video-CD image.
   scenario_vcd(argv[3], freq);
   scenario_calib_jp(&t85, argv[3], freq);
+  scenario_calib_jp(&t85, argv[7], freq);
 
   // The final and trace images of the default build, checked against the
   // default (debug) image.
