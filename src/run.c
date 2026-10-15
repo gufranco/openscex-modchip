@@ -37,7 +37,12 @@
 // 64 frames at 8 MHz are 416.7 ticks; the dead band is measured from the
 // nearest whole tick, never from a truncated 416.
 _Static_assert(PSCU_TRIM_EXPECTED == 417UL, "the batch reference rounds to 417 ticks");
+_Static_assert((PSCU_CLOCKS_PER_TICK * 1000UL) == (2048UL * PSCU_CLOCKS_PER_MS),
+               "Timer1 at clk/16384 ticks every 2.048 ms (datasheet 2586Q Table 12-5)");
+_Static_assert(PSCU_TRIM_LOW == 5UL, "80 percent of a 6.51-tick frame period is 5 ticks");
+_Static_assert(PSCU_TRIM_HIGH == 9UL, "140 percent of a 6.51-tick frame period is 9 ticks");
 #endif
+_Static_assert((PSCU_CLOCKS_PER_MS * 1000UL) == F_CPU, "a millisecond holds F_CPU / 1000 clocks");
 
 // The last Timer1 reading and the clocks left over below one millisecond.
 typedef struct {

@@ -362,6 +362,20 @@ EQUIVALENTS: tuple[Equivalent, ...] = (
         0,
         "minus zero is zero",
     ),
+    Equivalent(
+        "src/run.c",
+        "+ (PSCU_TRIM_TICK_HZ / 2UL)) / PSCU_TRIM_TICK_HZ)",
+        "literal+1",
+        0,
+        "416.67 ticks round up to 417 whether half or a third of a tick is added",
+    ),
+    Equivalent(
+        "src/engine.c",
+        "(((F_CPU + (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES) - 1UL) /",
+        "literal+1",
+        -1,
+        "186.05 polls round up to 187 whether 42998, 42999 or 43042 is added first",
+    ),
 )
 
 

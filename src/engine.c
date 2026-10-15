@@ -43,6 +43,16 @@
 // so a stopped drive fails a capture within about 60 ms.
 #define PSCU_WAIT_MS (30UL)
 #define PSCU_SQCK_IDLE_WAIT_POLLS ((F_CPU * PSCU_WAIT_MS) / (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES))
+_Static_assert(PSCU_DETECT_PULSES == 25U,
+               "Mayumi v4 and Multimode v3 prove a carrier with 25 edges");
+_Static_assert(PSCU_DETECT_SETTLE_MS == 300U, "PsNee V9.0 lets WFCK start for 300 ms");
+_Static_assert(PSCU_GUARD_WINDOW == 2500U, "2500 samples of 42 cycles fit one 13.3 ms frame");
+_Static_assert(PSCU_WAIT_MS == 30UL, "an edge wait spans two 13.3 ms frame periods and a margin");
+#if F_CPU == 8000000UL
+_Static_assert(PSCU_SQCK_IDLE_POLLS == 188UL,
+               "1 ms at 43 cycles a poll is 186.05 polls: 187 up, plus one");
+_Static_assert(PSCU_SQCK_IDLE_WAIT_POLLS == 5581UL, "30 ms at 43 cycles a poll is 5581 polls");
+#endif
 // Fills a failed frame; nonzero TNO and ZERO bytes make it a miss.
 #define PSCU_SUBQ_FAILED_BYTE ((uint8_t)0xFFU)
 
