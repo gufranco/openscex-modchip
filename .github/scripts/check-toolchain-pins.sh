@@ -15,24 +15,24 @@ dockerfile=${1:-Dockerfile}
 behind=0
 
 check() {
-	name=$1
-	repository=$2
-	prefix=$3
-	pinned=$(sed -n "s/^ARG ${name}=//p" "${dockerfile}")
-	if [ -z "${pinned}" ]; then
-		printf '::error::%s has no ARG %s\n' "${dockerfile}" "${name}" >&2
-		behind=1
-		return
-	fi
-	latest=$(gh api "repos/${repository}/releases/latest" --jq .tag_name)
-	latest=${latest#"${prefix}"}
-	if [ "${pinned}" != "${latest}" ]; then
-		printf '::error::%s is pinned at %s; the latest %s release is %s\n' \
-			"${name}" "${pinned}" "${repository}" "${latest}" >&2
-		behind=1
-	else
-		printf '%s %s is the latest release\n' "${name}" "${pinned}"
-	fi
+        name=$1
+        repository=$2
+        prefix=$3
+        pinned=$(sed -n "s/^ARG ${name}=//p" "${dockerfile}")
+        if [ -z "${pinned}" ]; then
+                printf '::error::%s has no ARG %s\n' "${dockerfile}" "${name}" >&2
+                behind=1
+                return
+        fi
+        latest=$(gh api "repos/${repository}/releases/latest" --jq .tag_name)
+        latest=${latest#"${prefix}"}
+        if [ "${pinned}" != "${latest}" ]; then
+                printf '::error::%s is pinned at %s; the latest %s release is %s\n' \
+                        "${name}" "${pinned}" "${repository}" "${latest}" >&2
+                behind=1
+        else
+                printf '%s %s is the latest release\n' "${name}" "${pinned}"
+        fi
 }
 
 check CPPCHECK_VERSION danmar/cppcheck ''
