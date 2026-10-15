@@ -12,7 +12,8 @@
 // (datasheet 2586Q, Table 21-2). Double-speed periods fall outside the window.
 
 // Frame periods per batch: about 0.85 s, 417 Timer1 ticks, so one tick is
-// 0.24 percent.
+// 0.24 percent, a quarter of the dead band below. A design bound, chosen for
+// that resolution.
 #define PSCU_TRIM_FRAMES ((uint16_t)64U)
 
 // Dead band: within 1 percent changes nothing (datasheet user-calibration

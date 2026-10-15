@@ -14,16 +14,19 @@
 // Every decision of one run-loop pass, as a pure function so the host suite
 // covers the wiring between modules. run.c keeps only the hardware calls.
 
-// The trim ignores the first second of a disc, while the drive spins up.
+// The trim ignores the first second of a disc, while the drive spins up. A
+// design bound, not yet measured on a console.
 #define PSCU_LOOP_TRIM_SETTLE_MS ((uint32_t)1000U)
 
 // How far past the learned start the SUBQ counter may climb. Bounds how long
-// the window stays open once frames stop: 8 misses, about 0.5 s.
+// the window stays open once frames stop: 8 misses, about 0.5 s. A design
+// bound, not yet tuned on a console.
 #define PSCU_LOOP_COUNTER_HEADROOM ((uint8_t)8U)
 
 // How far below the learned start the counter must fall before the next
 // opening gets a fresh cap. A shallower dip holds the burst, so alternating
-// hits and misses cannot refire it.
+// hits and misses cannot refire it. A design bound, kept under the lowest
+// start by the assertion below, not yet tuned on a console.
 #define PSCU_LOOP_REARM_DEPTH ((uint8_t)8U)
 
 // Keeps a drained counter at least the depth below any start, so

@@ -28,7 +28,8 @@
 #define PSCU_GUARD_WINDOW ((uint16_t)2500U)
 // Lets WFCK start before detection (PsNee V9.0 PSNee.ino:376).
 #define PSCU_DETECT_SETTLE_MS ((uint16_t)300U)
-// One SCEx bit cell, about 250 baud, the rate the mechacon expects.
+// One SCEx bit cell, 4 ms, about 250 baud: PsNee V9.0's BIT_DELAY of 4000 us
+// (PSNee.ino:587), the rate long-deployed chips send at.
 #define PSCU_BIT_MS ((uint16_t)4U)
 // Polls of SQCK high that mark the gap between frames: 1 ms (PsNee V9.0
 // PSNee.ino:716). 43 cycles per poll, measured in simavr; scenario_gap_check

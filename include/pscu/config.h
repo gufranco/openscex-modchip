@@ -55,7 +55,8 @@
 #endif
 
 // Most region strings per arming: a safety cap so a stuck window cannot drive
-// the bus forever. The console latches the region within a few reads.
+// the bus forever. The console latches the region within a few reads. A design
+// bound, not yet tuned on a console.
 #define PSCU_STEALTH_STRINGS ((uint8_t)16U)
 
 // Frames between two strings: 67 ms at 75 Hz (PsNee V9.0 REQUEST_INJECT_GAP 5;
