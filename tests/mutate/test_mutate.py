@@ -186,6 +186,45 @@ class GenerateMutantsTest(unittest.TestCase):
             sources, ["#define LIMIT ((uint8_t)7U)\n#if LIMIT == 6U\n#endif"]
         )
 
+    def test_a_logical_not_is_dropped_and_inequality_kept(self) -> None:
+        # Arrange
+        source = "x = !a && (b != c);"
+
+        # Act
+        sources = {mutant.source for mutant in mutate.generate_mutants(source)}
+
+        # Assert
+        self.assertIn("x = a && (b != c);", sources)
+        self.assertNotIn("x = !a && (b  c);", sources)
+
+    def test_compound_assignments_and_steps_swap(self) -> None:
+        # Arrange
+        source = "a += 1; b -= 2; i++; j--;"
+
+        # Act
+        sources = {mutant.source for mutant in mutate.generate_mutants(source)}
+
+        # Assert
+        self.assertTrue(
+            {
+                "a -= 1; b -= 2; i++; j--;",
+                "a += 1; b += 2; i++; j--;",
+                "a += 1; b -= 2; i--; j--;",
+                "a += 1; b -= 2; i++; j++;",
+            }
+            <= sources
+        )
+
+    def test_a_trailing_comment_makes_no_mutant(self) -> None:
+        # Arrange
+        source = "x = 1U;  // a != b, 2U, i++, !done"
+
+        # Act
+        labels = [mutant.label for mutant in mutate.generate_mutants(source)]
+
+        # Assert
+        self.assertEqual(labels, ["L1 literal+1 col5"])
+
     def test_booleans_are_flipped(self) -> None:
         # Arrange
         source = "a = true; b = false;"

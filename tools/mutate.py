@@ -68,6 +68,9 @@ Replacement = str | Callable[[re.Match[str]], str]
 # binary operator, so a unary minus or an arrow is never touched. Every unsigned
 # literal, U, UL or ULL, is also tried one higher with its suffix kept, which
 # catches an off-by-one in a bound; that includes the values a #define names.
+# A logical not is dropped, a compound += or -= and an increment or decrement
+# swap with their opposites. Only the code before a trailing // comment is
+# mutated, so a word in the comment never makes a mutant.
 MUTATORS: tuple[tuple[str, re.Pattern[str], Replacement], ...] = (
     ("eq->ne", re.compile(r"=="), "!="),
     ("ne->eq", re.compile(r"!="), "=="),
@@ -87,6 +90,11 @@ MUTATORS: tuple[tuple[str, re.Pattern[str], Replacement], ...] = (
     ("true->false", re.compile(r"\btrue\b"), "false"),
     ("false->true", re.compile(r"\bfalse\b"), "true"),
     ("literal+1", re.compile(r"\b(0[xX][0-9A-Fa-f]+|\d+)(U(?:LL|L)?)\b"), _bump),
+    ("not->none", re.compile(r"!(?!=)"), ""),
+    ("addeq->subeq", re.compile(r"(?<= )\+=(?= )"), "-="),
+    ("subeq->addeq", re.compile(r"(?<= )-=(?= )"), "+="),
+    ("inc->dec", re.compile(r"\+\+"), "--"),
+    ("dec->inc", re.compile(r"(?<!-)--(?!-)"), "++"),
 )
 
 
@@ -269,6 +277,13 @@ EQUIVALENTS: tuple[Equivalent, ...] = (
         "literal+1",
         0,
         "a step code is only compared with its own name, and 12 names no other step",
+    ),
+    Equivalent(
+        "src/trace.c",
+        "trace->counter = 0U;",
+        "literal+1",
+        0,
+        "no pass can miss before a pass has carried the counter to the lowest start",
     ),
     Equivalent(
         "src/trace.c",
@@ -455,8 +470,9 @@ def generate_mutants(source: str, path: str = "") -> list[Mutant]:
     for index, line in enumerate(lines):
         if _is_skipped(line):
             continue
+        code_end = line.find("//") if "//" in line else len(line)
         for name, pattern, replacement in MUTATORS:
-            for occurrence, match in enumerate(pattern.finditer(line)):
+            for occurrence, match in enumerate(pattern.finditer(line, 0, code_end)):
                 if _equivalent(path, line, name, occurrence):
                     continue
                 text = (
