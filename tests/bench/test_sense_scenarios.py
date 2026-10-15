@@ -12,8 +12,9 @@ from tools.bench.sense_scenarios import (
     GATE_PATHS,
     SENSE_SCENARIOS,
     SPEED_SPELLS_MS,
+    _path_step,
 )
-from tools.bench.timeline import Signal
+from tools.bench.timeline import Signal, Timeline
 
 
 def scenario(name: str) -> Scenario:
@@ -21,6 +22,14 @@ def scenario(name: str) -> Scenario:
 
 
 class SenseScenarioTest(unittest.TestCase):
+    def test_an_unknown_path_action_is_refused(self) -> None:
+        # Act
+        with self.assertRaises(ValueError) as raised:
+            _path_step(Timeline(), "lidd", 0)
+
+        # Assert
+        self.assertEqual(str(raised.exception), "unknown path action 'lidd'")
+
     def test_every_sense_scenario_marks_its_first_disc(self) -> None:
         # Act
         marked = [s.name for s in SENSE_SCENARIOS if Phase.LEAD_IN in s.phases]

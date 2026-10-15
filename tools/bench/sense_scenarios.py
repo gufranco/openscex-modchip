@@ -191,8 +191,10 @@ def _path_step(timeline: Timeline, action: str, ms: int) -> None:
         timeline.set(Signal.LID, 1).idle(LID_TAP_MS * MS)
         timeline.set(Signal.RESET, 0).idle(RESET_TAP_MS * MS).set(Signal.RESET, 1)
         timeline.idle(LID_TAP_MS * MS).set(Signal.LID, 0)
-    else:
+    elif action == "lid":
         timeline.set(Signal.LID, 1).idle(LID_TAP_MS * MS).set(Signal.LID, 0)
+    else:
+        raise ValueError(f"unknown path action {action!r}")
 
 
 def _boot_tap(timeline: Timeline, after_ms: int) -> None:
