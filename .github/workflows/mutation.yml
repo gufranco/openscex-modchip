@@ -3,7 +3,8 @@
 
 # Mutation of the platform C, run.c and engine.c, each mutant killed by the
 # simulator suite. It plays every scenario once per mutant, so it runs only
-# when the code it defends, the suite that kills it, or the tool changes.
+# when the code it defends, the suite that kills it, the tool or the pinned
+# toolchain that compiles and simulates it changes.
 name: Platform mutation
 
 on:
@@ -15,7 +16,9 @@ on:
       - "tests/sim/**"
       - "tools/mutate.py"
       - "Makefile"
+      - "Dockerfile"
       - "docker/**"
+      - "tools/docker_make.py"
       - ".github/workflows/mutation.yml"
   pull_request:
     paths:
@@ -24,16 +27,21 @@ on:
       - "tests/sim/**"
       - "tools/mutate.py"
       - "Makefile"
+      - "Dockerfile"
       - "docker/**"
+      - "tools/docker_make.py"
       - ".github/workflows/mutation.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# A newer push to a pull request supersedes its run. On main every run
+# finishes, since a 74 min run cancelled by each push would leave main
+# without a verdict on a busy day.
 concurrency:
   group: mutation-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   mutate-platform:
