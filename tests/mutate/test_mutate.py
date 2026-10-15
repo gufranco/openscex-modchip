@@ -338,25 +338,35 @@ class MutantKilledTest(ProjectTestCase):
         self.assertEqual((killed, (root / "logic.c").read_text()), (False, LOGIC))
 
     def test_file_is_restored_when_the_build_raises(self) -> None:
-        # Act
+        # Arrange
         root = self.make(STRONG_TEST)
         mutant = mutate.generate_mutants(LOGIC)[0]
         broken = mutate.Suite(("logic.c",), ("test.c",), "/nonexistent/cc", ())
 
-        # Assert
-        with self.assertRaises(FileNotFoundError):
+        # Act
+        with self.assertRaises(FileNotFoundError) as raised:
             mutate._mutant_killed(root, root / "logic.c", mutant, root / "bin", broken)
-        self.assertEqual((root / "logic.c").read_text(), LOGIC)
+
+        # Assert
+        self.assertEqual(
+            (raised.exception.filename, (root / "logic.c").read_text()),
+            ("/nonexistent/cc", LOGIC),
+        )
 
 
 class RunTest(ProjectTestCase):
     def test_raises_when_baseline_fails(self) -> None:
-        # Act
+        # Arrange
         root = self.make(FAILING_TEST)
 
-        # Assert
-        with self.assertRaises(RuntimeError):
+        # Act
+        with self.assertRaises(RuntimeError) as raised:
             mutate.run(root, SUITE)
+
+        # Assert
+        self.assertEqual(
+            str(raised.exception), "baseline host suite does not pass; cannot mutate"
+        )
 
     def test_strong_suite_kills_every_mutant(self) -> None:
         # Arrange
