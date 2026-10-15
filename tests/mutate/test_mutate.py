@@ -162,6 +162,30 @@ class GenerateMutantsTest(unittest.TestCase):
         # Assert
         self.assertTrue({"x = 0x10U + 9U;", "x = 0x0FU + 10U;"} <= sources)
 
+    def test_a_long_unsigned_literal_keeps_its_suffix(self) -> None:
+        # Arrange
+        source = "x = 0xFFFFFFFFUL + 7ULL;"
+
+        # Act
+        sources = {mutant.source for mutant in mutate.generate_mutants(source)}
+
+        # Assert
+        self.assertTrue(
+            {"x = 0x100000000UL + 7ULL;", "x = 0xFFFFFFFFUL + 8ULL;"} <= sources
+        )
+
+    def test_a_defined_value_is_mutated_but_other_directives_are_not(self) -> None:
+        # Arrange
+        source = "#define LIMIT ((uint8_t)6U)\n#if LIMIT == 6U\n#endif"
+
+        # Act
+        sources = [mutant.source for mutant in mutate.generate_mutants(source)]
+
+        # Assert
+        self.assertEqual(
+            sources, ["#define LIMIT ((uint8_t)7U)\n#if LIMIT == 6U\n#endif"]
+        )
+
     def test_booleans_are_flipped(self) -> None:
         # Arrange
         source = "a = true; b = false;"

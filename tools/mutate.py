@@ -56,7 +56,8 @@ def _bump(match: re.Match[str]) -> str:
     """An unsigned integer literal one higher, in the same base and suffix."""
     digits = match.group(1)
     value = int(digits, 0) + 1
-    return (f"0x{value:X}" if digits.lower().startswith("0x") else str(value)) + "U"
+    number = f"0x{value:X}" if digits.lower().startswith("0x") else str(value)
+    return number + match.group(2)
 
 
 Replacement = str | Callable[[re.Match[str]], str]
@@ -65,7 +66,8 @@ Replacement = str | Callable[[re.Match[str]], str]
 # use look-around so they never match <<, >>, ->, <=, >= or ==. The arithmetic,
 # bitwise and shift forms match only between spaces, as clang-format writes a
 # binary operator, so a unary minus or an arrow is never touched. Every unsigned
-# literal is also tried one higher, which catches an off-by-one in a bound.
+# literal, U, UL or ULL, is also tried one higher with its suffix kept, which
+# catches an off-by-one in a bound; that includes the values a #define names.
 MUTATORS: tuple[tuple[str, re.Pattern[str], Replacement], ...] = (
     ("eq->ne", re.compile(r"=="), "!="),
     ("ne->eq", re.compile(r"!="), "=="),
@@ -84,7 +86,7 @@ MUTATORS: tuple[tuple[str, re.Pattern[str], Replacement], ...] = (
     ("shr->shl", re.compile(r"(?<= )>>(?= )"), "<<"),
     ("true->false", re.compile(r"\btrue\b"), "false"),
     ("false->true", re.compile(r"\bfalse\b"), "true"),
-    ("literal+1", re.compile(r"\b(0[xX][0-9A-Fa-f]+|\d+)U\b"), _bump),
+    ("literal+1", re.compile(r"\b(0[xX][0-9A-Fa-f]+|\d+)(U(?:LL|L)?)\b"), _bump),
 )
 
 
@@ -255,6 +257,20 @@ EQUIVALENTS: tuple[Equivalent, ...] = (
         "a track number 0x9A already fails the units-digit check",
     ),
     Equivalent(
+        "src/region.c",
+        "#define PSCU_SCEX_BYTE_COUNT ((uint8_t)6U)",
+        "literal+1",
+        0,
+        "a seventh column is zero padding: bit indexes below 44 read bytes 0 to 5",
+    ),
+    Equivalent(
+        "src/trace.c",
+        "#define PSCU_TRACE_GLUE_B ((uint16_t)11U)",
+        "literal+1",
+        0,
+        "a step code is only compared with its own name, and 12 names no other step",
+    ),
+    Equivalent(
         "src/trace.c",
         "trace->head = 0U;",
         "literal+1",
@@ -408,11 +424,12 @@ class Result:
 
 
 def _is_skipped(line: str) -> bool:
-    """Lines not worth mutating: preprocessor and comment lines, PSCU_ASSERT
-    guards (excluded from coverage too), and _Static_assert, which emits no
-    code."""
+    """Lines not worth mutating: comment lines, preprocessor lines other than
+    a #define, whose value is code like any other, PSCU_ASSERT guards (excluded
+    from coverage too), and _Static_assert, which emits no code."""
     stripped = line.lstrip()
-    if stripped.startswith("#") or stripped.startswith("//"):
+    directive = stripped.startswith("#") and not stripped.startswith("#define")
+    if directive or stripped.startswith("//"):
         return True
     return ("PSCU_ASSERT" in line) or ("_Static_assert" in line)
 
