@@ -449,13 +449,17 @@ void scenario_bad_crc(const target_t *t, const char *elf, uint32_t freq) {
   char label[96];
   (void)snprintf(label, sizeof(label), "%s: a lead-in failing its CRC never arms", t->mcu);
   check((g_indicator_seen == 0) && (g_data_drives == 0), label);
-  clock_until_inject(avr, t, toc);
+  // Judged on DATA, not the lamp: the debug image's waiting heartbeat lights
+  // the lamp on its own, which would pass a chip that never armed.
+  for (int i = 0; (i < (TRIGGER_FRAMES + TRIGGER_SPARE_FRAMES)) && (g_data_drives == 0); i++) {
+    clock_frame(avr, t, toc);
+  }
   uint64_t deadline = avr->cycle + INDICATOR_DEADLINE;
-  while ((g_indicator_seen == 0) && (avr->cycle < deadline)) {
+  while ((g_data_drives == 0) && (avr->cycle < deadline)) {
     run_cycles(avr, 2000U);
   }
   (void)snprintf(label, sizeof(label), "%s: the same lead-in with its CRC arms", t->mcu);
-  check(g_indicator_seen != 0, label);
+  check(g_data_drives != 0, label);
 }
 
 void scenario_families(const target_t *t, const char *elf, uint32_t freq) {
