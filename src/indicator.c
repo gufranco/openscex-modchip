@@ -167,10 +167,18 @@ static bool pscu_indicator_lit(const pscu_indicator_t *state) {
   return lit || pscu_indicator_flash_lit(count, on_ms, pause_ms, state->phase_ms);
 }
 
+// The stages a new disc ends besides a shown result, as a bit set by stage:
+// a string wait left behind and the dark play stage. One test for both keeps
+// one path in the image; a string wait outlives its disc only when a session
+// resolved while its burst was held below the start, which the bench cannot
+// stage, so a separate path for it would never be executed there.
+#define PSCU_INDICATOR_LEFTOVER \
+  ((uint8_t)((1U << (uint8_t)PSCU_INDICATOR_INJECT) | (1U << (uint8_t)PSCU_INDICATOR_DARK)))
+
 pscu_indicator_t pscu_indicator_disc_arrived(pscu_indicator_t state) {
   pscu_indicator_t next = state;
   bool result = (state.stage == PSCU_INDICATOR_CODE) && !state.live;
-  bool leftover = (state.stage == PSCU_INDICATOR_INJECT) || (state.stage == PSCU_INDICATOR_DARK);
+  bool leftover = ((PSCU_INDICATOR_LEFTOVER >> (uint8_t)state.stage) & 1U) != 0U;
   next.told = 0U;
   if (result || leftover) {
     pscu_indicator_enter(&next, PSCU_INDICATOR_WAIT, 0U, false);
