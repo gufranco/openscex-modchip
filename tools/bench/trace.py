@@ -36,7 +36,11 @@ def parse(lines: list[str]) -> Trace:
     end_ns: int | None = None
     for number, line in enumerate(lines, start=1):
         words = line.split()
-        if len(words) != FIELDS or not words[0].isdigit():
+        if (
+            len(words) != FIELDS
+            or not words[0].isdigit()
+            or not {words[2], words[3]} <= {"0", "1"}
+        ):
             raise ValueError(
                 f"trace line {number}: expected time, output, driven, level"
             )

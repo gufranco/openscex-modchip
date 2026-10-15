@@ -94,6 +94,20 @@ class DrivenTest(unittest.TestCase):
             str(raised.exception), "trace has no end line: the runner stopped early"
         )
 
+    def test_a_level_other_than_zero_or_one_is_refused(self) -> None:
+        # Arrange
+        lines = ["0 data 1 0", "10 data 1 x", "20 end 0 0"]
+
+        # Act
+        with self.assertRaises(ValueError) as raised:
+            parse(lines)
+
+        # Assert
+        self.assertEqual(
+            str(raised.exception),
+            "trace line 2: expected time, output, driven, level",
+        )
+
     def test_a_malformed_line_is_refused_with_its_number(self) -> None:
         # Arrange
         lines = ["0 data 1 0", "10 data 0", "20 end 0 0"]
