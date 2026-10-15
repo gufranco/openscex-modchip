@@ -339,7 +339,8 @@ def _runtime_addresses(root: Path, chip: Chip, addresses: list[int]) -> frozense
     """The addresses inside avr-libc and libgcc code: those whose nearest code
     symbol at or below them starts with an underscore, a name C reserves for
     the implementation and this firmware never uses (MISRA C:2012 rule 21.2).
-    Local labels and weak aliases are not symbols here."""
+    Local labels, such as .L5 or L0 with a control byte after it, and weak
+    aliases are not symbols here."""
     listed = subprocess.run(
         ["avr-nm", "-n", "--defined-only", str(root / chip.firmware)],
         check=True,
@@ -353,7 +354,7 @@ def _runtime_addresses(root: Path, chip: Chip, addresses: list[int]) -> frozense
         if len(fields) == NM_FIELDS
         and fields[1] in ("T", "t")
         and not fields[2].startswith(".")
-        and not re.fullmatch(r"L\d*", fields[2])
+        and not re.match(r"L\d", fields[2])
     )
     starts = [start for start, _ in symbols]
     return frozenset(
