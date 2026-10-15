@@ -38,6 +38,7 @@ from tools.bench.run import (
     program_addresses,
     run,
     run_timeout,
+    stamp_for,
     tree_stamp,
 )
 from tools.bench.scenarios import by_name as scenario
@@ -468,7 +469,7 @@ class PrepareTest(unittest.TestCase):
 
             # Assert
             self.assertIsNone(reason)
-            self.assertEqual(tree_stamp(root, chip).read_text(), sketch.tree)
+            self.assertEqual(tree_stamp(root, chip).read_text(), stamp_for(sketch))
             self.assertNotEqual((root / chip.firmware).read_bytes(), b"old build")
 
     def test_a_source_that_fails_its_tree_check_leaves_no_stamp(self) -> None:
@@ -527,14 +528,27 @@ class PrepareTest(unittest.TestCase):
             chip = replace(by_name("ubernee-atmega328p"), firmware="built.elf")
             (root / "built.elf").write_bytes(b"elf")
             shutil.copy(ROOT / "artifacts.manifest.json", root)
-            pinned = load(root)[str(chip.artifact)].tree
-            tree_stamp(root, chip).write_text(str(pinned))
+            pinned = load(root)[str(chip.artifact)]
+            tree_stamp(root, chip).write_text(stamp_for(pinned))
 
             # Act
             reason = prepare(root, chip, root)
 
         # Assert
         self.assertIsNone(reason)
+
+
+class StampTest(unittest.TestCase):
+    def test_a_stamp_names_the_tree_and_a_digest_of_the_recipe(self) -> None:
+        # Arrange
+        pinned = load(ROOT)["ubernee-v142"]
+
+        # Act
+        stamp = stamp_for(pinned)
+
+        # Assert
+        tree, digest = stamp.split()
+        self.assertEqual((tree, len(digest)), (pinned.tree, 64))
 
 
 class PsneeBuildTest(unittest.TestCase):
@@ -699,6 +713,15 @@ class ExclusionsTest(unittest.TestCase):
         # Assert
         self.assertEqual(excused, {})
 
+    def test_a_third_party_avr_image_with_nothing_uncovered_is_excused_nothing(
+        self,
+    ) -> None:
+        # Act
+        excused = excuse(ROOT, by_name("psnee-attiny85"), frozenset())
+
+        # Assert
+        self.assertEqual(excused, {})
+
     def test_a_pic_image_is_excused_by_address_from_the_table(self) -> None:
         # Act
         excused = excuse(ROOT, by_name("mayumi-v4"), frozenset({0x008, 0x050}))
@@ -706,6 +729,37 @@ class ExclusionsTest(unittest.TestCase):
         # Assert
         self.assertEqual(list(excused), [0x008])
         self.assertIn("Mayumi04", excused[0x008])
+
+    def test_ours_without_a_line_table_is_refused(self) -> None:
+        # Arrange
+        chip = by_name("ours")
+        with tempfile.TemporaryDirectory() as work:
+            stripped = Path(work) / chip.firmware
+            stripped.parent.mkdir(parents=True)
+            (Path(work) / "bench").mkdir()
+            shutil.copy(
+                ROOT / "bench" / "coverage-exclusions.json", Path(work) / "bench"
+            )
+            subprocess.run(
+                [
+                    "avr-objcopy",
+                    "--strip-debug",
+                    str(ROOT / chip.firmware),
+                    str(stripped),
+                ],
+                check=True,
+                timeout=60,
+            )
+
+            # Act
+            with self.assertRaises(ValueError) as raised:
+                excuse(Path(work), chip, frozenset({0x0}))
+
+        # Assert
+        self.assertEqual(
+            str(raised.exception),
+            f"{chip.firmware} has no line table: build it with -g",
+        )
 
     def test_ours_excuses_only_marked_and_runtime_instructions(self) -> None:
         # Arrange

@@ -8,6 +8,7 @@ subprocess has a time limit: a runner's grows with the simulated time, every
 other tool has TOOL_TIMEOUT_S.
 """
 
+import hashlib
 import json
 import subprocess
 from collections.abc import Mapping
@@ -20,7 +21,10 @@ from tools.bench.manifest import Artifact, Status, check, load
 from tools.bench.metrics import Metrics, measure
 from tools.bench.prepare import (
     ARDUINO_CORE,
+    ARDUINO_FLAGS,
+    CPP_FLAGS,
     TOOL_TIMEOUT_S,
+    UBERNEE_EDITS,
     assemble,
     assemble_avr,
     avr_elf,
@@ -41,6 +45,7 @@ PSNEE_PRELUDE = (
     "#include <avr/io.h>\n#include <avr/interrupt.h>\n"
     "#include <util/delay.h>\n#include <stdint.h>\n"
 )
+PSNEE_FLAGS = ("-DSCPH_xxx1", "-Os", "-g", "-std=gnu++17")
 # A run's backstop: a fixed allowance plus a share per simulated second. The
 # slowest chip, UberNee at 16 MHz with serial debug on, takes 5.1 s per
 # simulated second alone on one core; the share doubles that.
@@ -100,10 +105,7 @@ def build_psnee(root: Path, artifact: Artifact, workdir: Path) -> str | None:
                 "avr-g++",
                 f"-mmcu={mcu}",
                 f"-DF_CPU={clock}",
-                "-DSCPH_xxx1",
-                "-Os",
-                "-g",
-                "-std=gnu++17",
+                *PSNEE_FLAGS,
                 "-x",
                 "c++",
                 str(wrapper),
@@ -117,6 +119,31 @@ def build_psnee(root: Path, artifact: Artifact, workdir: Path) -> str | None:
     return None
 
 
+def stamp_for(artifact: Artifact) -> str:
+    """What a built image's stamp must say for the image to be reused: its
+    source tree and a digest of how it is built, the edits, the flags and the
+    compiler, so a changed recipe rebuilds the image as a changed tree does."""
+    compiler = subprocess.run(
+        ["avr-gcc", "-dumpfullversion"],
+        check=True,
+        capture_output=True,
+        timeout=TOOL_TIMEOUT_S,
+        text=True,
+    ).stdout.strip()
+    recipe = repr(
+        (
+            UBERNEE_EDITS,
+            ARDUINO_FLAGS,
+            CPP_FLAGS,
+            PSNEE_TARGETS,
+            PSNEE_PRELUDE,
+            PSNEE_FLAGS,
+            compiler,
+        )
+    )
+    return f"{artifact.tree} {hashlib.sha256(recipe.encode()).hexdigest()}"
+
+
 def tree_stamp(root: Path, chip: Chip) -> Path:
     """Where the source tree id a built image came from is kept, beside it."""
     image = root / chip.firmware
@@ -127,11 +154,13 @@ def _from_source(
     root: Path, artifact: Artifact, chip: Chip, workdir: Path
 ) -> str | None:
     """Build a fetched source, reusing an image only when its stamp names the
-    pinned tree, so a manifest bump never benches the old build. A sketch
-    builds against the Arduino core."""
+    pinned tree and the current recipe, so neither a manifest bump nor a
+    changed flag benches the old build. A sketch builds against the Arduino
+    core."""
     stamp = tree_stamp(root, chip)
+    expected = stamp_for(artifact)
     built = (root / chip.firmware).is_file()
-    if built and stamp.is_file() and stamp.read_text() == artifact.tree:
+    if built and stamp.is_file() and stamp.read_text() == expected:
         return None
     if artifact.sketch is not None:
         core = load(root)[ARDUINO_CORE]
@@ -139,7 +168,7 @@ def _from_source(
     else:
         reason = build_psnee(root, artifact, workdir)
     if reason is None:
-        stamp.write_text(str(artifact.tree))
+        stamp.write_text(expected)
     return reason
 
 
@@ -354,6 +383,21 @@ def _markers(root: Path) -> dict[Line, str]:
     return markers({str(path.relative_to(root)): path.read_text() for path in files})
 
 
+def _require_line_table(root: Path, chip: Chip) -> None:
+    """Ours is excused through its marker comments, which only its debug line
+    table ties to instructions; an image built without one would leave every
+    uncovered instruction lineless, and so excused as runtime code."""
+    headers = subprocess.run(
+        ["avr-objdump", "-h", str(root / chip.firmware)],
+        check=True,
+        capture_output=True,
+        timeout=TOOL_TIMEOUT_S,
+        text=True,
+    ).stdout
+    if ".debug_line" not in headers:
+        raise ValueError(f"{chip.firmware} has no line table: build it with -g")
+
+
 def excuse(root: Path, chip: Chip, uncovered: frozenset[int]) -> dict[int, str]:
     """The uncovered instructions no console input can reach, with reasons.
 
@@ -364,6 +408,8 @@ def excuse(root: Path, chip: Chip, uncovered: frozenset[int]) -> dict[int, str]:
     ordered = sorted(uncovered)
     if chip.simulator is not Simulator.AVR:
         return by_table(ordered, {}, table)
+    if chip.artifact is None:
+        _require_line_table(root, chip)
     lines = _source_lines(root, chip, ordered)
     marked = _markers(root) if chip.artifact is None else {}
     return {**by_line(ordered, lines, marked), **by_table(ordered, lines, table)}
