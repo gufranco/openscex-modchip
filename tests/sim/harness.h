@@ -132,6 +132,7 @@ void on_indicator(struct avr_irq_t *irq, uint32_t value, void *param);
 int pulse_group(uint64_t from, uint32_t min_ms, uint32_t max_ms);
 int code_after(uint64_t from);
 avr_cycle_count_t wfck_tick(avr_t *avr, avr_cycle_count_t when, void *param);
+void sim_step(avr_t *avr);
 void run_to(avr_t *avr, uint64_t target);
 void run_cycles(avr_t *avr, uint64_t n);
 avr_irq_t *pin_irq(avr_t *avr, const target_t *t, uint8_t pin);

@@ -42,7 +42,7 @@ static unsigned reads_to_capture(avr_t *avr) {
     }
     left_capture = left_capture || (pc != g_addr_capture);
     reads += (pc == g_addr_read_sqck) ? 1U : 0U;
-    avr_run(avr);
+    sim_step(avr);
   }
   return 0U;
 }
@@ -50,7 +50,7 @@ static unsigned reads_to_capture(avr_t *avr) {
 static void run_to_pc(avr_t *avr, uint32_t target) {
   uint64_t limit = avr->cycle + ms_cycles(GAP_LIMIT_MS);
   while ((avr->cycle < limit) && (avr->pc != target)) {
-    avr_run(avr);
+    sim_step(avr);
   }
 }
 
@@ -73,7 +73,7 @@ void scenario_gap_polls(const target_t *t, const char *elf, uint32_t freq) {
   run_to_pc(avr, g_addr_read_sqck);
   while ((seen < half) && (avr->cycle < limit)) {
     seen += (avr->pc == g_addr_read_sqck) ? 1U : 0U;
-    avr_run(avr);
+    sim_step(avr);
   }
   avr_irq_t *sqck = pin_irq(avr, t, t->sqck);
   avr_raise_irq(sqck, 0U);
@@ -106,7 +106,7 @@ void scenario_detect_samples(const target_t *t, const char *elf, uint32_t freq) 
   unsigned reads = 0U;
   while (avr->cycle < limit) {
     reads += (avr->pc == g_addr_read_wfck) ? 1U : 0U;
-    avr_run(avr);
+    sim_step(avr);
   }
   char label[96];
   (void)snprintf(label, sizeof(label), "%s: boot detection takes %u WFCK samples", t->mcu, reads);

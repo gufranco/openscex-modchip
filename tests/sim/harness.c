@@ -4,6 +4,7 @@
 #include "harness.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "avr_eeprom.h"
@@ -291,15 +292,25 @@ avr_cycle_count_t wfck_tick(avr_t *avr, avr_cycle_count_t when, void *param) {
   return when + ctx->half;
 }
 
+// One instruction. The firmware never returns, so a core that crashed or
+// stopped is a failure; it also stops advancing the cycle count, which every
+// wait loop here runs on, so the run ends here instead of hanging.
+void sim_step(avr_t *avr) {
+  int state = avr_run(avr);
+  uint32_t sp = (uint32_t)avr->data[SIM_SPL_ADDR] | ((uint32_t)avr->data[SIM_SPH_ADDR] << 8);
+  int64_t free_bytes = (int64_t)sp - (int64_t)g_ram_floor;
+  g_min_free = (free_bytes < g_min_free) ? free_bytes : g_min_free;
+  if ((state == cpu_Crashed) || (state == cpu_Done)) {
+    (void)printf("FAIL: the simulated core stopped (state %d) at cycle %llu\n",
+                 state,
+                 (unsigned long long)avr->cycle);
+    exit(1);
+  }
+}
+
 void run_to(avr_t *avr, uint64_t target) {
   while (avr->cycle < target) {
-    int state = avr_run(avr);
-    uint32_t sp = (uint32_t)avr->data[SIM_SPL_ADDR] | ((uint32_t)avr->data[SIM_SPH_ADDR] << 8);
-    int64_t free_bytes = (int64_t)sp - (int64_t)g_ram_floor;
-    g_min_free = (free_bytes < g_min_free) ? free_bytes : g_min_free;
-    if ((state == cpu_Crashed) || (state == cpu_Done)) {
-      break;
-    }
+    sim_step(avr);
   }
 }
 

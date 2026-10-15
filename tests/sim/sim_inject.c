@@ -514,7 +514,7 @@ void scenario_gap_check(const target_t *t, const char *elf, uint32_t freq) {
     } else if ((pc == g_addr_capture) && (first_read != 0U)) {
       next = avr->cycle;
     }
-    avr_run(avr);
+    sim_step(avr);
   }
   uint64_t gap = next - first_read;
   char label[112];
@@ -575,7 +575,7 @@ void scenario_detect_timing(const target_t *t, const char *elf, uint32_t freq) {
       last = avr->cycle;
       reads++;
     }
-    avr_run(avr);
+    sim_step(avr);
   }
   uint64_t per_sample = (reads > 1U) ? ((last - first) / (reads - 1U)) : 0U;
   char label[112];
