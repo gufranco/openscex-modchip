@@ -67,8 +67,13 @@ jobs:
           fi
           git rev-parse --verify --quiet "refs/tags/$TAG" > /dev/null
           version="${TAG#v}"
+          # semantic-release heads a minor or major version "# [x.y.z]" and a
+          # patch "## [x.y.z]"; either level starts and ends a section.
           awk -v v="$version" '
-            /^# \[/ { if (on) exit; if (index($0, "# [" v "]") == 1) on = 1 }
+            /^##? \[/ {
+              if (on) exit
+              if (index($0, "# [" v "]") == 1 || index($0, "## [" v "]") == 1) on = 1
+            }
             on { print }
           ' CHANGELOG.md > release-notes.md
           if [ ! -s release-notes.md ]; then
