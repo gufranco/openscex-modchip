@@ -36,8 +36,10 @@ int g_eeprom_writes = 0;
 void (*g_on_build)(avr_t *avr, void *param) = NULL;
 void *g_on_build_param = NULL;
 int g_eeprom_mode_bad = 0;
-// Every change of DATA's direction bit after boot, and where each burst began,
-// so every string of a burst can be decoded after the run.
+// Every change of DATA's direction bit from reset on, and where each burst
+// began, so every string of a burst can be decoded after the run. Board
+// detection is logged too: rule 5 keeps DATA high-Z outside the window, and
+// boot is outside it.
 static uint64_t g_ddr_at[MAX_DDR_LOG];
 static uint8_t g_ddr_level[MAX_DDR_LOG];
 static int g_ddr_count = 0;
@@ -120,7 +122,7 @@ static void on_data_direction(struct avr_irq_t *irq, uint32_t value, void *param
   avr_t *avr = param;
   (void)irq;
   int driven = (int)((value >> g_data_bit) & 1U);
-  if ((driven == g_data_driven) || (avr->cycle < DETECT_CYCLES)) {
+  if (driven == g_data_driven) {
     g_data_driven = driven;
     return;
   }
@@ -470,6 +472,9 @@ void boot_quiet(avr_t *avr, const target_t *t, int modern, wfck_ctx_t *ctx) {
     avr_cycle_timer_register(avr, ctx->half, wfck_tick, ctx);
   }
   run_cycles(avr, DETECT_CYCLES);
+  char label[96];
+  (void)snprintf(label, sizeof(label), "%s: DATA stays released through board detection", t->mcu);
+  check((g_data_drives == 0) && (data_ddr(avr, t) == 0U), label);
 }
 
 // Rebuild the 44-bit word from DATA, one sample per bit cell from the indicator
