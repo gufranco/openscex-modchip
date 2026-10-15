@@ -20,6 +20,7 @@
 // factory value (README, oscillator trim).
 _Static_assert(PSCU_TRIM_MAX_STEP == 4, "a batch moves OSCCAL at most four notches");
 _Static_assert(PSCU_TRIM_MAX_OFFSET == 16, "the trim stays within 16 notches of the factory value");
+_Static_assert(PSCU_TRIM_FRAMES == 64U, "a trim batch times 64 frame periods");
 
 static pscu_check_fn g_check;
 

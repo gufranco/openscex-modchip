@@ -21,6 +21,15 @@
 // fail the build instead of passing every case that uses the symbol.
 _Static_assert(PSCU_STEALTH_GAP_FRAMES == 5U, "the stealth gap is five frames");
 _Static_assert(PSCU_STEALTH_STRINGS == 16U, "the stealth cap is sixteen strings");
+// The loop's design bounds sit in headers that mutation never reaches, and
+// cases derive their stimulus from the same symbols, so a changed value would
+// pass them all. Pinned here, a change is a deliberate edit in two places.
+_Static_assert(PSCU_CONFIRM_FRAMES == 64U, "the confirmation wait is 64 frames, 0.85 s");
+_Static_assert(PSCU_CONFIRM_FRAMES > PSCU_STEALTH_GAP_FRAMES,
+               "a burst still running is never judged");
+_Static_assert(PSCU_LOOP_COUNTER_HEADROOM == 8U, "the counter climbs 8 past the start");
+_Static_assert(PSCU_LOOP_REARM_DEPTH == 8U, "a fresh cap needs a fall of 8 below the start");
+_Static_assert(PSCU_LOOP_TRIM_SETTLE_MS == 1000U, "the trim waits 1 s into a disc");
 
 static pscu_check_fn g_check;
 
