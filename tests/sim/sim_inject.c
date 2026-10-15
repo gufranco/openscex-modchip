@@ -423,10 +423,13 @@ void scenario_string_gap(const target_t *t, const char *elf, uint32_t freq) {
   check((found == 2) && ((starts[1] - ends[0]) >= ms_cycles(GAP_MIN_MS)), label);
 }
 
-// A slow, noisy SQCK can keep every edge wait within its 30 ms bound while a
-// frame takes seconds. The capture kicks the watchdog once per frame, so the
-// chip resets with DATA released. 40 edges, 0.8 s, exceed one watchdog period.
-#define SLOW_SQCK_EDGES 40
+// A slow, noisy SQCK, such as a floating wire picking up hum, can keep every
+// edge wait within its 30 ms bound while a frame takes seconds. The capture's
+// frame budget fails such a frame within about 16 ms of bits, so the chip
+// neither drives DATA nor restarts, and once no frame has come for 5 s it shows
+// code 3, which points at SQCK and SUBQ, never code 5. 300 edges, 6 s, outlast
+// that 5 s and many watchdog periods.
+#define SLOW_SQCK_EDGES 300
 #define SLOW_SQCK_EDGE_MS 20U
 #define SLOW_SQCK_CODE_MS 9000U
 
@@ -446,8 +449,10 @@ void scenario_slow_sqck(const target_t *t, const char *elf, uint32_t freq) {
   (void)snprintf(label, sizeof(label), "%s: a slow SQCK leaves DATA released", t->mcu);
   check(data_ddr(avr, t) == 0U, label);
   run_cycles(avr, ms_cycles(SLOW_SQCK_CODE_MS));
-  (void)snprintf(label, sizeof(label), "%s: a slow SQCK trips the watchdog, code 5", t->mcu);
-  check(code_after(started) == 5, label);
+  int code = code_after(started);
+  (void)snprintf(
+      label, sizeof(label), "%s: a slow SQCK shows code 3, not a reset (%d)", t->mcu, code);
+  check(code == 3, label);
 }
 
 // A lead-in of frames with a bad CRC must never arm a string; the same frames

@@ -343,9 +343,8 @@ class DiagnoseTest(unittest.TestCase):
         self.assertEqual(
             findings,
             [
-                "1 watchdog restart(s): the chip stalled, usually on a SQCK line "
-                "stuck or "
-                "floating. Check the SQCK wire.",
+                "1 watchdog restart(s): the chip stalled, usually on a WFCK carrier "
+                "that stopped mid-string. Check the WFCK wire.",
                 "2 power-on starts: the chip lost power during the capture. Check the "
                 "supply tap and ground.",
                 "The supply fell below 2.75 V: strings and EEPROM writes were held "

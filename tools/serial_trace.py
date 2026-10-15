@@ -306,7 +306,7 @@ def _power(t: Tally) -> list[str]:
     if t.count("RST WDT"):
         findings.append(
             f"{t.count('RST WDT')} watchdog restart(s): the chip stalled, usually on a "
-            "SQCK line stuck or floating. Check the SQCK wire."
+            "WFCK carrier that stopped mid-string. Check the WFCK wire."
         )
     if t.count("RST PWR") > 1:
         findings.append(

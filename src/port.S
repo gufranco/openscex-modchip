@@ -187,15 +187,26 @@ pscu_port_delay_ms:
 	.endfunc
 
 // Clock r22 SUBQ bytes into r25:r24, LSB first, sampling after each SQCK rising
-// edge. Returns 1 for a whole frame, 0 on any edge timeout. In assembly to follow
-// a fast SQCK. The watchdog is kicked once, so a frame slower than 0.5 s resets.
+// edge. Returns 1 for a whole frame, 0 on any edge timeout or when the frame
+// outlasts PSCU_FRAME_BUDGET_TICKS. In assembly to follow a fast SQCK.
 // A count of 0 captures nothing: the byte loop counts down after each byte, so
 // without the guard it would run 256 times into the caller's buffer.
+//
+// A floating or humming SQCK can keep every edge inside its 30 ms wait while a
+// frame takes a second, which would trip the watchdog on every boot and hide
+// the wiring fault behind restarts. A frame's bits cannot take longer than the
+// frame, 13.3 ms at 75 Hz (Red Book), so Timer1, 2.048 ms a tick, is checked
+// after each bit and 8 ticks, 16.4 ms, fail the capture: the chip stays up,
+// passes stay short enough for the indicator's timing, and it shows code 3,
+// which points at SQCK and SUBQ. The check runs after the sample, in the high
+// half of the SQCK cycle, which even the fastest clock leaves room for.
+#define PSCU_FRAME_BUDGET_TICKS 8
 	.global pscu_port_capture_frame
 	.func pscu_port_capture_frame
 pscu_port_capture_frame:
 	wdr
 	movw r26, r24
+	in r19, _SFR_IO_ADDR(TCNT1)
 	tst r22
 	breq 37f
 30:
@@ -223,6 +234,10 @@ pscu_port_capture_frame:
 	lsr r18
 	sbic _SFR_IO_ADDR(PSCU_PINREG), PSCU_PIN_SUBQ
 	ori r18, 0x80
+	in r20, _SFR_IO_ADDR(TCNT1)
+	sub r20, r19
+	cpi r20, PSCU_FRAME_BUDGET_TICKS
+	brsh 36f
 	dec r21
 	brne 31b
 	st X+, r18

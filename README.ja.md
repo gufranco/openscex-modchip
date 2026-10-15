@@ -27,7 +27,7 @@
 
 </div>
 
-フラッシュ [**6024**](Makefile) バイト · 基板 [**8**](assets/psnee) 系統、PU-7 から PM-41(2) · リージョン [**3**](src/region.c) 種 · MISRA 逸脱 [**0**](AGENTS.md) · ホストの行と分岐カバレッジ [**100%**](tests/host) · ミュータント [**602/602**](tools/mutate.py) 撃破
+フラッシュ [**6034**](Makefile) バイト · 基板 [**8**](assets/psnee) 系統、PU-7 から PM-41(2) · リージョン [**3**](src/region.c) 種 · MISRA 逸脱 [**0**](AGENTS.md) · ホストの行と分岐カバレッジ [**100%**](tests/host) · ミュータント [**602/602**](tools/mutate.py) 撃破
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -260,7 +260,7 @@ python3 tools/serial_trace.py capture.txt
 | `SAVE OK`、`SAVE NO 2601mV` | 記録を EEPROM に書いた、または電源不足で書かずに保持して再試行する | [src/trace.c](src/trace.c), [src/engine.c](src/engine.c) |
 | `LOST 2` | 4 件のキューに収まらないほど続いて捨てたイベントの数 | [src/trace.c](src/trace.c), [include/pscu/trace.h](include/pscu/trace.h) |
 
-`tools/serial_trace.py` は保存した取り込み、またはパイプで渡した端末の出力を読み、時系列を言葉で表示します。各フレームはディスク上の位置と CRC の確認付きで、同じフレームの連続は 1 行にまとめます。最後に、考えられる故障と確認すべき点を示す診断を出します。フレームがない、またはすべての取り込みが失敗したなら SQCK と SUBQ の配線、CRC 不良が多いならその配線のノイズ、ウォッチドッグ再起動なら止まった SQCK、電源投入の繰り返しや電源不足なら電源の取り出し点、ウィンドウを開かないリードインなら学習した開始値、`PASS` のない文字列なら DATA と WFCK の配線か地域の不一致、`PASS` の後もゲームが止まるならアンチ改造チェックかブート ROM の地域チェックです。`--summary` は診断だけを表示します。 出典: [tools/serial_trace.py](tools/serial_trace.py), [tests/serial_trace/test_serial_trace.py](tests/serial_trace/test_serial_trace.py)。
+`tools/serial_trace.py` は保存した取り込み、またはパイプで渡した端末の出力を読み、時系列を言葉で表示します。各フレームはディスク上の位置と CRC の確認付きで、同じフレームの連続は 1 行にまとめます。最後に、考えられる故障と確認すべき点を示す診断を出します。フレームがない、またはすべての取り込みが失敗したなら SQCK と SUBQ の配線、CRC 不良が多いならその配線のノイズ、ウォッチドッグ再起動なら文字列の途中で止まった WFCK、電源投入の繰り返しや電源不足なら電源の取り出し点、ウィンドウを開かないリードインなら学習した開始値、`PASS` のない文字列なら DATA と WFCK の配線か地域の不一致、`PASS` の後もゲームが止まるならアンチ改造チェックかブート ROM の地域チェックです。`--summary` は診断だけを表示します。 出典: [tools/serial_trace.py](tools/serial_trace.py), [tests/serial_trace/test_serial_trace.py](tests/serial_trace/test_serial_trace.py)。
 
 
 ## 仕組み
@@ -300,7 +300,7 @@ graph LR
 | ステルス | SUBQ リージョンチェックの窓の間だけ、武装ごとに上限付きで、PsNee と Mayumi V4 と同じく文字列の間に 5 フレーム（67 ms）空けて注入する。それ以外は DATA をハイ Z、表示ピンをオフにする。コンソールがプログラム領域を読んだ後は文字列を始めず、送信中の文字列は最後まで送る。アンチモッド v2 の TOC 再読み取りのような以後のリードイン読み取りには、同じ上限で再び応じる。計数が開始点をわずかに下回っても上限と間隔は保たれ、8 フレーム下回って初めて再武装する | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/config.h](include/pscu/config.h), [PsNee PSNee.ino L53](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L53), [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
 | 単一リージョン | `REGION` だけを送り、3 つ全部は送らない | [src/region.c](src/region.c) |
 | 適応タイミング | WFCK キャリア基板では注入ビットを WFCK の 30 周期で計時するので、等速でも倍速でもコンソールのクロックに従う。静的ゲート基板では補正済みの発振器で計時する | [src/port.S](src/port.S), [src/trim.c](src/trim.c) |
-| 自己回復 | 各 SUBQ 取得はフレーム間の隙間で再同期し、30 ms で諦める。注入中に WFCK が止まるとウォッチドッグが DATA を解放する。プルアップが必要なピンはない: SQCK、SUBQ、WFCK はコンソールの線、DATA は解放中はコンソールの線、PB3 は出力 | [src/engine.c](src/engine.c), [src/port.S](src/port.S), [include/port/registers.h](include/port/registers.h) |
+| 自己回復 | 各 SUBQ 取得はフレーム間の隙間で再同期し、エッジが 30 ms 来ないか、ビットが 1 フレームより長い 16 ms を超えると諦めるので、浮いた SQCK はチップを再起動させずにコード 3 を示す。注入中に WFCK が止まるとウォッチドッグが DATA を解放する。プルアップが必要なピンはない: SQCK、SUBQ、WFCK はコンソールの線、DATA は解放中はコンソールの線、PB3 は出力 | [src/engine.c](src/engine.c), [src/port.S](src/port.S), [include/port/registers.h](include/port/registers.h) |
 | フレームの完全性 | SUBQ フレームは CRC-16 が一致するときだけ数えるので、壊れたフレームやずれたフレームは文字列を起動せず、ディスクの存在とも、プログラム領域とも見なされない | [src/subq.c](src/subq.c), [ECMA-130, Q-channel CRC](https://ecma-international.org/publications-and-standards/standards/ecma-130/) |
 | ステータス表示 | 任意の LED かアクティブブザーが起動の段階、ディスクごとの結果、現在の異常を示す。ファームウェアはそれを待たず、何もつながなくても正しく動く | [src/indicator.c](src/indicator.c) |
 | 現場診断 | コードが、クロックが来ない SUBQ からリージョンチェックが来ない SUBQ まで、失敗した段階を示す。プログラマは不要 | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
