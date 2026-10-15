@@ -5,6 +5,7 @@
 words each becomes, and the diagnosis a capture gets."""
 
 import io
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -13,6 +14,8 @@ from unittest import mock
 
 from tools.bench.timeline import with_crc
 from tools.serial_trace import (
+    STRING_CAP,
+    SUPPLY_GUARD_MV,
     Event,
     Frame,
     Other,
@@ -170,6 +173,37 @@ class EventTest(unittest.TestCase):
                 "unknown event ZAP 1",
                 "unknown event ZAP",
             ],
+        )
+
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def header_value(header: str, name: str) -> int:
+    """The number a firmware header defines for name."""
+    text = (ROOT / "include" / "pscu" / header).read_text()
+    found = re.search(rf"#define {name} \(\(\w+\)(\d+)U\)", text)
+    if found is None:
+        raise AssertionError(f"{name} not found in {header}")
+    return int(found.group(1))
+
+
+class FirmwareConstantsTest(unittest.TestCase):
+    def test_the_reader_uses_the_firmware_limits(self) -> None:
+        # Arrange
+        firmware = (
+            header_value("supply.h", "PSCU_SUPPLY_LOW_MV"),
+            header_value("config.h", "PSCU_STEALTH_STRINGS"),
+            header_value("inject.h", "PSCU_DISC_GONE_MS"),
+        )
+
+        # Act
+        gone = describe_event(Event(2, 0, "GONE", ()))
+
+        # Assert
+        self.assertEqual(
+            (SUPPLY_GUARD_MV, STRING_CAP, f"{firmware[2] / 1000:g} s" in gone),
+            (firmware[0], firmware[1], True),
         )
 
 
