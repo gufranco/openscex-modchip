@@ -1,3 +1,19 @@
+## [0.18.1](https://github.com/gufranco/openscex-modchip/compare/v0.18.0...v0.18.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* **bench:** fail closed on bad runner input ([d28e711](https://github.com/gufranco/openscex-modchip/commit/d28e711cc784072be6187fbb9945d5d94f19fdc0))
+* **bench:** refuse a trace level not 0 or 1 ([6c9b616](https://github.com/gufranco/openscex-modchip/commit/6c9b616dfe5f5e3caded25a2cd19a881690bbd5d))
+* **bench:** refuse an unknown path action ([1feaddf](https://github.com/gufranco/openscex-modchip/commit/1feaddf776ced1b2494c49f1177980b69395c07a))
+* **bench:** stamp the recipe, refuse no line table ([3601131](https://github.com/gufranco/openscex-modchip/commit/360113152cfa89af1d5a77bc37724207a267ea4c))
+* bound docker calls and report a failed build ([7772c8f](https://github.com/gufranco/openscex-modchip/commit/7772c8fbfa4b35ca7897cda65da333f2e72a8e91))
+* fail a SUBQ capture that outlasts its frame ([12a7fed](https://github.com/gufranco/openscex-modchip/commit/12a7fed20ecc47a1e8ac3aeba99f502bcdfad78e))
+* pause the confirm wait while supply holds ([368ed27](https://github.com/gufranco/openscex-modchip/commit/368ed27bdd6b180f3f5ad65a58023e8c394f6a92))
+* read a noisy trace line as unreadable ([4da8c57](https://github.com/gufranco/openscex-modchip/commit/4da8c57b5ae22fb5e2ca25eadb5415f5f272e291))
+* record a carrier found after boot ([c8e3518](https://github.com/gufranco/openscex-modchip/commit/c8e3518060e6bc1c65e6bad72a4a0fb9f909d5ce))
+* skip an EEPROM read while a write is stuck ([c56fa2c](https://github.com/gufranco/openscex-modchip/commit/c56fa2c615a546f417d49d154e56366fd76dc6b7))
+
 # [0.18.0](https://github.com/gufranco/openscex-modchip/compare/v0.17.0...v0.18.0) (2026-10-14)
 
 
