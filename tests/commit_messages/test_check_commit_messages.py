@@ -75,6 +75,109 @@ class CommitMessageCheckTest(unittest.TestCase):
             text=True,
         ).returncode
 
+    def commit_as(self, email: str, subject: str) -> str:
+        self.git(
+            "-c",
+            f"user.email={email}",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            subject,
+        )
+        return self.git("rev-parse", "HEAD")
+
+    def test_a_fifty_character_subject_passes(self) -> None:
+        # Arrange
+        subject = "fix: " + "a" * 45
+
+        # Act
+        code = self.check_message(subject)
+
+        # Assert
+        self.assertEqual((len(subject), code), (50, 0))
+
+    def test_a_fifty_one_character_subject_fails(self) -> None:
+        # Arrange
+        subject = "fix: " + "a" * 46
+
+        # Act
+        code = self.check_message(subject)
+
+        # Assert
+        self.assertEqual((len(subject), code), (51, 1))
+
+    def test_a_subject_starting_with_a_capital_fails(self) -> None:
+        # Arrange
+        subject = "fix: Keep the burst through a dip"
+
+        # Act
+        code = self.check_message(subject)
+
+        # Assert
+        self.assertEqual(code, 1)
+
+    def test_a_type_outside_the_list_fails(self) -> None:
+        # Arrange
+        subject = "feature: keep the burst through a dip"
+
+        # Act
+        code = self.check_message(subject)
+
+        # Assert
+        self.assertEqual(code, 1)
+
+    def test_a_lowercase_scope_passes_and_a_capital_one_fails(self) -> None:
+        # Arrange
+        good, bad = "fix(sim-test): keep a burst", "fix(Sim): keep a burst"
+
+        # Act
+        codes = (self.check_message(good), self.check_message(bad))
+
+        # Assert
+        self.assertEqual(codes, (0, 1))
+
+    def test_bot_commits_in_the_range_are_skipped(self) -> None:
+        # Arrange
+        base = self.commit(GOOD)
+        self.commit_as("49699333+dependabot[bot]@users.noreply.github.com", BAD)
+        head = self.commit_as("semantic-release-bot@martynus.net", BAD)
+
+        # Act
+        code = self.check(base, head)
+
+        # Assert
+        self.assertEqual(code, 0)
+
+    def test_a_merge_commit_in_the_range_is_skipped(self) -> None:
+        # Arrange
+        base = self.commit(GOOD)
+        self.git("checkout", "-q", "-b", "side")
+        self.commit(GOOD)
+        self.git("checkout", "-q", "main")
+        self.commit(GOOD)
+        self.git("merge", "-q", "--no-ff", "-m", BAD, "side")
+        head = self.git("rev-parse", "HEAD")
+
+        # Act
+        code = self.check(base, head)
+
+        # Assert
+        self.assertEqual(code, 0)
+
+    def test_a_wrong_argument_count_exits_with_usage(self) -> None:
+        # Act
+        code = subprocess.run(
+            ["sh", str(SCRIPT), "only-one"],
+            cwd=self.repo,
+            check=False,
+            capture_output=True,
+            text=True,
+        ).returncode
+
+        # Assert
+        self.assertEqual(code, 2)
+
     def test_a_subject_naming_a_version_passes(self) -> None:
         # Arrange
         subject = "build: bump ruff to 0.17.0"
