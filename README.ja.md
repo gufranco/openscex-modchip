@@ -127,7 +127,7 @@ make mutate_platform  # run.c と engine.c のミューテーション、シミ�
 make bench_ci    # コンソールベンチ: 同じ模擬コンソールでこのファームウェアと PsNee を比較
 ```
 
-同じゲートが push とプルリクエストごとに CI で走ります。定義は [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。`make mutate_platform` は別のワークフロー [`.github/workflows/mutation.yml`](.github/workflows/mutation.yml) で、ファームウェア、シミュレータのテスト、ミューテーションツールのいずれかが変わるたびに走ります。`make hooks` でコミットメッセージと整形のチェックをローカルで有効にできます。
+同じゲートが `main` への push とプルリクエストごとに CI で走ります。定義は [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。`make mutate_platform` は別のワークフロー [`.github/workflows/mutation.yml`](.github/workflows/mutation.yml) で、ファームウェア、シミュレータのテスト、ミューテーションツール、固定したツールチェーンのいずれかが変わるたびに走ります。`make hooks` でコミットメッセージと整形のチェックをローカルで有効にできます。
 
 ## MCU ピン配置
 
@@ -400,6 +400,6 @@ graph LR
 
 ## ライセンス
 
-ファームウェアとドキュメントは [MIT](LICENSE)。
+ファームウェア、ドキュメント、[hardware/](hardware) の基板設計は [MIT](LICENSE)。
 
 [hardware/openscex.pretty](hardware/openscex.pretty) のフットプリントは KiCad ライブラリのフットプリントを元にしており、そのライセンス [CC-BY-SA-4.0](LICENSES/CC-BY-SA-4.0.txt) と [KiCad ライブラリ例外](LICENSES/KiCad-libraries-exception.txt) を引き継ぎます。これを使って作った基板には義務は生じません。出典: [REUSE.toml](REUSE.toml)。

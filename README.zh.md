@@ -127,7 +127,7 @@ make mutate_platform  # run.c 与 engine.c 的变异测试，由模拟器捕获
 make bench_ci    # 主机测试台：在同一个模拟主机中对比本固件与 PsNee
 ```
 
-同样的关卡在每次 push 与拉取请求时于 CI 运行，定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。`make mutate_platform` 在单独的工作流 [`.github/workflows/mutation.yml`](.github/workflows/mutation.yml) 中运行，每当固件、模拟器测试或变异工具改变时触发。`make hooks` 可在本地启用提交信息与格式检查。
+同样的关卡在每次 push 到 `main` 与每个拉取请求时于 CI 运行，定义在 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)。`make mutate_platform` 在单独的工作流 [`.github/workflows/mutation.yml`](.github/workflows/mutation.yml) 中运行，每当固件、模拟器测试、变异工具或固定的工具链改变时触发。`make hooks` 可在本地启用提交信息与格式检查。
 
 ## MCU 引脚
 
@@ -400,6 +400,6 @@ graph LR
 
 ## 许可证
 
-固件与文档采用 [MIT](LICENSE)。
+固件、文档及 [hardware/](hardware) 中的电路板设计采用 [MIT](LICENSE)。
 
 [hardware/openscex.pretty](hardware/openscex.pretty) 中的封装源自 KiCad 库的封装，沿用其许可证 [CC-BY-SA-4.0](LICENSES/CC-BY-SA-4.0.txt) 及 [KiCad 库例外条款](LICENSES/KiCad-libraries-exception.txt)：用它们制作的电路板不承担任何义务。来源：[REUSE.toml](REUSE.toml)。

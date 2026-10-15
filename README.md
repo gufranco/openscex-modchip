@@ -127,7 +127,7 @@ make mutate_platform  # mutation of run.c and engine.c, killed by the simulator
 make bench_ci    # console bench: this firmware against PsNee in the same simulated console
 ```
 
-CI runs the same gates on every push and pull request, as defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml). `make mutate_platform` runs in its own workflow, [`.github/workflows/mutation.yml`](.github/workflows/mutation.yml), whenever the firmware, the simulator suite or the mutation tool changes. `make hooks` enables the commit-message and formatting checks locally.
+CI runs the same gates on every push to `main` and every pull request, as defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml). `make mutate_platform` runs in its own workflow, [`.github/workflows/mutation.yml`](.github/workflows/mutation.yml), whenever the firmware, the simulator suite, the mutation tool or the pinned toolchain changes. `make hooks` enables the commit-message and formatting checks locally.
 
 ## MCU pinout
 
@@ -399,6 +399,6 @@ Releases follow [Semantic Versioning](https://semver.org/) on the `0.x` line, so
 
 ## License
 
-[MIT](LICENSE) for firmware and documentation.
+[MIT](LICENSE) for the firmware, the documentation and the board designs in [hardware/](hardware).
 
 The footprints in [hardware/openscex.pretty](hardware/openscex.pretty) start from KiCad's library footprints and keep their licence, [CC-BY-SA-4.0](LICENSES/CC-BY-SA-4.0.txt) with the [KiCad libraries exception](LICENSES/KiCad-libraries-exception.txt): a board made with them carries no obligation. Source: [REUSE.toml](REUSE.toml).
