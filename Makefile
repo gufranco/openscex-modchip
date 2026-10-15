@@ -187,7 +187,7 @@ $(RELEASE)/%.c.o: src/%.c $(FIRMWARE_H) Makefile $(BUILD_ID_STAMP)
 	@mkdir -p $(@D)
 	$(AVR_CC) $(AVR_CFLAGS) -c -o $@ $<
 
-$(RELEASE)/%.S.o: src/%.S include/port/registers.h Makefile
+$(RELEASE)/%.S.o: src/%.S $(FIRMWARE_H) Makefile
 	@mkdir -p $(@D)
 	$(AVR_CC) $(AVR_ASFLAGS) -c -o $@ $<
 
@@ -224,10 +224,15 @@ hosttest: $(HOST_TEST)
 	gcovr --root . --filter 'src/' --exclude-branches-by-pattern '.*PSCU_ASSERT.*' \
 		--fail-under-line 100 --fail-under-branch 100 --print-summary $(BUILD)/host
 
-$(HOST_TEST): $(HOST_LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H)
+$(HOST_TEST): $(HOST_LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H) Makefile
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -O0 -DPSCU_DEBUG --coverage -o $@ $(HOST_LOGIC_C) $(HOST_TEST_C)
 
+# The simulator and the bench read images at fixed paths, so they build each
+# one with every variant setting named: a REGION, VCD_FILTER or PROFILE given
+# on the command line would otherwise reach these sub-makes too, and the run
+# would read an image this build never refreshed.
+DEFAULT_VARIANT := REGION=us VCD_FILTER=off PROFILE=debug
 SIM_ELF := $(BUILD)/attiny85/release/$(NAME)-attiny85.elf
 SIM_ELF_VCD := $(BUILD)/attiny85-jp-vcd/release/$(NAME)-attiny85-jp-vcd.elf
 SIM_ELF_FINAL := $(BUILD)/attiny85-final/release/$(NAME)-attiny85-final.elf
@@ -235,7 +240,7 @@ SIM_ELF_TRACE := $(BUILD)/attiny85-trace/release/$(NAME)-attiny85-trace.elf
 SIM_ELF_EU := $(BUILD)/attiny85-eu/release/$(NAME)-attiny85-eu.elf
 SIM_ELF_JP := $(BUILD)/attiny85-jp/release/$(NAME)-attiny85-jp.elf
 
-$(SIM_TEST): $(SIM_TEST_C) $(SIM_TEST_H) all
+$(SIM_TEST): $(SIM_TEST_C) $(SIM_TEST_H) Makefile
 	@mkdir -p $(@D)
 	$(HOST_CC) $(SIM_CFLAGS) -o $@ $(SIM_TEST_C) $(SIM_LIBS)
 
@@ -247,11 +252,11 @@ BENCH_CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -Werror \
 	$(patsubst -I%,-isystem %,$(shell pkg-config --cflags gpsim glib-2.0))
 BENCH_PIC_LIBS := $(shell pkg-config --libs gpsim glib-2.0) -lgpsim
 
-$(BENCH_PIC): bench/pic_runner.cc
+$(BENCH_PIC): bench/pic_runner.cc Makefile
 	@mkdir -p $(@D)
 	g++ $(BENCH_CXXFLAGS) -o $@ $< $(BENCH_PIC_LIBS)
 
-$(BENCH_AVR): bench/avr_runner.c tests/sim/sim_t85.h
+$(BENCH_AVR): bench/avr_runner.c tests/sim/sim_t85.h Makefile
 	@mkdir -p $(@D)
 	$(HOST_CC) $(SIM_CFLAGS) -Itests/sim -o $@ $< $(SIM_LIBS)
 
@@ -260,10 +265,12 @@ bench_runners: $(BENCH_PIC) $(BENCH_AVR)
 # `bench` runs every chip through every scenario, skipping images not on this
 # machine (artifacts.manifest.json). `bench_ci` runs ours against PsNee, built
 # from its pinned commit. Both fail when ours leaves the field-proven envelope.
-bench: all bench_runners
+bench: bench_runners
+	$(MAKE) --no-print-directory $(DEFAULT_VARIANT) image
 	$(PYTHON) -m tools.bench.cli
 
-bench_ci: all bench_runners
+bench_ci: bench_runners
+	$(MAKE) --no-print-directory $(DEFAULT_VARIANT) image
 	$(PYTHON) -m tools.bench.cli --chips ours,psnee-attiny85,psnee-atmega328p
 
 # Copy the last full bench's showcase results and regenerate the README
@@ -275,11 +282,12 @@ showcase:
 # check direction, bounds and persistence. Every image is an argument: the
 # Video CD, final and trace images, then the European and Japanese ones.
 simtest: $(SIM_TEST)
-	$(MAKE) --no-print-directory REGION=jp VCD_FILTER=on image
-	$(MAKE) --no-print-directory PROFILE=final image
-	$(MAKE) --no-print-directory PROFILE=trace image
-	$(MAKE) --no-print-directory REGION=eu image
-	$(MAKE) --no-print-directory REGION=jp image
+	$(MAKE) --no-print-directory $(DEFAULT_VARIANT) image
+	$(MAKE) --no-print-directory REGION=jp VCD_FILTER=on PROFILE=debug image
+	$(MAKE) --no-print-directory REGION=us VCD_FILTER=off PROFILE=final image
+	$(MAKE) --no-print-directory REGION=us VCD_FILTER=off PROFILE=trace image
+	$(MAKE) --no-print-directory REGION=eu VCD_FILTER=off PROFILE=debug image
+	$(MAKE) --no-print-directory REGION=jp VCD_FILTER=off PROFILE=debug image
 	$(SIM_TEST) $(SIM_ELF) $(F_CPU) $(SIM_ELF_VCD) $(SIM_ELF_FINAL) $(SIM_ELF_TRACE) \
 		$(SIM_ELF_EU) $(SIM_ELF_JP)
 
