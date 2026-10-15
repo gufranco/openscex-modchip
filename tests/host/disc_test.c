@@ -65,7 +65,9 @@ static void test_presence(void) {
 // level bytes (psx-spx, CXD2938Q New SCEx). None may pass as a disc frame,
 // count toward the lead-in, or look like the program area that closes the
 // window. The header and level bytes are undocumented, so the worst case
-// copies a lead-in header and leaves the ZERO byte clear.
+// copies a lead-in header and leaves the ZERO byte clear: then only the CRC
+// stands between it and a lead-in frame, and the level bytes in its place
+// fail it.
 static void test_scex_packets(void) {
   uint8_t letters[4] = { 0x53U, 0x43U, 0x45U, 0x41U };
   uint8_t headers[3][3] = { { 0x00U, 0x00U, 0x00U },
@@ -83,6 +85,9 @@ static void test_scex_packets(void) {
       packet[2] = headers[h][2];
       for (uint8_t at = 3U; at <= 9U; at++) {
         packet[at] = letters[c];
+      }
+      if (h == 2U) {
+        packet[6] = 0x00U;
       }
       packet[10] = 0x7FU;
       packet[11] = 0x7FU;
