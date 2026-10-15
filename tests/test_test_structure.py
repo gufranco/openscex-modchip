@@ -22,7 +22,9 @@ def unmarked(source: str) -> list[str]:
     lines = source.split("\n")
     wrong: list[str] = []
     for node in ast.walk(ast.parse(source)):
-        if not isinstance(node, ast.FunctionDef) or not node.name.startswith("test_"):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if not node.name.startswith("test_"):
             continue
         body = [line.strip() for line in lines[node.lineno : node.end_lineno]]
         found = [line for line in body if line in MARKERS]
@@ -51,6 +53,16 @@ class UnmarkedTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(wrong, [])
+
+    def test_an_unmarked_async_test_is_reported(self) -> None:
+        # Arrange
+        source = "async def test_x():\n    a = 1\n"
+
+        # Act
+        wrong = unmarked(source)
+
+        # Assert
+        self.assertEqual(wrong, ["test_x"])
 
 
 class StructureTest(unittest.TestCase):
