@@ -6,7 +6,7 @@
   <b>English</b> &nbsp;·&nbsp; <a href="README.ja.md">日本語</a> &nbsp;·&nbsp; <a href="README.zh.md">中文</a>
 </p>
 
-<strong>Stealth SCEx region unlock for the PlayStation and PSone, on an ATtiny85 that trims its own clock against the console.</strong>
+<strong>Stealth SCEx region unlock for the PlayStation and PSone, on an ATtiny85 that <a href="src/trim.c">trims its own clock</a> against the console.</strong>
 
 <br><br>
 

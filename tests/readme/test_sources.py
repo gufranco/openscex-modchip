@@ -3,8 +3,9 @@
 
 """Every claim in the three READMEs links to its source (AGENTS rule 15).
 
-A claim is a table row past the header, a list item, or a paragraph line
-outside code, HTML blocks and headings; each needs a Markdown link or an href.
+A claim is a table row past the header, a list item, a paragraph line
+outside code and headings, or a line of text inside an HTML block other than
+a heading; each needs a Markdown link or an href.
 A link into the tree must name a file that exists, and a link to a file on
 GitHub must be a permalink pinned to a 40-digit commit.
 """
@@ -22,6 +23,7 @@ ALERT = re.compile(r"^> \[!\w+\]$")
 OPEN_BLOCK = re.compile(r"<(div|p|table)[\s>]")
 CLOSE_BLOCK = re.compile(r"</(div|p|table)>")
 TAG = re.compile(r"<[^>]*>")
+HEADING_TAG = re.compile(r"^<h[1-6][\s>]")
 TARGET = re.compile(r"\]\(([^)\s]+)[^)]*\)|href=\"([^\"]+)\"")
 # GitHub file links must pin a commit, so the cited line cannot move under them.
 GITHUB_FILE = re.compile(r"https://github\.com/[^/]+/[^/]+/(blob|tree)/([^/]+)/")
@@ -43,7 +45,7 @@ def claims(text: str) -> list[tuple[int, str]]:
         closed = len(CLOSE_BLOCK.findall(line)) if not in_code else 0
         inside = depth > 0 or opened > 0
         depth = max(depth + opened - closed, 0)
-        if inside:
+        if inside and (HEADING_TAG.match(line) or not TAG.sub("", line).strip()):
             continue
         if (
             in_code
@@ -102,9 +104,9 @@ class ClaimsTest(unittest.TestCase):
         # Assert
         self.assertEqual(found, [(3, "| row | [x](y) |")])
 
-    def test_code_html_and_headings_are_not_claims(self) -> None:
+    def test_code_bare_tags_and_headings_are_not_claims(self) -> None:
         # Arrange
-        text = "# Title\n```\nplain\n```\n<div>\nplain\n</div>\nfact\n"
+        text = "# Title\n```\nplain\n```\n<div>\n<br>\n</div>\nfact\n"
 
         # Act
         found = claims(text)
@@ -144,7 +146,7 @@ class ClaimsTest(unittest.TestCase):
 
     def test_a_one_line_html_block_does_not_hide_the_lines_after_it(self) -> None:
         # Arrange
-        text = '<p align="center">x</p>\nunsourced claim\n'
+        text = '<p align="center"><img src="a.png"></p>\nunsourced claim\n'
 
         # Act
         missing = unsourced(text)
@@ -152,15 +154,17 @@ class ClaimsTest(unittest.TestCase):
         # Assert
         self.assertEqual(missing, [2])
 
-    def test_lines_inside_nested_html_blocks_are_not_claims(self) -> None:
+    def test_text_inside_html_blocks_is_a_claim_but_a_heading_is_not(self) -> None:
         # Arrange
-        text = "<div>\n<p>\nplain\n</p>\nplain\n</div>\nfact\n"
+        text = (
+            "<div>\n<h1>Name</h1>\n<p>\n<strong>tagline</strong>\n</p>\n</div>\nfact\n"
+        )
 
         # Act
         found = claims(text)
 
         # Assert
-        self.assertEqual(found, [(7, "fact")])
+        self.assertEqual(found, [(4, "<strong>tagline</strong>"), (7, "fact")])
 
     def test_inline_html_with_text_is_a_claim(self) -> None:
         # Arrange

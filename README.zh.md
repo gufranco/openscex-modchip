@@ -6,7 +6,7 @@
   <a href="README.md">English</a> &nbsp;·&nbsp; <a href="README.ja.md">日本語</a> &nbsp;·&nbsp; <b>中文</b>
 </p>
 
-<strong>面向 PlayStation 与 PSone 的隐身 SCEx 区域解锁，运行在按主机校正自身时钟的 ATtiny85 上。</strong>
+<strong>面向 PlayStation 与 PSone 的隐身 SCEx 区域解锁，运行在<a href="src/trim.c">按主机校正自身时钟</a>的 ATtiny85 上。</strong>
 
 <br><br>
 

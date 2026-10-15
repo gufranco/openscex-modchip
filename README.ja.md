@@ -6,7 +6,7 @@
   <a href="README.md">English</a> &nbsp;·&nbsp; <b>日本語</b> &nbsp;·&nbsp; <a href="README.zh.md">中文</a>
 </p>
 
-<strong>PlayStation と PSone のためのステルス SCEx リージョン解除。コンソールに合わせて自分のクロックを補正する ATtiny85 に載ります。</strong>
+<strong>PlayStation と PSone のためのステルス SCEx リージョン解除。コンソールに合わせて<a href="src/trim.c">自分のクロックを補正する</a> ATtiny85 に載ります。</strong>
 
 <br><br>
 
