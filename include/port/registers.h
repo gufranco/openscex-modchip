@@ -6,7 +6,9 @@
 
 // Maps signals to ATtiny85 pins, in PsNee's order (PsNee MCU.h) so its wiring
 // guides apply. PB5 stays RESET for ISP. PORT_INIT is PORTB at boot: no
-// pull-ups, indicator off.
+// pull-ups, indicator off, except that the trace profile's serial line idles
+// high from the first instruction, so an adapter never reads the boot as a
+// break and a stray zero byte.
 #if defined(__AVR_ATtiny85__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny25__)
 
 #define PSCU_PORT PORTB
@@ -20,7 +22,11 @@
 #define PSCU_PIN_INDICATOR 3
 #define PSCU_PIN_WFCK 4
 
+#if PSCU_PROFILE_TRACE
+#define PSCU_PORT_INIT (1 << PSCU_PIN_INDICATOR)
+#else
 #define PSCU_PORT_INIT 0x00
+#endif
 
 #else
 #error "unsupported MCU: the firmware targets the ATtiny85 family only"

@@ -130,7 +130,12 @@ pscu_board_mode_t pscu_engine_detect_board(bool lamp) {
   }
   pscu_port_delay_ms(PSCU_DETECT_SETTLE_MS);
   pscu_board_mode_t mode = pscu_sample_wfck(PSCU_DETECT_WINDOW);
+#if PSCU_PROFILE_TRACE
+  // The trace line goes back to its idle level, high.
+  pscu_port_indicator_on();
+#else
   pscu_port_indicator_off();
+#endif
   return mode;
 }
 

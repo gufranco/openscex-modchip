@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "avr_ioport.h"
 #include "harness.h"
 #include "scenarios.h"
 
@@ -63,7 +64,7 @@ static uint8_t level_at(const trace_edges_t *edges, int *cursor, uint64_t cycle)
 // can be set against the time stamp it carries.
 static uint64_t g_char_cycle[TRACE_TEXT_MAX];
 
-// Decode 8N1 from the first time the line idles high (the pin powers up low):
+// Decode 8N1 from the first time the line idles high:
 // a falling edge starts a byte, each bit is sampled mid-cell, and the stop bit
 // must be high. Returns the characters, or -1 on a framing error.
 static int decode_serial(const trace_edges_t *edges, double bit_cycles, char *text, int max) {
@@ -155,11 +156,17 @@ static int events_starting(const char *prefix) {
   return count;
 }
 
+// build_avr has already run the port setup, so the line's level then is the
+// first entry: the trace image sets the line high there, before any edge.
 static avr_t *trace_boot(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, 0U };
+  avr_ioport_state_t state;
+  (void)avr_ioctl(avr, AVR_IOCTL_IOPORT_GETSTATE((uint32_t)t->port), &state);
   g_edges.avr = avr;
-  g_edges.count = 0;
+  g_edges.at[0] = avr->cycle;
+  g_edges.level[0] = (uint8_t)((state.port >> t->indicator) & 1U);
+  g_edges.count = 1;
   avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_trace_pin, &g_edges);
   boot_quiet(avr, t, 0, &ctx);
   return avr;
@@ -185,6 +192,22 @@ void scenario_trace(const target_t *t, const char *elf, uint32_t freq) {
   (void)snprintf(
       label, sizeof(label), "trace: the lead-in frames arrive as sent (%d lines)", toc_lines);
   check((toc_lines >= TRACE_TOC_LINES_MIN) && (toc_lines <= TRACE_TOC_FRAMES), label);
+
+  // From init to the BOOT line's first start bit the line holds high: board
+  // detection and the oscillator setup leave no low level an adapter would
+  // read as a break or a zero byte.
+  int first_high = 0;
+  while ((first_high < g_edges.count) && (g_edges.level[first_high] == 0U)) {
+    first_high++;
+  }
+  int quiet_before_boot =
+      (len > 0) && (first_high < g_edges.count) && (g_edges.at[first_high] < ms_cycles(1U));
+  for (int i = first_high;
+       quiet_before_boot && (i < g_edges.count) && (g_edges.at[i] < g_char_cycle[0]);
+       i++) {
+    quiet_before_boot = g_edges.level[i] == 1U;
+  }
+  check(quiet_before_boot, "trace: the line idles high from init to the first start bit");
 
   // The boot report comes first: the build in this US image, a power-on reset,
   // the static gate detected (trace_boot drives no WFCK carrier), OSCCAL from
