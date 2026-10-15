@@ -256,8 +256,16 @@ class BuildTest(unittest.TestCase):
         reason = build_ubernee(self.root, sketch, core, chip, self.work)
 
         # Assert
+        built = (self.work / "ubernee-build" / "sketch.ino").read_text()
         self.assertIsNone(reason)
         self.assertTrue((self.root / chip.firmware).is_file())
+        self.assertEqual(
+            (
+                "#define SELECT_MAGICKEY SCEA" in built,
+                "const bool LGT8F328P = no" in built,
+            ),
+            (True, True),
+        )
 
     def test_a_second_build_reuses_the_clones(self) -> None:
         # Arrange
