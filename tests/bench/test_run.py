@@ -100,6 +100,14 @@ class OursTest(unittest.TestCase):
         self.assertEqual(result.metrics.during_play, 0)
         self.assertTrue(result.metrics.carrier)
         self.assertGreater(len(result.executed), 100)
+        self.assertEqual(
+            (
+                result.metrics.data_driven_outside_ns,
+                result.metrics.gate_driven_outside_ns,
+                result.metrics.pulled_ns,
+            ),
+            (0, 0, 0),
+        )
 
     def test_ours_stays_silent_once_play_resumes_after_a_swap(self) -> None:
         # Arrange
@@ -113,6 +121,14 @@ class OursTest(unittest.TestCase):
         self.assertGreaterEqual(result.metrics.second_window, 1)
         self.assertEqual(result.metrics.second_play, 0)
         self.assertEqual(result.metrics.during_swap, 0)
+        self.assertEqual(
+            (
+                result.metrics.data_driven_outside_ns,
+                result.metrics.gate_driven_outside_ns,
+                result.metrics.pulled_ns,
+            ),
+            (0, 0, 0),
+        )
 
     def test_ours_stays_silent_once_play_resumes_after_a_reread(self) -> None:
         # Arrange
@@ -125,6 +141,14 @@ class OursTest(unittest.TestCase):
         # Assert
         self.assertGreaterEqual(result.metrics.during_reread, 1)
         self.assertEqual(result.metrics.second_play, 0)
+        self.assertEqual(
+            (
+                result.metrics.data_driven_outside_ns,
+                result.metrics.gate_driven_outside_ns,
+                result.metrics.pulled_ns,
+            ),
+            (0, 0, 0),
+        )
 
     def test_ours_program_addresses_hold_every_instruction_start(self) -> None:
         # Act
