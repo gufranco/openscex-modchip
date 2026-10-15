@@ -262,12 +262,22 @@ pscu_port_ticks:
 // Bit cells timed by counting WFCK rising edges; r18 holds the last level. The
 // watchdog is kicked only on an edge, so a stalled carrier resets the chip and
 // releases DATA. wdr keeps the flags, so it can sit between subi and breq.
+//
+// A carrier that slows instead of stopping would keep kicking the watchdog
+// and stretch a string far past its 181 ms, DATA driven all along. So each
+// cell also has a Timer1 deadline, r23 holding the tick it started on: 30
+// periods take 4.1 ms at the slowest carrier, about 7.3 kHz, and 4 ticks,
+// 8.2 ms, is twice that. Sampled from a tick boundary the bound is 6.1 to
+// 8.2 ms, still above a whole cell. A cell returns 1 when its periods were
+// counted and 0 when the deadline passed; the caller then ends the string.
+#define PSCU_CELL_TICKS_MAX 4
 
 // Zero-bit cell: wait without touching DATA, which the caller drove low.
 	.func pscu_port_wfck_wait_periods
 pscu_port_wfck_wait_periods:
 	cpi r24, 0
 	breq 19f
+	in r23, _SFR_IO_ADDR(TCNT1)
 	in r19, _SFR_IO_ADDR(PSCU_PINREG)
 	mov r18, r19
 	pscu_shr_mask r18, PSCU_PIN_WFCK, 1
@@ -284,8 +294,16 @@ pscu_port_wfck_wait_periods:
 	wdr
 	breq 19f
 20:
+	in r25, _SFR_IO_ADDR(TCNT1)
+	sub r25, r23
+	cpi r25, PSCU_CELL_TICKS_MAX
+	brsh 21f
 	rjmp 18b
 19:
+	ldi r24, 1
+	ret
+21:
+	ldi r24, 0
 	ret
 	.endfunc
 
@@ -295,6 +313,7 @@ pscu_port_wfck_mirror_periods:
 	cpi r24, 0
 	breq 16f
 	sbi _SFR_IO_ADDR(PSCU_DDR), PSCU_PIN_DATA
+	in r23, _SFR_IO_ADDR(TCNT1)
 	in r19, _SFR_IO_ADDR(PSCU_PINREG)
 	mov r18, r19
 	pscu_shr_mask r18, PSCU_PIN_WFCK, 1
@@ -317,8 +336,16 @@ pscu_port_wfck_mirror_periods:
 	wdr
 	breq 16f
 17:
+	in r25, _SFR_IO_ADDR(TCNT1)
+	sub r25, r23
+	cpi r25, PSCU_CELL_TICKS_MAX
+	brsh 14f
 	rjmp 15b
 16:
+	ldi r24, 1
+	ret
+14:
+	ldi r24, 0
 	ret
 	.endfunc
 

@@ -230,11 +230,11 @@ void scenario_carrier_after_boot(const target_t *t, const char *elf, uint32_t fr
   check(g_wfck_driven == 0, label);
 }
 
-// A carrier that stalls mid-string must not leave DATA driven: the bit cell
-// kicks the watchdog only on WFCK edges, so the reset releases DATA within
-// about 0.5 s.
+// A carrier that stalls mid-string must not leave DATA driven: the cell it
+// stalls in outlasts its 8.2 ms deadline and ends the string, releasing DATA
+// with no watchdog reset. 20 ms covers the deadline and the cell in progress.
 #define STALL_AFTER_CYCLES ns_cycles(47000000ULL)
-#define STALL_WAIT_CYCLES ns_cycles(1417000000ULL)
+#define STALL_RELEASE_CYCLES ns_cycles(20000000ULL)
 #define STALL_TOC_FRAMES 150
 
 // The WFCK pin's direction bit: set while the chip drives the line.
@@ -268,30 +268,31 @@ void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
   check(data_ddr(avr, t) != 0U, label);
 
   avr_cycle_timer_cancel(avr, wfck_tick, &ctx);
-  run_cycles(avr, STALL_WAIT_CYCLES);
-  (void)snprintf(label, sizeof(label), "stall %s: DATA released after the carrier stops", tag);
+  run_cycles(avr, STALL_RELEASE_CYCLES);
+  (void)snprintf(label, sizeof(label), "stall %s: DATA released within a cell of the stall", tag);
   check(data_ddr(avr, t) == 0U, label);
 
-  uint64_t rebooted = avr->cycle;
+  uint64_t stalled = avr->cycle;
   run_cycles(avr, ms_cycles(9000U));
-  (void)snprintf(label, sizeof(label), "stall %s: the next boot shows watchdog code 5", tag);
-  check(code_after(rebooted) == 5, label);
+  (void)snprintf(label, sizeof(label), "stall %s: the chip runs on, no watchdog reset", tag);
+  check(code_after(stalled) != 5, label);
 
-  // After the reset the carrier is still stalled; the chip must keep the board
-  // it booted on and never drive WFCK, a CD DSP output here.
+  // The carrier is still stalled; the chip must keep the board it booted on
+  // and never drive WFCK, a CD DSP output here.
   int wfck_driven = 0;
   for (int i = 0; i < STALL_TOC_FRAMES; i++) {
     clock_frame(avr, t, toc);
     wfck_driven |= (int)wfck_ddr(avr, t);
   }
-  (void)snprintf(label, sizeof(label), "stall %s: WFCK is never driven after the reset", tag);
+  (void)snprintf(label, sizeof(label), "stall %s: WFCK is never driven after the stall", tag);
   check(wfck_driven == 0, label);
 }
 
 // A carrier found after boot whose WFCK stalls inside the first string: the
-// watchdog resets the chip before the window closes, so the record must name
-// the carrier already, written before that string went out, or the next boot
-// would keep the gate and drive WFCK, a CD DSP output.
+// string ends at the stall, before the window closes, so the record must name
+// the carrier already, written before that string went out, or any reset
+// before the window closed would bring back the gate and drive WFCK, a CD DSP
+// output.
 void scenario_carrier_after_boot_stall(const target_t *t, const char *elf, uint32_t freq) {
   avr_t *avr = build_avr(t, elf, freq);
   wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
@@ -313,16 +314,15 @@ void scenario_carrier_after_boot_stall(const target_t *t, const char *elf, uint3
   }
   run_to(avr, g_indicator_cycle + STALL_AFTER_CYCLES);
   avr_cycle_timer_cancel(avr, wfck_tick, &ctx);
-  run_cycles(avr, STALL_WAIT_CYCLES);
-  uint64_t rebooted = avr->cycle;
-  run_cycles(avr, ms_cycles(9000U));
+  run_cycles(avr, STALL_RELEASE_CYCLES);
+  uint8_t released = data_ddr(avr, t);
   uint8_t record[2] = { 0U, 0U };
   avr_eeprom_desc_t desc = { .ee = record, .offset = 0, .size = 2 };
   (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_GET, &desc);
 
   char label[112];
-  (void)snprintf(label, sizeof(label), "carrier stall %s: the watchdog reset the chip", t->mcu);
-  check((g_indicator_seen != 0) && (code_after(rebooted) == 5), label);
+  (void)snprintf(label, sizeof(label), "carrier stall %s: the string ends at the stall", t->mcu);
+  check((g_indicator_seen != 0) && (released == 0U), label);
   (void)snprintf(
       label, sizeof(label), "carrier stall %s: the record named the carrier first", t->mcu);
   check((record[0] == RECORD_MAGIC) && (record[1] == 1U), label);

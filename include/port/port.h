@@ -43,10 +43,11 @@ void pscu_port_delay_ms(uint16_t milliseconds);
 
 // One WFCK-carrier bit cell: hold_low keeps DATA low, mirror copies WFCK onto
 // DATA. Both count WFCK periods, so the cell follows the console clock, not the
-// RC oscillator.
-void pscu_port_bit_hold_low(void);
+// RC oscillator. Each returns 1 when the cell ran its periods and 0 when a
+// carrier too slow for them let the cell outlast its 8 ms deadline.
+uint8_t pscu_port_bit_hold_low(void);
 
-void pscu_port_bit_mirror(void);
+uint8_t pscu_port_bit_mirror(void);
 
 // Timer1 ticks, one per 16384 clocks, wrapping at 256.
 uint8_t pscu_port_ticks(void);

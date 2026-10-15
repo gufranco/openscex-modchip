@@ -27,7 +27,7 @@
 
 </div>
 
-闪存 [**6054**](Makefile) 字节 · [**8**](assets/psnee) 个主板系列，PU-7 至 PM-41(2) · [**3**](src/region.c) 个区域 · MISRA 偏离 [**0**](AGENTS.md) · 主机测试行与分支覆盖率 [**100%**](tests/host) · 变异体 [**638/638**](tools/mutate.py) 被杀死
+闪存 [**6076**](Makefile) 字节 · [**8**](assets/psnee) 个主板系列，PU-7 至 PM-41(2) · [**3**](src/region.c) 个区域 · MISRA 偏离 [**0**](AGENTS.md) · 主机测试行与分支覆盖率 [**100%**](tests/host) · 变异体 [**638/638**](tools/mutate.py) 被杀死
 
 ```bash
 gh release download --repo gufranco/openscex-modchip --pattern 'openscex-modchip-attiny85.hex' --pattern SHA256SUMS
@@ -224,7 +224,7 @@ PB3 可选接一个 LED 或有源蜂鸣器，这是芯片唯一的诊断手段�
 | 2 | 已送出字符串但主机未到达程序区 | DATA 与 WFCK 接线，以及构建的区域是否与光盘一致 | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
 | 3 | 上电后 5 s 内没有 SUBQ 帧；显示 15 s 后回到心跳闪烁 | SQCK、SUBQ、电源与地；没有光盘时也会显示 | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
 | 4 | 有帧但 20 s 内没有区域检查；持续期间重复 | SUBQ；音乐 CD 时也属正常 | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |
-| 5 | 看门狗复位了芯片，下次启动时显示一次 | 注入中停止的 WFCK | [src/indicator.c](src/indicator.c), [src/port_chip.S](src/port_chip.S) |
+| 5 | 看门狗复位了芯片，下次启动时显示一次 | 电源与地线：电压跌落或噪声让主循环停下 | [src/indicator.c](src/indicator.c), [src/port_chip.S](src/port_chip.S) |
 | 6 | 主板与校准记录中的不同，启动时显示一次；代码 5 优先 | 接触不良的 WFCK 线，除非芯片换到了另一台主机 | [src/indicator.c](src/indicator.c), [src/calib.c](src/calib.c) |
 | 7 | 测得电源低于约 2.75 V，或测量失败；持续期间不发送字符串，优先于代码 3 和 4 | 取电点的 VCC 与地，应在 3.3 V 以上 | [src/indicator.c](src/indicator.c), [src/supply.c](src/supply.c) |
 
@@ -260,7 +260,7 @@ python3 tools/serial_trace.py capture.txt
 | `SAVE OK`、`SAVE NO 2601mV` | 记录已写入 EEPROM，或因电压不足未写入并保留重试 | [src/trace.c](src/trace.c), [src/engine.c](src/engine.c) |
 | `LOST 2` | 连续事件超出 4 条队列容量而丢弃的数量 | [src/trace.c](src/trace.c), [include/pscu/trace.h](include/pscu/trace.h) |
 
-`tools/serial_trace.py` 读取保存的捕获，或通过管道传入的终端输出，用文字打印时间线：每帧都标出在光盘上的位置并核对 CRC，相同帧的连续段合并为一行。最后给出诊断，指出可能的故障和应检查之处：没有帧或每次捕获都失败指向 SQCK 与 SUBQ 接线，CRC 错误多指向这些线上的噪声，看门狗重启指向在字符串中途停止的 WFCK，反复上电或电压不足指向取电点，导入区从未打开窗口指向学习到的起点，发送了字符串却没有 `PASS` 指向 DATA 与 WFCK 接线或区域不符，`PASS` 之后游戏仍停住则是防改机检查或启动 ROM 的区域检查。`--summary` 只打印诊断。 出处：[tools/serial_trace.py](tools/serial_trace.py), [tests/serial_trace/test_serial_trace.py](tests/serial_trace/test_serial_trace.py)。
+`tools/serial_trace.py` 读取保存的捕获，或通过管道传入的终端输出，用文字打印时间线：每帧都标出在光盘上的位置并核对 CRC，相同帧的连续段合并为一行。最后给出诊断，指出可能的故障和应检查之处：没有帧或每次捕获都失败指向 SQCK 与 SUBQ 接线，CRC 错误多指向这些线上的噪声，看门狗重启指向让主循环停下的电压跌落或噪声，反复上电或电压不足指向取电点，导入区从未打开窗口指向学习到的起点，发送了字符串却没有 `PASS` 指向 DATA 与 WFCK 接线或区域不符，`PASS` 之后游戏仍停住则是防改机检查或启动 ROM 的区域检查。`--summary` 只打印诊断。 出处：[tools/serial_trace.py](tools/serial_trace.py), [tests/serial_trace/test_serial_trace.py](tests/serial_trace/test_serial_trace.py)。
 
 
 ## 工作原理
@@ -300,7 +300,7 @@ graph LR
 | 隐身 | 只在 SUBQ 区域检查窗口内、每次武装有上限地注入，与 PsNee 和 Mayumi V4 一样在字符串之间间隔 5 帧（67 ms）；其余时间 DATA 高阻、指示引脚关闭。主机读到程序区后不再开始新的字符串，正在发送的字符串会发完。之后的导入区读取，例如反改机 v2 的 TOC 重读，会在同一上限下再次得到响应。计数略低于起始点时上限与间隔保持不变，只有低于起始点 8 帧才重新武装 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [include/pscu/config.h](include/pscu/config.h), [PsNee PSNee.ino L53](https://github.com/kalymos/PsNee/blob/df52aec97d4e1677e3ed3ead1fba0bf102b1cfd7/PSNee/PSNee.ino#L53), [psx-spx cdromformat.md, anti-modchip](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/cdromformat.md#L1624-L1646) |
 | 单一区域 | 只送出 `REGION`，从不送出全部三个 | [src/region.c](src/region.c) |
 | 自适应时序 | 在 WFCK 载波主板上每个注入位持续 30 个 WFCK 周期，因此在单倍速和倍速下都跟随主机的时钟；在静态门控主板上由校正后的振荡器计时 | [src/port.S](src/port.S), [src/trim.c](src/trim.c) |
-| 自我恢复 | 每次 SUBQ 采集都在帧间空隙重新对齐，30 ms 内没有边沿或比特超过 16 ms（长于一帧）时放弃，因此悬空的 SQCK 显示代码 3，而不是让芯片重启；注入中 WFCK 停止时看门狗会释放 DATA。没有引脚需要上拉：SQCK、SUBQ、WFCK 是主机的线，DATA 释放时是主机的线，PB3 是输出 | [src/engine.c](src/engine.c), [src/port.S](src/port.S), [include/port/registers.h](include/port/registers.h) |
+| 自我恢复 | 每次 SUBQ 采集都在帧间空隙重新对齐，30 ms 内没有边沿或比特超过 16 ms（长于一帧）时放弃，因此悬空的 SQCK 显示代码 3，而不是让芯片重启；超过 8 ms 的载波比特单元会结束字符串并释放 DATA，因此注入中 WFCK 变慢或停止都不会占住 DATA；停住 0.5 s 的主循环由看门狗重启。没有引脚需要上拉：SQCK、SUBQ、WFCK 是主机的线，DATA 释放时是主机的线，PB3 是输出 | [src/engine.c](src/engine.c), [src/port.S](src/port.S), [include/port/registers.h](include/port/registers.h) |
 | 帧完整性 | 只有 CRC-16 匹配的 SUBQ 帧才计入，因此损坏或错位的帧既不会触发字符串，也不会被算作光盘仍在，更不会被当作程序区 | [src/subq.c](src/subq.c), [ECMA-130, Q-channel CRC](https://ecma-international.org/publications-and-standards/standards/ecma-130/) |
 | 状态指示 | 可选的 LED 或有源蜂鸣器显示启动阶段、每张光盘的结果和当前故障；固件从不等待它，什么都不接也正确运行 | [src/indicator.c](src/indicator.c) |
 | 现场诊断 | 代码指出失败的阶段，从没有时钟的 SUBQ 到始终没有区域检查的 SUBQ；无需编程器 | [src/indicator.c](src/indicator.c), [src/loop.c](src/loop.c) |

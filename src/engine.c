@@ -79,36 +79,40 @@ static bool pscu_wait_sqck_idle(void) {
 
 // Drive one SCEx bit onto DATA. A zero is low. A one is high-Z on a gate board
 // and a copy of WFCK on a carrier board. Carrier cells count WFCK periods; gate
-// cells are a fixed delay.
-static void pscu_inject_bit(uint8_t bit_value, pscu_board_mode_t mode) {
+// cells are a fixed delay. False when a carrier cell outlasted its deadline.
+static bool pscu_inject_bit(uint8_t bit_value, pscu_board_mode_t mode) {
   PSCU_ASSERT(bit_value <= 1U);
   PSCU_ASSERT((mode == PSCU_BOARD_MODE_GATE) || (mode == PSCU_BOARD_MODE_WFCK));
 
+  uint8_t done = 1U;
   if (bit_value == 0U) {
     pscu_port_data_drive_low();
     if (mode == PSCU_BOARD_MODE_WFCK) {
-      pscu_port_bit_hold_low();
+      done = pscu_port_bit_hold_low();
     } else {
       pscu_port_delay_ms(PSCU_BIT_MS);
     }
   } else if (mode == PSCU_BOARD_MODE_WFCK) {
-    pscu_port_bit_mirror();
+    done = pscu_port_bit_mirror();
   } else {
     pscu_port_data_release();
     pscu_port_delay_ms(PSCU_BIT_MS);
   }
   pscu_port_watchdog_reset();
+  return done != 0U;
 }
 
-// A string always runs to its end: 176 ms on a gate board, and up to 181 ms
-// mirrored on a carrier, where 44 bits of 30 WFCK periods at the slowest
-// carrier rate, about 7.3 kHz, take longer. If WFCK stops mid-string, the
-// watchdog releases DATA within about 0.5 s.
+// A string runs to its end: 176 ms on a gate board, and up to 181 ms mirrored
+// on a carrier, where 44 bits of 30 WFCK periods at the slowest carrier rate,
+// about 7.3 kHz, take longer. A carrier cell that outlasts its deadline ends
+// the string there, so a slowing carrier never holds DATA; if WFCK stops
+// outright, the watchdog also releases DATA within about 0.5 s.
 static void pscu_inject_region(pscu_region_t region, pscu_board_mode_t mode) {
   PSCU_ASSERT((uint8_t)region < PSCU_REGION_COUNT);
 
-  for (uint8_t bit = 0U; bit < PSCU_SCEX_BIT_COUNT; bit++) {
-    pscu_inject_bit(pscu_region_bit(region, bit), mode);
+  bool going = true;
+  for (uint8_t bit = 0U; (bit < PSCU_SCEX_BIT_COUNT) && going; bit++) {
+    going = pscu_inject_bit(pscu_region_bit(region, bit), mode);
   }
 }
 

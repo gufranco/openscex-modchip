@@ -354,8 +354,9 @@ def _power(t: Tally) -> list[str]:
     findings: list[str] = []
     if t.count("RST WDT"):
         findings.append(
-            f"{t.count('RST WDT')} watchdog restart(s): the chip stalled, usually on a "
-            "WFCK carrier that stopped mid-string. Check the WFCK wire."
+            f"{t.count('RST WDT')} watchdog restart(s): the main loop stopped for "
+            "0.5 s, usually a supply dip or noise. Check the supply tap, the ground "
+            "and the decoupling capacitor."
         )
     if t.count("RST PWR") > 1:
         findings.append(
