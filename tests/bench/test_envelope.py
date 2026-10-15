@@ -4,6 +4,7 @@
 """Tests for checking ours against the field-proven chips' envelope."""
 
 import unittest
+from collections.abc import Callable
 from dataclasses import replace
 
 from tools.bench.envelope import (
@@ -53,6 +54,55 @@ class EnvelopeTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(set(result.values()), {Verdict.MET})
+
+    def test_every_rule_is_judged(self) -> None:
+        # Act
+        result = verdicts(BASE, [BASE])
+
+        # Assert
+        self.assertEqual(
+            sorted(result),
+            sorted(
+                [
+                    "would_accept",
+                    "cell_min_ns",
+                    "cell_max_ns",
+                    "first_latency_ns",
+                    "before_lead_in",
+                    "before_program",
+                    "during_play",
+                    "during_reread",
+                    "second_window",
+                    "second_play",
+                    "during_swap",
+                    "data_driven_outside_ns",
+                    "gate_driven_ns",
+                ]
+            ),
+        )
+
+    def test_each_count_above_every_proven_chip_breaks_its_rule(self) -> None:
+        # Arrange
+        counts: dict[str, Callable[[int], Metrics]] = {
+            "before_lead_in": lambda v: replace(BASE, before_lead_in=v),
+            "before_program": lambda v: replace(BASE, before_program=v),
+            "during_play": lambda v: replace(BASE, during_play=v),
+            "during_reread": lambda v: replace(BASE, during_reread=v),
+            "second_window": lambda v: replace(BASE, second_window=v),
+            "second_play": lambda v: replace(BASE, second_play=v),
+            "during_swap": lambda v: replace(BASE, during_swap=v),
+            "data_driven_outside_ns": lambda v: replace(BASE, data_driven_outside_ns=v),
+            "gate_driven_ns": lambda v: replace(BASE, gate_driven_ns=v),
+        }
+
+        # Act
+        broken = {
+            metric: verdicts(make(6), [make(5)])[metric]
+            for metric, make in counts.items()
+        }
+
+        # Assert
+        self.assertEqual(broken, dict.fromkeys(counts, Verdict.BROKEN))
 
     def test_not_accepting_where_a_proven_chip_accepts_fails(self) -> None:
         # Arrange
