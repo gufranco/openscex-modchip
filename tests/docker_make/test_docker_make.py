@@ -14,23 +14,38 @@ from tools import docker_make
 
 
 class FakeDocker:
-    """Records every docker command and answers like the CLI would: `present`
-    is whether the image exists, `exit_code` what `docker run` returns."""
+    """Records every docker command and its options, and answers like the CLI
+    would: `present` is whether the image exists, `build_code` what `docker
+    build` returns, `exit_code` what `docker run` returns, and `hang` makes
+    the inspect run past its limit."""
 
-    def __init__(self, present: bool, exit_code: int = 0) -> None:
+    def __init__(
+        self, present: bool, exit_code: int = 0, build_code: int = 0, hang: bool = False
+    ) -> None:
         self.present = present
         self.exit_code = exit_code
+        self.build_code = build_code
+        self.hang = hang
         self.calls: list[list[str]] = []
+        self.options: list[tuple[bool, bool, float | None]] = []
 
     def __call__(
-        self, args: list[str], **_kwargs: object
+        self,
+        args: list[str],
+        *,
+        check: bool,
+        capture_output: bool = False,
+        timeout: float | None = None,
     ) -> subprocess.CompletedProcess[bytes]:
         self.calls.append(args)
+        self.options.append((check, capture_output, timeout))
         if args[:3] == ["docker", "image", "inspect"]:
+            if self.hang:
+                raise subprocess.TimeoutExpired(args, timeout or 0)
             return subprocess.CompletedProcess(args, 0 if self.present else 1)
-        if args[:2] == ["docker", "run"]:
-            return subprocess.CompletedProcess(args, self.exit_code)
-        return subprocess.CompletedProcess(args, 0)
+        if args[:2] == ["docker", "build"]:
+            return subprocess.CompletedProcess(args, self.build_code)
+        return subprocess.CompletedProcess(args, self.exit_code)
 
 
 class ImageInputsTestCase(unittest.TestCase):
@@ -84,6 +99,16 @@ class ToolchainCommandTest(unittest.TestCase):
         self.assertIn("501:20", command)
         self.assertIn("/repo:/src", command)
         self.assertEqual(command[-3:], ["make", "analyse", "hosttest"])
+        self.assertEqual(
+            [command[i + 1] for i, word in enumerate(command) if word in ("-e", "-w")],
+            [
+                "HOME=/tmp",
+                "GIT_CONFIG_COUNT=1",
+                "GIT_CONFIG_KEY_0=safe.directory",
+                "GIT_CONFIG_VALUE_0=/src",
+                "/src",
+            ],
+        )
 
 
 class EnsureImageTest(unittest.TestCase):
@@ -98,6 +123,13 @@ class EnsureImageTest(unittest.TestCase):
         self.assertEqual(
             [call[:3] for call in docker.calls],
             [["docker", "image", "inspect"], ["docker", "build", "-t"]],
+        )
+        self.assertEqual(
+            docker.options,
+            [
+                (False, True, docker_make.INSPECT_TIMEOUT_S),
+                (False, False, docker_make.BUILD_TIMEOUT_S),
+            ],
         )
 
     def test_skips_build_when_image_present(self) -> None:
@@ -129,6 +161,31 @@ class MainTest(ImageInputsTestCase):
             [["docker", "image"], ["docker", "build"], ["docker", "run"]],
         )
         self.assertEqual(docker.calls[-1][-2:], ["make", "hosttest"])
+
+    def test_a_failed_build_stops_before_make_and_returns_its_code(self) -> None:
+        # Arrange
+        root = self.inputs()
+        docker = FakeDocker(present=False, build_code=3)
+
+        # Act
+        code = docker_make.main(["docker_make.py", "hosttest"], root, docker)
+
+        # Assert
+        self.assertEqual(
+            (code, [call[:2] for call in docker.calls]),
+            (3, [["docker", "image"], ["docker", "build"]]),
+        )
+
+    def test_docker_that_never_answers_fails_without_a_traceback(self) -> None:
+        # Arrange
+        root = self.inputs()
+        docker = FakeDocker(present=False, hang=True)
+
+        # Act
+        code = docker_make.main(["docker_make.py", "hosttest"], root, docker)
+
+        # Assert
+        self.assertEqual((code, len(docker.calls)), (1, 1))
 
 
 if __name__ == "__main__":

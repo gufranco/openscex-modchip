@@ -7,17 +7,35 @@ import hashlib
 import os
 import subprocess
 import sys
-from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol
 
 ROOT = Path(__file__).resolve().parent.parent
 IMAGE_INPUTS = ("Dockerfile", "docker/requirements-tools.txt")
 IMAGE_NAME = "openscex-modchip-toolchain"
 TAG_LENGTH = 12
 
-# How the wrapper starts a process: subprocess.run, or a stand-in in tests. No
-# call captures text, so the output, when captured, is bytes.
-Runner = Callable[..., subprocess.CompletedProcess[bytes]]
+# Backstops for the two docker calls that run before make. An inspect answers
+# at once; a cold build installs the toolchain, and the CI gates job, build
+# included, has not passed 259 s, so a build is given half an hour. make itself
+# runs unbounded here: its targets take from seconds to over an hour, and CI
+# bounds each job.
+INSPECT_TIMEOUT_S = 60
+BUILD_TIMEOUT_S = 1800
+
+
+class Runner(Protocol):
+    """How the wrapper starts a process: subprocess.run, or a stand-in in
+    tests. No call captures text, so the output, when captured, is bytes."""
+
+    def __call__(
+        self,
+        args: list[str],
+        *,
+        check: bool,
+        capture_output: bool = False,
+        timeout: float | None = None,
+    ) -> subprocess.CompletedProcess[bytes]: ...
 
 
 def image_tag(root: Path) -> str:
@@ -62,20 +80,38 @@ def toolchain_command(
     ]
 
 
-def ensure_image(root: Path, tag: str, runner: Runner = subprocess.run) -> None:
-    """Build the image only when that exact tag is not already present."""
+def ensure_image(root: Path, tag: str, runner: Runner = subprocess.run) -> int:
+    """Build the image only when that exact tag is not already present. The
+    build's exit code, or 0 when the image was already there."""
     present = runner(
-        ["docker", "image", "inspect", tag], capture_output=True, check=False
+        ["docker", "image", "inspect", tag],
+        check=False,
+        capture_output=True,
+        timeout=INSPECT_TIMEOUT_S,
     )
-    if present.returncode != 0:
-        runner(["docker", "build", "-t", tag, str(root)], check=True)
+    if present.returncode == 0:
+        return 0
+    built = runner(
+        ["docker", "build", "-t", tag, str(root)],
+        check=False,
+        timeout=BUILD_TIMEOUT_S,
+    )
+    if built.returncode != 0:
+        print(f"docker build of {tag} failed: exit {built.returncode}", file=sys.stderr)
+    return built.returncode
 
 
 def main(
     arguments: list[str], root: Path = ROOT, runner: Runner = subprocess.run
 ) -> int:
     tag = image_tag(root)
-    ensure_image(root, tag, runner)
+    try:
+        built = ensure_image(root, tag, runner)
+    except subprocess.TimeoutExpired as expired:
+        print(f"docker gave no answer in {expired.timeout} s", file=sys.stderr)
+        return 1
+    if built != 0:
+        return built
     command = toolchain_command(root, tag, (os.getuid(), os.getgid()), arguments[1:])
     return runner(command, check=False).returncode
 

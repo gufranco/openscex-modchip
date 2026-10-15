@@ -8,3 +8,8 @@ node_modules
 docs
 specs
 *.md
+.mypy_cache
+.coverage
+.coverage.*
+.claude
+.vscode
