@@ -120,7 +120,7 @@ void scenario_resync(const target_t *t, const char *elf, uint32_t freq) {
 
   uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
   clock_partial(avr, t, PARTIAL_BURST_BITS);
-  for (int i = 0; i < RESYNC_FRAMES; i++) {
+  for (int i = 0; (i < RESYNC_FRAMES) && (g_indicator_seen == 0); i++) {
     clock_frame(avr, t, toc);
   }
   uint64_t deadline = avr->cycle + INDICATOR_DEADLINE;
@@ -128,10 +128,16 @@ void scenario_resync(const target_t *t, const char *elf, uint32_t freq) {
     run_cycles(avr, 2000U);
   }
 
+  // The lamp alone could be the heartbeat; the string decoded from DATA is
+  // what proves the frames were read.
+  char decoded[SCEX_BITS + 1] = { 0 };
+  if (g_indicator_seen != 0) {
+    decode_region(avr, t, 0, BIT_CYCLES(freq), decoded);
+  }
   const char *tag = t->mcu;
   char label[96];
   (void)snprintf(label, sizeof(label), "resync %s: injects after a capture starts mid-burst", tag);
-  check(g_indicator_seen != 0, label);
+  check(strcmp(decoded, SCEA_BITS) == 0, label);
 }
 
 // WFCK starting 283 ms after power-on must still be detected as a carrier; the
