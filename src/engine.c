@@ -18,14 +18,23 @@
 #include "pscu/supply.h"
 #include "pscu/trim.h"
 
-// WFCK samples at boot: 52.5 ms at 42 cycles a sample, measured in simavr
-// (scenario_detect_timing), about 386 falling edges of a 7.35 kHz carrier.
-// PsNee V9.0 counts the same 10000 samples in its own loop.
-#define PSCU_DETECT_WINDOW ((uint16_t)10000U)
+// One WFCK sample takes 42 cycles, measured in simavr (scenario_detect_timing
+// fails if it moves); each window below is a time, turned into samples here.
+#define PSCU_WFCK_SAMPLE_CYCLES (42UL)
+#define PSCU_SAMPLES_IN_US(us) (((F_CPU / 1000000UL) * (us)) / PSCU_WFCK_SAMPLE_CYCLES)
+// WFCK samples at boot: 52.5 ms, about 386 falling edges of a 7.35 kHz
+// carrier. PsNee V9.0 counts the same 10000 samples in its own loop.
+#define PSCU_DETECT_WINDOW ((uint16_t)PSCU_SAMPLES_IN_US(52500UL))
 // Edge run that proves a carrier (mayumi_v4_12c508a_any.asm:566,
 // multimode_v3_12c508a_any.asm:626).
 #define PSCU_DETECT_PULSES ((uint8_t)25U)
-#define PSCU_GUARD_WINDOW ((uint16_t)2500U)
+#define PSCU_GUARD_WINDOW ((uint16_t)PSCU_SAMPLES_IN_US(13125UL))
+// Most samples between two edges of one carrier run: 360 us, the gap
+// MultiMode 3 and Mayumi V4 allow, rounded up. A 7.35 kHz carrier falls
+// every 136 us, about 26 samples.
+#define PSCU_SAMPLES_IN_US_UP(us) \
+  ((((F_CPU / 1000000UL) * (us)) + (PSCU_WFCK_SAMPLE_CYCLES - 1UL)) / PSCU_WFCK_SAMPLE_CYCLES)
+#define PSCU_BOARD_EDGE_GAP PSCU_SAMPLES_IN_US_UP(360UL)
 // Lets WFCK start before detection (PsNee V9.0 PSNee.ino:376).
 #define PSCU_DETECT_SETTLE_MS ((uint16_t)300U)
 // One SCEx bit cell, 4 ms, about 250 baud: PsNee V9.0's BIT_DELAY of 4000 us
@@ -46,7 +55,11 @@
 _Static_assert(PSCU_DETECT_PULSES == 25U,
                "Mayumi v4 and Multimode v3 prove a carrier with 25 edges");
 _Static_assert(PSCU_DETECT_SETTLE_MS == 300U, "PsNee V9.0 lets WFCK start for 300 ms");
+#if F_CPU == 8000000UL
+_Static_assert(PSCU_DETECT_WINDOW == 10000U, "52.5 ms at 5.25 us a sample is 10000 samples");
 _Static_assert(PSCU_GUARD_WINDOW == 2500U, "2500 samples of 42 cycles fit one 13.3 ms frame");
+_Static_assert(PSCU_BOARD_EDGE_GAP == 69UL, "360 us at 5.25 us a sample is 68.6, rounded up");
+#endif
 _Static_assert(PSCU_WAIT_MS == 30UL, "an edge wait spans two 13.3 ms frame periods and a margin");
 #if F_CPU == 8000000UL
 _Static_assert(PSCU_SQCK_IDLE_POLLS == 197UL,
@@ -118,7 +131,7 @@ static void pscu_inject_region(pscu_region_t region, pscu_board_mode_t mode) {
 
 // Sample WFCK window times and classify the board.
 static pscu_board_mode_t pscu_sample_wfck(uint16_t window) {
-  pscu_board_detect_t state = pscu_board_detect_init(PSCU_DETECT_PULSES);
+  pscu_board_detect_t state = pscu_board_detect_init(PSCU_DETECT_PULSES, PSCU_BOARD_EDGE_GAP);
   for (uint16_t i = 0U; i < window; i++) {
     state = pscu_board_detect_step(state, pscu_port_read_wfck());
     pscu_port_watchdog_reset();

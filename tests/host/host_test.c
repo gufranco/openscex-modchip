@@ -192,8 +192,11 @@ static void test_subq_vcd_filter(void) {
         "vcd filter: bad framing decays");
 }
 
+// The edge gap the firmware derives at 8 MHz: 360 us at 5.25 us a sample.
+#define TEST_EDGE_GAP ((uint8_t)69U)
+
 static pscu_board_detect_t feed(const uint8_t *samples, uint16_t count, uint8_t needed) {
-  pscu_board_detect_t state = pscu_board_detect_init(needed);
+  pscu_board_detect_t state = pscu_board_detect_init(needed, TEST_EDGE_GAP);
   for (uint16_t i = 0U; i < count; i++) {
     state = pscu_board_detect_step(state, samples[i]);
   }
@@ -249,7 +252,7 @@ static void test_board_mode(void) {
 }
 
 static void test_board_saturates(void) {
-  pscu_board_detect_t state = pscu_board_detect_init(25U);
+  pscu_board_detect_t state = pscu_board_detect_init(25U, TEST_EDGE_GAP);
   for (uint16_t i = 0U; i < 600U; i++) {
     state = pscu_board_detect_step(state, (uint8_t)(i & 1U));
   }
@@ -273,20 +276,25 @@ static pscu_board_detect_t edges(pscu_board_detect_t state, uint8_t count, uint1
 // Only edges within the gap bound of each other form a run: a clock passes on
 // exactly the needed run, spread-out noise does not.
 static void test_board_runs(void) {
-  pscu_board_detect_t clock = edges(pscu_board_detect_init(25U), 25U, 30U);
+  pscu_board_detect_t clock = edges(pscu_board_detect_init(25U, TEST_EDGE_GAP), 25U, 30U);
   check(pscu_board_detect_mode(clock) == PSCU_BOARD_MODE_WFCK, "25 close edges are a carrier");
-  pscu_board_detect_t short_run = edges(pscu_board_detect_init(25U), 24U, 30U);
+  pscu_board_detect_t short_run = edges(pscu_board_detect_init(25U, TEST_EDGE_GAP), 24U, 30U);
   check(pscu_board_detect_mode(short_run) == PSCU_BOARD_MODE_GATE, "24 close edges are not");
-  pscu_board_detect_t at_bound = edges(pscu_board_detect_init(25U), 25U, PSCU_BOARD_EDGE_GAP_MAX);
+  pscu_board_detect_t at_bound =
+      edges(pscu_board_detect_init(25U, TEST_EDGE_GAP), 25U, TEST_EDGE_GAP);
   check(at_bound.pulses == 25U, "an edge exactly at the gap bound still joins the run");
   pscu_board_detect_t spread =
-      edges(pscu_board_detect_init(25U), 25U, (uint16_t)(PSCU_BOARD_EDGE_GAP_MAX + 1U));
+      edges(pscu_board_detect_init(25U, TEST_EDGE_GAP), 25U, (uint16_t)(TEST_EDGE_GAP + 1U));
   check(spread.pulses == 1U, "an edge one sample past the bound starts a new run");
   check(pscu_board_detect_mode(spread) == PSCU_BOARD_MODE_GATE, "spread-out edges are a gate");
+  pscu_board_detect_t narrow_at = edges(pscu_board_detect_init(25U, 10U), 25U, 10U);
+  pscu_board_detect_t narrow_past = edges(pscu_board_detect_init(25U, 10U), 25U, 11U);
+  check((narrow_at.pulses == 25U) && (narrow_past.pulses == 1U),
+        "the gap bound is the one the caller gives, for any clock");
   pscu_board_detect_t paused = edges(clock, 3U, 300U);
   check((paused.pulses == 1U) && (pscu_board_detect_mode(paused) == PSCU_BOARD_MODE_WFCK),
         "a carrier that ran long enough and then paused still counts");
-  pscu_board_detect_t idle = edges(pscu_board_detect_init(25U), 0U, 0U);
+  pscu_board_detect_t idle = edges(pscu_board_detect_init(25U, TEST_EDGE_GAP), 0U, 0U);
   for (uint16_t i = 0U; i < 400U; i++) {
     idle = pscu_board_detect_step(idle, 1U);
   }

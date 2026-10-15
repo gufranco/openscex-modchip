@@ -203,7 +203,12 @@ pscu_port_delay_ms:
 // The budget starts at the first falling edge, r19 latched there while r23 is
 // still clear, so the wait for the burst to begin, most of a frame gap, never
 // counts against the bits.
-#define PSCU_FRAME_BUDGET_TICKS 8
+#define PSCU_TIMER1_PRESCALE 16384
+#define PSCU_FRAME_BUDGET_US 16384
+#define PSCU_FRAME_BUDGET_TICKS ((PSCU_FRAME_BUDGET_US * (F_CPU / 1000000)) / PSCU_TIMER1_PRESCALE)
+#if F_CPU == 8000000UL && PSCU_FRAME_BUDGET_TICKS != 8
+#error "16.384 ms of 2.048 ms Timer1 ticks is 8 ticks"
+#endif
 	.global pscu_port_capture_frame
 	.func pscu_port_capture_frame
 pscu_port_capture_frame:
@@ -278,7 +283,11 @@ pscu_port_ticks:
 // 8.2 ms, is twice that. Sampled from a tick boundary the bound is 6.1 to
 // 8.2 ms, still above a whole cell. A cell returns 1 when its periods were
 // counted and 0 when the deadline passed; the caller then ends the string.
-#define PSCU_CELL_TICKS_MAX 4
+#define PSCU_CELL_DEADLINE_US 8192
+#define PSCU_CELL_TICKS_MAX ((PSCU_CELL_DEADLINE_US * (F_CPU / 1000000)) / PSCU_TIMER1_PRESCALE)
+#if F_CPU == 8000000UL && PSCU_CELL_TICKS_MAX != 4
+#error "8.192 ms of 2.048 ms Timer1 ticks is 4 ticks"
+#endif
 
 // Zero-bit cell: wait without touching DATA, which the caller drove low.
 	.func pscu_port_wfck_wait_periods
