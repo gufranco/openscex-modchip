@@ -173,6 +173,50 @@ class EventTest(unittest.TestCase):
         )
 
 
+class NoisyEventTest(unittest.TestCase):
+    def test_a_garbled_event_reads_as_unreadable(self) -> None:
+        # Arrange
+        garbled = lines(
+            "@1.000 BRD X D",
+            "@1.000 REC W",
+            "@1.000 OSC 50",
+            "@1.000 HOLD 03 0A xmV",
+            "@1.000 SCEX 1",
+        )
+
+        # Act
+        said = [describe_event(event) for event in garbled if isinstance(event, Event)]
+
+        # Assert
+        self.assertEqual(
+            said,
+            [
+                "unreadable event: BRD X D",
+                "unreadable event: REC W",
+                "unreadable event: OSC 50",
+                "unreadable event: HOLD 03 0A xmV",
+                "unreadable event: SCEX 1",
+            ],
+        )
+
+    def test_garbled_strings_still_get_a_diagnosis(self) -> None:
+        # Arrange
+        capture = lines(
+            *BOOT, LEAD_IN, "@1.400 OPEN 0A 0A", "@1.460 SCEX 1", "@1.500 SCEX 2 X"
+        )
+
+        # Act
+        findings = diagnose(capture)
+
+        # Assert
+        self.assertEqual(
+            findings[0],
+            "2 string(s) sent on board X but the console never accepted the disc. "
+            "Check the DATA wire, the WFCK wire on a carrier board, and that the "
+            "build's region matches the console.",
+        )
+
+
 class TimelineTest(unittest.TestCase):
     def test_repeated_frames_fold_and_events_keep_their_time(self) -> None:
         # Arrange
@@ -384,7 +428,7 @@ class MainTest(unittest.TestCase):
     def test_standard_input_gives_the_summary_alone(self) -> None:
         # Arrange
         printed = io.StringIO()
-        typed = io.StringIO("@0.000 RST PWR\n")
+        typed = io.TextIOWrapper(io.BytesIO(b"@0.000 RST PWR\n"))
 
         # Act
         with mock.patch("sys.stdin", typed), redirect_stdout(printed):
@@ -394,4 +438,19 @@ class MainTest(unittest.TestCase):
         self.assertEqual(
             (code, printed.getvalue().splitlines()[0]),
             (0, "Diagnosis:"),
+        )
+
+    def test_bytes_that_are_not_text_are_replaced_not_fatal(self) -> None:
+        # Arrange
+        printed = io.StringIO()
+        typed = io.TextIOWrapper(io.BytesIO(b"\xff\xfe@0.000 RST PWR\n"))
+
+        # Act
+        with mock.patch("sys.stdin", typed), redirect_stdout(printed):
+            code = main(["serial_trace"])
+
+        # Assert
+        self.assertEqual(
+            (code, printed.getvalue().splitlines()[0]),
+            (0, "  unreadable line: \ufffd\ufffd@0.000 RST PWR"),
         )

@@ -208,11 +208,17 @@ WORDS: dict[str, Describer] = {
 
 
 def describe_event(event: Event) -> str:
-    """An event line in words."""
+    """An event line in words. A line noise garbled after its tag, with a value
+    missing or one no tag uses, is shown as unreadable instead of stopping the
+    report: noise on the line is itself something the diagnosis reports."""
     say = WORDS.get(event.tag)
+    raw = f"{event.tag} {' '.join(event.values)}".rstrip()
     if say is None:
-        return f"unknown event {event.tag} {' '.join(event.values)}".rstrip()
-    return say(event.values)
+        return f"unknown event {raw}"
+    try:
+        return say(event.values)
+    except (KeyError, ValueError, IndexError):
+        return f"unreadable event: {raw}"
 
 
 def timeline(lines: Sequence[Line]) -> list[str]:
@@ -328,10 +334,16 @@ def _session(t: Tally) -> list[str]:
             "the MISS lines. The start is learned earlier after each miss."
         )
     if t.count("SCEX") and not t.count("PASS"):
-        boards = sorted({event.values[1] for event in t.events if event.tag == "SCEX"})
+        boards = sorted(
+            {
+                event.values[1]
+                for event in t.events
+                if event.tag == "SCEX" and len(event.values) > 1
+            }
+        )
         findings.append(
             f"{t.count('SCEX')} string(s) sent on "
-            + " and ".join(BOARDS[board] for board in boards)
+            + " and ".join(BOARDS.get(board, f"board {board}") for board in boards)
             + " but the console never accepted the disc. Check the DATA wire, the "
             "WFCK wire on a carrier board, and that the build's region matches the "
             "console."
@@ -355,8 +367,10 @@ def diagnose(lines: Sequence[Line]) -> list[str]:
 
 
 def read(path: str | None) -> list[Line]:
-    """The capture's lines, from a file or from standard input."""
-    text = sys.stdin.read() if path is None else Path(path).read_text(errors="replace")
+    """The capture's lines, from a file or from standard input. Bytes that are
+    not text, as a wrong baud rate gives, are replaced either way."""
+    raw = sys.stdin.buffer.read() if path is None else Path(path).read_bytes()
+    text = raw.decode(errors="replace")
     return [parse(raw) for raw in text.splitlines() if raw.strip()]
 
 
