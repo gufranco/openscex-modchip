@@ -72,14 +72,25 @@ struct Line {
   bool inverted = false;
 };
 
+// A pin map the runner cannot read in full would leave a console wire out of
+// the run, so anything it cannot place is refused, as in the AVR runner: an
+// item without '=', an empty name, or a pin that is not a package pin number
+// from 1 to 40.
+[[noreturn]] void bad_pin_map(const char *text, const char *why) {
+  std::fprintf(stderr, "pin map %s: %s\n", text, why);
+  std::exit(2);
+}
+
+constexpr long MAX_PACKAGE_PIN = 40L;
+
 std::map<std::string, Line> parse_pin_map(const char *text) {
   std::map<std::string, Line> lines;
   std::stringstream all(text);
   std::string item;
   while (std::getline(all, item, ',')) {
     size_t eq = item.find('=');
-    if (eq == std::string::npos) {
-      continue;
+    if (eq == std::string::npos || eq == 0U) {
+      bad_pin_map(text, "an item without a name and '='");
     }
     Line line;
     std::string pin = item.substr(eq + 1);
@@ -87,10 +98,47 @@ std::map<std::string, Line> parse_pin_map(const char *text) {
       line.inverted = true;
       pin = pin.substr(1);
     }
-    line.pin = std::atoi(pin.c_str());
+    char *end = nullptr;
+    long number = std::strtol(pin.c_str(), &end, 10);
+    if (pin.empty() || *end != '\0' || number < 1L || number > MAX_PACKAGE_PIN) {
+      bad_pin_map(text, "a pin that is not a package pin from 1 to 40");
+    }
+    line.pin = static_cast<int>(number);
     lines[item.substr(0, eq)] = line;
   }
   return lines;
+}
+
+// A whole decimal number, or exit: a clock or a duration that does not parse
+// would run nothing and still exit 0.
+unsigned long long number(const char *text, const char *what) {
+  char *end = nullptr;
+  unsigned long long value = std::strtoull(text, &end, 10);
+  if (end == text || *end != '\0' || value == 0ULL) {
+    std::fprintf(stderr, "%s must be a positive whole number, not %s\n", what, text);
+    std::exit(2);
+  }
+  return value;
+}
+
+// Close a file the run wrote, or exit: a short write must not pass for a
+// complete trace.
+void finish(std::FILE *file, const char *path) {
+  if (std::ferror(file) != 0 || std::fclose(file) != 0) {
+    std::fprintf(stderr, "cannot finish writing %s\n", path);
+    std::exit(1);
+  }
+}
+
+// Console wires a chip may not use; the timeline drives them for every chip,
+// and one this chip lacks is simply not wired. Any other name is an error.
+bool is_console_wire(const std::string &name) {
+  for (const char *wire : { "sqck", "subq", "wfck", "lid", "reset", "sense" }) {
+    if (name == wire) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Every line must parse; a malformed one stops the run instead of silently
@@ -122,9 +170,9 @@ int main(int argc, char **argv) {
                  argv[0]);
     return 2;
   }
-  const double clock_hz = std::atof(argv[3]);
+  const double clock_hz = static_cast<double>(number(argv[3], "clock_hz"));
   const double ns_per_cycle = 4.0e9 / clock_hz;
-  const unsigned long long duration_ns = std::strtoull(argv[7], nullptr, 10);
+  const unsigned long long duration_ns = number(argv[7], "duration_ns");
   const std::map<std::string, Line> pins = parse_pin_map(argv[8]);
   const std::vector<ConsoleEvent> events = read_timeline(argv[4]);
   // The bench compares this count with the timeline it wrote.
@@ -204,7 +252,8 @@ int main(int argc, char **argv) {
     }
   }
   // Trace each console input whose weak pull-up is on as pull-<name>, sampled
-  // every PULL_SAMPLE_STEPS instructions as in the AVR runner.
+  // after every instruction: gpsim offers no hook on the option register's
+  // writes, and a sparser sample could miss a pull-up that is on only briefly.
   struct Pull {
     std::string name;
     IOPIN *pin;
@@ -216,8 +265,6 @@ int main(int argc, char **argv) {
       pulls.push_back({ entry.first, cpu->get_pin(entry.second.pin), -1 });
     }
   }
-  constexpr unsigned PULL_SAMPLE_STEPS = 256U;
-  unsigned long long pic_steps = 0U;
 
   // Step bound: the duration in instruction cycles plus a margin.
   const unsigned long long max_steps =
@@ -244,8 +291,11 @@ int main(int argc, char **argv) {
       } else if (event.signal == "vcc_mv" || event.signal == "eeprom_byte" ||
                  event.signal == "osccal_factory") {
         // AVR-only events; ignored here.
-      } else {
+      } else if (is_console_wire(event.signal)) {
         drive_line(event.signal, event.value != 0);
+      } else {
+        std::fprintf(stderr, "unknown timeline signal %s\n", event.signal.c_str());
+        return 1;
       }
       next_event++;
     }
@@ -256,21 +306,19 @@ int main(int argc, char **argv) {
     }
     executed.insert(cpu->pc->get_value());
     cpu->step(1, false);
-    if ((pic_steps++ % PULL_SAMPLE_STEPS) == 0U) {
-      for (Pull &pull : pulls) {
-        bool input = pull.pin->get_direction() != IOPIN::DIR_OUTPUT;
-        auto *bidirectional = dynamic_cast<IO_bi_directional *>(pull.pin);
-        bool enabled = bidirectional != nullptr && bidirectional->getPullupStatus();
-        int pulled = (input && enabled) ? 1 : 0;
-        if (pulled != pull.pulled) {
-          std::fprintf(trace,
-                       "%llu pull-%s %d %d\n",
-                       static_cast<unsigned long long>(get_cycles().get() * ns_per_cycle),
-                       pull.name.c_str(),
-                       pulled,
-                       pulled);
-          pull.pulled = pulled;
-        }
+    for (Pull &pull : pulls) {
+      bool input = pull.pin->get_direction() != IOPIN::DIR_OUTPUT;
+      auto *bidirectional = dynamic_cast<IO_bi_directional *>(pull.pin);
+      bool enabled = bidirectional != nullptr && bidirectional->getPullupStatus();
+      int pulled = (input && enabled) ? 1 : 0;
+      if (pulled != pull.pulled) {
+        std::fprintf(trace,
+                     "%llu pull-%s %d %d\n",
+                     static_cast<unsigned long long>(get_cycles().get() * ns_per_cycle),
+                     pull.name.c_str(),
+                     pulled,
+                     pulled);
+        pull.pulled = pulled;
       }
     }
     for (Output &out : outputs) {
@@ -289,7 +337,7 @@ int main(int argc, char **argv) {
     }
   }
   std::fprintf(trace, "%llu end 0 0\n", now_ns);
-  std::fclose(trace);
+  finish(trace, argv[5]);
 
   std::FILE *coverage = std::fopen(argv[6], "w");
   if (coverage == nullptr) {
@@ -299,6 +347,6 @@ int main(int argc, char **argv) {
   for (unsigned int address : executed) {
     std::fprintf(coverage, "%x\n", address);
   }
-  std::fclose(coverage);
+  finish(coverage, argv[6]);
   return 0;
 }

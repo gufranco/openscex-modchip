@@ -141,10 +141,15 @@ static void drive(avr_t *avr, const char *name, int value) {
 }
 
 // Write one EEPROM byte through simavr's EEPROM model, as a programmer would.
+// A seed simavr refuses, such as one past the end of EEPROM, would leave the
+// chip reading an erased byte while the scenario believes it seeded one.
 static void eeprom_byte(avr_t *avr, long packed) {
   uint8_t byte = (uint8_t)(packed & 0xFF);
   avr_eeprom_desc_t desc = { .ee = &byte, .offset = (uint16_t)(packed >> 8), .size = 1 };
-  avr_ioctl(avr, AVR_IOCTL_EEPROM_SET, &desc);
+  if (avr_ioctl(avr, AVR_IOCTL_EEPROM_SET, &desc) != 0) {
+    fprintf(stderr, "cannot seed EEPROM byte %ld\n", packed >> 8);
+    exit(1);
+  }
 }
 
 // Set PORF (MCUSR bit 0, data address 0x54 on these parts) at power-on, as the
@@ -196,11 +201,12 @@ static void sample(output_t *out) {
 }
 
 // Trace each console input whose pull-up is on (DDR clear, PORT set) as
-// pull-<name>. Sampled every PULL_SAMPLE_STEPS instructions, since a pull-up
-// holds once written.
-#define PULL_SAMPLE_STEPS 256U
-
+// pull-<name>. Sampled on every write to a port's PORT or DDR register, the
+// only two writes that can change a pull-up, so none is missed however
+// briefly it is on.
 static int g_pulled[MAX_LINES];
+static FILE *g_pull_trace = NULL;
+static double g_pull_ns_per_cycle = 0.0;
 
 static void sample_pulls(avr_t *avr, FILE *trace, double ns_per_cycle) {
   for (int i = 0; i < g_line_count; i++) {
@@ -221,6 +227,29 @@ static void sample_pulls(avr_t *avr, FILE *trace, double ns_per_cycle) {
               pulled);
       g_pulled[i] = pulled;
     }
+  }
+}
+
+static void on_port_write(struct avr_irq_t *irq, uint32_t value, void *param) {
+  (void)irq;
+  (void)value;
+  sample_pulls(param, g_pull_trace, g_pull_ns_per_cycle);
+}
+
+// Hook every port a console line sits on, once per port.
+static void watch_pulls(avr_t *avr, FILE *trace, double ns_per_cycle) {
+  g_pull_trace = trace;
+  g_pull_ns_per_cycle = ns_per_cycle;
+  char hooked[8] = { 0 };
+  for (int i = 0; i < g_line_count; i++) {
+    char port = g_lines[i].port;
+    if (strchr(hooked, port) != NULL) {
+      continue;
+    }
+    hooked[strlen(hooked)] = port;
+    avr_irq_t *base = avr_io_getirq(avr, AVR_IOCTL_IOPORT_GETIRQ(port), 0);
+    avr_irq_register_notify(base + IOPORT_IRQ_REG_PORT, on_port_write, avr);
+    avr_irq_register_notify(base + IOPORT_IRQ_DIRECTION_ALL, on_port_write, avr);
   }
 }
 
@@ -345,6 +374,7 @@ int main(int argc, char **argv) {
     g_pulled[i] = -1;
   }
   sample_pulls(avr, trace, ns_per_cycle);
+  watch_pulls(avr, trace, ns_per_cycle);
 
   // Console idle levels, as in the PIC runner.
   drive(avr, "wfck", 1);
@@ -366,6 +396,7 @@ int main(int argc, char **argv) {
   unsigned long long next_wfck_ns = 0;
   int wfck = 1;
   int crashed = 0;
+  int halted = 0;
   for (uint64_t step = 0; step < max_steps && avr->cycle < end_cycle; step++) {
     unsigned long long now_ns = (unsigned long long)((double)avr->cycle * ns_per_cycle);
     while (next_event < event_count && events[next_event].time_ns <= now_ns) {
@@ -381,6 +412,7 @@ int main(int argc, char **argv) {
         avr->avcc = (uint32_t)event->value;
       } else if (strcmp(event->signal, "power_cycle") == 0) {
         power_cycle(avr, argv[2]);
+        halted = 0;
       } else if (strcmp(event->signal, "eeprom_byte") == 0) {
         eeprom_byte(avr, event->value);
       } else if (strcmp(event->signal, "osccal_factory") == 0) {
@@ -396,6 +428,18 @@ int main(int argc, char **argv) {
       drive(avr, "wfck", wfck);
       next_wfck_ns += wfck_half_ns;
     }
+    // A halted chip runs no code, its pins frozen, while the console goes on:
+    // time skips to the next console event, which a power cycle can wake it
+    // from, or to the end of the run.
+    if (halted) {
+      uint64_t next = end_cycle;
+      if (next_event < event_count) {
+        uint64_t at = (uint64_t)((double)events[next_event].time_ns / ns_per_cycle);
+        next = (at < next) ? at : next;
+      }
+      avr->cycle = (next > avr->cycle) ? next : (avr->cycle + 1U);
+      continue;
+    }
     if (avr->pc / 2U < flash_words) {
       executed[avr->pc / 2U] = 1;
     }
@@ -403,16 +447,18 @@ int main(int argc, char **argv) {
     for (int i = 0; i < g_output_count; i++) {
       sample(&g_outputs[i]);
     }
-    if ((step % PULL_SAMPLE_STEPS) == 0U) {
-      sample_pulls(avr, trace, ns_per_cycle);
-    }
     // A crash, such as a jump past the end of flash, makes the rest of the run
     // meaningless, so the runner fails. A core that stopped cleanly, sleeping
-    // with interrupts off, is the image's own behaviour and is measured.
-    if (state == cpu_Crashed || state == cpu_Done) {
-      fprintf(stderr, "cpu stopped at cycle %llu\n", (unsigned long long)avr->cycle);
-      crashed = state == cpu_Crashed;
+    // with interrupts off, is the image's own behaviour and is measured for the
+    // whole run, so a halt never reads as a shorter scenario.
+    if (state == cpu_Crashed) {
+      fprintf(stderr, "cpu crashed at cycle %llu\n", (unsigned long long)avr->cycle);
+      crashed = 1;
       break;
+    }
+    if (state == cpu_Done) {
+      fprintf(stderr, "cpu halted at cycle %llu\n", (unsigned long long)avr->cycle);
+      halted = 1;
     }
   }
   fprintf(trace, "%llu end 0 0\n", (unsigned long long)((double)avr->cycle * ns_per_cycle));

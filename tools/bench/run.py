@@ -52,6 +52,9 @@ PSNEE_FLAGS = ("-DSCPH_xxx1", "-Os", "-g", "-std=gnu++17")
 RUN_TIMEOUT_S = 600
 RUN_TIMEOUT_PER_SIM_S = 10
 NANOSECONDS_PER_SECOND = 1_000_000_000
+# A runner stops within one instruction of the scenario's end; 10 us covers the
+# slowest simulated instruction, 1 us on a 4 MHz PIC, many times over.
+END_TOLERANCE_NS = 10_000
 EXCLUSIONS = "bench/coverage-exclusions.json"
 SOURCE_GLOBS = ("src/*.c", "src/*.S", "include/**/*.h")
 
@@ -238,9 +241,9 @@ def run(root: Path, chip: Chip, scenario: Scenario, workdir: Path) -> Run:
     check_events(
         f"{chip.name} on {scenario.name}", events_read(done.stdout), len(lines)
     )
-    metrics = measure(
-        parse(trace.read_text().splitlines()), scenario.phases, chip.region
-    )
+    played = parse(trace.read_text().splitlines())
+    check_end(f"{chip.name} on {scenario.name}", played.end_ns, scenario.duration_ns)
+    metrics = measure(played, scenario.phases, chip.region)
     executed = frozenset(int(line, 16) for line in coverage.read_text().split())
     return Run(chip, scenario, metrics, executed)
 
@@ -253,6 +256,17 @@ def events_read(stdout: str) -> int | None:
         if word == "events" and count.isdigit():
             return int(count)
     return None
+
+
+def check_end(label: str, end_ns: int, duration_ns: int) -> None:
+    """Refuse a run whose trace ends before the scenario does: every event
+    after the end was never played, so its counts would read as a shorter,
+    quieter scenario."""
+    if end_ns < duration_ns - END_TOLERANCE_NS:
+        raise RuntimeError(
+            f"{label}: the trace ends at {end_ns} ns, before the scenario's "
+            f"{duration_ns} ns"
+        )
 
 
 def check_events(label: str, read: int | None, written: int) -> None:

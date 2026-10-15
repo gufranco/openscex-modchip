@@ -24,11 +24,13 @@ from tools.bench.chips import Chip, Simulator, by_name
 from tools.bench.manifest import ROOT, Artifact, load
 from tools.bench.prepare import ARDUINO_CORE
 from tools.bench.run import (
+    END_TOLERANCE_NS,
     RUN_TIMEOUT_PER_SIM_S,
     RUN_TIMEOUT_S,
     RUNNERS,
     _instruction_address,
     build_psnee,
+    check_end,
     check_events,
     events_read,
     excuse,
@@ -241,6 +243,48 @@ class EventCountTest(unittest.TestCase):
 CRASH_C = "int main(void) {\n  ((void (*)(void))0x3FFF)();\n  return 0;\n}\n"
 
 
+class EndTest(unittest.TestCase):
+    def test_a_trace_ending_early_is_refused(self) -> None:
+        # Arrange
+        duration = 2_000_000_000
+
+        # Act
+        def act() -> None:
+            check_end("fixture on no-disc", duration - END_TOLERANCE_NS - 1, duration)
+
+        # Assert
+        self.assertRaises(RuntimeError, act)
+
+
+# An AVR image that sleeps with interrupts off, which simavr reports as done.
+HALT_C = (
+    "#include <avr/interrupt.h>\n#include <avr/sleep.h>\n"
+    "int main(void) {\n  cli();\n  sleep_enable();\n  sleep_cpu();\n  return 0;\n}\n"
+)
+
+
+class AvrHaltTest(unittest.TestCase):
+    def test_a_halted_image_is_measured_for_the_whole_run(self) -> None:
+        # Arrange
+        ours = by_name("ours")
+        with tempfile.TemporaryDirectory() as work:
+            folder = Path(work)
+            (folder / "halt.c").write_text(HALT_C)
+            subprocess.run(
+                ["avr-gcc", "-mmcu=attiny85", "-Os", "-o", "halt.elf", "halt.c"],
+                cwd=folder,
+                check=True,
+                capture_output=True,
+            )
+            chip = replace(ours, name="halt", firmware=str(folder / "halt.elf"))
+
+            # Act
+            result = run(ROOT, chip, scenario("no-disc"), folder)
+
+        # Assert
+        self.assertEqual(result.metrics.strings, 0)
+
+
 class AvrCrashTest(unittest.TestCase):
     def test_a_crashing_image_fails_the_run(self) -> None:
         # Arrange
@@ -298,6 +342,74 @@ class PicRunnerTest(unittest.TestCase):
         self.assertGreater(result.metrics.data_driven_outside_ns, 0)
         self.assertEqual(addresses, frozenset(range(7)))
         self.assertLessEqual(result.executed, addresses)
+
+
+class PicRunnerInputTest(unittest.TestCase):
+    def test_each_bad_input_is_refused_with_its_reason(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as work:
+            folder = Path(work)
+            (folder / "fixture.asm").write_text(FIXTURE_ASM)
+            subprocess.run(
+                ["gpasm", "-o", "fixture.hex", "fixture.asm"],
+                cwd=folder,
+                check=True,
+                capture_output=True,
+            )
+            good = folder / "good.timeline"
+            good.write_text("0 sqck 1\n")
+            odd = folder / "odd.timeline"
+            odd.write_text("0 wobble 1\n")
+            base = {
+                "clock": "4000000",
+                "timeline": str(good),
+                "duration": "1000000",
+                "pins": "data=6",
+            }
+            cases = {
+                "clock": ({"clock": "4MHz"}, 2, "clock_hz must be a positive whole"),
+                "duration": (
+                    {"duration": "0"},
+                    2,
+                    "duration_ns must be a positive whole",
+                ),
+                "no equals": ({"pins": "data"}, 2, "an item without a name and '='"),
+                "pin range": ({"pins": "data=99"}, 2, "a package pin from 1 to 40"),
+                "signal": ({"timeline": str(odd)}, 1, "unknown timeline signal wobble"),
+            }
+
+            # Act
+            outcomes = {
+                name: _pic_run(folder, {**base, **change})
+                for name, (change, _, _) in cases.items()
+            }
+
+        # Assert
+        for name, (_, code, said) in cases.items():
+            self.assertEqual(outcomes[name][0], code, name)
+            self.assertIn(said, outcomes[name][1], name)
+
+
+def _pic_run(folder: Path, given: dict[str, str]) -> tuple[int, str]:
+    """The PIC runner's exit code and standard error for one set of inputs."""
+    done = subprocess.run(
+        [
+            str(ROOT / RUNNERS[Simulator.PIC]),
+            str(folder / "fixture.hex"),
+            "p12f629",
+            given["clock"],
+            given["timeline"],
+            str(folder / "out.trace"),
+            str(folder / "out.cov"),
+            given["duration"],
+            given["pins"],
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    return done.returncode, done.stderr
 
 
 class TimeoutTest(unittest.TestCase):
