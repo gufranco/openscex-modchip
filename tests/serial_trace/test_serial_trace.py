@@ -244,10 +244,41 @@ class NoisyEventTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(
+            findings,
+            [
+                f"2 of {len(capture)} lines were unreadable: the serial line is "
+                "noisy or the adapter is not at 115200 baud 8N1. Shorten the trace "
+                "wire and share the console's ground.",
+                "2 string(s) sent on board X but the console never accepted the "
+                "disc. Check the DATA wire, the WFCK wire on a carrier board, and "
+                "that the build's region matches the console.",
+            ],
+        )
+
+    def test_an_event_with_an_extra_value_is_unreadable(self) -> None:
+        # Arrange
+        event = parse("@3.000 SCEX 1 W junk")
+
+        # Act
+        said = describe_event(event) if isinstance(event, Event) else ""
+
+        # Assert
+        self.assertEqual(said, "unreadable event: SCEX 1 W junk")
+
+    def test_a_clean_session_buried_in_noise_reports_the_noise(self) -> None:
+        # Arrange
+        noise = ["#%&garbled"] * 150
+        capture = lines(*BOOT, LEAD_IN, "@1.400 OPEN 0A 0A", PROGRAM, *noise)
+
+        # Act
+        findings = diagnose(capture)
+
+        # Assert
+        self.assertEqual(
             findings[0],
-            "2 string(s) sent on board X but the console never accepted the disc. "
-            "Check the DATA wire, the WFCK wire on a carrier board, and that the "
-            "build's region matches the console.",
+            f"150 of {len(capture)} lines were unreadable: the serial line is noisy "
+            "or the adapter is not at 115200 baud 8N1. Shorten the trace wire and "
+            "share the console's ground.",
         )
 
 

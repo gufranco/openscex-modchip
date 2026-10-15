@@ -207,18 +207,56 @@ WORDS: dict[str, Describer] = {
 }
 
 
+# How many values each tag carries, as the recipes in src/trace.c print them;
+# BOOT adds a V when the Video CD filter is on.
+ARITY: dict[str, frozenset[int]] = {
+    "BOOT": frozenset({2, 3}),
+    "RST PWR": frozenset({0}),
+    "RST WDT": frozenset({0}),
+    "BRD": frozenset({2}),
+    "OSC": frozenset({1}),
+    "REC": frozenset({4}),
+    "SUP OK": frozenset({1}),
+    "SUP LOW": frozenset({1}),
+    "DISC": frozenset({0}),
+    "GONE": frozenset({0}),
+    "OPEN": frozenset({2}),
+    "HOLD": frozenset({3}),
+    "SHUT": frozenset({2}),
+    "SCEX": frozenset({2}),
+    "PASS": frozenset({0}),
+    "FAIL": frozenset({0}),
+    "MISS": frozenset({2}),
+    "SAVE OK": frozenset({0}),
+    "SAVE NO": frozenset({1}),
+    "LOST": frozenset({1}),
+}
+
+
+def readable(event: Event) -> bool:
+    """Whether an event line has a known tag, its exact number of values and
+    values its words can be made from."""
+    say = WORDS.get(event.tag)
+    if say is None or len(event.values) not in ARITY[event.tag]:
+        return False
+    try:
+        say(event.values)
+    except (KeyError, ValueError, IndexError):
+        return False
+    return True
+
+
 def describe_event(event: Event) -> str:
     """An event line in words. A line noise garbled after its tag, with a value
-    missing or one no tag uses, is shown as unreadable instead of stopping the
-    report: noise on the line is itself something the diagnosis reports."""
-    say = WORDS.get(event.tag)
+    missing, one too many or one no tag uses, is shown as unreadable instead of
+    stopping the report: noise on the line is itself something the diagnosis
+    reports."""
     raw = f"{event.tag} {' '.join(event.values)}".rstrip()
-    if say is None:
+    if event.tag not in WORDS:
         return f"unknown event {raw}"
-    try:
-        return say(event.values)
-    except (KeyError, ValueError, IndexError):
+    if not readable(event):
         return f"unreadable event: {raw}"
+    return WORDS[event.tag](event.values)
 
 
 def timeline(lines: Sequence[Line]) -> list[str]:
@@ -244,6 +282,8 @@ def timeline(lines: Sequence[Line]) -> list[str]:
 class Tally:
     """What a capture contains, counted once for every rule."""
 
+    lines: int
+    unreadable: int
     frames: int
     failed: int
     bad_crc: int
@@ -263,7 +303,10 @@ def tally(lines: Iterable[Line]) -> Tally:
     tags: dict[str, int] = {}
     for event in events:
         tags[event.tag] = tags.get(event.tag, 0) + 1
+    others = sum(1 for line in seen if isinstance(line, Other) and line.text)
     return Tally(
+        lines=len(seen),
+        unreadable=others + sum(1 for event in events if not readable(event)),
         frames=len(frames),
         failed=sum(1 for frame in frames if not frame.captured),
         bad_crc=sum(1 for frame in frames if frame.captured and not frame.crc_ok),
@@ -297,6 +340,12 @@ def _wiring(t: Tally) -> list[str]:
         findings.append(
             f"{t.bad_crc} of {t.frames} frames failed their CRC: the SUBQ or SQCK line "
             "is noisy. Shorten the wires and keep them off the drive's power lines."
+        )
+    if t.unreadable > t.lines * NOISY_SHARE:
+        findings.append(
+            f"{t.unreadable} of {t.lines} lines were unreadable: the serial line is "
+            "noisy or the adapter is not at 115200 baud 8N1. Shorten the trace wire "
+            "and share the console's ground."
         )
     return findings
 
