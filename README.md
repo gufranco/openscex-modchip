@@ -77,7 +77,7 @@ The PU-7 and PU-8 use the static-gate method, as in PsNee V9.0. Dev boards (DTL-
 
 ## Quick start
 
-Each [release](../../releases) carries prebuilt images: `us`, `eu`, `jp`, `jp-vcd` for the SCPH-5903, a quiet `-final` variant of each (see [Status indicator](#status-indicator)), a `SHA256SUMS` file, the license, `toolchain.spdx.json`, an SPDX bill of materials of the toolchain that built them, and build-provenance and SBOM attestations. Check a download before flashing it:
+Each [release](../../releases) carries prebuilt images: `us`, `eu`, `jp`, `jp-vcd` for the SCPH-5903, a quiet `-final` variant of each (see [Status indicator](#status-indicator)), a `SHA256SUMS` file, the license, `toolchain.spdx.json`, an SPDX bill of materials of the toolchain that built them, and a build-provenance attestation for every one of those files, the bill of materials included. Check a download before flashing it:
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing
@@ -386,7 +386,7 @@ To add your console, open a [compatibility report](../../issues/new?template=com
 
 ## Versioning
 
-Releases follow [Semantic Versioning](https://semver.org/) on the `0.x` line, so a minor release can break compatibility. v0.3.0 to v0.8.0 are ATtiny84 builds, and releases up to v0.2.0 are ATtiny85 builds of an earlier four-wire design. Each release is built from a commit whose CI passed plus its changelog entry, and [the release job](.github/workflows/release.yml) refuses a tag that changes anything else; notes are on the [releases](../../releases) page.
+Releases follow [Semantic Versioning](https://semver.org/) on the `0.x` line, so a minor release can break compatibility. v0.3.0 to v0.8.0 are ATtiny84 builds, and releases up to v0.2.0 are ATtiny85 builds of an earlier four-wire design. Each release is built from a commit whose CI passed, and whose platform mutation run passed when the push changed what it covers, plus its changelog entry, and [the release job](.github/workflows/release.yml) refuses a tag that changes anything else; notes are on the [releases](../../releases) page.
 
 ## Support
 

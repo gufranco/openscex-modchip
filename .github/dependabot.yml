@@ -1,7 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Gustavo Franco <gufranco@users.noreply.github.com>
 # SPDX-License-Identifier: MIT
 
-# Updates the pinned Actions, the Docker base image and the Python tools.
+# Updates the pinned Actions, the Docker base image, the Python tools and the
+# release tooling's npm lockfile.
 # "build" commits do not trigger a release.
 version: 2
 updates:
@@ -16,12 +17,6 @@ updates:
     groups:
       actions:
         patterns: ["*"]
-    # From v7 the action warns on every run when the repository has no
-    # package.json, and its skip_npm_plugin switch replaces the plugin list
-    # in .releaserc.json, so the release stays on v6.
-    ignore:
-      - dependency-name: "cycjimmy/semantic-release-action"
-        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "docker"
     directory: "/"
@@ -42,4 +37,16 @@ updates:
     open-pull-requests-limit: 5
     groups:
       python-tools:
+        patterns: ["*"]
+
+  - package-ecosystem: "npm"
+    directory: "/.github/release"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    open-pull-requests-limit: 5
+    groups:
+      release-tooling:
         patterns: ["*"]

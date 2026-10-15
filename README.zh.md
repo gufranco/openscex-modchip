@@ -77,7 +77,7 @@ PU-7 与 PU-8 与 PsNee V9.0 一样使用静态门控方式。开发机（DTL-H1
 
 ## 快速开始
 
-每个[发布](../../releases)都附有预构建镜像：`us`、`eu`、`jp`、SCPH-5903 用的 `jp-vcd`、它们各自安静的 `-final` 版本（见[状态指示](#状态指示)）、`SHA256SUMS` 文件、许可证、构建它们的工具链的 SPDX 物料清单 `toolchain.spdx.json`，以及构建来源与物料清单证明。烧录前请先校验下载文件：
+每个[发布](../../releases)都附有预构建镜像：`us`、`eu`、`jp`、SCPH-5903 用的 `jp-vcd`、它们各自安静的 `-final` 版本（见[状态指示](#状态指示)）、`SHA256SUMS` 文件、许可证、构建它们的工具链的 SPDX 物料清单 `toolchain.spdx.json`，以及覆盖其中每个文件（含物料清单）的构建来源证明。烧录前请先校验下载文件：
 
 ```bash
 sha256sum -c SHA256SUMS --ignore-missing
@@ -387,7 +387,7 @@ graph LR
 
 ## 版本
 
-发布遵循 `0.x` 系列的[语义化版本](https://semver.org/)，因此次版本也可能破坏兼容性。v0.3.0 至 v0.8.0 为 ATtiny84 构建，v0.2.0 及之前为旧四线设计的 ATtiny85 构建。每个发布都从 CI 通过的提交加上它的更新日志条目构建，改动其他内容的标签会被[发布任务](.github/workflows/release.yml)拒绝；说明见[发布](../../releases)。
+发布遵循 `0.x` 系列的[语义化版本](https://semver.org/)，因此次版本也可能破坏兼容性。v0.3.0 至 v0.8.0 为 ATtiny84 构建，v0.2.0 及之前为旧四线设计的 ATtiny85 构建。每个发布都从 CI 通过、且在推送改动其覆盖范围时平台变异测试也通过的提交加上它的更新日志条目构建，改动其他内容的标签会被[发布任务](.github/workflows/release.yml)拒绝；说明见[发布](../../releases)。
 
 ## 支持
 

@@ -1,0 +1,14 @@
+{
+  "name": "openscex-modchip-release",
+  "private": true,
+  "description": "The release tooling, installed from the lockfile beside it",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.15.0"
+  },
+  "dependencies": {
+    "@semantic-release/changelog": "7.0.0",
+    "@semantic-release/git": "11.0.1",
+    "semantic-release": "25.0.9"
+  }
+}
