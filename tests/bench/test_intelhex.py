@@ -70,6 +70,14 @@ class MemoryTest(unittest.TestCase):
             ),
             "checksum": (":0100020011ED\n" + END, "line 1: checksum does not add up"),
             "truncated": (":0100020011EC\n", "no end record: the file is truncated"),
+            "unknown type": (
+                ":00000006FA\n" + END,
+                "line 1: record type 6 is not Intel HEX",
+            ),
+            "overlap": (
+                ":0100020011EC\n:0100020022DB\n" + END,
+                "line 2: address 0x2 is written twice",
+            ),
         }
 
         # Act
