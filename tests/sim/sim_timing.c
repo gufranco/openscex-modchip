@@ -65,8 +65,16 @@ void scenario_gap_polls(const target_t *t, const char *elf, uint32_t freq) {
   unsigned steady = reads_to_capture(avr);
 
   // The capture just entered waits for an edge and gives up; the next gap
-  // check then begins with its first read, where the blip goes in.
+  // check then reads SQCK high, and the blip goes in halfway through, so a
+  // check that kept its count instead of starting over would finish early.
+  unsigned half = gap_polls(freq) / 2U;
+  unsigned seen = 0U;
+  uint64_t limit = avr->cycle + ms_cycles(GAP_LIMIT_MS);
   run_to_pc(avr, g_addr_read_sqck);
+  while ((seen < half) && (avr->cycle < limit)) {
+    seen += (avr->pc == g_addr_read_sqck) ? 1U : 0U;
+    avr_run(avr);
+  }
   avr_irq_t *sqck = pin_irq(avr, t, t->sqck);
   avr_raise_irq(sqck, 0U);
   run_cycles(avr, ns_cycles((uint64_t)GAP_LOW_US * 1000ULL));
