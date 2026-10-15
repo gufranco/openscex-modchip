@@ -28,35 +28,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  version:
-    name: Version
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+  # A tag pushed by an earlier run whose release is missing or still a draft.
+  # It only reads the changelog and creates a draft, so it gets nothing beyond
+  # contents: write, and never runs npm.
+  recover:
+    name: Recover
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-26.04
-    # contents: commit and tag. issues, pull-requests: release labels. This job
-    # runs semantic-release, which installs npm packages with no lockfile, so it
-    # gets no token that can sign provenance.
     permissions:
       contents: write
-      issues: write
-      pull-requests: write
-    # Backstop: the slowest of the last 10 green runs took 243 s, build included.
-    timeout-minutes: 20
+    timeout-minutes: 10
     outputs:
-      tag: ${{ steps.semrel.outputs.new_release_git_tag || steps.recover.outputs.tag }}
+      tag: ${{ steps.recover.outputs.tag }}
     steps:
-      - name: Checkout main, or the tag being recovered
+      - name: Checkout the tag being recovered
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || 'main' }}
+          ref: ${{ inputs.tag }}
           fetch-depth: 0
-          # Keeps the token out of .git/config, which the build container sees.
           persist-credentials: false
 
       - name: Recover a stranded tag
         id: recover
-        if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
@@ -87,9 +80,35 @@ jobs:
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
+  version:
+    name: Version
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-26.04
+    # contents: commit and tag. issues, pull-requests: release labels. This job
+    # runs semantic-release, which installs npm packages with no lockfile, so it
+    # gets no token that can sign provenance.
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    # Backstop: the slowest of the last 10 green runs took 243 s, build included.
+    timeout-minutes: 20
+    outputs:
+      tag: ${{ steps.semrel.outputs.new_release_git_tag }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          # Keeps the token out of .git/config, which the build container sees.
+          persist-credentials: false
+
       - name: Confirm main is still the commit CI passed
         id: fresh
-        if: github.event_name == 'workflow_run'
         env:
           PASSED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
@@ -120,8 +139,12 @@ jobs:
   # token, since the SBOM action fetches Syft as it runs.
   sbom:
     name: Toolchain bill of materials
-    needs: version
-    if: needs.version.outputs.tag != ''
+    needs: [version, recover]
+    # Only one of version and recover runs; the other is skipped, which is
+    # not a failure, so the job waits on both and runs when either gave a tag.
+    if: >-
+      always() && !cancelled() && !failure() &&
+      (needs.version.outputs.tag != '' || needs.recover.outputs.tag != '')
     runs-on: ubuntu-26.04
     permissions:
       contents: read
@@ -132,7 +155,7 @@ jobs:
       - name: Checkout the release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          ref: ${{ needs.version.outputs.tag }}
+          ref: ${{ needs.version.outputs.tag || needs.recover.outputs.tag }}
           persist-credentials: false
 
       - name: Build the pinned toolchain image
@@ -167,8 +190,12 @@ jobs:
 
   publish:
     name: Build, attest and attach
-    needs: [version, sbom]
-    if: needs.version.outputs.tag != ''
+    needs: [version, recover, sbom]
+    # Only one of version and recover runs; the other is skipped, which is
+    # not a failure, so the job waits on both and runs when either gave a tag.
+    if: >-
+      always() && !cancelled() && !failure() &&
+      (needs.version.outputs.tag != '' || needs.recover.outputs.tag != '')
     runs-on: ubuntu-26.04
     # contents: upload the assets. id-token, attestations: build provenance.
     # Nothing in this job installs from npm.
@@ -181,7 +208,7 @@ jobs:
       - name: Checkout the release tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          ref: ${{ needs.version.outputs.tag }}
+          ref: ${{ needs.version.outputs.tag || needs.recover.outputs.tag }}
           # The tag and its parent, for the check below.
           fetch-depth: 2
           persist-credentials: false
@@ -241,7 +268,7 @@ jobs:
       - name: Attach the images and publish the release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ needs.version.outputs.tag }}
+          RELEASE_TAG: ${{ needs.version.outputs.tag || needs.recover.outputs.tag }}
         run: |
           set -euo pipefail
           gh release upload "$RELEASE_TAG" release-artifacts/*.hex \
