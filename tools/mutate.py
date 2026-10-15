@@ -89,13 +89,16 @@ MUTATORS: tuple[tuple[str, re.Pattern[str], Replacement], ...] = (
 class Equivalent:
     """A mutant that cannot change behaviour, with the reason. It is matched by
     file, a fragment of its line, the mutator, and which of that mutator's
-    matches on the line it is (-1 for all of them)."""
+    matches on the line it is (-1 for all of them). lines is how many lines of
+    the file hold the fragment, so a new line that happens to contain it is
+    caught by a test instead of silently excused."""
 
     path: str
     fragment: str
     mutator: str
     occurrence: int
     reason: str
+    lines: int = 1
 
 
 _UNREAD = "code and live are read only in the CODE and DARK stages, live only in CODE"
@@ -117,7 +120,7 @@ EQUIVALENTS: tuple[Equivalent, ...] = (
     Equivalent(
         "src/indicator.c", "PSCU_INDICATOR_BOARD, 0U, false,", "false->true", 0, _UNREAD
     ),
-    Equivalent("src/indicator.c", "replay_code,", "literal+1", 1, _TOLD_ZERO),
+    Equivalent("src/indicator.c", "0U, profile, 0U };", "literal+1", 1, _TOLD_ZERO),
     Equivalent(
         "src/indicator.c",
         "return (uint8_t)(1U << code);",
@@ -140,13 +143,49 @@ EQUIVALENTS: tuple[Equivalent, ...] = (
         _UNREAD,
     ),
     Equivalent(
-        "src/indicator.c", "PSCU_INDICATOR_WAIT, 0U, false);", "literal+1", -1, _UNREAD
+        "src/indicator.c",
+        "(state, PSCU_INDICATOR_WAIT, 0U, false);",
+        "literal+1",
+        -1,
+        _UNREAD,
+        3,
     ),
     Equivalent(
         "src/indicator.c",
-        "PSCU_INDICATOR_WAIT, 0U, false);",
+        "(state, PSCU_INDICATOR_WAIT, 0U, false);",
         "false->true",
         -1,
+        _UNREAD,
+        3,
+    ),
+    Equivalent(
+        "src/indicator.c",
+        "(&next, PSCU_INDICATOR_WAIT, 0U, false);",
+        "literal+1",
+        -1,
+        _UNREAD,
+    ),
+    Equivalent(
+        "src/indicator.c",
+        "(&next, PSCU_INDICATOR_WAIT, 0U, false);",
+        "false->true",
+        -1,
+        _UNREAD,
+    ),
+    # The board stage's exit picks its next stage from a test of replay, whose
+    # literal is live; only the code and live arguments after it go unread.
+    Equivalent(
+        "src/indicator.c",
+        "PSCU_INDICATOR_REPLAY : PSCU_INDICATOR_WAIT, 0U, false);",
+        "literal+1",
+        1,
+        _UNREAD,
+    ),
+    Equivalent(
+        "src/indicator.c",
+        "PSCU_INDICATOR_REPLAY : PSCU_INDICATOR_WAIT, 0U, false);",
+        "false->true",
+        0,
         _UNREAD,
     ),
     Equivalent(

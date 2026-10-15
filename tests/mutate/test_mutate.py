@@ -182,6 +182,40 @@ class GenerateMutantsTest(unittest.TestCase):
         # Assert
         self.assertEqual((len(listed), len(elsewhere)), (0, 1))
 
+    def test_every_equivalent_fragment_holds_on_its_stated_lines_only(self) -> None:
+        # Arrange
+        equivalents = mutate.EQUIVALENTS
+
+        # Act
+        wrong = [
+            (e.path, e.fragment, e.lines, found)
+            for e in equivalents
+            for found in [
+                sum(
+                    e.fragment in line
+                    for line in (mutate.ROOT / e.path).read_text().split("\n")
+                )
+            ]
+            if found != e.lines
+        ]
+
+        # Assert
+        self.assertEqual(wrong, [])
+
+    def test_the_replay_test_on_the_board_stage_exit_is_mutated(self) -> None:
+        # Arrange
+        source = (mutate.ROOT / "src/indicator.c").read_text()
+
+        # Act
+        mutated = [
+            m
+            for m in mutate.generate_mutants(source, "src/indicator.c")
+            if "(state->replay != 1U)" in m.source
+        ]
+
+        # Assert
+        self.assertEqual(len(mutated), 1)
+
     def test_every_equivalent_names_a_reason(self) -> None:
         # Arrange
         equivalents = mutate.EQUIVALENTS
