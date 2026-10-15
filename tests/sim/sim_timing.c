@@ -19,8 +19,8 @@ static const uint8_t TIMING_PLAY[SUBQ_FRAME_BYTES] = { 0x41U, 0x01U, 0x01U, 0x00
                                                        0,     0,     0x02U, 0,     0,     0 };
 
 // The idle gap is PSCU_SQCK_IDLE_POLLS reads of SQCK high in a row: 1 ms at
-// 43 cycles a poll, rounded up, plus one (src/engine.c).
-#define GAP_POLL_CYCLES 43U
+// 41 cycles a poll, rounded up, plus one (src/engine.c).
+#define GAP_POLL_CYCLES 41U
 #define GAP_LIMIT_MS 200U
 #define GAP_LOW_US 100U
 

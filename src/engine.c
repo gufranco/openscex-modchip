@@ -32,9 +32,9 @@
 // (PSNee.ino:587), the rate long-deployed chips send at.
 #define PSCU_BIT_MS ((uint16_t)4U)
 // Polls of SQCK high that mark the gap between frames: 1 ms (PsNee V9.0
-// PSNee.ino:716). 43 cycles per poll, measured in simavr; scenario_gap_check
+// PSNee.ino:716). 41 cycles per poll, measured in simavr; scenario_gap_check
 // fails if it moves. Rounded up, plus one: n polls span n - 1 intervals.
-#define PSCU_SQCK_IDLE_POLL_CYCLES (43UL)
+#define PSCU_SQCK_IDLE_POLL_CYCLES (41UL)
 #define PSCU_SQCK_IDLE_POLLS                                \
   (((F_CPU + (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES) - 1UL) / \
     (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES)) +                \
@@ -49,9 +49,9 @@ _Static_assert(PSCU_DETECT_SETTLE_MS == 300U, "PsNee V9.0 lets WFCK start for 30
 _Static_assert(PSCU_GUARD_WINDOW == 2500U, "2500 samples of 42 cycles fit one 13.3 ms frame");
 _Static_assert(PSCU_WAIT_MS == 30UL, "an edge wait spans two 13.3 ms frame periods and a margin");
 #if F_CPU == 8000000UL
-_Static_assert(PSCU_SQCK_IDLE_POLLS == 188UL,
-               "1 ms at 43 cycles a poll is 186.05 polls: 187 up, plus one");
-_Static_assert(PSCU_SQCK_IDLE_WAIT_POLLS == 5581UL, "30 ms at 43 cycles a poll is 5581 polls");
+_Static_assert(PSCU_SQCK_IDLE_POLLS == 197UL,
+               "1 ms at 41 cycles a poll is 195.12 polls: 196 up, plus one");
+_Static_assert(PSCU_SQCK_IDLE_WAIT_POLLS == 5853UL, "30 ms at 41 cycles a poll is 5853 polls");
 #endif
 // Fills a failed frame; nonzero TNO and ZERO bytes make it a miss.
 #define PSCU_SUBQ_FAILED_BYTE ((uint8_t)0xFFU)

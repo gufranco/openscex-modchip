@@ -288,6 +288,48 @@ void scenario_stall(const target_t *t, const char *elf, uint32_t freq) {
   check(wfck_driven == 0, label);
 }
 
+// A carrier found after boot whose WFCK stalls inside the first string: the
+// watchdog resets the chip before the window closes, so the record must name
+// the carrier already, written before that string went out, or the next boot
+// would keep the gate and drive WFCK, a CD DSP output.
+void scenario_carrier_after_boot_stall(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
+  g_indicator_seen = 0;
+  g_indicator_cycle = 0;
+  g_wfck_driven = 0;
+  g_wfck_bit = t->wfck;
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
+  avr_irq_register_notify(pin_irq(avr, t, IOPORT_IRQ_DIRECTION_ALL), on_direction, NULL);
+  boot_quiet(avr, t, 0, &ctx);
+  ctx.irq = pin_irq(avr, t, t->wfck);
+  avr_cycle_timer_register(avr, ctx.half, wfck_tick, &ctx);
+
+  uint8_t toc[SUBQ_FRAME_BYTES] = { 0x41U, 0x00U, 0xA0U, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+  clock_until_inject(avr, t, toc);
+  uint64_t deadline = avr->cycle + INDICATOR_DEADLINE;
+  while ((g_indicator_seen == 0) && (avr->cycle < deadline)) {
+    run_cycles(avr, 2000U);
+  }
+  run_to(avr, g_indicator_cycle + STALL_AFTER_CYCLES);
+  avr_cycle_timer_cancel(avr, wfck_tick, &ctx);
+  run_cycles(avr, STALL_WAIT_CYCLES);
+  uint64_t rebooted = avr->cycle;
+  run_cycles(avr, ms_cycles(9000U));
+  uint8_t record[2] = { 0U, 0U };
+  avr_eeprom_desc_t desc = { .ee = record, .offset = 0, .size = 2 };
+  (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_GET, &desc);
+
+  char label[112];
+  (void)snprintf(label, sizeof(label), "carrier stall %s: the watchdog reset the chip", t->mcu);
+  check((g_indicator_seen != 0) && (code_after(rebooted) == 5), label);
+  (void)snprintf(
+      label, sizeof(label), "carrier stall %s: the record named the carrier first", t->mcu);
+  check((record[0] == RECORD_MAGIC) && (record[1] == 1U), label);
+  (void)snprintf(label, sizeof(label), "carrier stall %s: WFCK is never driven", t->mcu);
+  check(g_wfck_driven == 0, label);
+}
+
 // The board-family matrix. The firmware only knows the static gate and the
 // live carrier, so each family reduces to one of them and a carrier frequency.
 typedef struct {

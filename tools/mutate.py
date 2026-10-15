@@ -374,7 +374,7 @@ EQUIVALENTS: tuple[Equivalent, ...] = (
         "(((F_CPU + (1000UL * PSCU_SQCK_IDLE_POLL_CYCLES) - 1UL) /",
         "literal+1",
         -1,
-        "186.05 polls round up to 187 whether 42998, 42999 or 43042 is added first",
+        "195.12 polls round up to 196 whether 40998, 40999 or 41040 is added first",
     ),
 )
 

@@ -15,6 +15,7 @@ void scenario_resync(const target_t *t, const char *elf, uint32_t freq);
 void scenario_late_carrier(const target_t *t, const char *elf, uint32_t freq);
 void scenario_carrier_after_boot(const target_t *t, const char *elf, uint32_t freq);
 void scenario_stall(const target_t *t, const char *elf, uint32_t freq);
+void scenario_carrier_after_boot_stall(const target_t *t, const char *elf, uint32_t freq);
 void scenario_vcd(const char *elf, uint32_t freq);
 void scenario_multidisc(const target_t *t, const char *elf, uint32_t freq);
 void scenario_disc_presence(const target_t *t, const char *elf, uint32_t freq);

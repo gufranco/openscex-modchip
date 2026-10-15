@@ -277,11 +277,18 @@ void pscu_run(void) {
     osc = pscu_osc_step(osc, stamp, out.trim_sample);
     if (out.fire) {
       pscu_board_mode_t confirmed = pscu_engine_confirm_board(board);
-      // A carrier found late goes into the record, so a watchdog reset that
-      // keeps the recorded board never falls back to gating WFCK.
-      store_due = store_due || (confirmed != board);
+      bool upgraded = confirmed != board;
       board = confirmed;
       loop.calib.board = (uint8_t)board;
+      // A carrier found late is written before its first string, the one write
+      // made with the window open: a carrier string kicks the watchdog only on
+      // WFCK edges, so a stall inside it resets the chip before the window
+      // closes, and a reset that kept the old record would gate WFCK again.
+      // It happens once per console; a write the supply refuses waits for the
+      // window to close like any other.
+      if (upgraded) {
+        store_due = !pscu_engine_store_calib(loop.calib) || store_due;
+      }
       pscu_engine_inject(board, PSCU_LAMP_STRINGS);
     }
     store_due = store_due || out.store;
