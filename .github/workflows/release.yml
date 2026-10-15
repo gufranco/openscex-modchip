@@ -7,7 +7,8 @@ name: Release
 # semantic-release versions from commit subjects (feat minor, fix patch,
 # BREAKING CHANGE major); a second job, which never runs npm, then builds,
 # hashes and attests the images from the tag.
-# To recover a tag that has no GitHub release, run it by hand with that tag.
+# To recover a tag that has no GitHub release, or whose release is still a
+# draft, run it by hand with that tag.
 on:
   workflow_run:
     workflows: [CI]
@@ -81,7 +82,8 @@ jobs:
             exit 1
           fi
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file release-notes.md
+            gh release create "$TAG" --draft --verify-tag --title "$TAG" \
+              --notes-file release-notes.md
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
@@ -212,7 +214,9 @@ jobs:
           subject-path: release-artifacts/*.hex
           sbom-path: release-artifacts/toolchain.spdx.json
 
-      - name: Attach the images to the release
+      # The release is created as a draft, so nobody can download a version
+      # with no images; it is published only once every asset is attached.
+      - name: Attach the images and publish the release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.version.outputs.tag }}
@@ -221,3 +225,4 @@ jobs:
           gh release upload "$RELEASE_TAG" release-artifacts/*.hex \
             release-artifacts/SHA256SUMS release-artifacts/LICENSE.txt \
             release-artifacts/toolchain.spdx.json --clobber
+          gh release edit "$RELEASE_TAG" --draft=false
