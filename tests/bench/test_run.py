@@ -239,6 +239,36 @@ class EventCountTest(unittest.TestCase):
         self.assertEqual(events_read(done.stdout), events)
 
 
+class AvrSeedTest(unittest.TestCase):
+    def test_a_seed_past_the_end_of_eeprom_fails_the_run(self) -> None:
+        # Arrange
+        ours = by_name("ours")
+        with tempfile.TemporaryDirectory() as work:
+            folder = Path(work)
+            timeline = folder / "seed.timeline"
+            timeline.write_text(f"0 eeprom_byte {(600 << 8) | 0x5A}\n")
+            argv = [
+                str(ROOT / RUNNERS[Simulator.AVR]),
+                str(ROOT / ours.firmware),
+                ours.cpu,
+                str(ours.clock_hz),
+                str(timeline),
+                str(folder / "seed.trace"),
+                str(folder / "seed.cov"),
+                "1000000",
+                ours.pins,
+            ]
+
+            # Act
+            done = subprocess.run(
+                argv, check=False, capture_output=True, text=True, timeout=120
+            )
+
+        # Assert
+        self.assertEqual(done.returncode, 1)
+        self.assertIn("cannot seed EEPROM byte 600", done.stderr)
+
+
 # An AVR image that calls past the end of flash, which simavr reports as a crash.
 CRASH_C = "int main(void) {\n  ((void (*)(void))0x3FFF)();\n  return 0;\n}\n"
 

@@ -142,11 +142,18 @@ static void drive(avr_t *avr, const char *name, int value) {
 
 // Write one EEPROM byte through simavr's EEPROM model, as a programmer would.
 // A seed simavr refuses, such as one past the end of EEPROM, would leave the
-// chip reading an erased byte while the scenario believes it seeded one.
+// chip reading an erased byte while the scenario believes it seeded one. Its
+// ioctl's return value does not say whether a seed landed, so the byte is
+// read back instead.
 static void eeprom_byte(avr_t *avr, long packed) {
   uint8_t byte = (uint8_t)(packed & 0xFF);
-  avr_eeprom_desc_t desc = { .ee = &byte, .offset = (uint16_t)(packed >> 8), .size = 1 };
-  if (avr_ioctl(avr, AVR_IOCTL_EEPROM_SET, &desc) != 0) {
+  uint8_t back = (uint8_t)~byte;
+  uint16_t offset = (uint16_t)(packed >> 8);
+  avr_eeprom_desc_t desc = { .ee = &byte, .offset = offset, .size = 1 };
+  (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_SET, &desc);
+  avr_eeprom_desc_t check = { .ee = &back, .offset = offset, .size = 1 };
+  (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_GET, &check);
+  if (back != byte) {
     fprintf(stderr, "cannot seed EEPROM byte %ld\n", packed >> 8);
     exit(1);
   }
