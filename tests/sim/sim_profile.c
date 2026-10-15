@@ -15,15 +15,20 @@
 #define PROFILE_TRACE_MAX 4096
 
 // One session: lead-in frames, program-area frames, then two quiet seconds.
-#define PROFILE_TOC_FRAMES 12
+// The lead-in is long enough for the whole stealth cap, so every string's
+// spacing and the gaps between them are compared, not only the first string.
+#define PROFILE_TOC_FRAMES 360
+#define PROFILE_STRINGS 16
 #define PROFILE_PLAY_FRAMES 600
 #define PROFILE_TAIL_MS 2000U
 
 // The debug image does a little more around each string, so edges may shift.
-// Within a string, spacing must hold to 0.5 ms; a string may start up to one
-// frame, 13.3 ms, apart.
+// Within a string, spacing must hold to 0.5 ms; each string may start up to one
+// frame, 13.3 ms, apart, since strings start on frames. Edges further apart
+// than a bit cell's worst gap begin a new string.
 #define PROFILE_EDGE_TOLERANCE_NS 500000ULL
 #define PROFILE_START_TOLERANCE_NS 14000000ULL
+#define PROFILE_STRING_GAP_NS 40000000ULL
 
 // A chirp is 60 ms; a pulse up to 80 ms is a chirp stretched by a loop pass.
 // A code flash is 700 ms, so 600 ms separates the two.
@@ -88,17 +93,32 @@ static uint64_t distance(uint64_t a, uint64_t b) {
   return (a > b) ? (a - b) : (b - a);
 }
 
-// The same edges, in the same order, with the same spacing.
+// The strings in a trace: edges more than PROFILE_STRING_GAP_NS apart start
+// a new one.
+static int strings_in(const data_trace_t *a) {
+  int strings = (a->count > 0) ? 1 : 0;
+  for (int i = 1; i < a->count; i++) {
+    strings += ((a->at[i] - a->at[i - 1]) > ns_cycles(PROFILE_STRING_GAP_NS)) ? 1 : 0;
+  }
+  return strings;
+}
+
+// The same edges, in the same order: each string starting within a frame of
+// its counterpart, and each edge inside it at the same offset from that start.
 static int same_data(const data_trace_t *a, const data_trace_t *b) {
   int same = (a->count == b->count) && (a->count > 0) && (a->count < PROFILE_TRACE_MAX);
-  if (same) {
-    same = distance(a->at[0], b->at[0]) <= ns_cycles(PROFILE_START_TOLERANCE_NS);
-  }
+  uint64_t start_a = 0U;
+  uint64_t start_b = 0U;
   for (int i = 0; same && (i < a->count); i++) {
-    uint64_t span_a = a->at[i] - a->at[0];
-    uint64_t span_b = b->at[i] - b->at[0];
-    same = (a->level[i] == b->level[i]) &&
-           (distance(span_a, span_b) <= ns_cycles(PROFILE_EDGE_TOLERANCE_NS));
+    int begins = (i == 0) || ((a->at[i] - a->at[i - 1]) > ns_cycles(PROFILE_STRING_GAP_NS));
+    if (begins) {
+      start_a = a->at[i];
+      start_b = b->at[i];
+      same = distance(start_a, start_b) <= ns_cycles(PROFILE_START_TOLERANCE_NS);
+    }
+    same =
+        same && (a->level[i] == b->level[i]) &&
+        (distance(a->at[i] - start_a, b->at[i] - start_b) <= ns_cycles(PROFILE_EDGE_TOLERANCE_NS));
   }
   return same;
 }
@@ -153,6 +173,11 @@ void scenario_profiles(const target_t *t,
   accepted_session(t, debug_elf, freq, &g_debug_trace);
   accepted_session(t, final_elf, freq, &g_final_trace);
   char label[112];
+  (void)snprintf(label,
+                 sizeof(label),
+                 "profiles: the session sends the whole cap (%d strings)",
+                 strings_in(&g_debug_trace));
+  check(strings_in(&g_debug_trace) == PROFILE_STRINGS, label);
   (void)snprintf(label,
                  sizeof(label),
                  "profiles: debug and final put the same edges on DATA (%d and %d)",
