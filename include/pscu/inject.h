@@ -15,7 +15,10 @@ bool pscu_should_inject(uint8_t counter, uint8_t trigger);
 
 // Strings sent in this window, whether the console accepted one, and frames to
 // wait before the next. After acceptance the chip stays silent: anti-mod code
-// counts strings in the program area (psx-spx, 19h,04h and 19h,05h).
+// counts strings in the program area (psx-spx, 19h,04h and 19h,05h). The run
+// loop already closes the window on a program-area frame, by emptying the
+// counter; the accepted latch is a second guard for that rule, so a change to
+// the loop's wiring alone cannot reopen the window in the program area.
 typedef struct {
   uint8_t sent;
   bool accepted;
