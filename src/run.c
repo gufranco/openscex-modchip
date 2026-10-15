@@ -271,7 +271,12 @@ void pscu_run(void) {
     uint8_t osccal_before = osc.osccal;
     osc = pscu_osc_step(osc, stamp, out.trim_sample);
     if (out.fire) {
-      board = pscu_engine_confirm_board(board);
+      pscu_board_mode_t confirmed = pscu_engine_confirm_board(board);
+      // A carrier found late goes into the record, so a watchdog reset that
+      // keeps the recorded board never falls back to gating WFCK.
+      store_due = store_due || (confirmed != board);
+      board = confirmed;
+      loop.calib.board = (uint8_t)board;
       pscu_engine_inject(board, PSCU_LAMP_STRINGS);
     }
     store_due = store_due || out.store;

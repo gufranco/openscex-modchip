@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "avr_eeprom.h"
 #include "avr_ioport.h"
 #include "harness.h"
 #include "scenarios.h"
@@ -171,6 +172,10 @@ void scenario_late_carrier(const target_t *t, const char *elf, uint32_t freq) {
 // A carrier that starts after boot detection is first seen as a gate; the
 // firmware re-checks WFCK before the string and mirrors instead. WFCK must
 // never become an output.
+// The record's layout magic (include/pscu/calib.h), and a silence past the
+// 1.5 s disc-gone time (include/pscu/inject.h) with room for the write.
+#define RECORD_MAGIC 0xC8U
+#define CARRIER_GONE_MS 2000U
 static int g_wfck_driven = 0;
 static uint8_t g_wfck_bit = 0U;
 
@@ -204,8 +209,19 @@ void scenario_carrier_after_boot(const target_t *t, const char *elf, uint32_t fr
   if (g_indicator_seen != 0) {
     decode_region(avr, t, 1, (uint64_t)WFCK_PERIODS_PER_BIT * freq / WFCK_HZ, decoded);
   }
+  // The disc then leaves before the console answers, so the session teaches
+  // nothing and only the board change can write the record. Its board byte
+  // must name the carrier the string was mirrored on, or a watchdog reset
+  // would bring back the gate.
+  run_cycles(avr, ms_cycles(CARRIER_GONE_MS));
+  uint8_t record[2] = { 0U, 0U };
+  avr_eeprom_desc_t desc = { .ee = record, .offset = 0, .size = 2 };
+  (void)avr_ioctl(avr, AVR_IOCTL_EEPROM_GET, &desc);
 
   char label[96];
+  (void)snprintf(
+      label, sizeof(label), "carrier after boot %s: the record names the carrier", t->mcu);
+  check((record[0] == RECORD_MAGIC) && (record[1] == 1U), label);
   (void)snprintf(label, sizeof(label), "carrier after boot %s: boot shows a gate board", t->mcu);
   check(blinks == 1, label);
   (void)snprintf(label, sizeof(label), "carrier after boot %s: injects by mirroring", t->mcu);
