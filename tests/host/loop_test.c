@@ -135,6 +135,26 @@ static void test_held_window(void) {
   g_check(resumed.fire, "loop: the string goes out once the supply is back");
 }
 
+// A supply dip longer than the confirmation span, after a string, pauses the
+// wait: the session stays open, nothing is stored, and the program area that
+// follows the supply's return still counts as acceptance.
+static void test_held_session_waits(void) {
+  step_t fired = feed(fresh(calib_with(TRIGGER, false)), LEAD_IN, TRIGGER);
+  step_t held = pass_with(fired.state, LEAD_IN, true, false, FRAME_MS);
+  bool stored = held.store;
+  for (uint16_t i = 0U; i < (uint16_t)(PSCU_CONFIRM_FRAMES + 8U); i++) {
+    held = pass_with(held.state, LEAD_IN, true, false, FRAME_MS);
+    stored = stored || held.store;
+  }
+  g_check(!stored && !held.state.session.resolved && (held.state.calib.trigger == TRIGGER) &&
+              !held.state.calib.frozen,
+          "loop: a supply hold longer than the wait neither refuses nor learns");
+  step_t back = pass(held.state, LEAD_IN);
+  step_t accepted = pass(back.state, PROGRAM);
+  g_check(accepted.store && (accepted.state.indicator.code == PSCU_INDICATOR_CODE_ACCEPTED),
+          "loop: the program area after the supply returns is still an acceptance");
+}
+
 // A program-area frame after a string confirms the disc: code 1, a store, and
 // the start probed one step later.
 static void test_accepted(void) {
@@ -404,6 +424,7 @@ void loop_tests(pscu_check_fn check) {
   test_init();
   test_fire_at_trigger();
   test_held_window();
+  test_held_session_waits();
   test_accepted();
   test_refused();
   test_disc_gone();

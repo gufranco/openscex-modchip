@@ -113,7 +113,11 @@ static pscu_loop_learned_t pscu_loop_watch(pscu_loop_t *next, const pscu_loop_pa
   out.event = pass->fire ? PSCU_INDICATOR_EVENT_FIRED : PSCU_INDICATOR_EVENT_NONE;
   out.store = false;
   out.missed = false;
-  if ((next->session.injects > 0U) && !next->session.resolved) {
+  // A pass the supply guard held inside the window sent nothing the console
+  // could answer, so it pauses the wait instead of running it down: a long dip
+  // must not read as a refusal and step the start back.
+  bool paused = pass->reached && (pass->window == PSCU_WINDOW_HELD);
+  if ((next->session.injects > 0U) && !next->session.resolved && !paused) {
     pscu_confirm_step_t outcome =
         pscu_confirm_step(next->session.confirm, !pass->fire, pass->program, PSCU_CONFIRM_FRAMES);
     next->session.confirm = outcome.state;
