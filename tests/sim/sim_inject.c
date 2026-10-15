@@ -396,6 +396,20 @@ void scenario_fast_sqck(const target_t *t, const char *elf, uint32_t freq) {
   g_edge_ns = EDGE_NS;
 }
 
+// The capture's 16 ms frame budget times the bits, not the wait for them: with
+// frames 40 ms apart, each a 12 ms burst, a capture waits about 26 ms for the
+// burst to begin, and a budget counted from entry would fail every frame.
+#define LATE_BURST_EDGE_NS 62500ULL
+#define LATE_BURST_PERIOD_NS 40000000ULL
+
+void scenario_late_burst(const target_t *t, const char *elf, uint32_t freq) {
+  g_edge_ns = LATE_BURST_EDGE_NS;
+  g_frame_period_ns = LATE_BURST_PERIOD_NS;
+  scenario_inject(t, elf, freq, 0, 1, WFCK_HZ, "a 12 ms burst 26 ms into the capture");
+  g_edge_ns = EDGE_NS;
+  g_frame_period_ns = 0U;
+}
+
 // On a gate board the chip holds WFCK low for the whole string, as PsNee and
 // Mayumi V4 do; on a carrier board it never drives WFCK.
 static uint8_t wfck_driven_low(avr_t *avr, const target_t *t) {

@@ -200,13 +200,16 @@ pscu_port_delay_ms:
 // passes stay short enough for the indicator's timing, and it shows code 3,
 // which points at SQCK and SUBQ. The check runs after the sample, in the high
 // half of the SQCK cycle, which even the fastest clock leaves room for.
+// The budget starts at the first falling edge, r19 latched there while r23 is
+// still clear, so the wait for the burst to begin, most of a frame gap, never
+// counts against the bits.
 #define PSCU_FRAME_BUDGET_TICKS 8
 	.global pscu_port_capture_frame
 	.func pscu_port_capture_frame
 pscu_port_capture_frame:
 	wdr
 	movw r26, r24
-	in r19, _SFR_IO_ADDR(TCNT1)
+	clr r23
 	tst r22
 	breq 37f
 30:
@@ -222,6 +225,11 @@ pscu_port_capture_frame:
 	brne 32b
 	rjmp 36f
 33:
+	tst r23
+	brne 38f
+	in r19, _SFR_IO_ADDR(TCNT1)
+	ldi r23, 1
+38:
 	ldi r30, lo8(PSCU_SQCK_WAIT_POLLS)
 	ldi r31, hi8(PSCU_SQCK_WAIT_POLLS)
 34:
