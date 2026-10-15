@@ -65,23 +65,42 @@ static output_t g_outputs[3];
 static int g_output_count = 0;
 static int g_osccal_factory = -1;
 
+// A pin map the runner cannot read in full would leave a console wire out of
+// the run, so anything it cannot place is refused: too long a map, more lines
+// than it holds, an item without '=', a name too long, or a pin that is not a
+// port letter and a bit from 0 to 7.
+static void bad_pin_map(const char *text, const char *why) {
+  fprintf(stderr, "pin map %s: %s\n", text, why);
+  exit(2);
+}
+
 static void parse_pin_map(const char *text) {
   char copy[256];
+  if (strlen(text) >= sizeof(copy)) {
+    bad_pin_map(text, "too long");
+  }
   snprintf(copy, sizeof(copy), "%s", text);
-  for (char *item = strtok(copy, ","); item != NULL && g_line_count < MAX_LINES;
-       item = strtok(NULL, ",")) {
+  for (char *item = strtok(copy, ","); item != NULL; item = strtok(NULL, ",")) {
     char *eq = strchr(item, '=');
     if (eq == NULL) {
-      continue;
+      bad_pin_map(text, "an item without '='");
+    }
+    if (g_line_count == MAX_LINES) {
+      bad_pin_map(text, "more lines than the runner holds");
     }
     *eq = '\0';
     const char *pin = eq + 1;
     line_t *line = &g_lines[g_line_count];
     line->inverted = pin[0] == '!';
     pin += line->inverted;
+    int port_ok = (pin[0] >= 'A') && (pin[0] <= 'D');
+    int bit_ok = (pin[1] >= '0') && (pin[1] <= '7') && (pin[2] == '\0');
+    if (!port_ok || !bit_ok || (strlen(item) >= sizeof(line->name))) {
+      bad_pin_map(text, "a pin that is not a port letter and a bit 0 to 7");
+    }
     snprintf(line->name, sizeof(line->name), "%s", item);
     line->port = pin[0];
-    line->bit = (uint8_t)atoi(pin + 1);
+    line->bit = (uint8_t)(pin[1] - '0');
     g_line_count++;
   }
 }
@@ -95,9 +114,25 @@ static line_t *find_line(const char *name) {
   return NULL;
 }
 
+// Console wires a chip may not use; the timeline drives them for every chip,
+// and one this chip lacks is simply not wired.
+static int is_console_wire(const char *name) {
+  const char *wires[] = { "sqck", "subq", "wfck", "lid", "reset", "sense" };
+  for (size_t i = 0; i < sizeof(wires) / sizeof(wires[0]); i++) {
+    if (strcmp(wires[i], name) == 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static void drive(avr_t *avr, const char *name, int value) {
   line_t *line = find_line(name);
   if (line == NULL) {
+    if (!is_console_wire(name)) {
+      fprintf(stderr, "unknown timeline signal %s\n", name);
+      exit(1);
+    }
     return;
   }
   line->value = value;
@@ -228,15 +263,41 @@ static event_t *read_timeline(const char *path, size_t *count) {
   return events;
 }
 
+// A whole decimal number, or exit: a clock or a duration that does not parse
+// would run nothing and still exit 0.
+static unsigned long long number(const char *text, const char *what) {
+  char *end = NULL;
+  unsigned long long value = strtoull(text, &end, 10);
+  if ((end == text) || (*end != '\0') || (value == 0ULL)) {
+    fprintf(stderr, "%s must be a positive whole number, not %s\n", what, text);
+    exit(2);
+  }
+  return value;
+}
+
+// Close a file the run wrote, or exit: a short write must not pass for a
+// complete trace.
+static void finish(FILE *file, const char *path) {
+  if (ferror(file) || (fclose(file) != 0)) {
+    fprintf(stderr, "cannot finish writing %s\n", path);
+    exit(1);
+  }
+}
+
 int main(int argc, char **argv) {
   if (argc != 9) {
     fprintf(
         stderr, "usage: %s image mcu clock_hz timeline trace coverage duration_ns pins\n", argv[0]);
     return 2;
   }
-  const uint32_t clock_hz = (uint32_t)strtoul(argv[3], NULL, 10);
+  const unsigned long long clock_number = number(argv[3], "clock_hz");
+  if (clock_number > UINT32_MAX) {
+    fprintf(stderr, "clock_hz %s is out of range\n", argv[3]);
+    return 2;
+  }
+  const uint32_t clock_hz = (uint32_t)clock_number;
   const double ns_per_cycle = 1.0e9 / (double)clock_hz;
-  const unsigned long long duration_ns = strtoull(argv[7], NULL, 10);
+  const unsigned long long duration_ns = number(argv[7], "duration_ns");
   parse_pin_map(argv[8]);
   size_t event_count = 0;
   event_t *events = read_timeline(argv[4], &event_count);
@@ -294,6 +355,10 @@ int main(int argc, char **argv) {
 
   const size_t flash_words = (size_t)(avr->flashend + 1U) / 2U;
   uint8_t *executed = calloc(flash_words, 1);
+  if (executed == NULL) {
+    fprintf(stderr, "out of memory for %zu flash words\n", flash_words);
+    return 1;
+  }
   const uint64_t end_cycle = (uint64_t)((double)duration_ns / ns_per_cycle);
   const uint64_t max_steps = end_cycle + 1024U;
   size_t next_event = 0;
@@ -351,7 +416,7 @@ int main(int argc, char **argv) {
     }
   }
   fprintf(trace, "%llu end 0 0\n", (unsigned long long)((double)avr->cycle * ns_per_cycle));
-  fclose(trace);
+  finish(trace, argv[5]);
 
   FILE *coverage = fopen(argv[6], "w");
   if (coverage == NULL) {
@@ -363,7 +428,7 @@ int main(int argc, char **argv) {
       fprintf(coverage, "%zx\n", word * 2U);
     }
   }
-  fclose(coverage);
+  finish(coverage, argv[6]);
   free(executed);
   free(events);
   return crashed ? 3 : 0;
