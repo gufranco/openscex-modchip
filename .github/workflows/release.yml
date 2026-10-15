@@ -182,7 +182,29 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ needs.version.outputs.tag }}
+          # The tag and its parent, for the check below.
+          fetch-depth: 2
           persist-credentials: false
+
+      # The version job ran npm packages with write access, so this job does
+      # not take its tag on trust: the tag may only add the changelog to its
+      # parent, and on a CI-triggered run that parent must be the commit CI
+      # passed. A recovery run has no such commit and checks the first part.
+      - name: Confirm the tag only adds the changelog to a tested commit
+        env:
+          EVENT: ${{ github.event_name }}
+          PASSED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only HEAD^ HEAD)"
+          if [ "$changed" != "CHANGELOG.md" ]; then
+            echo "the release tag changes more than CHANGELOG.md: $changed" >&2
+            exit 1
+          fi
+          if [ "$EVENT" = "workflow_run" ] && [ "$(git rev-parse HEAD^)" != "$PASSED_SHA" ]; then
+            echo "the release tag does not sit on the commit CI passed, $PASSED_SHA" >&2
+            exit 1
+          fi
 
       - name: Build the per-console SCEx images in the pinned toolchain
         run: |

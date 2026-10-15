@@ -386,7 +386,7 @@ To add your console, open a [compatibility report](../../issues/new?template=com
 
 ## Versioning
 
-Releases follow [Semantic Versioning](https://semver.org/) on the `0.x` line, so a minor release can break compatibility. v0.3.0 to v0.8.0 are ATtiny84 builds, and releases up to v0.2.0 are ATtiny85 builds of an earlier four-wire design. Each release is built from a commit whose CI passed; notes are on the [releases](../../releases) page.
+Releases follow [Semantic Versioning](https://semver.org/) on the `0.x` line, so a minor release can break compatibility. v0.3.0 to v0.8.0 are ATtiny84 builds, and releases up to v0.2.0 are ATtiny85 builds of an earlier four-wire design. Each release is built from a commit whose CI passed plus its changelog entry, and [the release job](.github/workflows/release.yml) refuses a tag that changes anything else; notes are on the [releases](../../releases) page.
 
 ## Support
 
