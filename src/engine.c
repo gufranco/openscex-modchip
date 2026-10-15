@@ -89,7 +89,9 @@ static void pscu_inject_bit(uint8_t bit_value, pscu_board_mode_t mode) {
   pscu_port_watchdog_reset();
 }
 
-// A string always runs to its end, 176 ms. If WFCK stops mid-string, the
+// A string always runs to its end: 176 ms on a gate board, and up to 181 ms
+// mirrored on a carrier, where 44 bits of 30 WFCK periods at the slowest
+// carrier rate, about 7.3 kHz, take longer. If WFCK stops mid-string, the
 // watchdog releases DATA within about 0.5 s.
 static void pscu_inject_region(pscu_region_t region, pscu_board_mode_t mode) {
   PSCU_ASSERT((uint8_t)region < PSCU_REGION_COUNT);

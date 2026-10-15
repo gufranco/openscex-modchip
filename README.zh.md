@@ -42,7 +42,7 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 
 | | | 出处 |
 |:--|:--|:--|
-| **接受后保持静默**<br>第一个程序区帧之后不再开始新的字符串；正在发送的字符串会发完，最长 176 ms。只有新的导入区读取，例如反改机的 TOC 重读，才会再次得到响应。 | **无需光驱盖线的换盘**<br>SUBQ 帧中断 1.5 s 即视为换盘，并为下一张光盘重新武装。 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [src/run.c](src/run.c) |
+| **接受后保持静默**<br>第一个程序区帧之后不再开始新的字符串；正在发送的字符串会发完，最长 181 ms。只有新的导入区读取，例如反改机的 TOC 重读，才会再次得到响应。 | **无需光驱盖线的换盘**<br>SUBQ 帧中断 1.5 s 即视为换盘，并为下一张光盘重新武装。 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [src/run.c](src/run.c) |
 | **自校正的时序**<br>芯片对主机 75 Hz 的 SUBQ 帧计时，把内部振荡器校正到 1% 以内，无需时钟线。 | **一个区域，一个窗口**<br>只送出配置的区域字符串，只在 SUBQ 区域检查窗口内，每次武装最多 16 次。 | [src/trim.c](src/trim.c), [src/region.c](src/region.c), [include/pscu/config.h](include/pscu/config.h) |
 | **状态 LED 或蜂鸣器**<br>一个引脚显示启动阶段、每张光盘的结果和接线故障；final 构建只发短响，每个故障只报一次。 | **代码实证**<br>MISRA C:2012 合规，主机覆盖率 100%，simavr 主机模型，变异测试，逐字节一致的重新构建。 | [src/indicator.c](src/indicator.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
 

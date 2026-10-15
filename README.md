@@ -42,7 +42,7 @@ Region-unlock firmware for the original PlayStation and the PSone, on an ATtiny8
 
 | | | Source |
 |:--|:--|:--|
-| **Silent after acceptance**<br>No string starts after the first program-area frame; one already under way finishes, within 176 ms. Only a new lead-in read, such as an anti-mod TOC re-read, is served again. | **Disc swaps without a lid wire**<br>1.5 s without SUBQ frames counts as a swap and re-arms the chip for the next disc. | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [src/run.c](src/run.c) |
+| **Silent after acceptance**<br>No string starts after the first program-area frame; one already under way finishes, within 181 ms. Only a new lead-in read, such as an anti-mod TOC re-read, is served again. | **Disc swaps without a lid wire**<br>1.5 s without SUBQ frames counts as a swap and re-arms the chip for the next disc. | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [src/run.c](src/run.c) |
 | **Self-trimmed timing**<br>The chip times the console's 75 Hz SUBQ frames and trims its internal oscillator to within 1%. No clock wire. | **One region, one window**<br>Only the configured region string, only inside the SUBQ region-check window, at most 16 strings per arming. | [src/trim.c](src/trim.c), [src/region.c](src/region.c), [include/pscu/config.h](include/pscu/config.h) |
 | **Status LED or buzzer**<br>One pin reports boot stages, each disc's result and wiring faults. A final build only chirps and reports each fault once. | **Proven in code**<br>MISRA C:2012 clean, 100% host coverage, a simavr console model, mutation testing, byte-identical rebuilds. | [src/indicator.c](src/indicator.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
 

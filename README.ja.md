@@ -42,7 +42,7 @@ avrdude -c <programmer> -p attiny85 -U flash:w:openscex-modchip-attiny85.hex:i
 
 | | | 出典 |
 |:--|:--|:--|
-| **受け入れ後は沈黙**<br>最初のプログラム領域フレーム以降は文字列を始めません。送信中の文字列は最後まで送り、長くても 176 ms で終わります。再び応じるのは、アンチモッドの TOC 再読み取りのような新しいリードイン読み取りだけです。 | **蓋線なしのディスク交換**<br>SUBQ フレームが 1.5 s 途絶えると交換とみなし、次のディスクに向けて再武装します。 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [src/run.c](src/run.c) |
+| **受け入れ後は沈黙**<br>最初のプログラム領域フレーム以降は文字列を始めません。送信中の文字列は最後まで送り、長くても 181 ms で終わります。再び応じるのは、アンチモッドの TOC 再読み取りのような新しいリードイン読み取りだけです。 | **蓋線なしのディスク交換**<br>SUBQ フレームが 1.5 s 途絶えると交換とみなし、次のディスクに向けて再武装します。 | [src/inject.c](src/inject.c), [src/loop.c](src/loop.c), [src/run.c](src/run.c) |
 | **自己補正のタイミング**<br>コンソールの 75 Hz の SUBQ フレームを計時し、内蔵発振器を 1% 以内に補正します。クロック線は不要です。 | **1 リージョン、1 つの窓**<br>設定したリージョン文字列だけを、SUBQ リージョンチェックの窓の間だけ、武装ごとに最大 16 回。 | [src/trim.c](src/trim.c), [src/region.c](src/region.c), [include/pscu/config.h](include/pscu/config.h) |
 | **ステータス LED またはブザー**<br>1 本のピンで起動の段階、ディスクごとの結果、配線の異常を示す。final ビルドは短く鳴るだけで、異常は 1 回だけ知らせる。 | **コードで実証**<br>MISRA C:2012 準拠、ホストカバレッジ 100%、simavr コンソールモデル、ミューテーションテスト、バイト一致の再ビルド。 | [src/indicator.c](src/indicator.c), [tests/host](tests/host), [tools/mutate.py](tools/mutate.py) |
 
