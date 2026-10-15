@@ -5,7 +5,9 @@
 # Conventional-commit subject check, shared by CI and the commit-msg hook.
 #   check-commit-messages.sh <base-sha> <head-sha>   every commit in base..head
 #   check-commit-messages.sh --message-file <file>   one message, as git hooks pass it
-# Merge commits and Dependabot and semantic-release commits are skipped.
+# Merge commits and Dependabot and semantic-release commits are skipped. A
+# message file may also be a merge or a fixup git wrote, which a rebase folds
+# away before it is pushed; pushed, CI still refuses a fixup.
 
 set -eu
 
@@ -41,15 +43,23 @@ fi
 
 if [ "$1" = "--message-file" ]; then
         subject=$(grep -v '^#' "$2" | sed -n '1p')
+        case "${subject}" in
+        'Merge '* | 'fixup! '* | 'squash! '* | 'amend! '*) exit 0 ;;
+        esac
         check_subject "${subject}" "commit message"
         exit $?
 fi
 
 base=$1
 head=$2
-# A new branch or a force push has no usable base, so check only the head.
+# A new branch or a force push has no usable base, so every commit since the
+# last release tag is checked, or only the head when there is no tag yet.
 if [ "${base}" = "${zero_sha}" ] || ! git merge-base --is-ancestor "${base}" "${head}" 2>/dev/null; then
-        range=$(git rev-list --no-merges --max-count=1 "${head}")
+        if tag=$(git describe --tags --abbrev=0 --match 'v*' "${head}" 2>/dev/null); then
+                range=$(git rev-list --no-merges "${tag}..${head}")
+        else
+                range=$(git rev-list --no-merges --max-count=1 "${head}")
+        fi
 else
         range=$(git rev-list --no-merges "${base}..${head}")
 fi

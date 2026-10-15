@@ -43,6 +43,8 @@ class CommitMessageCheckTest(unittest.TestCase):
                 "user.email=test@example.invalid",
                 "-c",
                 "commit.gpgsign=false",
+                "-c",
+                "tag.gpgsign=false",
                 *args,
             ],
             cwd=self.repo,
@@ -198,6 +200,32 @@ class CommitMessageCheckTest(unittest.TestCase):
         # Assert
         self.assertEqual(code, 1)
 
+    def test_a_message_git_writes_for_a_merge_or_fixup_passes(self) -> None:
+        # Arrange
+        subjects = [
+            "Merge branch 'main' of github.com:gufranco/openscex-modchip",
+            "fixup! fix: keep the burst through a dip",
+            "squash! fix: keep the burst through a dip",
+            "amend! fix: keep the burst through a dip",
+        ]
+
+        # Act
+        codes = [self.check_message(subject) for subject in subjects]
+
+        # Assert
+        self.assertEqual(codes, [0, 0, 0, 0])
+
+    def test_a_fixup_in_a_pushed_range_still_fails(self) -> None:
+        # Arrange
+        base = self.commit(GOOD)
+        head = self.commit(f"fixup! {GOOD}")
+
+        # Act
+        code = self.check(base, head)
+
+        # Assert
+        self.assertEqual(code, 1)
+
     def test_a_one_letter_subject_passes(self) -> None:
         # Arrange
         subject = "docs: a"
@@ -242,7 +270,7 @@ class CommitMessageCheckTest(unittest.TestCase):
         # Assert
         self.assertEqual(code, 0)
 
-    def test_a_force_push_checks_only_the_new_head(self) -> None:
+    def test_a_force_push_with_no_tag_checks_only_the_new_head(self) -> None:
         # Arrange
         old_tip = self.commit(GOOD)
         self.git("checkout", "-q", "--orphan", "rewritten")
@@ -251,6 +279,34 @@ class CommitMessageCheckTest(unittest.TestCase):
 
         # Act
         code = self.check(old_tip, head)
+
+        # Assert
+        self.assertEqual(code, 0)
+
+    def test_a_force_push_checks_every_commit_since_the_last_tag(self) -> None:
+        # Arrange
+        released = self.commit(GOOD)
+        self.git("tag", "v0.1.0")
+        old_tip = self.commit(GOOD)
+        self.git("reset", "-q", "--hard", released)
+        self.commit(BAD)
+        head = self.commit(GOOD)
+
+        # Act
+        code = self.check(old_tip, head)
+
+        # Assert
+        self.assertEqual(code, 1)
+
+    def test_a_new_branch_checks_every_commit_since_the_last_tag(self) -> None:
+        # Arrange
+        self.commit(BAD)
+        self.git("tag", "v0.1.0")
+        self.commit(GOOD)
+        head = self.commit(GOOD)
+
+        # Act
+        code = self.check(ZERO_SHA, head)
 
         # Assert
         self.assertEqual(code, 0)
