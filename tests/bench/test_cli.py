@@ -22,8 +22,10 @@ from tools.bench.cli import (
     evidence,
     exit_status,
     judge,
+    judged,
     main,
     reached,
+    save_showcase,
     select,
     showcased,
     verdict,
@@ -33,7 +35,7 @@ from tools.bench.manifest import ROOT
 from tools.bench.report import Coverage
 from tools.bench.run import Run
 from tools.bench.scenarios import by_name as scenario
-from tools.bench.showcase import Outcome
+from tools.bench.showcase import PROPERTIES, Outcome, to_json
 
 
 class SelectTest(unittest.TestCase):
@@ -192,6 +194,38 @@ class VerdictTest(unittest.TestCase):
         self.assertEqual(code, 0)
 
 
+class JudgedTest(unittest.TestCase):
+    def test_a_scenario_with_no_evidence_fails_the_run(self) -> None:
+        # Arrange
+        findings = [
+            Finding("gate-accept", "would_accept", Verdict.MET, True, None, None),
+            Finding("no-disc", "would_accept", Verdict.UNCHECKED, False, None, None),
+        ]
+
+        # Act
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            code = judged(findings)
+
+        # Assert
+        self.assertEqual(code, 1)
+        self.assertEqual(
+            out.getvalue(), "UNJUDGED no-disc: no field-proven chip ran it\n"
+        )
+
+    def test_every_scenario_with_evidence_passes_the_run(self) -> None:
+        # Arrange
+        findings = [
+            Finding("gate-accept", "would_accept", Verdict.MET, True, None, None),
+            Finding("gate-accept", "during_play", Verdict.UNCHECKED, None, None, None),
+        ]
+
+        # Act
+        code = judged(findings)
+
+        # Assert
+        self.assertEqual(code, 0)
+
+
 class ReachedTest(unittest.TestCase):
     def test_ours_with_an_uncovered_range_fails_the_run(self) -> None:
         # Arrange
@@ -232,7 +266,7 @@ class ShowcasedTest(unittest.TestCase):
     def test_another_chip_failing_is_only_reported(self) -> None:
         # Arrange
         results = {
-            "ours": {"antimod-v1": Outcome.HELD},
+            "ours": {p.key: Outcome.HELD for p in PROPERTIES},
             "psnee-attiny85": {"antimod-v1": Outcome.FAILED},
         }
 
@@ -241,6 +275,25 @@ class ShowcasedTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(status, 0)
+
+
+class SaveShowcaseTest(unittest.TestCase):
+    def test_each_run_writes_the_showcase_only_when_whole(self) -> None:
+        # Arrange
+        results = {"ours": {p.key: Outcome.HELD for p in PROPERTIES}}
+        with tempfile.TemporaryDirectory() as work:
+            whole, partial = Path(work) / "whole", Path(work) / "partial"
+            whole.mkdir()
+            partial.mkdir()
+
+            # Act
+            save_showcase(whole / "report.md", results, whole=True)
+            save_showcase(partial / "report.md", results, whole=False)
+
+            # Assert
+            written = (whole / "showcase.json").read_text()
+            self.assertFalse((partial / "showcase.json").exists())
+        self.assertEqual(written, to_json(results))
 
 
 class ExitStatusTest(unittest.TestCase):
@@ -300,27 +353,29 @@ class MainTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("nonesuch", err.getvalue())
 
-    def test_ours_alone_writes_a_report_and_passes(self) -> None:
-        # Act
+    def test_ours_alone_writes_a_report_and_fails_unjudged(self) -> None:
+        # Arrange
         with tempfile.TemporaryDirectory() as work:
             out = Path(work) / "report.md"
-            with contextlib.redirect_stdout(io.StringIO()):
-                code = main(
-                    [
-                        "bench",
-                        "--chips",
-                        "ours",
-                        "--scenarios",
-                        "carrier-accept,no-disc",
-                        "--out",
-                        str(out),
-                        "--workdir",
-                        str(Path(work) / "not-yet-made"),
-                    ]
-                )
-            text = out.read_text()
+            argv = [
+                "bench",
+                "--chips",
+                "ours",
+                "--scenarios",
+                "carrier-accept,no-disc",
+                "--out",
+                str(out),
+                "--workdir",
+                str(Path(work) / "not-yet-made"),
+            ]
 
-        # Assert
-        self.assertEqual(code, 0)
+            # Act
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = main(argv)
+
+            # Assert
+            text = out.read_text()
+            self.assertFalse(out.with_name("showcase.json").exists())
+        self.assertEqual(code, 1)
         self.assertIn("| ours | carrier-accept | yes |", text)
         self.assertIn("| ours | no-disc | no |", text)

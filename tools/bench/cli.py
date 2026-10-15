@@ -6,10 +6,12 @@
     python3 -m tools.bench.cli [--chips a,b] [--scenarios x,y] [--out FILE]
                                [--workdir DIR]
 
-Exit status 1 when an envelope rule fails or ours was asked for and could not
-run, or, on a run of every scenario, when ours has unexcused uncovered code or
+Exit status 1 when an envelope rule fails, a judged scenario of ours had no
+field-proven chip to compare with, or ours was asked for and could not run,
+or, on a run of every scenario, when ours has unexcused uncovered code or
 fails a showcase property; 2 on a bad argument; else 0. The report is
-Markdown, with showcase.json beside it.
+Markdown; a run of every chip in every scenario also writes showcase.json
+beside it, the only results the README tables may be made from.
 """
 
 import argparse
@@ -131,6 +133,20 @@ def verdict(findings: Sequence[Finding]) -> int:
     return 1 if broken else 0
 
 
+def judged(findings: Sequence[Finding]) -> int:
+    """Fail the run when a judged scenario of ours had no field-proven chip to
+    compare with: every rule there is unchecked, so passing would mean nothing.
+    The would_accept rule is unchecked exactly when no evidence ran."""
+    bare = [
+        f.scenario
+        for f in findings
+        if f.metric == "would_accept" and f.verdict is Verdict.UNCHECKED
+    ]
+    for name in bare:
+        print(f"UNJUDGED {name}: no field-proven chip ran it")
+    return 1 if bare else 0
+
+
 def reached(coverages: Sequence[Coverage]) -> int:
     """Fail the run when ours has an instruction no scenario reaches and no
     reason excuses. Third-party gaps are only reported."""
@@ -186,16 +202,26 @@ def main(argv: list[str]) -> int:
         render(result.runs, result.skips, result.findings, result.coverages)
     )
     results = showcase.evaluate(result.runs)
-    args.out.with_name("showcase.json").write_text(showcase.to_json(results))
+    whole_bench = args.chips is None and args.scenarios is None
+    save_showcase(args.out, results, whole=whole_bench)
     print(f"bench report: {args.out}")
     return exit_status(result, results, whole=args.scenarios is None)
 
 
+def save_showcase(report: Path, results: showcase.Results, *, whole: bool) -> None:
+    """Write showcase.json beside the report, but only for a run of every chip
+    in every scenario: a partial run must never become the README tables."""
+    if whole:
+        report.with_name("showcase.json").write_text(showcase.to_json(results))
+
+
 def exit_status(result: Bench, results: showcase.Results, *, whole: bool) -> int:
-    """The run's exit status: broken rules and a skipped ours always count;
-    uncovered code and failed showcase properties only on a run of every
-    scenario."""
-    always = max(verdict(result.findings), ran_ours(result.skips))
+    """The run's exit status: broken rules, unjudged scenarios and a skipped
+    ours always count; uncovered code and failed showcase properties only on a
+    run of every scenario."""
+    always = max(
+        verdict(result.findings), judged(result.findings), ran_ours(result.skips)
+    )
     if not whole:
         return always
     return max(always, reached(result.coverages), showcased(results))

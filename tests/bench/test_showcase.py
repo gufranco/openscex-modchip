@@ -12,6 +12,7 @@ from pathlib import Path
 
 from tests.bench.test_envelope import BASE
 from tools.bench.catalogue import find
+from tools.bench.chips import CHIPS
 from tools.bench.chips import by_name as chip
 from tools.bench.manifest import ROOT
 from tools.bench.metrics import Metrics
@@ -24,6 +25,7 @@ from tools.bench.showcase import (
     START,
     Outcome,
     block,
+    complete,
     evaluate,
     failures,
     from_json,
@@ -186,16 +188,74 @@ class EvaluateTest(unittest.TestCase):
 class FailuresTest(unittest.TestCase):
     def test_only_ours_failures_are_listed(self) -> None:
         # Arrange
-        runs = [
-            run("ours", "antimod-v1-carrier", replace(BASE, probe_strings=1)),
-            run("psnee-attiny85", "antimod-v1-carrier", replace(BASE, probe_strings=1)),
-        ]
+        first = PROPERTIES[0].key
+        results = {
+            "ours": {p.key: Outcome.HELD for p in PROPERTIES} | {first: Outcome.FAILED},
+            "psnee-attiny85": {p.key: Outcome.FAILED for p in PROPERTIES},
+        }
 
         # Act
-        failed = failures(evaluate(runs))
+        failed = failures(results)
 
         # Assert
-        self.assertEqual(failed, ["antimod-v1"])
+        self.assertEqual(failed, [first])
+
+    def test_a_property_ours_was_never_judged_on_is_a_failure(self) -> None:
+        # Arrange
+        results = {"ours": {p.key: Outcome.HELD for p in PROPERTIES[1:]}}
+
+        # Act
+        failed = failures(results)
+
+        # Assert
+        self.assertEqual(failed, [PROPERTIES[0].key])
+
+
+def full_results() -> dict[str, dict[str, Outcome]]:
+    """Every catalogue chip holding every property."""
+    return {c.name: {p.key: Outcome.HELD for p in PROPERTIES} for c in CHIPS}
+
+
+class CompleteTest(unittest.TestCase):
+    def test_results_for_every_chip_and_property_are_kept(self) -> None:
+        # Arrange
+        results = full_results()
+
+        # Act
+        kept = complete(results)
+
+        # Assert
+        self.assertEqual(kept, results)
+
+    def test_each_partial_result_is_refused_with_its_gap(self) -> None:
+        # Arrange
+        full = full_results()
+        no_chip = {k: v for k, v in full.items() if k != "mayumi-v4"}
+        no_property = {
+            **full,
+            "ours": {k: v for k, v in full["ours"].items() if k != PROPERTIES[0].key},
+        }
+        stranger = {**full, "nonesuch": full["ours"]}
+        cases = {
+            "chip": (no_chip, "chips missing ['mayumi-v4'], unknown []"),
+            "property": (no_property, f"ours: no outcome for ['{PROPERTIES[0].key}']"),
+            "unknown": (stranger, "chips missing [], unknown ['nonesuch']"),
+        }
+
+        # Act
+        refused = {name: _refusal(given) for name, (given, _) in cases.items()}
+
+        # Assert
+        self.assertEqual(refused, {name: said for name, (_, said) in cases.items()})
+
+
+def _refusal(results: dict[str, dict[str, Outcome]]) -> str:
+    """The message complete raises for some results, or "" when it keeps them."""
+    try:
+        complete(results)
+    except ValueError as error:
+        return str(error)
+    return ""
 
 
 class ResultsFileTest(unittest.TestCase):
@@ -264,12 +324,12 @@ class TableTest(unittest.TestCase):
 class MainTest(unittest.TestCase):
     def test_a_run_rewrites_the_results_file_and_every_readme(self) -> None:
         # Arrange
-        results = evaluate([run("ours", "antimod-v1-carrier")])
+        results = full_results()
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             (root / "bench").mkdir()
             for name in READMES.values():
-                (root / name).write_text(f"{START}\nold\n{END}\n")
+                (root / name).write_text(f"{START}\nstale-block\n{END}\n")
             source = root / "run.json"
             source.write_text(to_json(results))
 
@@ -281,7 +341,7 @@ class MainTest(unittest.TestCase):
             tables = [(root / n).read_text() for n in READMES.values()]
         self.assertEqual(status, 0)
         self.assertEqual(written, results)
-        self.assertTrue(all("old" not in text for text in tables))
+        self.assertTrue(all("stale-block" not in text for text in tables))
 
 
 class ReadmeSyncTest(unittest.TestCase):

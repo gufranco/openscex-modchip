@@ -234,8 +234,10 @@ def evaluate(runs: Sequence[Run]) -> Results:
 
 
 def failures(results: Results) -> list[str]:
-    """The properties ours fails; an empty list is the only passing answer."""
-    return [k for k, v in results.get(OURS, {}).items() if v is Outcome.FAILED]
+    """The properties ours does not hold, failed or never judged; an empty
+    list is the only passing answer."""
+    row = results.get(OURS, {})
+    return [p.key for p in PROPERTIES if row.get(p.key, Outcome.NA) is not Outcome.HELD]
 
 
 def to_json(results: Results) -> str:
@@ -254,6 +256,21 @@ def from_json(raw_text: str) -> Results:
         if unknown:
             raise ValueError(f"{chip}: unknown properties {unknown}")
         results[chip] = {k: Outcome(v) for k, v in said.items()}
+    return results
+
+
+def complete(results: Results) -> Results:
+    """The results, when they hold every chip in the catalogue and every
+    property for each; a partial run would drop README columns or rows."""
+    names = [c.name for c in CHIPS]
+    missing = [n for n in names if n not in results]
+    unknown = sorted(set(results) - set(names))
+    if missing or unknown:
+        raise ValueError(f"chips missing {missing}, unknown {unknown}")
+    for chip, row in results.items():
+        gaps = [p.key for p in PROPERTIES if p.key not in row]
+        if gaps:
+            raise ValueError(f"{chip}: no outcome for {gaps}")
     return results
 
 
@@ -322,7 +339,7 @@ def main(argv: list[str]) -> int:
         "--root", type=Path, default=Path(__file__).resolve().parents[2]
     )
     args = parser.parse_args(argv[1:])
-    results = from_json(args.results.read_text())
+    results = complete(from_json(args.results.read_text()))
     (args.root / RESULTS).write_text(to_json(results))
     write_readmes(args.root, results)
     return 0
