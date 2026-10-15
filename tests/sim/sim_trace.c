@@ -45,6 +45,8 @@ static void on_trace_pin(struct avr_irq_t *irq, uint32_t value, void *param) {
     edges->at[edges->count] = edges->avr->cycle;
     edges->level[edges->count] = (uint8_t)(value & 1U);
     edges->count++;
+  } else {
+    g_record_overflows++;
   }
 }
 

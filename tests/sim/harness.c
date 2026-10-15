@@ -30,6 +30,7 @@ int g_pulses = 0;
 uint64_t g_rise = 0;
 int g_strings = 0;
 int g_data_drives = 0;
+int g_record_overflows = 0;
 int g_data_strays = 0;
 int g_data_bursts = 0;
 int g_lit_bursts = 0;
@@ -132,6 +133,8 @@ static void on_data_direction(struct avr_irq_t *irq, uint32_t value, void *param
     g_ddr_at[g_ddr_count] = avr->cycle;
     g_ddr_level[g_ddr_count] = (uint8_t)driven;
     g_ddr_count++;
+  } else {
+    g_record_overflows++;
   }
   if (driven != 0) {
     g_data_drives++;
@@ -144,6 +147,8 @@ static void on_data_direction(struct avr_irq_t *irq, uint32_t value, void *param
       g_data_start = avr->cycle;
       if (g_data_bursts < MAX_BURSTS) {
         g_burst_start[g_data_bursts] = avr->cycle;
+      } else {
+        g_record_overflows++;
       }
       g_data_bursts++;
       avr_ioport_state_t state;
@@ -256,6 +261,8 @@ void on_indicator(struct avr_irq_t *irq, uint32_t value, void *param) {
     g_pulse_rise[g_pulses] = g_rise;
     g_pulse_len[g_pulses] = len;
     g_pulses++;
+  } else {
+    g_record_overflows++;
   }
   g_rise = 0U;
 }
@@ -355,13 +362,20 @@ static uint32_t symbol_addr(const elf_firmware_t *firmware, const char *name) {
 avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
   elf_firmware_t firmware;
   memset(&firmware, 0, sizeof(firmware));
-  (void)elf_read_firmware(elf, &firmware);
+  if (elf_read_firmware(elf, &firmware) != 0) {
+    (void)printf("FAIL: cannot read the image %s\n", elf);
+    exit(1);
+  }
   g_ram_floor = ram_floor(&firmware);
   g_addr_read_sqck = symbol_addr(&firmware, "pscu_port_read_sqck");
   g_addr_capture = symbol_addr(&firmware, "pscu_port_capture_frame");
   g_addr_read_wfck = symbol_addr(&firmware, "pscu_port_read_wfck");
 
   avr_t *avr = avr_make_mcu_by_name(t->mcu);
+  if (avr == NULL) {
+    (void)printf("FAIL: simavr has no core %s\n", t->mcu);
+    exit(1);
+  }
   avr_init(avr);
   avr_load_firmware(avr, &firmware);
   sim_t85_install(avr);

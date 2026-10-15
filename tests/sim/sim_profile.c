@@ -59,6 +59,9 @@ static avr_cycle_count_t data_sample(avr_t *avr, avr_cycle_count_t when, void *p
     trace->at[trace->count] = avr->cycle;
     trace->level[trace->count] = level;
     trace->count++;
+  } else if (level != trace->last) {
+    g_record_overflows++;
+  } else {
   }
   trace->last = level;
   return when + ns_cycles(PROFILE_SAMPLE_NS);

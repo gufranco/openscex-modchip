@@ -103,6 +103,9 @@ extern uint64_t g_rise;
 // Strings counted from DATA's direction bit; DATA drives after boot; DATA
 // bursts that are not string-shaped.
 extern int g_strings;
+// Changes a recorder dropped because its buffer was full. A full buffer
+// would quietly hide what came after it, so any drop fails the run.
+extern int g_record_overflows;
 extern int g_data_drives;
 extern int g_data_strays;
 // DATA bursts, and those that began with the lamp already lit.

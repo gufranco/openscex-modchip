@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "harness.h"
 #include "scenarios.h"
@@ -19,7 +20,16 @@ int main(int argc, char *argv[]) {
     return 2;
   }
   const char *elf = argv[1];
-  uint32_t freq = (uint32_t)strtoul(argv[2], NULL, 10);
+  char *end = NULL;
+  unsigned long hz = strtoul(argv[2], &end, 10);
+  // F_CPU as the Makefile spells it, 8000000UL; a suffix other than UL, or
+  // none of the digits, is refused.
+  int suffix_ok = (*end == '\0') || (strcmp(end, "UL") == 0);
+  if ((end == argv[2]) || !suffix_ok || (hz == 0UL) || (hz > UINT32_MAX)) {
+    (void)fprintf(stderr, "freq_hz must be a positive number of hertz, not %s\n", argv[2]);
+    return 2;
+  }
+  uint32_t freq = (uint32_t)hz;
 
   // The SCEx signals and the indicator sit on PORTB. The image runs the board-family
   // matrix, then every behaviour scenario.
@@ -80,6 +90,7 @@ int main(int argc, char *argv[]) {
   scenario_region(&t85, argv[6], SCEE_BITS, "eu", freq);
   scenario_region(&t85, argv[7], SCEI_BITS, "jp", freq);
 
+  check(g_record_overflows == 0, "no recorder dropped a change at its buffer's end");
   check_stack();
   return sim_report();
 }
