@@ -232,7 +232,7 @@ PB3 可选接一个指示器（通常是 LED），这是芯片唯一的诊断手
 
 ### 串口跟踪
 
-`make PROFILE=trace` 构建的镜像把引脚 2 (PB3) 改作 115200 baud、8N1 的串口线，不再驱动指示。它带出不用示波器就能查出故障所需的全部信息：启动报告、芯片捕获的每个 SUBQ 帧，以及芯片每做一个决定就发出的一行，每行都带有从上电起的时间。各行在每帧之后的空隙中发出，每个空隙最多一行决定，所以 DATA 与另外两种镜像保持相同的时序，模拟器逐个边沿核对这一点。 出处：[src/trace.c](src/trace.c), [src/run.c](src/run.c), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
+`make PROFILE=trace` 构建的镜像把引脚 2 (PB3) 改作 115200 baud、8N1 的串口线，不再驱动指示。它带出不用示波器就能查出故障所需的全部信息：启动报告、芯片捕获的每个 SUBQ 帧，以及芯片每做一个决定就发出的一行，每行都带有从上电起的时间。各行在每帧之后的空隙中发出，每个空隙最多一行决定，所以 DATA 与另外两种镜像发出相同的字符串、相同的比特时序，每个字符串的开始最多晚一帧，模拟器逐个边沿核对这一点。 出处：[src/trace.c](src/trace.c), [src/run.c](src/run.c), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
 
 在电路板上，J2 不插指示器线缆，把 TTL-232R 线缆插到串口插针 J3 上，黑线对准 GND；单独使用芯片时，把引脚 2 接到 USB 串口适配器的 RX 输入，适配器的地接主机的地。线路在 0 与主机的 3.5 V 逻辑电源之间摆动，TTL-232R-3V3 这样的 3.3 V 适配器即可读取。请在给主机上电之前开始捕获，这样启动报告也会被记录。 出处：[hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795)。
 

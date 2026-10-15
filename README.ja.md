@@ -232,7 +232,7 @@ PB3 には任意で表示器（ふつうは LED）をつなぎ、これがチッ
 
 ### シリアルトレース
 
-`make PROFILE=trace` は、ピン 2 (PB3) を表示の代わりに 115200 baud、8N1 のシリアル線にするイメージをビルドします。オシロスコープなしで故障を突き止めるのに必要なものがすべて流れます。起動レポート、チップが取り込んだすべての SUBQ フレーム、そしてチップが下した判断ごとの 1 行で、どれにも電源投入からの時刻が付きます。行は各フレームの後の空き時間に、1 回の空き時間につき判断 1 行までで送られるので、DATA はほかの 2 つのイメージと同じタイミングを保ち、シミュレータがそれをエッジ単位で確かめます。 出典: [src/trace.c](src/trace.c), [src/run.c](src/run.c), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
+`make PROFILE=trace` は、ピン 2 (PB3) を表示の代わりに 115200 baud、8N1 のシリアル線にするイメージをビルドします。オシロスコープなしで故障を突き止めるのに必要なものがすべて流れます。起動レポート、チップが取り込んだすべての SUBQ フレーム、そしてチップが下した判断ごとの 1 行で、どれにも電源投入からの時刻が付きます。行は各フレームの後の空き時間に、1 回の空き時間につき判断 1 行までで送られるので、DATA はほかの 2 つのイメージと同じ文字列を同じビットタイミングで送り、各文字列の開始の遅れは最大 1 フレームで、シミュレータがそれをエッジ単位で確かめます。 出典: [src/trace.c](src/trace.c), [src/run.c](src/run.c), [tests/sim/sim_trace.c](tests/sim/sim_trace.c), [tests/sim/sim_profile.c](tests/sim/sim_profile.c)。
 
 基板では、J2 に表示器のケーブルを挿さずに、TTL-232R ケーブルを黒線が GND に来る向きでシリアルヘッダ J3 に挿します。チップ単体では、ピン 2 を USB シリアルアダプタの RX 入力に、アダプタの GND をコンソールの GND につなぎます。線は 0 とコンソールの 3.5 V ロジック電源の間で振れるので、TTL-232R-3V3 のような 3.3 V アダプタで読めます。起動レポートが入るように、コンソールの電源を入れる前に取り込みを始めてください。 出典: [hardware/openscex.kicad_sch](hardware/openscex.kicad_sch), [TTL-232R datasheet](https://www.farnell.com/datasheets/81225.pdf), [psx-spx pinouts.md, voltage summary](https://github.com/psx-spx/psx-spx.github.io/blob/6d7d1bc106a7e0b616b0330fe58401ab1ba57f0f/docs/pinouts.md#L1777-L1795)。
 
