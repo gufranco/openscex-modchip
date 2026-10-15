@@ -386,9 +386,14 @@ void scenario_supply(const target_t *t, const char *elf, uint32_t freq) {
   run_cycles(avr, ms_cycles(SUPPLY_WATCH_MS));
   int low = g_strings;
   int code = longest_code_after(mark);
+  // The record is read only after the supply is back and the window has been
+  // shut a while: at 2.6 V every write is refused, so a record read then could
+  // not show a lesson that is waiting to be stored.
+  set_supply(avr, GOOD_SUPPLY_MV);
+  clock_frames(avr, t, silence, MISSED_DECAY_FRAMES);
+  run_cycles(avr, ms_cycles(SUPPLY_WATCH_MS));
   uint8_t raw[CALIB_BYTES] = { 0 };
   read_calib(avr, raw);
-  set_supply(avr, GOOD_SUPPLY_MV);
   int good = strings_while(avr, t, toc, SUPPLY_TOC_FRAMES);
 
   char what[64];
