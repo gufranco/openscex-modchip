@@ -84,14 +84,24 @@ pscu_port_eeprom_wait:
 	ret
 	.endfunc
 
+// Return the byte at r24, or 0xFF, the erased value, without touching EEAR
+// when the previous write never finished, as pscu_port_eeprom_write does. The
+// caller then sees what an empty EEPROM gives: a record that fails its check,
+// or a write that did not verify.
 	.global pscu_port_eeprom_read
 	.func pscu_port_eeprom_read
 pscu_port_eeprom_read:
 	rcall pscu_port_eeprom_wait
+	tst r25
+	breq 22f
 	out _SFR_IO_ADDR(EEARH), r1
 	out _SFR_IO_ADDR(EEARL), r24
 	sbi _SFR_IO_ADDR(EECR), EERE
 	in r24, _SFR_IO_ADDR(EEDR)
+	ret
+// coverage: unreachable block: simavr finishes EEPROM writes at once.
+22:
+	ldi r24, 0xFF
 	ret
 	.endfunc
 
