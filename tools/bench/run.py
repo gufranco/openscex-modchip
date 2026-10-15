@@ -15,7 +15,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from tools.bench.chips import Chip, Simulator
+from tools.bench.chips import CHIPS, Chip, Simulator
 from tools.bench.intelhex import memory
 from tools.bench.manifest import Artifact, Status, check, load
 from tools.bench.metrics import Metrics, measure
@@ -367,8 +367,15 @@ def _entry(item: Mapping[str, object], where: str) -> Entry:
 
 
 def load_exclusions(root: Path) -> dict[str, list[Entry]]:
-    """The committed exclusion table for third-party images, by artifact id."""
+    """The committed exclusion table for third-party images, by artifact id.
+    A key that names no third-party artifact is refused, so the table can
+    never excuse this firmware's own code, which carries its reasons in the
+    source."""
     raw = mapping(json.loads((root / EXCLUSIONS).read_text()), EXCLUSIONS)
+    known = {c.artifact for c in CHIPS if c.artifact is not None}
+    unknown = sorted(set(raw) - known)
+    if unknown:
+        raise ValueError(f"{EXCLUSIONS}: no third-party artifact {unknown}")
     return {
         artifact: [
             _entry(item, f"{artifact}[{index}]")
@@ -404,7 +411,9 @@ def excuse(root: Path, chip: Chip, uncovered: frozenset[int]) -> dict[int, str]:
     Ours carries marker comments in its source; a third-party image uses the
     committed table under its artifact id. A PIC image matches by address only.
     """
-    table = load_exclusions(root).get(chip.artifact or chip.name, [])
+    table = (
+        [] if chip.artifact is None else load_exclusions(root).get(chip.artifact, [])
+    )
     ordered = sorted(uncovered)
     if chip.simulator is not Simulator.AVR:
         return by_table(ordered, {}, table)

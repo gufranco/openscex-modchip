@@ -716,6 +716,25 @@ class ExclusionsTest(unittest.TestCase):
         )
         self.assertTrue(any(e.file for e in table["ubernee-v142"]))
 
+    def test_a_table_entry_for_ours_is_refused(self) -> None:
+        # Arrange
+        with tempfile.TemporaryDirectory() as work:
+            (Path(work) / "bench").mkdir()
+            entry = {"file": "loop.c", "reason": "never"}
+            (Path(work) / "bench" / "coverage-exclusions.json").write_text(
+                json.dumps({"ours": [entry]})
+            )
+
+            # Act
+            with self.assertRaises(ValueError) as raised:
+                load_exclusions(Path(work))
+
+        # Assert
+        self.assertEqual(
+            str(raised.exception),
+            "bench/coverage-exclusions.json: no third-party artifact ['ours']",
+        )
+
     def test_nothing_uncovered_needs_no_excuse(self) -> None:
         # Act
         excused = excuse(ROOT, by_name("ours"), frozenset())
