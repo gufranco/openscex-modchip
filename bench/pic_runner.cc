@@ -288,6 +288,8 @@ int main(int argc, char **argv) {
       } else if (event.signal == "power_cycle") {
         // Power-on reset; the calibration word stays in program memory.
         cpu->reset(POR_RESET);
+      } else if (event.signal == "watchdog_reset") {
+        cpu->reset(WDT_RESET);
       } else if (event.signal == "vcc_mv" || event.signal == "eeprom_byte" ||
                  event.signal == "osccal_factory") {
         // AVR-only events; ignored here.

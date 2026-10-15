@@ -148,6 +148,17 @@ def _watchdog() -> Timeline:
     return timeline.mark(Phase.PROGRAM).frames(PROGRAM, QUICK_PLAY_FRAMES)
 
 
+def _watchdog_reset() -> Timeline:
+    """The chip restarts through its watchdog mid-session, as a supply dip that
+    stops its loop would make it: the record names the carrier, so it must keep
+    that board rather than detect again while WFCK is still stopped."""
+    timeline = carrier().idle(BOOT_NS).mark(Phase.LEAD_IN).frames(LEAD_IN, 12)
+    timeline.set(Signal.WFCK_HALF_NS, 0).set(Signal.WFCK, 1)
+    timeline.set(Signal.WATCHDOG_RESET, 1).idle(BOOT_NS)
+    timeline.set(Signal.WFCK_HALF_NS, HALF_7K3_NS).frames(LEAD_IN, QUICK_LEAD_IN_FRAMES)
+    return timeline.mark(Phase.PROGRAM).frames(PROGRAM, QUICK_PLAY_FRAMES)
+
+
 def _supply_hold() -> Timeline:
     timeline = carrier().set(Signal.VCC_MV, SUPPLY_GOOD_MV).idle(BOOT_NS)
     timeline.mark(Phase.LEAD_IN).frames(LEAD_IN, 13)
@@ -362,6 +373,11 @@ EDGE_SCENARIOS = (
         "carrier-watchdog",
         "the WFCK carrier stalls for 1 s in the middle of the first string",
         _watchdog,
+    ),
+    edge(
+        "carrier-watchdog-reset",
+        "the chip restarts through its watchdog mid-session with WFCK stopped",
+        _watchdog_reset,
     ),
     edge(
         "carrier-supply-hold",

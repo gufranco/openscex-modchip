@@ -11,7 +11,8 @@
 // "sqck=B0,subq=B1,wfck=B4,data=B2,gate=B4"; a leading '!' inverts a line.
 // Outputs are read from the port registers after every instruction, since
 // simavr raises no notification when DDR clears with PORT already 0.
-// Events: power_cycle resets the core and keeps EEPROM; eeprom_byte writes
+// Events: power_cycle resets the core and keeps EEPROM; watchdog_reset does the
+// same with the watchdog's reset flag instead of power-on's; eeprom_byte writes
 // address * 256 + byte; osccal_factory sets the boot OSCCAL (default 0x50).
 
 #include <stdint.h>
@@ -159,20 +160,18 @@ static void eeprom_byte(avr_t *avr, long packed) {
   }
 }
 
-// Set PORF (MCUSR bit 0, data address 0x54 on these parts) at power-on, as the
-// silicon does; simavr leaves it clear.
+// Set the reset's cause in MCUSR (data address 0x54 on these parts), PORF at
+// power-on or WDRF after a watchdog reset, as the silicon does; simavr leaves
+// both clear.
 #define MCUSR_DATA_ADDR 0x54U
 #define MCUSR_PORF 0x01U
+#define MCUSR_WDRF 0x08U
 
-static void power_on_flag(avr_t *avr) {
-  avr->data[MCUSR_DATA_ADDR] = (uint8_t)(avr->data[MCUSR_DATA_ADDR] | MCUSR_PORF);
-}
-
-// Power-cycle the chip: reset, reinstall the ATtiny85 fixes and restore the
-// console inputs. EEPROM is kept.
-static void power_cycle(avr_t *avr, const char *mcu) {
+// Reset the chip with a cause: reset, set its flag, reinstall the ATtiny85
+// fixes and restore the console inputs. EEPROM is kept.
+static void restart(avr_t *avr, const char *mcu, uint8_t cause) {
   avr_reset(avr);
-  power_on_flag(avr);
+  avr->data[MCUSR_DATA_ADDR] = (uint8_t)(avr->data[MCUSR_DATA_ADDR] | cause);
   if (strcmp(mcu, "attiny85") == 0) {
     sim_t85_install(avr);
     if (g_osccal_factory >= 0) {
@@ -357,7 +356,7 @@ int main(int argc, char **argv) {
   avr->frequency = clock_hz;
   avr->vcc = 5000;
   avr->avcc = 5000;
-  power_on_flag(avr);
+  avr->data[MCUSR_DATA_ADDR] = (uint8_t)(avr->data[MCUSR_DATA_ADDR] | MCUSR_PORF);
   if (strcmp(argv[2], "attiny85") == 0) {
     sim_t85_install(avr);
   }
@@ -418,7 +417,10 @@ int main(int argc, char **argv) {
         avr->vcc = (uint32_t)event->value;
         avr->avcc = (uint32_t)event->value;
       } else if (strcmp(event->signal, "power_cycle") == 0) {
-        power_cycle(avr, argv[2]);
+        restart(avr, argv[2], MCUSR_PORF);
+        halted = 0;
+      } else if (strcmp(event->signal, "watchdog_reset") == 0) {
+        restart(avr, argv[2], MCUSR_WDRF);
         halted = 0;
       } else if (strcmp(event->signal, "eeprom_byte") == 0) {
         eeprom_byte(avr, event->value);

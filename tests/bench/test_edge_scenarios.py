@@ -134,6 +134,22 @@ class EdgeScenarioTest(unittest.TestCase):
         # Assert
         self.assertIn(0x7F, factories)
 
+    def test_the_watchdog_reset_comes_while_wfck_is_stopped(self) -> None:
+        # Arrange
+        events = find("carrier-watchdog-reset").build().events
+
+        # Act
+        order = [
+            (e.signal, e.value)
+            for e in events
+            if e.signal in (Signal.WFCK_HALF_NS, Signal.WATCHDOG_RESET)
+        ]
+
+        # Assert
+        reset = order.index((Signal.WATCHDOG_RESET, 1))
+        self.assertEqual(order[reset - 1], (Signal.WFCK_HALF_NS, 0))
+        self.assertNotEqual(order[reset + 1], (Signal.WFCK_HALF_NS, 0))
+
     def test_the_supply_scenario_drops_below_the_guard_and_recovers(self) -> None:
         # Arrange
         events = find("carrier-supply-hold").build().events

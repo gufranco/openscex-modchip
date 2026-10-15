@@ -52,6 +52,7 @@ class Signal(StrEnum):
     SENSE = "sense"
     VCC_MV = "vcc_mv"
     POWER_CYCLE = "power_cycle"
+    WATCHDOG_RESET = "watchdog_reset"
     EEPROM_BYTE = "eeprom_byte"
     OSCCAL_FACTORY = "osccal_factory"
 
