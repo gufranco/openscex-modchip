@@ -4,7 +4,10 @@
 """Mutation testing for the logic layer: every mutant must make a host test
 fail."""
 
+import os
 import re
+import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -436,6 +439,51 @@ def generate_mutants(source: str, path: str = "") -> list[Mutant]:
     return mutants
 
 
+# Mutants are applied to a copy of the tree, never to the checkout itself, so a
+# run killed before it restores a file (a CI timeout, an OOM kill) leaves no
+# mutant behind for a commit or a sync to pick up. Only what a build reads is
+# copied; the build directory is left out so every run starts clean.
+_COPY_SKIP = shutil.ignore_patterns(
+    ".git",
+    "build",
+    ".work",
+    "docs",
+    "specs",
+    "hardware",
+    "assets",
+    "__pycache__",
+    ".mypy_cache",
+    ".ruff_cache",
+)
+
+
+def _workspace(root: Path, into: Path) -> Path:
+    """A copy of the tree at root under into, for mutants to be applied to."""
+    copy = into / "tree"
+    shutil.copytree(root, copy, ignore=_COPY_SKIP, symlinks=True)
+    return copy
+
+
+def _run_bounded(args: list[str], cwd: Path, timeout_s: int) -> int | None:
+    """The exit code of args, or None when it outlasts timeout_s. The step gets
+    its own process group, and a timeout kills the whole group, so a compiler
+    or simulator that make started cannot outlive it and write into the next
+    mutant's build."""
+    with subprocess.Popen(
+        args,
+        cwd=cwd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    ) as process:
+        try:
+            return process.wait(timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+            return None
+
+
 def _compile_and_run(root: Path, binary: Path, suite: Suite = SUITE) -> bool:
     """Build and run the host suite; True only if it compiles and passes.
 
@@ -444,26 +492,12 @@ def _compile_and_run(root: Path, binary: Path, suite: Suite = SUITE) -> bool:
     lands in the repo.
     """
     sources = [str(root / name) for name in (*suite.logic, *suite.tests)]
-    try:
-        compiled = subprocess.run(
-            [suite.cc, *suite.cflags, "-o", str(binary), *sources],
-            cwd=root,
-            capture_output=True,
-            check=False,
-            timeout=suite.timeout_s,
-        )
-        if compiled.returncode != 0:
-            return False
-        executed = subprocess.run(
-            [str(binary)],
-            cwd=binary.parent,
-            capture_output=True,
-            check=False,
-            timeout=suite.timeout_s,
-        )
-    except subprocess.TimeoutExpired:
+    compiled = _run_bounded(
+        [suite.cc, *suite.cflags, "-o", str(binary), *sources], root, suite.timeout_s
+    )
+    if compiled != 0:
         return False
-    return executed.returncode == 0
+    return _run_bounded([str(binary)], binary.parent, suite.timeout_s) == 0
 
 
 def _mutant_killed(
@@ -480,59 +514,52 @@ def _mutant_killed(
 
 def _command_passes(root: Path, suite: CommandSuite) -> bool:
     """Run the suite's command; True only if it exits 0 within its limit."""
-    try:
-        done = subprocess.run(
-            list(suite.command),
-            cwd=root,
-            capture_output=True,
-            check=False,
-            timeout=suite.timeout_s,
-        )
-    except subprocess.TimeoutExpired:
-        return False
-    return done.returncode == 0
+    return _run_bounded(list(suite.command), root, suite.timeout_s) == 0
 
 
 def run_command_suite(root: Path, suite: CommandSuite = PLATFORM) -> Result:
-    """Mutate each file the command must defend, restoring it after every
-    mutant. The unmutated command must pass first."""
-    if not _command_passes(root, suite):
-        raise RuntimeError("baseline command does not pass; cannot mutate")
-    total = 0
-    killed = 0
-    survivors: list[str] = []
-    for name in suite.logic:
-        path = root / name
-        original = path.read_text()
-        for mutant in generate_mutants(original, name):
-            total += 1
-            try:
-                path.write_text(mutant.source)
-                caught = not _command_passes(root, suite)
-            finally:
-                path.write_text(original)
-            if caught:
-                killed += 1
-            else:
-                survivors.append(f"{name}: {mutant.label}")
-    return Result(total, killed, tuple(survivors))
+    """Mutate each file the command must defend in a copy of the tree,
+    restoring it after every mutant. The unmutated command must pass first."""
+    with tempfile.TemporaryDirectory() as tmp:
+        work = _workspace(root, Path(tmp))
+        if not _command_passes(work, suite):
+            raise RuntimeError("baseline command does not pass; cannot mutate")
+        total = 0
+        killed = 0
+        survivors: list[str] = []
+        for name in suite.logic:
+            path = work / name
+            original = path.read_text()
+            for mutant in generate_mutants(original, name):
+                total += 1
+                try:
+                    path.write_text(mutant.source)
+                    caught = not _command_passes(work, suite)
+                finally:
+                    path.write_text(original)
+                if caught:
+                    killed += 1
+                else:
+                    survivors.append(f"{name}: {mutant.label}")
+        return Result(total, killed, tuple(survivors))
 
 
 def run(root: Path, suite: Suite = SUITE) -> Result:
-    """Mutate every logic file and tally killed versus survivors. The
-    unmutated suite must pass first."""
+    """Mutate every logic file in a copy of the tree and tally killed versus
+    survivors. The unmutated suite must pass first."""
     with tempfile.TemporaryDirectory() as tmp:
+        work = _workspace(root, Path(tmp))
         binary = Path(tmp) / "host_test"
-        if not _compile_and_run(root, binary, suite):
+        if not _compile_and_run(work, binary, suite):
             raise RuntimeError("baseline host suite does not pass; cannot mutate")
         total = 0
         killed = 0
         survivors: list[str] = []
         for name in suite.logic:
-            path = root / name
+            path = work / name
             for mutant in generate_mutants(path.read_text(), name):
                 total += 1
-                if _mutant_killed(root, path, mutant, binary, suite):
+                if _mutant_killed(work, path, mutant, binary, suite):
                     killed += 1
                 else:
                     survivors.append(f"{name}: {mutant.label}")

@@ -8,6 +8,7 @@ import contextlib
 import io
 import shutil
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -452,6 +453,30 @@ class CommandSuiteTest(ProjectTestCase):
 
         # Assert
         self.assertFalse(passed)
+
+    def test_mutants_go_into_a_copy_and_never_into_the_tree(self) -> None:
+        # Arrange
+        root = self.make(STRONG_TEST)
+        suite = command_suite(f"cmp -s logic.c '{root / 'logic.c'}'")
+
+        # Act
+        result = mutate.run_command_suite(root, suite)
+
+        # Assert
+        self.assertEqual(result, mutate.Result(total=1, killed=1, survivors=()))
+
+    def test_a_timeout_also_stops_what_the_command_started(self) -> None:
+        # Arrange
+        root = self.make(STRONG_TEST)
+        marker = root / "late"
+        suite = command_suite(f"(sleep 3; touch '{marker}') & sleep 30", 1)
+
+        # Act
+        passed = mutate._command_passes(root, suite)
+        time.sleep(4)
+
+        # Assert
+        self.assertEqual((passed, marker.exists()), (False, False))
 
     def test_main_runs_the_command_suite_when_asked(self) -> None:
         # Arrange
