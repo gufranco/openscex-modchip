@@ -41,13 +41,29 @@ body:
     validations:
       required: true
   - type: input
-    id: build
+    id: firmware
     attributes:
-      label: Build knobs used
-      description: The exact make command, so the firmware is reproducible.
-      placeholder: "e.g. make REGION=us  or  make REGION=jp VCD_FILTER=on"
+      label: Firmware release or commit
+      description: The release tag of a downloaded image, or the commit you built from.
+      placeholder: "e.g. v0.19.0  or  6f16775"
     validations:
       required: true
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Image profile
+      options:
+        - debug (default, indicator on)
+        - final (quiet)
+        - trace (serial line on PB3)
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Build knobs used (optional)
+      description: The exact make command, when you built the image yourself.
+      placeholder: "e.g. make REGION=us  or  make REGION=jp VCD_FILTER=on"
   - type: dropdown
     id: result
     attributes:
