@@ -119,14 +119,18 @@ CPPCHECK_MCU_DEF := -D__AVR_ATtiny85__
 ALL_SRC_C := $(LOGIC_C) $(TRACE_C) src/engine.c src/run.c src/main.c
 FIRMWARE_S := src/port.S src/port_chip.S
 FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
+HOST_JP_TEST_C := tests/host/host_assert.c tests/host/jp_test.c
 HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_test.c tests/host/trim_test.c tests/host/disc_test.c tests/host/indicator_test.c tests/host/loop_test.c tests/host/trace_test.c
 SIM_TEST_C := tests/sim/sim_test.c tests/sim/harness.c tests/sim/sim_inject.c tests/sim/sim_disc.c tests/sim/sim_calib.c tests/sim/sim_profile.c tests/sim/sim_trace.c \
 	tests/sim/sim_timing.c
 SIM_TEST_H := tests/sim/harness.h tests/sim/scenarios.h tests/sim/sim_t85.h
 BENCH_SRC := bench/pic_runner.cc bench/avr_runner.c
 HOST_REGION_C := tests/host/config_region.c
-C_FILES := $(ALL_SRC_C) $(FIRMWARE_H) $(HOST_TEST_C) $(HOST_REGION_C) $(SIM_TEST_C) $(SIM_TEST_H) $(BENCH_SRC)
+C_FILES := $(ALL_SRC_C) $(FIRMWARE_H) $(HOST_TEST_C) tests/host/jp_test.c $(HOST_REGION_C) $(SIM_TEST_C) $(SIM_TEST_H) $(BENCH_SRC)
 HOST_TEST := $(BUILD)/host/host_test
+# Japan's own host suite: its start probe is off, so the learn, refuse and
+# miss paths run with the start fixed at 10 frames as well as probing.
+HOST_TEST_JP := $(BUILD)/host-jp/jp_test
 SIM_TEST := $(BUILD)/sim/sim_test
 SIM_CFLAGS := $(C_STD) -O2 -Wall -Wextra -Werror \
 	$(patsubst -I%,-isystem %,$(shell pkg-config --cflags simavr libelf))
@@ -212,7 +216,7 @@ image_size: $(RELEASE_ELF)
 	fi; \
 	echo "flash: $$used of $(FLASH_BUDGET) budgeted bytes"
 
-hosttest: $(HOST_TEST)
+hosttest: $(HOST_TEST) $(HOST_TEST_JP)
 	$(HOST_CC) $(HOST_CFLAGS) -fsyntax-only -DPSCU_REGION_JP \
 		-DPSCU_EXPECTED_REGION=PSCU_REGION_NTSC_J $(HOST_REGION_C)
 	$(HOST_CC) $(HOST_CFLAGS) -fsyntax-only -DPSCU_REGION_EU \
@@ -223,10 +227,15 @@ hosttest: $(HOST_TEST)
 	$(HOST_TEST)
 	gcovr --root . --filter 'src/' --exclude-branches-by-pattern '.*PSCU_ASSERT.*' \
 		--fail-under-line 100 --fail-under-branch 100 --print-summary $(BUILD)/host
+	$(HOST_TEST_JP)
 
 $(HOST_TEST): $(HOST_LOGIC_C) $(HOST_TEST_C) $(FIRMWARE_H) Makefile
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -O0 -DPSCU_DEBUG --coverage -o $@ $(HOST_LOGIC_C) $(HOST_TEST_C)
+
+$(HOST_TEST_JP): $(HOST_LOGIC_C) $(HOST_JP_TEST_C) $(FIRMWARE_H) Makefile
+	@mkdir -p $(@D)
+	$(HOST_CC) $(HOST_CFLAGS) -O0 -DPSCU_DEBUG -DPSCU_REGION_JP -o $@ $(HOST_LOGIC_C) $(HOST_JP_TEST_C)
 
 # The simulator and the bench read images at fixed paths, so they build each
 # one with every variant setting named: a REGION, VCD_FILTER or PROFILE given
