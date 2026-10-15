@@ -91,7 +91,7 @@ gh attestation verify openscex-modchip-attiny85.hex --repo gufranco/openscex-mod
 | Docker | 固定ツールチェーンを動かす | [Docker](https://docs.docker.com/get-docker/), [Dockerfile](Dockerfile) |
 | Git | リポジトリを取得する | [Git](https://git-scm.com/downloads) |
 | avrdude | イメージをチップに書き込む | [avrdude](https://github.com/avrdudes/avrdude) |
-| Python 3 | ホスト上で make の Docker ラッパーを動かす | [Python](https://www.python.org/downloads/), [tools/docker_make.py](tools/docker_make.py) |
+| Python 3.13 以降 | ホスト上で make の Docker ラッパーを動かす | [Python](https://www.python.org/downloads/), [tools/docker_make.py](tools/docker_make.py), [pyproject.toml](pyproject.toml) |
 
 ```bash
 git clone https://github.com/gufranco/openscex-modchip.git

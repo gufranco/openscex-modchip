@@ -91,7 +91,7 @@ gh attestation verify openscex-modchip-attiny85.hex --repo gufranco/openscex-mod
 | Docker | 运行固定的工具链 | [Docker](https://docs.docker.com/get-docker/), [Dockerfile](Dockerfile) |
 | Git | 克隆仓库 | [Git](https://git-scm.com/downloads) |
 | avrdude | 把镜像烧进芯片 | [avrdude](https://github.com/avrdudes/avrdude) |
-| Python 3 | 在主机上运行 make 的 Docker 包装脚本 | [Python](https://www.python.org/downloads/), [tools/docker_make.py](tools/docker_make.py) |
+| Python 3.13 或更高版本 | 在主机上运行 make 的 Docker 包装脚本 | [Python](https://www.python.org/downloads/), [tools/docker_make.py](tools/docker_make.py), [pyproject.toml](pyproject.toml) |
 
 ```bash
 git clone https://github.com/gufranco/openscex-modchip.git

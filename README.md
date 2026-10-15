@@ -91,7 +91,7 @@ Releases are versioned automatically from the commit history. To build from sour
 | Docker | runs the pinned toolchain | [Docker](https://docs.docker.com/get-docker/), [Dockerfile](Dockerfile) |
 | Git | clones the repository | [Git](https://git-scm.com/downloads) |
 | avrdude | flashes the image to the chip | [avrdude](https://github.com/avrdudes/avrdude) |
-| Python 3 | runs make's Docker wrapper on the host | [Python](https://www.python.org/downloads/), [tools/docker_make.py](tools/docker_make.py) |
+| Python 3.13 or later | runs make's Docker wrapper on the host | [Python](https://www.python.org/downloads/), [tools/docker_make.py](tools/docker_make.py), [pyproject.toml](pyproject.toml) |
 
 ```bash
 git clone https://github.com/gufranco/openscex-modchip.git

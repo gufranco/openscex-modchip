@@ -10,7 +10,7 @@ Read [`AGENTS.md`](AGENTS.md); its rules are hard constraints.
 
 ## Working on the code
 
-Every build, check and test runs in the pinned Docker toolchain through `make`; you need Docker, Git, Python 3, which runs make's Docker wrapper, and, to flash a chip, avrdude.
+Every build, check and test runs in the pinned Docker toolchain through `make`; you need Docker, Git, Python 3.13 or later, which runs make's Docker wrapper, and, to flash a chip, avrdude.
 
 ```bash
 make hooks        # once: enables the commit-message and formatting hooks
