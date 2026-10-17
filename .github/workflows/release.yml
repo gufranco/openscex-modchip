@@ -188,6 +188,12 @@ jobs:
             echo "current=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Set up pnpm
+        if: steps.fresh.outputs.current == 'true'
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413  # v6.1.0
+        with:
+          package_json_file: .github/release/package.json
+
       - name: Set up Node
         if: steps.fresh.outputs.current == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
@@ -196,7 +202,7 @@ jobs:
 
       - name: Install semantic-release from its lockfile
         if: steps.fresh.outputs.current == 'true'
-        run: npm ci --prefix .github/release --ignore-scripts --no-audit --no-fund
+        run: pnpm install --dir .github/release --frozen-lockfile --ignore-scripts
 
       # semantic-release tags the changelog commit it pushes, so a tag on HEAD
       # afterwards is the new release; none means nothing was releasable.

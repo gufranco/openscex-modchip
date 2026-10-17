@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 # Updates the pinned Actions, the Docker base image, the Python tools and the
-# release tooling's npm lockfile.
+# release tooling's pnpm lockfile.
 # "build" commits do not trigger a release.
 version: 2
 updates:
