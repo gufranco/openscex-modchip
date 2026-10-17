@@ -4,7 +4,7 @@
 
 <strong>Stealth SCEx region unlock for the PlayStation and PSone, on an ATtiny85 that <a href="src/trim.c">trims its own clock</a> against the console.</strong>
 
-English &nbsp;|&nbsp; [日本語](README.ja.md) &nbsp;|&nbsp; [中文](README.zh.md)
+English | [日本語](README.ja.md) | [中文](README.zh.md)
 
 [![CI](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml/badge.svg)](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/gufranco/openscex-modchip)](https://github.com/gufranco/openscex-modchip/releases)
@@ -14,10 +14,10 @@ English &nbsp;|&nbsp; [日本語](README.ja.md) &nbsp;|&nbsp; [中文](README.zh
 <br>
 
 <p>
-  <a href="#quick-start">Quick start</a> &nbsp;|&nbsp;
-  <a href="#console-tap-points">Wiring</a> &nbsp;|&nbsp;
-  <a href="#status-indicator">Status indicator</a> &nbsp;|&nbsp;
-  <a href="#against-other-chips">Comparison</a> &nbsp;|&nbsp;
+  <a href="#quick-start">Quick start</a> |
+  <a href="#console-tap-points">Wiring</a> |
+  <a href="#status-indicator">Status indicator</a> |
+  <a href="#against-other-chips">Comparison</a> |
   <a href="../../issues/new?template=compatibility.yml">Report your console</a>
 </p>
 

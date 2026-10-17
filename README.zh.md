@@ -4,7 +4,7 @@
 
 <strong>面向 PlayStation 与 PSone 的隐身 SCEx 区域解锁，运行在<a href="src/trim.c">按主机校正自身时钟</a>的 ATtiny85 上。</strong>
 
-[English](README.md) &nbsp;|&nbsp; [日本語](README.ja.md) &nbsp;|&nbsp; 中文
+[English](README.md) | [日本語](README.ja.md) | 中文
 
 [![CI](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml/badge.svg)](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/gufranco/openscex-modchip)](https://github.com/gufranco/openscex-modchip/releases)
@@ -14,10 +14,10 @@
 <br>
 
 <p>
-  <a href="#快速开始">快速开始</a> &nbsp;|&nbsp;
-  <a href="#主机接点">接线</a> &nbsp;|&nbsp;
-  <a href="#状态指示">状态指示</a> &nbsp;|&nbsp;
-  <a href="#与其他芯片对比">与其他芯片对比</a> &nbsp;|&nbsp;
+  <a href="#快速开始">快速开始</a> |
+  <a href="#主机接点">接线</a> |
+  <a href="#状态指示">状态指示</a> |
+  <a href="#与其他芯片对比">与其他芯片对比</a> |
   <a href="../../issues/new?template=compatibility.yml">报告你的主机</a>
 </p>
 

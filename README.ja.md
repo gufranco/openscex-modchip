@@ -4,7 +4,7 @@
 
 <strong>PlayStation と PSone のためのステルス SCEx リージョン解除。コンソールに合わせて<a href="src/trim.c">自分のクロックを補正する</a> ATtiny85 に載ります。</strong>
 
-[English](README.md) &nbsp;|&nbsp; 日本語 &nbsp;|&nbsp; [中文](README.zh.md)
+[English](README.md) | 日本語 | [中文](README.zh.md)
 
 [![CI](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml/badge.svg)](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/gufranco/openscex-modchip)](https://github.com/gufranco/openscex-modchip/releases)
@@ -14,10 +14,10 @@
 <br>
 
 <p>
-  <a href="#クイックスタート">クイックスタート</a> &nbsp;|&nbsp;
-  <a href="#コンソールのタップ位置">配線</a> &nbsp;|&nbsp;
-  <a href="#ステータス表示">ステータス表示</a> &nbsp;|&nbsp;
-  <a href="#他のチップとの比較">他のチップとの比較</a> &nbsp;|&nbsp;
+  <a href="#クイックスタート">クイックスタート</a> |
+  <a href="#コンソールのタップ位置">配線</a> |
+  <a href="#ステータス表示">ステータス表示</a> |
+  <a href="#他のチップとの比較">他のチップとの比較</a> |
   <a href="../../issues/new?template=compatibility.yml">あなたの機種を報告</a>
 </p>
 
