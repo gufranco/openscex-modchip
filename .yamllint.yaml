@@ -12,6 +12,8 @@ ignore: |
   docs/
   specs/
   .work/
+  .github/release/pnpm-lock.yaml
+  .github/release/node_modules/
 
 rules:
   document-start: disable
