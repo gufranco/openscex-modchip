@@ -2,13 +2,9 @@
 
 <h1>openscex-modchip</h1>
 
-<p>
-  <b>English</b> &nbsp;·&nbsp; <a href="README.ja.md">日本語</a> &nbsp;·&nbsp; <a href="README.zh.md">中文</a>
-</p>
-
 <strong>Stealth SCEx region unlock for the PlayStation and PSone, on an ATtiny85 that <a href="src/trim.c">trims its own clock</a> against the console.</strong>
 
-<br><br>
+English &nbsp;|&nbsp; [日本語](README.ja.md) &nbsp;|&nbsp; [中文](README.zh.md)
 
 [![CI](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml/badge.svg)](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/gufranco/openscex-modchip)](https://github.com/gufranco/openscex-modchip/releases)

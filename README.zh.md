@@ -2,13 +2,9 @@
 
 <h1>openscex-modchip</h1>
 
-<p>
-  <a href="README.md">English</a> &nbsp;·&nbsp; <a href="README.ja.md">日本語</a> &nbsp;·&nbsp; <b>中文</b>
-</p>
-
 <strong>面向 PlayStation 与 PSone 的隐身 SCEx 区域解锁，运行在<a href="src/trim.c">按主机校正自身时钟</a>的 ATtiny85 上。</strong>
 
-<br><br>
+[English](README.md) &nbsp;|&nbsp; [日本語](README.ja.md) &nbsp;|&nbsp; 中文
 
 [![CI](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml/badge.svg)](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/gufranco/openscex-modchip)](https://github.com/gufranco/openscex-modchip/releases)

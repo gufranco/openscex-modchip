@@ -2,13 +2,9 @@
 
 <h1>openscex-modchip</h1>
 
-<p>
-  <a href="README.md">English</a> &nbsp;·&nbsp; <b>日本語</b> &nbsp;·&nbsp; <a href="README.zh.md">中文</a>
-</p>
-
 <strong>PlayStation と PSone のためのステルス SCEx リージョン解除。コンソールに合わせて<a href="src/trim.c">自分のクロックを補正する</a> ATtiny85 に載ります。</strong>
 
-<br><br>
+[English](README.md) &nbsp;|&nbsp; 日本語 &nbsp;|&nbsp; [中文](README.zh.md)
 
 [![CI](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml/badge.svg)](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/gufranco/openscex-modchip)](https://github.com/gufranco/openscex-modchip/releases)
