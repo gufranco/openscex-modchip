@@ -1,3 +1,29 @@
+# [0.19.0](https://github.com/gufranco/openscex-modchip/compare/v0.18.1...v0.19.0) (2026-10-17)
+
+
+### Bug Fixes
+
+* **bench:** check an EEPROM seed by reading back ([b273bd7](https://github.com/gufranco/openscex-modchip/commit/b273bd70941f73cbf20f58c1b906273c55509bc7))
+* **bench:** decide git sources by SHA-256 ([1d1618d](https://github.com/gufranco/openscex-modchip/commit/1d1618dff03b46830a00c9202790bbe7ad2703d1))
+* **bench:** excuse sourceless code only in runtime ([64d20b6](https://github.com/gufranco/openscex-modchip/commit/64d20b63cc8f853e0a4d581fb17036254e98bfaa))
+* **bench:** fail closed on runner input and halts ([8dcf62e](https://github.com/gufranco/openscex-modchip/commit/8dcf62e5d5d753918a9c1ab3f7fc8bf863e6ef95))
+* **bench:** fail on unjudged and partial runs ([54b1a67](https://github.com/gufranco/openscex-modchip/commit/54b1a67d60be2e2a9b81ee6331987fcf5a82e672))
+* **bench:** keep the exclusion table off ours ([fef580d](https://github.com/gufranco/openscex-modchip/commit/fef580dd0784828d5467bfd0423aca543c0b9078))
+* **bench:** refuse unknown and overlapping records ([bfcb52e](https://github.com/gufranco/openscex-modchip/commit/bfcb52ee133be3da581f01911c2449c277134396))
+* **bench:** skip local labels with a trailing byte ([130dd35](https://github.com/gufranco/openscex-modchip/commit/130dd351404988a1458d43a6d3b9d57a533d9228))
+* bound each carrier bit cell in time ([3f66a0c](https://github.com/gufranco/openscex-modchip/commit/3f66a0c1217c00a046bf329944336a310a626684))
+* record a late carrier before its first string ([59ecf7c](https://github.com/gufranco/openscex-modchip/commit/59ecf7c725174c433928556afb68ea29de256377))
+* report a noisy trace line in the diagnosis ([000639b](https://github.com/gufranco/openscex-modchip/commit/000639bd80717551a88f484b2805ba8c085d7b03))
+* return from main as MISRA rule 17.4 asks ([b1a80e1](https://github.com/gufranco/openscex-modchip/commit/b1a80e1b7b1e956954a8312f5bdde3727ee74ef7))
+* time the frame budget from the first edge ([22a88ad](https://github.com/gufranco/openscex-modchip/commit/22a88ad5f328fa4c418334221c0cbe30978f5fe2))
+* **trace:** idle the serial line high from reset ([2bfd6be](https://github.com/gufranco/openscex-modchip/commit/2bfd6beb0a598e8250af645b9aee0de9a9964c34))
+* **trace:** show how far a missed lead-in got ([6a96cbb](https://github.com/gufranco/openscex-modchip/commit/6a96cbb52cdf8b2358167f10482aea9c449a9dfd))
+
+
+### Features
+
+* one symmetric board with optional headers ([bcdfbaf](https://github.com/gufranco/openscex-modchip/commit/bcdfbaf417fb4d61b2c9f8f828d4003207654d2b))
+
 ## [0.18.1](https://github.com/gufranco/openscex-modchip/compare/v0.18.0...v0.18.1) (2026-10-15)
 
 
