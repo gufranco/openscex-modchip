@@ -6,10 +6,11 @@
 
 English | [日本語](README.ja.md) | [中文](README.zh.md)
 
-[![CI](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml/badge.svg)](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/gufranco/openscex-modchip)](https://github.com/gufranco/openscex-modchip/releases)
-[![MISRA C:2012](https://img.shields.io/badge/MISRA%20C%3A2012-0%20deviations-brightgreen)](AGENTS.md)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![ci](https://img.shields.io/github/actions/workflow/status/gufranco/openscex-modchip/ci.yml?branch=main&style=flat-square&label=ci)](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml)
+[![platform mutation](https://img.shields.io/github/actions/workflow/status/gufranco/openscex-modchip/mutation.yml?branch=main&style=flat-square&label=platform%20mutation)](https://github.com/gufranco/openscex-modchip/actions/workflows/mutation.yml)
+[![release](https://img.shields.io/github/v/release/gufranco/openscex-modchip?style=flat-square&label=release)](https://github.com/gufranco/openscex-modchip/releases/latest)
+[![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen?style=flat-square)](https://github.com/gufranco/openscex-modchip/actions/workflows/ci.yml)
+[![license](https://img.shields.io/github/license/gufranco/openscex-modchip?style=flat-square&label=license)](LICENSE)
 
 <br>
 
