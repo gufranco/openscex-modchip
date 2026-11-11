@@ -211,3 +211,26 @@ void scenario_trim_outage(const target_t *t, const char *elf, uint32_t freq) {
                  drift);
   check((drift >= -OUTAGE_DRIFT_MAX) && (drift <= OUTAGE_DRIFT_MAX), label);
 }
+
+#define STUCK_SQCK_MS 9000U
+#define STUCK_SQCK_CODE 3
+
+void scenario_stuck_sqck(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = build_avr(t, elf, freq);
+  wfck_ctx_t ctx = { NULL, 1U, 0U };
+  avr_irq_register_notify(pin_irq(avr, t, t->indicator), on_indicator, avr);
+  boot_quiet(avr, t, 0, &ctx);
+  avr_irq_t *sqck = pin_irq(avr, t, t->sqck);
+  uint64_t started = avr->cycle;
+  avr_raise_irq(sqck, 0U);
+  run_cycles(avr, ms_cycles(STUCK_SQCK_MS));
+  avr_raise_irq(sqck, 1U);
+  int code = code_after(started);
+  char label[96];
+  (void)snprintf(label,
+                 sizeof(label),
+                 "%s: SQCK held low gives up each wait and shows code 3 (%d)",
+                 t->mcu,
+                 code);
+  check(code == STUCK_SQCK_CODE, label);
+}

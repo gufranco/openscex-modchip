@@ -37,6 +37,7 @@ int g_lit_bursts = 0;
 int g_eeprom_writes = 0;
 void (*g_on_build)(avr_t *avr, void *param) = NULL;
 void *g_on_build_param = NULL;
+void (*g_on_step)(avr_t *avr) = NULL;
 int g_eeprom_mode_bad = 0;
 // Every change of DATA's direction bit from reset on, and where each burst
 // began, so every string of a burst can be decoded after the run. Board
@@ -332,6 +333,9 @@ avr_cycle_count_t wfck_tick(avr_t *avr, avr_cycle_count_t when, void *param) {
 // wait loop here runs on, so the run ends here instead of hanging.
 void sim_step(avr_t *avr) {
   int state = avr_run(avr);
+  if (g_on_step != NULL) {
+    g_on_step(avr);
+  }
   uint32_t sp = (uint32_t)avr->data[SIM_SPL_ADDR] | ((uint32_t)avr->data[SIM_SPH_ADDR] << 8);
   int64_t free_bytes = (int64_t)sp - (int64_t)g_ram_floor;
   g_min_free = (free_bytes < g_min_free) ? free_bytes : g_min_free;
@@ -427,6 +431,7 @@ avr_t *build_avr(const target_t *t, const char *elf, uint32_t freq) {
   g_ddr_count = 0;
   g_eeprom_writes = 0;
   g_eeprom_mode_bad = 0;
+  g_on_step = NULL;
   avr_register_io_write(avr, SIM_EECR_ADDR, on_eecr_write, NULL);
   g_data_bit = t->data;
   g_lamp_bit = t->indicator;
