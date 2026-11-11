@@ -122,8 +122,8 @@ FIRMWARE_H := $(wildcard include/pscu/*.h) $(wildcard include/port/*.h)
 HOST_JP_TEST_C := tests/host/host_assert.c tests/host/jp_test.c
 HOST_TEST_C := tests/host/host_assert.c tests/host/host_test.c tests/host/calib_test.c tests/host/trim_test.c tests/host/disc_test.c tests/host/indicator_test.c tests/host/loop_test.c tests/host/trace_test.c
 SIM_TEST_C := tests/sim/sim_test.c tests/sim/harness.c tests/sim/sim_inject.c tests/sim/sim_disc.c tests/sim/sim_calib.c tests/sim/sim_profile.c tests/sim/sim_trace.c \
-	tests/sim/sim_timing.c
-SIM_TEST_H := tests/sim/harness.h tests/sim/scenarios.h tests/sim/sim_t85.h
+	tests/sim/sim_timing.c tests/sim/sim_store.c tests/sim/sim_sag.c
+SIM_TEST_H := tests/sim/harness.h tests/sim/scenarios.h tests/sim/sim_t85.h tests/sim/sim_sag.h
 BENCH_SRC := bench/pic_runner.cc bench/avr_runner.c
 HOST_REGION_C := tests/host/config_region.c
 C_FILES := $(ALL_SRC_C) $(FIRMWARE_H) $(HOST_TEST_C) tests/host/jp_test.c $(HOST_REGION_C) $(SIM_TEST_C) $(SIM_TEST_H) $(BENCH_SRC)

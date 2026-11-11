@@ -7,6 +7,8 @@
 #include "avr_ioport.h"
 #include "harness.h"
 #include "scenarios.h"
+#include "sim_cycle_timers.h"
+#include "sim_sag.h"
 
 // The trace profile (PROFILE=trace) sends, as 8N1 serial at 115200 baud on PB3,
 // a six-line boot report, then every captured SUBQ frame as 24 hex digits and
@@ -402,4 +404,27 @@ void scenario_trace_clock(const target_t *t, const char *elf, uint32_t freq) {
   (void)snprintf(
       label, sizeof(label), "trace: a failed capture reads as all F (%d lines)", g_failed_lines);
   check(framed && (g_failed_lines > 0), label);
+}
+
+#define TRACE_CARRIER_GONE_MS 2000U
+
+void scenario_trace_upgrade_refused(const target_t *t, const char *elf, uint32_t freq) {
+  avr_t *avr = trace_boot(t, elf, freq);
+  wfck_ctx_t ctx = { pin_irq(avr, t, t->wfck), 1U, (uint32_t)(freq / (2UL * WFCK_HZ)) };
+  avr_cycle_timer_register(avr, ctx.half, wfck_tick, &ctx);
+  sim_sag_carrier_write();
+  clock_until_inject(avr, t, TRACE_TOC);
+  run_cycles(avr, ms_cycles(TRACE_CARRIER_GONE_MS));
+  g_on_step = NULL;
+  avr_cycle_timer_cancel(avr, wfck_tick, &ctx);
+  int framed = trace_read(freq);
+  int saved = events_starting("SAVE OK");
+  int refused = events_starting("SAVE NO");
+  char label[112];
+  (void)snprintf(label,
+                 sizeof(label),
+                 "trace: a refused carrier record is retried and stored once (%d OK, %d NO)",
+                 saved,
+                 refused);
+  check(framed && sim_sag_recovered() && (saved == 1) && (refused == 0), label);
 }
