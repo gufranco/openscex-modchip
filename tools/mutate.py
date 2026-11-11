@@ -391,6 +391,48 @@ EQUIVALENTS: tuple[Equivalent, ...] = (
         -1,
         "195.12 polls round up to 196 whether 40998, 40999 or 41040 is added first",
     ),
+    Equivalent(
+        "src/engine.c",
+        "PSCU_SAMPLES_IN_US(52500UL))",
+        "literal+1",
+        0,
+        "52501 us is still 10000 samples of 42 cycles, the count a _Static_assert pins",
+    ),
+    Equivalent(
+        "src/engine.c",
+        "PSCU_SAMPLES_IN_US(13125UL))",
+        "literal+1",
+        0,
+        "13126 us is still 2500 samples of 42 cycles, the count a _Static_assert pins",
+    ),
+    Equivalent(
+        "src/engine.c",
+        "(PSCU_WFCK_SAMPLE_CYCLES - 1UL)) / PSCU_WFCK_SAMPLE_CYCLES)",
+        "sub->add",
+        0,
+        "the macro's one use, 360 us, rounds to 69 samples whether 41 or 43 is added",
+    ),
+    Equivalent(
+        "src/engine.c",
+        "(PSCU_WFCK_SAMPLE_CYCLES - 1UL)) / PSCU_WFCK_SAMPLE_CYCLES)",
+        "literal+1",
+        1,
+        "the macro's one use, 360 us, rounds to 69 samples whether 41 or 40 is added",
+    ),
+    Equivalent(
+        "src/engine.c",
+        "PSCU_SAMPLES_IN_US_UP(360UL)",
+        "literal+1",
+        0,
+        "361 us also rounds up to 69 samples of 42 cycles",
+    ),
+    Equivalent(
+        "src/engine.c",
+        "uint8_t done = 1U;",
+        "literal+1",
+        0,
+        "done is only ever compared with zero",
+    ),
 )
 
 
