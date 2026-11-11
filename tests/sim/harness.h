@@ -115,6 +115,7 @@ extern int g_lit_bursts;
 // instruction, so a scenario can hook a register the boot code writes.
 extern void (*g_on_build)(avr_t *avr, void *param);
 extern void *g_on_build_param;
+extern void (*g_on_step)(avr_t *avr);
 // EEPROM writes started, and those started with EEPM1:0 not 00.
 extern int g_eeprom_writes;
 extern int g_eeprom_mode_bad;

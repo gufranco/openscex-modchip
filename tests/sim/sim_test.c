@@ -66,6 +66,10 @@ int main(int argc, char *argv[]) {
   scenario_detect_timing(&t85, elf, freq);
   scenario_bad_crc(&t85, elf, freq);
   scenario_slow_sqck(&t85, elf, freq);
+  scenario_stuck_sqck(&t85, elf, freq);
+  scenario_store_carrier_boot(&t85, elf, freq);
+  scenario_store_upgrade_refused(&t85, elf, freq);
+  scenario_store_once(&t85, elf, freq);
   scenario_trim(&t85, elf, freq);
   scenario_trim_cal7(&t85, elf, freq);
   scenario_gap_polls(&t85, elf, freq);
@@ -87,6 +91,7 @@ int main(int argc, char *argv[]) {
   scenario_trace_quiet(&t85, argv[5], freq);
   scenario_trace_trim(&t85, argv[5], freq);
   scenario_trace_clock(&t85, argv[5], freq);
+  scenario_trace_upgrade_refused(&t85, argv[5], freq);
 
   // One image per region; the default image is the American one.
   scenario_region(&t85, elf, SCEA_BITS, "us", freq);

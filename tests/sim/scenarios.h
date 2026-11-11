@@ -41,6 +41,11 @@ void scenario_gap_check(const target_t *t, const char *elf, uint32_t freq);
 void scenario_detect_timing(const target_t *t, const char *elf, uint32_t freq);
 void scenario_bad_crc(const target_t *t, const char *elf, uint32_t freq);
 void scenario_slow_sqck(const target_t *t, const char *elf, uint32_t freq);
+void scenario_stuck_sqck(const target_t *t, const char *elf, uint32_t freq);
+void scenario_store_carrier_boot(const target_t *t, const char *elf, uint32_t freq);
+void scenario_store_upgrade_refused(const target_t *t, const char *elf, uint32_t freq);
+void scenario_trace_upgrade_refused(const target_t *t, const char *elf, uint32_t freq);
+void scenario_store_once(const target_t *t, const char *elf, uint32_t freq);
 // One build per region: every string of a full burst carries that region's
 // word and no other (rule 6).
 void scenario_region(
