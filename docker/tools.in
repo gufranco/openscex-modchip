@@ -4,8 +4,8 @@
 # The Python tools the image installs, at exact versions. requirements-tools.txt
 # is compiled from this file with every dependency hash-locked; the command is
 # in its header.
-coverage==7.17.2
+coverage==7.17.3
 mypy==2.4.1
 reuse==6.3.0
-ruff==0.17.4
+ruff==0.17.5
 yamllint==1.38.0
