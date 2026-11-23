@@ -7,5 +7,5 @@
 coverage==7.17.3
 mypy==2.4.1
 reuse==6.3.0
-ruff==0.17.5
+ruff==0.17.6
 yamllint==1.38.0
